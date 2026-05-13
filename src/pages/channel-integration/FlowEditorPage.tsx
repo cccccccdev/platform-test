@@ -260,6 +260,8 @@ function ContextPanel({
   credentials,
   globalVariables,
   generatedFields,
+  onFieldSelect,
+  isMappingActive,
 }: {
   onSpiSelect: () => void;
   spiData?: { businessType: string; ability: string; action: string };
@@ -267,6 +269,8 @@ function ContextPanel({
   credentials: any[];
   globalVariables: any[];
   generatedFields: any[];
+  onFieldSelect?: (fieldPath: string) => void;
+  isMappingActive?: boolean;
 }) {
   const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
 
@@ -324,6 +328,25 @@ function ContextPanel({
     </div>
   );
 
+  // Mapping active indicator
+  const mappingActiveBanner = isMappingActive ? (
+    <div style={{
+      background: '#e6f7ff',
+      border: '1px solid #91d5ff',
+      borderRadius: 4,
+      padding: '8px 12px',
+      marginBottom: 12,
+      fontSize: 12,
+      color: '#1890ff',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+    }}>
+      <span>📌</span>
+      <span>映射激活模式：点击下方字段完成映射</span>
+    </div>
+  ) : null;
+
   const collapseItems = [
     {
       key: 'spi',
@@ -344,7 +367,20 @@ function ContextPanel({
               <div style={{ fontSize: 10 }}>
                 <div style={{ fontWeight: 500, marginBottom: 4, color: '#1890ff' }}>🔵 spi.request</div>
                 {spiFields.request.map((field: any) => (
-                  <div key={field.name} style={{ display: 'flex', gap: 4, padding: '2px 0', color: '#666' }}>
+                  <div
+                    key={field.name}
+                    style={{
+                      display: 'flex',
+                      gap: 4,
+                      padding: '2px 4px',
+                      color: isMappingActive ? '#1890ff' : '#666',
+                      cursor: isMappingActive ? 'pointer' : 'default',
+                      fontWeight: isMappingActive ? 500 : 400,
+                      background: isMappingActive ? '#e6f7ff' : 'transparent',
+                      borderRadius: 4,
+                    }}
+                    onClick={() => isMappingActive && onFieldSelect?.(`spi.request.${field.name}`)}
+                  >
                     <span>{field.name}</span>
                     <span style={{ color: '#999' }}>{field.type}</span>
                     {field.required && <Tag style={{ fontSize: 9, padding: '0 2px' }}>必填</Tag>}
@@ -352,7 +388,20 @@ function ContextPanel({
                 ))}
                 <div style={{ fontWeight: 500, margin: '8px 0 4px', color: '#722ed1' }}>🟣 spi.response</div>
                 {spiFields.response.map((field: any) => (
-                  <div key={field.name} style={{ display: 'flex', gap: 4, padding: '2px 0', color: '#666' }}>
+                  <div
+                    key={field.name}
+                    style={{
+                      display: 'flex',
+                      gap: 4,
+                      padding: '2px 4px',
+                      color: isMappingActive ? '#722ed1' : '#666',
+                      cursor: isMappingActive ? 'pointer' : 'default',
+                      fontWeight: isMappingActive ? 500 : 400,
+                      background: isMappingActive ? '#f9f0ff' : 'transparent',
+                      borderRadius: 4,
+                    }}
+                    onClick={() => isMappingActive && onFieldSelect?.(`spi.response.${field.name}`)}
+                  >
                     <span>{field.name}</span>
                     <span style={{ color: '#999' }}>{field.type}</span>
                   </div>
@@ -377,7 +426,14 @@ function ContextPanel({
           </thead>
           <tbody>
             {generatedFields.map((g: any, idx: number) => (
-              <tr key={idx}>
+              <tr
+                key={idx}
+                style={{
+                  cursor: isMappingActive ? 'pointer' : 'default',
+                  background: isMappingActive ? '#f6ffed' : 'transparent',
+                }}
+                onClick={() => isMappingActive && onFieldSelect?.(`generatedFields.${g.name}`)}
+              >
                 <td style={{ padding: '2px 4px' }}>
                   <Tag color="green" style={{ fontSize: 10 }}>{g.name}</Tag>
                 </td>
@@ -397,7 +453,17 @@ function ContextPanel({
         renderEmptyState('暂无 Global Variable', '请在配置中添加')
       ) : (
         globalVariables.map((g: any, idx: number) => (
-          <div key={idx} style={{ padding: '2px 0', fontSize: 11 }}>
+          <div
+            key={idx}
+            style={{
+              padding: '2px 0',
+              fontSize: 11,
+              cursor: isMappingActive ? 'pointer' : 'default',
+              background: isMappingActive ? '#fffbe6' : 'transparent',
+              borderRadius: 4,
+            }}
+            onClick={() => isMappingActive && onFieldSelect?.(`globalVariables.${g.name}`)}
+          >
             <Tag color="yellow">{g.name}</Tag>
             <span style={{ color: '#666' }}>= {g.value}</span>
           </div>
@@ -440,6 +506,7 @@ function ContextPanel({
         Context
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
+        {mappingActiveBanner}
         <Collapse defaultActiveKey={['spi', 'endpoint', 'generatedFields', 'globalVar']} ghost items={collapseItems} />
       </div>
 
@@ -554,6 +621,8 @@ function NetworkConfigDrawer({
   name,
   endpoints,
   generatedFields,
+  isMappingActive,
+  onMappingActiveChange,
   onClose,
   onSave,
 }: {
@@ -562,10 +631,15 @@ function NetworkConfigDrawer({
   name: string;
   endpoints: any[];
   generatedFields: any[];
+  isMappingActive?: boolean;
+  onMappingActiveChange?: (active: boolean) => void;
   onClose: () => void;
   onSave: (config: any) => void;
 }) {
   const [activeTab, setActiveTab] = useState('basic');
+  const [activeMappingContext, setActiveMappingContext] = useState<{ section: string; rowIndex: number } | null>(null);
+  void isMappingActive; // passed to ContextPanel via parent
+  void onMappingActiveChange; // used to signal parent when mapping mode is entered
   const [localConfig, setLocalConfig] = useState<any>({
     endpointId: '',
     // Basic Info
@@ -588,6 +662,13 @@ function NetworkConfigDrawer({
     responseCodeFields: [],
     responseMessageFields: [],
   });
+
+  // Sync mapping active state to parent via callback
+  useEffect(() => {
+    if (activeMappingContext) {
+      onMappingActiveChange?.(true);
+    }
+  }, [activeMappingContext, onMappingActiveChange]);
 
   const selectedEndpoint = endpoints.find(ep => ep.id === localConfig.endpointId);
 
@@ -685,33 +766,24 @@ function NetworkConfigDrawer({
                   </Select>
                 </td>
                 <td style={{ padding: '2px' }}>
-                  <Select
-                    size="small"
-                    style={{ width: '100%' }}
-                    placeholder="选择SPI字段"
-                    value={item.spiField}
-                    onChange={val => {
-                      const newData = [...data];
-                      newData[idx] = { ...newData[idx], spiField: val };
-                      updateConfig({ [dataKey]: newData });
+                  <div
+                    style={{
+                      width: '100%',
+                      padding: '4px 8px',
+                      border: '1px solid #d9d9d9',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      background: item.spiField ? '#fafafa' : '#fff',
+                      color: item.spiField ? '#333' : '#bfbfbf',
                     }}
-                    showSearch
-                    optionFilterProp="label"
+                    onClick={() => {
+                      setActiveMappingContext({ section: dataKey, rowIndex: idx });
+                      onMappingActiveChange?.(true);
+                    }}
                   >
-                    <Select.OptGroup label="🔵 spi.request">
-                      <Select.Option value="spi.request.amount">spi.request.amount</Select.Option>
-                      <Select.Option value="spi.request.currency">spi.request.currency</Select.Option>
-                      <Select.Option value="spi.request.reference">spi.request.reference</Select.Option>
-                      <Select.Option value="spi.request.accountNumber">spi.request.accountNumber</Select.Option>
-                      <Select.Option value="spi.request.bankCode">spi.request.bankCode</Select.Option>
-                      <Select.Option value="spi.request.email">spi.request.email</Select.Option>
-                    </Select.OptGroup>
-                    <Select.OptGroup label="🟢 generatedFields">
-                      {generatedFields.map((f: any) => (
-                        <Select.Option key={f.name} value={`generatedFields.${f.name}`}>{f.name}</Select.Option>
-                      ))}
-                    </Select.OptGroup>
-                  </Select>
+                    {item.spiField || '点击选择SPI字段'}
+                  </div>
                 </td>
                 <td style={{ padding: '2px' }}>
                   <Select
@@ -793,31 +865,24 @@ function NetworkConfigDrawer({
                   </Select>
                 </td>
                 <td style={{ padding: '2px' }}>
-                  <Select
-                    size="small"
-                    style={{ width: '100%' }}
-                    placeholder="选择SPI字段"
-                    value={item.spiField}
-                    onChange={val => {
-                      const newData = [...data];
-                      newData[idx] = { ...newData[idx], spiField: val };
-                      updateConfig({ [dataKey]: newData });
+                  <div
+                    style={{
+                      width: '100%',
+                      padding: '4px 8px',
+                      border: '1px solid #d9d9d9',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      background: item.spiField ? '#fafafa' : '#fff',
+                      color: item.spiField ? '#333' : '#bfbfbf',
                     }}
-                    showSearch
-                    optionFilterProp="label"
+                    onClick={() => {
+                      setActiveMappingContext({ section: dataKey, rowIndex: idx });
+                      onMappingActiveChange?.(true);
+                    }}
                   >
-                    <Select.OptGroup label="🔵 channelResponse">
-                      <Select.Option value="channelResponse.status">channelResponse.status</Select.Option>
-                      <Select.Option value="channelResponse.message">channelResponse.message</Select.Option>
-                      <Select.Option value="channelResponse.reference">channelResponse.reference</Select.Option>
-                      <Select.Option value="channelResponse.data">channelResponse.data</Select.Option>
-                    </Select.OptGroup>
-                    <Select.OptGroup label="🟢 generatedFields">
-                      {generatedFields.map((f: any) => (
-                        <Select.Option key={f.name} value={`generatedFields.${f.name}`}>{f.name}</Select.Option>
-                      ))}
-                    </Select.OptGroup>
-                  </Select>
+                    {item.spiField || '点击选择SPI字段'}
+                  </div>
                 </td>
                 <td style={{ padding: '2px' }}>
                   <Select
@@ -1542,6 +1607,15 @@ export default function FlowEditorPage() {
   // Condition drawer state
   const [showConditionDrawer, setShowConditionDrawer] = useState(false);
 
+  // Mapping active state - controls whether Context panel fields are clickable for mapping
+  const [isMappingActive, setIsMappingActive] = useState(false);
+
+  // Handle field selection from Context panel when mapping is active
+  const handleContextFieldSelect = useCallback((fieldPath: string) => {
+    // activeMappingContext is passed from NetworkConfigDrawer via onMappingContextChange
+    console.log('Field selected in mapping mode:', fieldPath);
+  }, []);
+
   const flowType = searchParams.get('flowType');
 
   const mockEndpoints = [
@@ -1723,6 +1797,8 @@ export default function FlowEditorPage() {
           credentials={mockCredentials}
           globalVariables={mockGlobalVars}
           generatedFields={mockGeneratedFields}
+          isMappingActive={isMappingActive}
+          onFieldSelect={handleContextFieldSelect}
         />
 
         {/* 组件面板 */}
@@ -1776,6 +1852,8 @@ export default function FlowEditorPage() {
         name="Network"
         endpoints={mockEndpoints}
         generatedFields={mockGeneratedFields}
+        isMappingActive={isMappingActive}
+        onMappingActiveChange={setIsMappingActive}
         onClose={() => setShowNetworkDrawer(false)}
         onSave={(config) => {
           console.log('Network config saved:', config);
