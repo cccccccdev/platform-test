@@ -1341,7 +1341,7 @@ export default function FlowEditorPage() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            onNodeClick={(_event, node) => { console.log('ReactFlow node clicked, node data:', node.data); }}
+            onNodeClick={(_event, node) => { console.log('ReactFlow node clicked, node data:', node.data); (node.data as any).onConfig?.(); }}
             onNodesChange={(changes) => setNodes((nds) => {
               const updatedNodes = [...nds];
               changes.forEach(change => {
