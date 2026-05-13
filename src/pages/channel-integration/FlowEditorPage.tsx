@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, InputNumber, Drawer, Radio, Card } from 'antd';
+import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio, Card } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined } from '@ant-design/icons';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
@@ -553,7 +553,6 @@ function NetworkConfigDrawer({
   code,
   name,
   endpoints,
-  globalVariables,
   generatedFields,
   onClose,
   onSave,
@@ -562,41 +561,33 @@ function NetworkConfigDrawer({
   code: string;
   name: string;
   endpoints: any[];
-  globalVariables: any[];
   generatedFields: any[];
   onClose: () => void;
   onSave: (config: any) => void;
 }) {
-  const [activeTab, setActiveTab] = useState('request');
+  const [activeTab, setActiveTab] = useState('basic');
   const [localConfig, setLocalConfig] = useState<any>({
     endpointId: '',
+    // Basic Info
+    protocol: 'HTTPS',
+    path: '',
     method: 'POST',
-    timeout: 5000,
-    requestMappings: [],
-    responseMappings: [],
-    returnCodes: [],
+    requestSample: '',
+    responseSample: '',
+    // Request Mapping
+    requestMappingMode: 'default', // default | custom
+    pathVariables: [],
+    queryParams: [],
+    requestHeaders: [],
+    requestBody: [],
+    // Response Mapping
+    responseMappingMode: 'default',
+    responseHeaders: [],
+    responseBody: [],
+    // Response Code
+    responseCodeFields: [],
+    responseMessageFields: [],
   });
-
-  // 字段来源选项
-  const fieldSourceOptions = [
-    <Select.OptGroup label="🔵 spi.request" key="sr">
-      <Select.Option value="spi.request.amount">amount</Select.Option>
-      <Select.Option value="spi.request.currency">currency</Select.Option>
-      <Select.Option value="spi.request.reference">reference</Select.Option>
-      <Select.Option value="spi.request.accountNumber">accountNumber</Select.Option>
-      <Select.Option value="spi.request.bankCode">bankCode</Select.Option>
-    </Select.OptGroup>,
-    <Select.OptGroup label="🟢 generatedFields" key="gf">
-      {generatedFields.map((f: any) => (
-        <Select.Option key={f.name} value={`generatedFields.${f.name}`}>{f.name}</Select.Option>
-      ))}
-    </Select.OptGroup>,
-    <Select.OptGroup label="🟡 globalVar" key="gv">
-      {globalVariables.map((v: any) => (
-        <Select.Option key={v.name} value={`globalVar.${v.name}`}>{v.name}</Select.Option>
-      ))}
-    </Select.OptGroup>,
-  ];
 
   const selectedEndpoint = endpoints.find(ep => ep.id === localConfig.endpointId);
 
@@ -609,215 +600,341 @@ function NetworkConfigDrawer({
     onClose();
   };
 
-  // Request Mapping Tab
-  const renderRequestTab = () => (
+  // Basic Info Tab
+  const renderBasicInfoTab = () => (
     <div>
-      <Divider style={{ marginTop: 0 }}>请求字段映射</Divider>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ background: '#fafafa' }}>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>请求字段</th>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>类型</th>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>来源映射</th>
-            <th style={{ padding: '4px 8px', width: 40 }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {localConfig.requestMappings.map((mapping: any, idx: number) => (
-            <tr key={idx}>
-              <td style={{ padding: '4px' }}>
-                <Input size="small" value={mapping.field} onChange={e => {
-                  const newMappings = [...localConfig.requestMappings];
-                  newMappings[idx].field = e.target.value;
-                  updateConfig({ requestMappings: newMappings });
-                }} placeholder="字段名" />
-              </td>
-              <td style={{ padding: '4px' }}>
-                <Select size="small" value={mapping.type || 'String'} onChange={val => {
-                  const newMappings = [...localConfig.requestMappings];
-                  newMappings[idx].type = val;
-                  updateConfig({ requestMappings: newMappings });
-                }} style={{ width: 80 }}>
-                  <Select.Option value="String">String</Select.Option>
-                  <Select.Option value="Number">Number</Select.Option>
-                  <Select.Option value="Boolean">Boolean</Select.Option>
-                </Select>
-              </td>
-              <td style={{ padding: '4px' }}>
-                <Select
-                  size="small"
-                  value={mapping.source}
-                  onChange={val => {
-                    const newMappings = [...localConfig.requestMappings];
-                    newMappings[idx].source = val;
-                    updateConfig({ requestMappings: newMappings });
-                  }}
-                  style={{ width: 160 }}
-                  allowClear
-                  placeholder="选择来源"
-                >
-                  {fieldSourceOptions}
-                </Select>
-              </td>
-              <td style={{ padding: '4px' }}>
-                <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => {
-                  updateConfig({ requestMappings: localConfig.requestMappings.filter((_: any, i: number) => i !== idx) });
-                }} />
-              </td>
+      <Divider style={{ marginTop: 0 }}>Endpoint 选择</Divider>
+      <Select
+        placeholder="请选择 Endpoint"
+        style={{ width: '100%' }}
+        value={localConfig.endpointId}
+        onChange={val => {
+          const ep = endpoints.find(e => e.id === val);
+          updateConfig({
+            endpointId: val,
+            protocol: ep?.protocol || 'HTTPS',
+            path: ep?.path || '',
+            method: ep?.method || 'POST',
+            requestSample: ep?.requestSample || '',
+            responseSample: ep?.responseSample || '',
+          });
+        }}
+      >
+        {endpoints.map(ep => (
+          <Select.Option key={ep.id} value={ep.id}>{ep.name}</Select.Option>
+        ))}
+      </Select>
+
+      {selectedEndpoint && (
+        <>
+          <Divider>Basic Information Details</Divider>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+            <div>
+              <Text type="secondary" style={{ fontSize: 11 }}>Protocol</Text>
+              <div style={{ padding: '8px 12px', background: '#fafafa', borderRadius: 4, fontWeight: 500 }}>
+                {localConfig.protocol}
+              </div>
+            </div>
+            <div>
+              <Text type="secondary" style={{ fontSize: 11 }}>Method</Text>
+              <div style={{ padding: '8px 12px', background: '#fafafa', borderRadius: 4, fontWeight: 500 }}>
+                {localConfig.method}
+              </div>
+            </div>
+            <div>
+              <Text type="secondary" style={{ fontSize: 11 }}>Path</Text>
+              <div style={{ padding: '8px 12px', background: '#fafafa', borderRadius: 4, fontWeight: 500, wordBreak: 'break-all' }}>
+                {localConfig.path}
+              </div>
+            </div>
+          </div>
+
+          <Divider>Request 报文示例</Divider>
+          <div style={{ background: '#fafafa', padding: 12, borderRadius: 4, fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto' }}>
+            {localConfig.requestSample || '暂无请求报文示例'}
+          </div>
+
+          <Divider>Response 报文示例</Divider>
+          <div style={{ background: '#fafafa', padding: 12, borderRadius: 4, fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto' }}>
+            {localConfig.responseSample || '暂无响应报文示例'}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // Request Mapping Section Component
+  const renderMappingSection = (
+    title: string,
+    data: any[],
+    dataKey: string,
+    fields: { key: string; label: string; placeholder: string; options?: any }[]
+  ) => (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text strong style={{ fontSize: 12 }}>{title}</Text>
+        <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
+          const newData = [...data, { id: Date.now(), spiField: '', sourceField: '', mappingMode: 'direct' }];
+          updateConfig({ [dataKey]: newData });
+        }}>+ 添加</Button>
+      </div>
+      {data.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
+          暂无配置
+        </div>
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+          <thead>
+            <tr style={{ background: '#fafafa' }}>
+              {fields.map(f => <th key={f.key} style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>{f.label}</th>)}
+              <th style={{ width: 40 }}></th>
             </tr>
-          ))}
-          <tr>
-            <td colSpan={4} style={{ padding: '4px' }}>
-              <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
-                updateConfig({ requestMappings: [...localConfig.requestMappings, { field: '', type: 'String', source: '' }] });
-              }}>+ 添加字段</Button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.map((item: any, idx: number) => (
+              <tr key={item.id || idx}>
+                {fields.map(f => (
+                  <td key={f.key} style={{ padding: '4px' }}>
+                    <Input
+                      size="small"
+                      placeholder={f.placeholder}
+                      value={item[f.key]}
+                      onChange={e => {
+                        const newData = [...data];
+                        newData[idx] = { ...newData[idx], [f.key]: e.target.value };
+                        updateConfig({ [dataKey]: newData });
+                      }}
+                    />
+                  </td>
+                ))}
+                <td>
+                  <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => {
+                    updateConfig({ [dataKey]: data.filter((_: any, i: number) => i !== idx) });
+                  }} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+
+  // Request Mapping Tab
+  const renderRequestMappingTab = () => (
+    <div style={{ maxHeight: 500, overflow: 'auto' }}>
+      <Divider style={{ marginTop: 0 }}>Component Instance 映射模式</Divider>
+      <Radio.Group
+        value={localConfig.requestMappingMode}
+        onChange={e => updateConfig({ requestMappingMode: e.target.value })}
+        style={{ marginBottom: 16 }}
+      >
+        <Radio.Button value="default">Default</Radio.Button>
+        <Radio.Button value="custom">Custom</Radio.Button>
+      </Radio.Group>
+
+      {localConfig.requestMappingMode === 'default' ? (
+        <div style={{ textAlign: 'center', padding: 32, color: '#999', background: '#fafafa', borderRadius: 8 }}>
+          Default 模式将使用 Endpoint 的默认映射规则
+        </div>
+      ) : (
+        <>
+          {renderMappingSection('Path Variables', localConfig.pathVariables, 'pathVariables', [
+            { key: 'endpointField', label: 'Endpoint 字段', placeholder: '路径参数' },
+            { key: 'spiField', label: 'SPI 字段', placeholder: 'SPI字段' },
+            { key: 'mappingMode', label: '模式', placeholder: 'direct/fixed' },
+          ])}
+          {renderMappingSection('Query Parameters', localConfig.queryParams, 'queryParams', [
+            { key: 'endpointField', label: 'Endpoint 字段', placeholder: '查询参数' },
+            { key: 'spiField', label: 'SPI 字段', placeholder: 'SPI字段' },
+            { key: 'mappingMode', label: '模式', placeholder: 'direct/fixed' },
+          ])}
+          {renderMappingSection('Request Headers', localConfig.requestHeaders, 'requestHeaders', [
+            { key: 'endpointField', label: 'Header 字段', placeholder: 'Header名' },
+            { key: 'spiField', label: 'SPI 字段', placeholder: 'SPI字段' },
+            { key: 'mappingMode', label: '模式', placeholder: 'direct/fixed' },
+          ])}
+          {renderMappingSection('Request Body', localConfig.requestBody, 'requestBody', [
+            { key: 'endpointField', label: 'Body 字段', placeholder: 'Body字段' },
+            { key: 'spiField', label: 'SPI 字段', placeholder: 'SPI字段' },
+            { key: 'mappingMode', label: '模式', placeholder: 'direct/fixed' },
+          ])}
+        </>
+      )}
     </div>
   );
 
   // Response Mapping Tab
-  const renderResponseTab = () => (
-    <div>
-      <Divider style={{ marginTop: 0 }}>响应字段映射</Divider>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ background: '#fafafa' }}>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>SPI字段</th>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>赋值模式</th>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>来源/条件配置</th>
-            <th style={{ padding: '4px 8px', width: 40 }}></th>
-          </tr>
-        </thead>
-<tbody>
-          {localConfig.responseMappings.length === 0 ? (
-            <tr><td colSpan={4} style={{ padding: 8, textAlign: 'center', color: '#999' }}>暂无映射字段</td></tr>
-          ) : (
-            localConfig.responseMappings.map((mapping: any, idx: number) => (
-              <tr key={idx}>
-                <td style={{ padding: '4px' }}>
-                  <Input size="small" value={mapping.spiField} onChange={e => {
-                    const newMappings = [...localConfig.responseMappings];
-                    newMappings[idx].spiField = e.target.value;
-                    updateConfig({ responseMappings: newMappings });
-                  }} placeholder="SPI字段名" />
-                </td>
-                <td style={{ padding: '4px' }}>
-                  <Select size="small" value={mapping.mappingMode || 'direct'} style={{ width: 80 }} onChange={val => {
-                    const newMappings = [...localConfig.responseMappings];
-                    newMappings[idx].mappingMode = val;
-                    updateConfig({ responseMappings: newMappings });
-                  }}>
-                    <Select.Option value="fixed">固定值</Select.Option>
-                    <Select.Option value="direct">直接赋值</Select.Option>
-                  </Select>
-                </td>
-                <td style={{ padding: '4px' }}>
-                  {mapping.mappingMode === 'fixed' ? (
-                    <Input size="small" value={mapping.source} placeholder="固定值" style={{ width: 120 }} />
-                  ) : (
-                    <Select size="small" value={mapping.source} onChange={val => {
-                      const newMappings = [...localConfig.responseMappings];
-                      newMappings[idx].source = val;
-                      updateConfig({ responseMappings: newMappings });
-                    }} style={{ width: 160 }} allowClear placeholder="选择来源">
-                      <Select.OptGroup label="🔵 channelResponse" key="cr">
+  const renderResponseMappingTab = () => (
+    <div style={{ maxHeight: 500, overflow: 'auto' }}>
+      <Divider style={{ marginTop: 0 }}>Component Instance 映射模式</Divider>
+      <Radio.Group
+        value={localConfig.responseMappingMode}
+        onChange={e => updateConfig({ responseMappingMode: e.target.value })}
+        style={{ marginBottom: 16 }}
+      >
+        <Radio.Button value="default">Default</Radio.Button>
+        <Radio.Button value="custom">Custom</Radio.Button>
+      </Radio.Group>
+
+      {localConfig.responseMappingMode === 'default' ? (
+        <div style={{ textAlign: 'center', padding: 32, color: '#999', background: '#fafafa', borderRadius: 8 }}>
+          Default 模式将使用 Endpoint 的默认映射规则
+        </div>
+      ) : (
+        <>
+          {renderMappingSection('Response Headers', localConfig.responseHeaders, 'responseHeaders', [
+            { key: 'endpointField', label: 'Header 字段', placeholder: 'Header名' },
+            { key: 'spiField', label: 'SPI 字段', placeholder: 'SPI字段' },
+            { key: 'mappingMode', label: '模式', placeholder: 'direct/fixed' },
+          ])}
+          {renderMappingSection('Response Body', localConfig.responseBody, 'responseBody', [
+            { key: 'endpointField', label: 'Body 字段', placeholder: 'Body字段' },
+            { key: 'spiField', label: 'SPI 字段', placeholder: 'SPI字段' },
+            { key: 'mappingMode', label: '模式', placeholder: 'direct/fixed' },
+          ])}
+        </>
+      )}
+    </div>
+  );
+
+  // Response Code Tab
+  const renderResponseCodeTab = () => (
+    <div style={{ maxHeight: 500, overflow: 'auto' }}>
+      <Divider style={{ marginTop: 0 }}>Response Code 构成规则</Divider>
+      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>
+        选择 Response 中的字段，通过 # 拼接组合成 Response Code
+      </Text>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text strong style={{ fontSize: 12 }}>Code 字段</Text>
+          <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
+            updateConfig({ responseCodeFields: [...localConfig.responseCodeFields, { field: '', alias: '' }] });
+          }}>+ 添加字段</Button>
+        </div>
+        {localConfig.responseCodeFields.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
+            暂未配置 Code 字段
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ background: '#fafafa' }}>
+                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>字段</th>
+                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>别名</th>
+                <th style={{ width: 40 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {localConfig.responseCodeFields.map((item: any, idx: number) => (
+                <tr key={idx}>
+                  <td style={{ padding: '4px' }}>
+                    <Select size="small" style={{ width: '100%' }} placeholder="选择字段" value={item.field} onChange={val => {
+                      const newFields = [...localConfig.responseCodeFields];
+                      newFields[idx] = { ...newFields[idx], field: val };
+                      updateConfig({ responseCodeFields: newFields });
+                    }}>
+                      <Select.OptGroup label="🔵 channelResponse">
                         <Select.Option value="channelResponse.status">status</Select.Option>
-                        <Select.Option value="channelResponse.reference">reference</Select.Option>
+                        <Select.Option value="channelResponse.code">code</Select.Option>
                         <Select.Option value="channelResponse.message">message</Select.Option>
-                        <Select.Option value="channelResponse.data">data</Select.Option>
                       </Select.OptGroup>
-                      <Select.OptGroup label="🟢 generatedFields" key="gf">
+                      <Select.OptGroup label="🟢 generatedFields">
                         {generatedFields.map((f: any) => (
                           <Select.Option key={f.name} value={`generatedFields.${f.name}`}>{f.name}</Select.Option>
                         ))}
                       </Select.OptGroup>
                     </Select>
-                  )}
-                </td>
-                <td style={{ padding: '4px' }}>
-                  <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => {
-                    updateConfig({ responseMappings: localConfig.responseMappings.filter((_: any, i: number) => i !== idx) });
-                  }} />
-                </td>
-              </tr>
-            ))
-          )}
-          <tr>
-            <td colSpan={4} style={{ padding: '4px' }}>
-              <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
-                updateConfig({ responseMappings: [...localConfig.responseMappings, { spiField: '', mappingMode: 'direct', source: '' }] });
-              }}>+ 添加字段</Button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  );
+                  </td>
+                  <td style={{ padding: '4px' }}>
+                    <Input size="small" placeholder="别名" value={item.alias} onChange={e => {
+                      const newFields = [...localConfig.responseCodeFields];
+                      newFields[idx] = { ...newFields[idx], alias: e.target.value };
+                      updateConfig({ responseCodeFields: newFields });
+                    }} />
+                  </td>
+                  <td>
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => {
+                      updateConfig({ responseCodeFields: localConfig.responseCodeFields.filter((_: any, i: number) => i !== idx) });
+                    }} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {localConfig.responseCodeFields.length > 0 && (
+          <div style={{ marginTop: 8, padding: '8px 12px', background: '#e6f7ff', borderRadius: 4, fontFamily: 'monospace', fontSize: 11 }}>
+            预览: {localConfig.responseCodeFields.map((f: any) => f.alias || f.field).join(' # ')}
+          </div>
+        )}
+      </div>
 
-// Return Code Tab
-  const renderReturnCodeTab = () => (
-    <div>
-      <Divider style={{ marginTop: 0 }}>返回码映射</Divider>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ background: '#fafafa' }}>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>渠道返回码</th>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>SPI状态</th>
-            <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>说明</th>
-            <th style={{ padding: '4px 8px', width: 40 }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {localConfig.returnCodes.length === 0 ? (
-            <tr><td colSpan={4} style={{ padding: 8, textAlign: 'center', color: '#999' }}>暂无返回码</td></tr>
-          ) : (
-            localConfig.returnCodes.map((rc: any, idx: number) => (
-              <tr key={idx}>
-                <td style={{ padding: '4px' }}>
-                  <Input size="small" value={rc.code} onChange={e => {
-                    const newRCs = [...localConfig.returnCodes];
-                    newRCs[idx].code = e.target.value;
-                    updateConfig({ returnCodes: newRCs });
-                  }} placeholder="返回码" style={{ width: 100 }} />
-                </td>
-                <td style={{ padding: '4px' }}>
-                  <Select size="small" value={rc.status} onChange={val => {
-                    const newRCs = [...localConfig.returnCodes];
-                    newRCs[idx].status = val;
-                    updateConfig({ returnCodes: newRCs });
-                  }} style={{ width: 100 }}>
-                    <Select.Option value="SUCCESS">SUCCESS</Select.Option>
-                    <Select.Option value="FAIL">FAIL</Select.Option>
-                    <Select.Option value="PENDING">PENDING</Select.Option>
-                  </Select>
-                </td>
-                <td style={{ padding: '4px' }}>
-                  <Input size="small" value={rc.message} onChange={e => {
-                    const newRCs = [...localConfig.returnCodes];
-                    newRCs[idx].message = e.target.value;
-                    updateConfig({ returnCodes: newRCs });
-                  }} placeholder="说明" style={{ width: 120 }} />
-                </td>
-                <td style={{ padding: '4px' }}>
-                  <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => {
-                    updateConfig({ returnCodes: localConfig.returnCodes.filter((_: any, i: number) => i !== idx) });
-                  }} />
-                </td>
+      <Divider>Response Message 构成规则</Divider>
+      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>
+        选择 Response 中的字段，拼接组合成 Response Message
+      </Text>
+
+      <div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text strong style={{ fontSize: 12 }}>Message 字段</Text>
+          <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
+            updateConfig({ responseMessageFields: [...localConfig.responseMessageFields, { field: '', separator: ' ' }] });
+          }}>+ 添加字段</Button>
+        </div>
+        {localConfig.responseMessageFields.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
+            暂未配置 Message 字段
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ background: '#fafafa' }}>
+                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>字段</th>
+                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>分隔符</th>
+                <th style={{ width: 40 }}></th>
               </tr>
-            ))
-          )}
-          <tr>
-            <td colSpan={4} style={{ padding: '4px' }}>
-              <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
-                updateConfig({ returnCodes: [...localConfig.returnCodes, { code: '', status: 'SUCCESS', message: '' }] });
-              }}>+ 添加返回码</Button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {localConfig.responseMessageFields.map((item: any, idx: number) => (
+                <tr key={idx}>
+                  <td style={{ padding: '4px' }}>
+                    <Select size="small" style={{ width: '100%' }} placeholder="选择字段" value={item.field} onChange={val => {
+                      const newFields = [...localConfig.responseMessageFields];
+                      newFields[idx] = { ...newFields[idx], field: val };
+                      updateConfig({ responseMessageFields: newFields });
+                    }}>
+                      <Select.OptGroup label="🔵 channelResponse">
+                        <Select.Option value="channelResponse.status">status</Select.Option>
+                        <Select.Option value="channelResponse.message">message</Select.Option>
+                        <Select.Option value="channelResponse.description">description</Select.Option>
+                      </Select.OptGroup>
+                    </Select>
+                  </td>
+                  <td style={{ padding: '4px' }}>
+                    <Input size="small" placeholder="分隔符" value={item.separator} onChange={e => {
+                      const newFields = [...localConfig.responseMessageFields];
+                      newFields[idx] = { ...newFields[idx], separator: e.target.value };
+                      updateConfig({ responseMessageFields: newFields });
+                    }} style={{ width: 80 }} />
+                  </td>
+                  <td>
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => {
+                      updateConfig({ responseMessageFields: localConfig.responseMessageFields.filter((_: any, i: number) => i !== idx) });
+                    }} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {localConfig.responseMessageFields.length > 0 && (
+          <div style={{ marginTop: 8, padding: '8px 12px', background: '#e6f7ff', borderRadius: 4, fontFamily: 'monospace', fontSize: 11 }}>
+            预览: {localConfig.responseMessageFields.map((f: any) => f.field.split('.').pop()).join(' + ')}
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -825,7 +942,7 @@ function NetworkConfigDrawer({
     <Drawer
       title={<Space><span>配置 {name}</span><Tag color="blue">{code}</Tag></Space>}
       placement="right"
-      width={600}
+      width={650}
       open={visible}
       onClose={onClose}
       extra={
@@ -835,58 +952,22 @@ function NetworkConfigDrawer({
         </Space>
       }
     >
-      <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 12 }}>Endpoint 配置</Text>
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <Select
-            placeholder="选择 Endpoint"
-            style={{ width: 200 }}
-            value={localConfig.endpointId}
-            onChange={val => updateConfig({ endpointId: val })}
-          >
-            {endpoints.map(ep => (
-              <Select.Option key={ep.id} value={ep.id}>{ep.name}</Select.Option>
-            ))}
-          </Select>
-          <Select
-            style={{ width: 100 }}
-            value={localConfig.method}
-            onChange={val => updateConfig({ method: val })}
-          >
-            <Select.Option value="GET">GET</Select.Option>
-            <Select.Option value="POST">POST</Select.Option>
-            <Select.Option value="PUT">PUT</Select.Option>
-            <Select.Option value="PATCH">PATCH</Select.Option>
-          </Select>
-          <InputNumber
-            size="small"
-            min={100}
-            max={30000}
-            value={localConfig.timeout}
-            onChange={val => updateConfig({ timeout: val })}
-            addonAfter="ms"
-            style={{ width: 120 }}
-          />
-        </div>
-        {selectedEndpoint && (
-          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-            URL: {selectedEndpoint.url}
-          </Text>
-        )}
-      </div>
-
       <Tabs
         activeKey={activeTab}
         onChange={setActiveTab}
         items={[
-          { key: 'request', label: '请求映射' },
-          { key: 'response', label: '响应映射' },
-          { key: 'returnCode', label: '返回码' },
+          { key: 'basic', label: 'Basic Info' },
+          { key: 'request', label: 'Request Mapping' },
+          { key: 'response', label: 'Response Mapping' },
+          { key: 'code', label: 'Response Code' },
         ]}
       />
-      {activeTab === 'request' && renderRequestTab()}
-      {activeTab === 'response' && renderResponseTab()}
-      {activeTab === 'returnCode' && renderReturnCodeTab()}
+      <div style={{ marginTop: 16 }}>
+        {activeTab === 'basic' && renderBasicInfoTab()}
+        {activeTab === 'request' && renderRequestMappingTab()}
+        {activeTab === 'response' && renderResponseMappingTab()}
+        {activeTab === 'code' && renderResponseCodeTab()}
+      </div>
     </Drawer>
   );
 }
@@ -1379,7 +1460,6 @@ export default function FlowEditorPage() {
         code="network"
         name="Network"
         endpoints={mockEndpoints}
-        globalVariables={mockGlobalVars}
         generatedFields={mockGeneratedFields}
         onClose={() => setShowNetworkDrawer(false)}
         onSave={(config) => {
