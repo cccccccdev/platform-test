@@ -1277,8 +1277,55 @@ export default function FlowEditorPage() {
   const flowType = searchParams.get('flowType');
 
   const mockEndpoints = [
-    { id: 'ep1', name: 'Paystack Charge', method: 'POST', url: 'https://api.paystack.co/charge' },
-    { id: 'ep2', name: 'Paystack Verify', method: 'GET', url: 'https://api.paystack.co/verify/:reference' },
+    {
+      id: 'ep1',
+      name: 'Paystack Charge',
+      method: 'POST',
+      protocol: 'HTTPS',
+      path: '/v3/charge',
+      url: 'https://api.paystack.co/v3/charge',
+      requestSample: `{
+  "reference": "{{spi.request.reference}}",
+  "amount": "{{spi.request.amount}}",
+  "currency": "{{spi.request.currency}}",
+  "email": "{{spi.request.email}}",
+  "bank": {
+    "code": "{{spi.request.bankCode}}",
+    "account_number": "{{spi.request.accountNumber}}"
+  }
+}`,
+      responseSample: `{
+  "status": true,
+  "message": "Charge attempted",
+  "data": {
+    "reference": "ch_123456",
+    "status": "pending",
+    "amount": 10000,
+    "currency": "NGN"
+  }
+}`,
+    },
+    {
+      id: 'ep2',
+      name: 'Paystack Verify',
+      method: 'GET',
+      protocol: 'HTTPS',
+      path: '/v3/verify/:reference',
+      url: 'https://api.paystack.co/v3/verify/:reference',
+      requestSample: `{
+  "reference": "{{spi.request.reference}}"
+}`,
+      responseSample: `{
+  "status": true,
+  "message": "Verification successful",
+  "data": {
+    "reference": "ch_123456",
+    "status": "success",
+    "amount": 10000,
+    "currency": "NGN"
+  }
+}`,
+    },
   ];
   const mockCredentials = [
     { id: 'cred1', name: 'Paystack API Key', type: 'API Key' },
