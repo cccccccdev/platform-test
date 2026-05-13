@@ -924,11 +924,59 @@ function NetworkConfigDrawer({
       </Radio.Group>
 
       {localConfig.requestMappingMode === 'default' ? (
-        <div style={{ textAlign: 'center', padding: 32, color: '#999', background: '#fafafa', borderRadius: 8 }}>
-          Default 模式将使用 Endpoint 的默认映射规则
-        </div>
+        <>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
+            Default 模式：展示所有 Endpoint 字段，选择 SPI 字段完成映射
+          </Text>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Request Body 映射</Text>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: '#fafafa' }}>
+                  <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>Endpoint 字段</th>
+                  <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>SPI 字段</th>
+                  <th style={{ width: 40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {requestBodyFields.length === 0 ? (
+                  <tr><td colSpan={3} style={{ padding: 16, textAlign: 'center', color: '#999' }}>请先在 Basic Info 选择 Endpoint</td></tr>
+                ) : (
+                  requestBodyFields.map((f: any) => (
+                    <tr key={f.value}>
+                      <td style={{ padding: '4px', background: '#f9f9f9' }}>
+                        <Text style={{ fontSize: 11 }}>{f.label}</Text>
+                      </td>
+                      <td style={{ padding: '2px' }}>
+                        <Select size="small" style={{ width: '100%' }} placeholder="选择SPI字段" allowClear>
+                          <Select.OptGroup label="🔵 spi.request">
+                            <Select.Option value="spi.request.amount">spi.request.amount</Select.Option>
+                            <Select.Option value="spi.request.currency">spi.request.currency</Select.Option>
+                            <Select.Option value="spi.request.reference">spi.request.reference</Select.Option>
+                            <Select.Option value="spi.request.accountNumber">spi.request.accountNumber</Select.Option>
+                            <Select.Option value="spi.request.bankCode">spi.request.bankCode</Select.Option>
+                            <Select.Option value="spi.request.email">spi.request.email</Select.Option>
+                          </Select.OptGroup>
+                          <Select.OptGroup label="🟢 generatedFields">
+                            {generatedFields.map((gf: any) => (
+                              <Select.Option key={gf.name} value={`generatedFields.${gf.name}`}>{gf.name}</Select.Option>
+                            ))}
+                          </Select.OptGroup>
+                        </Select>
+                      </td>
+                      <td></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
+            Custom 模式：通过脚本构建复杂映射逻辑
+          </Text>
           {renderRequestMappingSection('Path Variables', localConfig.pathVariables, 'pathVariables', requestBodyFields)}
           {renderRequestMappingSection('Query Parameters', localConfig.queryParams, 'queryParams', requestBodyFields)}
           {renderRequestMappingSection('Request Headers', localConfig.requestHeaders, 'requestHeaders', [
@@ -956,11 +1004,58 @@ function NetworkConfigDrawer({
       </Radio.Group>
 
       {localConfig.responseMappingMode === 'default' ? (
-        <div style={{ textAlign: 'center', padding: 32, color: '#999', background: '#fafafa', borderRadius: 8 }}>
-          Default 模式将使用 Endpoint 的默认映射规则
-        </div>
+        <>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
+            Default 模式：展示所有 Response 字段，选择 SPI 字段完成映射
+          </Text>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Response Body 映射</Text>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: '#fafafa' }}>
+                  <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>Response 字段</th>
+                  <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>SPI 字段</th>
+                  <th style={{ width: 40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {responseBodyFields.length === 0 ? (
+                  <tr><td colSpan={3} style={{ padding: 16, textAlign: 'center', color: '#999' }}>请先在 Basic Info 选择 Endpoint</td></tr>
+                ) : (
+                  responseBodyFields.map((f: any) => (
+                    <tr key={f.value}>
+                      <td style={{ padding: '4px', background: '#f9f9f9' }}>
+                        <Text style={{ fontSize: 11 }}>{f.label}</Text>
+                      </td>
+                      <td style={{ padding: '2px' }}>
+                        <Select size="small" style={{ width: '100%' }} placeholder="选择SPI字段" allowClear>
+                          <Select.OptGroup label="🔵 channelResponse">
+                            <Select.Option value="channelResponse.status">channelResponse.status</Select.Option>
+                            <Select.Option value="channelResponse.message">channelResponse.message</Select.Option>
+                            <Select.Option value="channelResponse.reference">channelResponse.reference</Select.Option>
+                            <Select.Option value="channelResponse.data">channelResponse.data</Select.Option>
+                            <Select.Option value="channelResponse.code">channelResponse.code</Select.Option>
+                          </Select.OptGroup>
+                          <Select.OptGroup label="🟢 generatedFields">
+                            {generatedFields.map((gf: any) => (
+                              <Select.Option key={gf.name} value={`generatedFields.${gf.name}`}>{gf.name}</Select.Option>
+                            ))}
+                          </Select.OptGroup>
+                        </Select>
+                      </td>
+                      <td></td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <>
+          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
+            Custom 模式：通过脚本构建复杂映射逻辑
+          </Text>
           {renderResponseMappingSection('Response Headers', localConfig.responseHeaders, 'responseHeaders', [
             { label: 'Content-Type', value: 'Content-Type' },
             { label: 'X-Request-Id', value: 'X-Request-Id' },
