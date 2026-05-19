@@ -35,6 +35,9 @@ import CountryPage from '../pages/basic-info/CountryPage';
 import ExchangeRatePage from '../pages/basic-info/ExchangeRatePage';
 import ProductPage from '../pages/basic-info/ProductPage';
 import MerchantPage from '../pages/basic-info/MerchantPage';
+import CapabilityPage from '../pages/basic-info/CapabilityPage';
+import StateMachineListPage from '../pages/basic-info/capability/StateMachineListPage';
+import StateMachineCanvas from '../pages/basic-info/capability/stateMachine/StateMachineCanvas';
 
 const router = createBrowserRouter([
   { index: true, element: <Navigate to="/home" replace /> },
@@ -100,10 +103,14 @@ const router = createBrowserRouter([
           { path: 'exchange-rate', element: <ExchangeRatePage /> },
           { path: 'product', element: <ProductPage /> },
           { path: 'merchant', element: <MerchantPage /> },
+          { path: 'capability', element: <CapabilityPage /> },
+          { path: 'capability/stateMachine', element: <StateMachineListPage /> },
         ],
       },
     ],
   },
+  // Standalone stateMachine canvas (no sidebar, outside AppShell)
+  { path: 'basic-info/capability/stateMachine/canvas', element: <StateMachineCanvas /> },
 ]);
 
 export default function Router() {

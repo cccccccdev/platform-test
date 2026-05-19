@@ -1,4 +1,4 @@
-// Channel 类型定义
+// Channel types
 export interface Channel {
   code: string;
   country: string[];
@@ -61,4 +61,47 @@ export interface FieldMapping {
   defaultValue?: string;
   fixedValue?: string;
   multiplier?: number;
+}
+
+// Flow configuration types
+
+export type ExecutionType = 'single' | 'loop';
+export type FlowType = 'forward' | 'backward';
+export type EndType = 'event' | 'state' | 'wait_upstream' | 'wait_external';
+
+export interface EventCondition {
+  id: string;
+  field: string;
+  operator: string;
+  value: string;
+  logic: 'AND' | 'OR';
+}
+
+export interface FlowEventConfig {
+  conditions: EventCondition[];
+  defaultAction: 'skip' | 'assign' | 'abort';
+  defaultValue?: string;
+}
+
+export interface FlowConfig {
+  id: string;
+  name: string;
+  executionType: ExecutionType;
+  flowType: FlowType;
+  endType: EndType;
+  // For event end type
+  eventConfigs?: FlowEventConfig[];
+  // For state end type
+  stateConditions?: EventCondition[];
+  // Trigger events (for new flow)
+  triggerEvents?: string[];
+  // Whether this flow is configured
+  isConfigured?: boolean;
+}
+
+export interface StateFlowData {
+  stateName: string;
+  flows: FlowConfig[];
+  // Available events from previous flows (for trigger configuration)
+  availableEvents?: string[];
 }

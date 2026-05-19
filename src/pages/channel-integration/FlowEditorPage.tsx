@@ -1788,7 +1788,7 @@ export default function FlowEditorPage() {
       </div>
 
       {/* 内容区域 */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         {/* Context 上下文面板 */}
         <ContextPanel
           onSpiSelect={() => setShowSpiModal(true)}
@@ -1806,7 +1806,7 @@ export default function FlowEditorPage() {
 
         {/* 画布区域 */}
         <div
-          style={{ flex: 1, background: '#fafafa' }}
+          style={{ flex: 1, background: '#fafafa', minHeight: 0, display: 'flex', flexDirection: 'column' }}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
@@ -1828,7 +1828,7 @@ export default function FlowEditorPage() {
             })}
             nodeTypes={nodeTypes}
             fitView
-            style={{ height: '100%' }}
+            style={{ flex: 1, minHeight: 0 }}
           >
             <Background color="#e8e8e8" gap={16} />
             <Controls />
