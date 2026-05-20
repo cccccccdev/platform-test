@@ -1,30 +1,36 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio, Card } from 'antd';
+import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined } from '@ant-design/icons';
-import { ReactFlow, Background, Controls, MiniMap, Handle, Position } from '@xyflow/react';
-import type { Node, Edge } from '@xyflow/react';
+import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
+import type { Node, Edge, Connection } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 const { Text, Title } = Typography;
 
 // 组件库 - 根据 action 和 flowType 预置不同组件
 const COMPONENT_LIBRARY = [
+  // Forward flow components
   { code: 'generateReference', name: 'Generate Reference', type: 'Component' },
   { code: 'network', name: 'Network', type: 'Component' },
   { code: 'condition', name: 'Condition', type: 'Component' },
+  // Backward flow components
+  { code: 'inboundRequest', name: 'InboundRequest', type: 'Component' },
+  { code: 'inboundResponse', name: 'InboundResponse', type: 'Component' },
+  { code: 'sendCompleteMQ', name: 'SendCompleteMQ', type: 'Component' },
+  { code: 'sendRequeryMQ', name: 'SendRequeryMQ', type: 'Component' },
+  { code: 'messageNotification', name: 'MessageNotification', type: 'Component' },
+  { code: 'requestBusinessAccessLayer', name: 'RequestBusinessAccessLayer', type: 'Component' },
+  { code: 'queryOrder', name: 'QueryOrder', type: 'Component' },
 ];
 
-// 根据 action 和 flowType 获取预置组件
-const getPresetComponents = (_action: string, flowType: string): string[] => {
-  if (flowType === 'main') {
+// 根据 flowType 获取预置组件
+const getPresetComponents = (flowType: string): string[] => {
+  if (flowType === 'forward') {
     return ['generateReference', 'network', 'condition'];
   }
-  if (flowType === 'requery') {
-    return ['network', 'condition'];
-  }
-  if (flowType === 'callback') {
-    return ['condition'];
+  if (flowType === 'backward') {
+    return ['inboundRequest', 'inboundResponse', 'sendCompleteMQ'];
   }
   return [];
 };
@@ -186,7 +192,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
         <span style={{ fontSize: 12, color: isConfigured ? '#52c41a' : '#999' }}>{isConfigured ? '●' : '○'}</span>
         <span style={{ flex: 1, fontWeight: 600, fontSize: 12 }}>{nodeName}</span>
         {isConfigured && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 12 }} />}
-        {(isHovered || true) && (
+        {data.isDraggable !== false && isHovered && (
           <div
             onClick={(e) => { e.stopPropagation(); data.onDelete?.(); }}
             style={{
@@ -1305,25 +1311,39 @@ function NetworkConfigDrawer({
   );
 }
 
-// Condition 组件配置抽屉
-function ConditionConfigDrawer({
+// Edge Condition Drawer - for configuring condition on edge from Condition node
+function EdgeConditionDrawer({
   visible,
-  code,
-  name,
+  edge,
+  nodes,
   onClose,
   onSave,
 }: {
   visible: boolean;
-  code: string;
-  name: string;
+  edge: Edge | null;
+  nodes: Node[];
   onClose: () => void;
-  onSave: (config: any) => void;
+  onSave: (edgeId: string, condition: { conditions: any[]; defaultAction: string }) => void;
 }) {
-  const [conditionType, setConditionType] = useState<'if' | 'switch'>('if');
   const [conditions, setConditions] = useState<any[]>([
-    { field: '', operator: '==', value: '', logic: 'AND' }
+    { id: '1', field: '', operator: '==', value: '', logic: 'AND' }
   ]);
-  const [defaultAction, setDefaultAction] = useState<{ type: string; value: string }>({ type: 'skip', value: '' });
+  const [defaultAction, setDefaultAction] = useState<string>('skip');
+
+  useEffect(() => {
+    if (visible) {
+      if (edge?.data?.condition) {
+        const savedCondition = edge.data.condition as { conditions?: any[]; defaultAction?: string };
+        setConditions(savedCondition.conditions || [{ id: '1', field: '', operator: '==', value: '', logic: 'AND' }]);
+        setDefaultAction(savedCondition.defaultAction || 'skip');
+      } else {
+        setConditions([{ id: '1', field: '', operator: '==', value: '', logic: 'AND' }]);
+        setDefaultAction('skip');
+      }
+    }
+  }, [visible, edge]);
+
+  const targetNode = nodes.find(n => n.id === edge?.target);
 
   const operatorOptions = [
     { value: '==', label: '==' },
@@ -1339,15 +1359,13 @@ function ConditionConfigDrawer({
   ];
 
   const fieldSourceOptions = [
-    <Select.OptGroup label="🔵 channelResponse" key="cr">
-      <Select.Option value="channelResponse.status">status</Select.Option>
-      <Select.Option value="channelResponse.message">message</Select.Option>
-      <Select.Option value="channelResponse.data">data</Select.Option>
-    </Select.OptGroup>,
-    <Select.OptGroup label="🔵 spi.request" key="sr">
-      <Select.Option value="spi.request.amount">amount</Select.Option>
-      <Select.Option value="spi.request.currency">currency</Select.Option>
-    </Select.OptGroup>,
+    { label: 'channelResponse.status', value: 'channelResponse.status' },
+    { label: 'channelResponse.message', value: 'channelResponse.message' },
+    { label: 'channelResponse.code', value: 'channelResponse.code' },
+    { label: 'channelResponse.data', value: 'channelResponse.data' },
+    { label: 'spi.request.amount', value: 'spi.request.amount' },
+    { label: 'spi.request.currency', value: 'spi.request.currency' },
+    { label: 'spi.request.reference', value: 'spi.request.reference' },
   ];
 
   const updateCondition = (idx: number, updates: any) => {
@@ -1356,14 +1374,27 @@ function ConditionConfigDrawer({
     setConditions(newConditions);
   };
 
+  const addCondition = () => {
+    setConditions([...conditions, { id: String(Date.now()), field: '', operator: '==', value: '', logic: 'AND' }]);
+  };
+
+  const removeCondition = (idx: number) => {
+    setConditions(conditions.filter((_, i) => i !== idx));
+  };
+
   const handleSave = () => {
-    onSave({ conditionType, conditions, defaultAction });
+    if (edge) {
+      onSave(edge.id, { conditions: conditions.filter(c => c.field), defaultAction });
+    }
     onClose();
   };
 
   return (
     <Drawer
-      title={<Space><span>配置 {name}</span><Tag color="blue">{code}</Tag></Space>}
+      title={<Space>
+        <span>配置分支条件</span>
+        <Tag color="orange">Condition → {String(targetNode?.data?.name || 'Unknown')}</Tag>
+      </Space>}
       placement="right"
       width={500}
       open={visible}
@@ -1376,116 +1407,91 @@ function ConditionConfigDrawer({
       }
     >
       <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 12 }}>条件类型</Text>
-        <Radio.Group
-          value={conditionType}
-          onChange={e => setConditionType(e.target.value)}
-          style={{ marginTop: 8, display: 'flex', gap: 16 }}
-        >
-          <Radio value="if">
-            <span>IF 条件</span>
-            <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>单条件判断</Text>
-          </Radio>
-          <Radio value="switch">
-            <span>Switch 分支</span>
-            <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>多条件分支</Text>
-          </Radio>
-        </Radio.Group>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+          当满足以下条件时，走此分支
+        </Text>
+
+        {conditions.map((cond, idx) => (
+          <div key={cond.id} style={{ marginBottom: 12, padding: 12, background: '#fafafa', borderRadius: 6, border: '1px solid #e8e8e8' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Text strong style={{ fontSize: 11 }}>条件 {idx + 1}</Text>
+              {idx > 0 && (
+                <Select
+                  size="small"
+                  value={cond.logic}
+                  onChange={(val) => updateCondition(idx, { logic: val })}
+                  style={{ width: 70 }}
+                >
+                  <Select.Option value="AND">且</Select.Option>
+                  <Select.Option value="OR">或</Select.Option>
+                </Select>
+              )}
+              {conditions.length > 1 && (
+                <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeCondition(idx)} />
+              )}
+            </div>
+            <Space direction="horizontal" size={8}>
+              <Select
+                placeholder="字段"
+                value={cond.field}
+                onChange={(val) => updateCondition(idx, { field: val })}
+                style={{ width: 160 }}
+                allowClear
+              >
+                {fieldSourceOptions.map(opt => (
+                  <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
+                ))}
+              </Select>
+              <Select
+                value={cond.operator}
+                onChange={(val) => updateCondition(idx, { operator: val })}
+                style={{ width: 80 }}
+              >
+                {operatorOptions.map(op => (
+                  <Select.Option key={op.value} value={op.value}>{op.label}</Select.Option>
+                ))}
+              </Select>
+              {!['isEmpty', 'isNotEmpty'].includes(cond.operator) && (
+                <Input
+                  placeholder="值"
+                  value={cond.value}
+                  onChange={(e) => updateCondition(idx, { value: e.target.value })}
+                  style={{ width: 100 }}
+                />
+              )}
+            </Space>
+          </div>
+        ))}
+
+        <Button type="link" size="small" icon={<PlusOutlined />} onClick={addCondition}>
+          + 添加条件
+        </Button>
       </div>
 
       <Divider style={{ margin: '16px 0' }} />
 
       <div>
-        <Text strong style={{ fontSize: 12 }}>条件配置</Text>
-        <div style={{ marginTop: 12 }}>
-          {conditions.map((cond, idx) => (
-            <Card key={idx} size="small" style={{ marginBottom: 12, background: '#fafafa' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Text strong style={{ fontSize: 11 }}>条件 {idx + 1}</Text>
-                {idx > 0 && (
-                  <Select
-                    size="small"
-                    value={cond.logic}
-                    onChange={val => updateCondition(idx, { logic: val })}
-                    style={{ width: 70 }}
-                  >
-                    <Select.Option value="AND">且</Select.Option>
-                    <Select.Option value="OR">或</Select.Option>
-                  </Select>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Select
-                  size="small"
-                  placeholder="字段"
-                  value={cond.field}
-                  onChange={val => updateCondition(idx, { field: val })}
-                  style={{ width: 140 }}
-                  allowClear
-                >
-                  {fieldSourceOptions}
-                </Select>
-                <Select
-                  size="small"
-                  value={cond.operator}
-                  onChange={val => updateCondition(idx, { operator: val })}
-                  style={{ width: 80 }}
-                >
-                  {operatorOptions.map(op => (
-                    <Select.Option key={op.value} value={op.value}>{op.label}</Select.Option>
-                  ))}
-                </Select>
-                {!['isEmpty', 'isNotEmpty'].includes(cond.operator) && (
-                  <Input
-                    size="small"
-                    placeholder="比较值"
-                    value={cond.value}
-                    onChange={e => updateCondition(idx, { value: e.target.value })}
-                    style={{ width: 100 }}
-                  />
-                )}
-              </div>
-            </Card>
-          ))}
-
-          <Button
-            type="link"
-            size="small"
-            icon={<PlusOutlined />}
-            onClick={() => setConditions([...conditions, { field: '', operator: '==', value: '', logic: 'AND' }])}
-          >
-            + 添加条件
-          </Button>
-        </div>
-
-        <Divider style={{ margin: '16px 0' }} />
-
-        <div>
-          <Text strong style={{ fontSize: 12 }}>默认处理（不满足任何条件时）</Text>
-          <Radio.Group
-            value={defaultAction.type}
-            onChange={e => setDefaultAction({ ...defaultAction, type: e.target.value })}
-            style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}
-          >
-            <Radio value="skip">
-              <span>不写入此字段</span>
-            </Radio>
-            <Radio value="assign">
-              <Space>
-                <span>赋值 →</span>
-                <Input size="small" placeholder="值" value={defaultAction.value} onChange={e => setDefaultAction({ ...defaultAction, value: e.target.value })} style={{ width: 100 }} disabled={defaultAction.type !== 'assign'} />
-              </Space>
-            </Radio>
-            <Radio value="abort">
-              <span>中止流程并报错</span>
-            </Radio>
-          </Radio.Group>
-        </div>
+        <Text strong style={{ fontSize: 12 }}>默认处理（不满足任何条件时）</Text>
+        <Radio.Group
+          value={defaultAction}
+          onChange={(e) => setDefaultAction(e.target.value)}
+          style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}
+        >
+          <Radio value="skip">
+            <span>跳过此分支，继续下一个</span>
+          </Radio>
+          <Radio value="fallback">
+            <span>使用默认分支</span>
+          </Radio>
+          <Radio value="abort">
+            <span>中止流程并报错</span>
+          </Radio>
+        </Radio.Group>
       </div>
     </Drawer>
   );
 }
-
+            
 // SPI选择弹窗
 function SpiSelectModal({
   visible,
@@ -1592,7 +1598,7 @@ export default function FlowEditorPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [nodes, setNodes] = useState<Node[]>([]);
-  const [edges] = useState<Edge[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
 
   const [spiData, setSpiData] = useState<{ businessType: string; ability: string; action: string } | undefined>({
     businessType: 'DEPOSIT',
@@ -1604,8 +1610,9 @@ export default function FlowEditorPage() {
   // Network drawer state
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
 
-  // Condition drawer state
-  const [showConditionDrawer, setShowConditionDrawer] = useState(false);
+  // Edge condition config modal state
+  const [showEdgeConditionDrawer, setShowEdgeConditionDrawer] = useState(false);
+  const [selectedEdgeForCondition, setSelectedEdgeForCondition] = useState<Edge | null>(null);
 
   // Mapping active state - controls whether Context panel fields are clickable for mapping
   const [isMappingActive, setIsMappingActive] = useState(false);
@@ -1615,6 +1622,40 @@ export default function FlowEditorPage() {
     // activeMappingContext is passed from NetworkConfigDrawer via onMappingContextChange
     console.log('Field selected in mapping mode:', fieldPath);
   }, []);
+
+  // Handle connection between nodes
+  const onConnect = useCallback((connection: Connection) => {
+    const sourceNode = nodes.find(n => n.id === connection.source);
+    const newEdge: Edge = {
+      id: `edge_${Date.now()}`,
+      source: connection.source || '',
+      target: connection.target || '',
+      type: 'smoothstep',
+      markerEnd: { type: MarkerType.ArrowClosed },
+      style: { stroke: '#333', strokeWidth: 2 },
+      data: {},
+    };
+
+    // If connecting from condition node, open condition config drawer
+    // but still add the edge first so it appears on canvas
+    if (sourceNode?.data?.code === 'condition') {
+      setEdges((eds) => addEdge(newEdge, eds));
+      setSelectedEdgeForCondition(newEdge);
+      setShowEdgeConditionDrawer(true);
+    } else {
+      setEdges((eds) => addEdge(newEdge, eds));
+      message.success('Connection created');
+    }
+  }, [nodes, setEdges]);
+
+  // Handle edge click to edit condition
+  const onEdgeClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
+    const sourceNode = nodes.find(n => n.id === edge.source);
+    if (sourceNode?.data?.code === 'condition') {
+      setSelectedEdgeForCondition(edge);
+      setShowEdgeConditionDrawer(true);
+    }
+  }, [nodes]);
 
   const flowType = searchParams.get('flowType');
 
@@ -1694,9 +1735,8 @@ export default function FlowEditorPage() {
         onConfig: () => {
           if (code === 'network') {
             setShowNetworkDrawer(true);
-          } else if (code === 'condition') {
-            setShowConditionDrawer(true);
           }
+          // Condition node config is done via edge click
         },
         onDelete: () => setNodes(nds => nds.filter(n => n.id !== newNode.id)),
       },
@@ -1706,8 +1746,7 @@ export default function FlowEditorPage() {
 
   // 根据 action 和 flowType 获取预置组件并初始化画布
   const getInitialNodes = useCallback((): Node[] => {
-    const action = params.ability || '';
-    const presetCodes = getPresetComponents(action, flowType || 'main');
+    const presetCodes = getPresetComponents(flowType || 'forward');
     return presetCodes.map((code, idx) => {
       const info = COMPONENT_LIBRARY.find(c => c.code === code);
       return {
@@ -1721,15 +1760,15 @@ export default function FlowEditorPage() {
           onConfig: () => {
             if (code === 'network') {
               setShowNetworkDrawer(true);
-            } else if (code === 'condition') {
-              setShowConditionDrawer(true);
             }
+            // Condition node config is done via edge click
           },
           onDelete: () => {},
+          isDraggable: false,
         },
       };
     });
-  }, [params.ability, flowType]);
+  }, [flowType]);
 
   // 初始化预置节点
   useEffect(() => {
@@ -1813,6 +1852,8 @@ export default function FlowEditorPage() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
+            onConnect={onConnect}
+            onEdgeClick={onEdgeClick}
             onNodeClick={(_event, node) => { console.log('ReactFlow node clicked, node data:', node.data); (node.data as any).onConfig?.(); }}
             onNodesChange={(changes) => setNodes((nds) => {
               const updatedNodes = [...nds];
@@ -1828,6 +1869,13 @@ export default function FlowEditorPage() {
             })}
             nodeTypes={nodeTypes}
             fitView
+            minZoom={0.1}
+            maxZoom={2}
+            defaultEdgeOptions={{
+              type: 'smoothstep',
+              markerEnd: { type: MarkerType.ArrowClosed },
+              style: { stroke: '#333', strokeWidth: 2 },
+            }}
             style={{ flex: 1, minHeight: 0 }}
           >
             <Background color="#e8e8e8" gap={16} />
@@ -1868,22 +1916,25 @@ export default function FlowEditorPage() {
         }}
       />
 
-      {/* Condition 配置抽屉 */}
-      <ConditionConfigDrawer
-        visible={showConditionDrawer}
-        code="condition"
-        name="Condition"
-        onClose={() => setShowConditionDrawer(false)}
-        onSave={(config) => {
-          console.log('Condition config saved:', config);
-          // 更新节点状态
-          setNodes(nds => nds.map(n => {
-            if (n.data.code === 'condition') {
-              return { ...n, data: { ...n.data, isConfigured: true } };
+      {/* Edge Condition Modal */}
+      <EdgeConditionDrawer
+        visible={showEdgeConditionDrawer}
+        edge={selectedEdgeForCondition}
+        nodes={nodes}
+        onClose={() => {
+          setShowEdgeConditionDrawer(false);
+          setSelectedEdgeForCondition(null);
+        }}
+        onSave={(edgeId, condition) => {
+          setEdges((eds) => eds.map(e => {
+            if (e.id === edgeId) {
+              return { ...e, data: { ...e.data, condition } };
             }
-            return n;
+            return e;
           }));
-          setShowConditionDrawer(false);
+          setShowEdgeConditionDrawer(false);
+          setSelectedEdgeForCondition(null);
+          message.success('Branch condition saved');
         }}
       />
     </div>

@@ -11,11 +11,11 @@ interface StateFlowListPageProps {
   bt: string;
   stateName: string;
   onBack: () => void;
-  onFlowSelect: (flow: FlowConfig) => void;
+  onFlowSelect?: (flow: FlowConfig) => void;
   autoShowConfigModal?: boolean;
 }
 
-export default function StateFlowListPage({ channelCode, bt, stateName, onBack, onFlowSelect, autoShowConfigModal = false }: StateFlowListPageProps) {
+export default function StateFlowListPage({ channelCode, bt, stateName, onBack, autoShowConfigModal = false }: StateFlowListPageProps) {
   const [flows, setFlows] = useState<FlowConfig[]>([
     {
       id: 'flow_default_1',
@@ -62,25 +62,22 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
   };
 
   const handleFlowClick = (flow: FlowConfig) => {
-    if (!flow.isConfigured) {
-      // Need to configure first
-      setEditingFlow(flow);
-      setShowConfigModal(true);
-    } else {
-      // Navigate to flow editor
-      onFlowSelect(flow);
-    }
+    // Always open config modal to edit the flow
+    // Only way to enter component config canvas is via Next button in FlowConfigModal
+    setEditingFlow(flow);
+    setShowConfigModal(true);
   };
 
   const handleNextFromConfig = () => {
-    // Save the flow first if not saved
+    // Get flow type from editing flow or default to forward
+    const flowType = editingFlow?.flowType || 'forward';
     const flowName = editingFlow?.name || `Flow_${stateName}_${Date.now()}`;
     const config: FlowConfig = {
       id: editingFlow?.id || `flow_${Date.now()}`,
       name: flowName,
-      executionType: 'single',
-      flowType: 'forward',
-      endType: 'wait_external',
+      executionType: editingFlow?.executionType || 'single',
+      flowType: flowType,
+      endType: editingFlow?.endType || 'wait_external',
       isConfigured: true,
     };
 
@@ -93,7 +90,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
     setEditingFlow(null);
 
     // Navigate to component editor page (FlowEditorPage)
-    const url = `/channel-integration/${channelCode}/integration/config/${bt}/${stateName}/0?flowType=forward`;
+    const url = `/channel-integration/${channelCode}/integration/config/${bt}/${stateName}/0?flowType=${flowType}`;
     window.location.href = url;
   };
 

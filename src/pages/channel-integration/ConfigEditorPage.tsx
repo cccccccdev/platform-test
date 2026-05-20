@@ -304,10 +304,6 @@ export default function ConfigEditorPage() {
                     setSelectedStateForFlow(null);
                   }}
                   autoShowConfigModal={true}
-                  onFlowSelect={() => {
-                    // Navigate to FlowEditorPage with route params
-                    navigate(`/channel-integration/${channelCode}/integration/config/COLLECTION/${selectedStateForFlow}/0?flowType=forward`);
-                  }}
                 />
               )}
             </div>
