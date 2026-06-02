@@ -75,6 +75,8 @@ const router = createBrowserRouter([
       { path: 'channel-integration/:channelCode/scenes/:sceneId/modify', element: <SceneEditPage /> },
       { path: 'channel-integration/:channelCode/scenes/:sceneId/detail/:version', element: <SceneDetailPage /> },
       { path: 'channel-integration/:channelCode/scenes/:sceneId/api-debug', element: <ApiDebugPage /> },
+      // Channel-level API Debug (no scene)
+      { path: 'channel-integration/:channelCode/api-debug', element: <ApiDebugPage /> },
     ],
   },
 

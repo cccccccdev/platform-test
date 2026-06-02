@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, Radio, Button, Space, Typography, Divider, Tag } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
-import type { FlowConfig, ExecutionType, FlowType, EventCondition } from './types';
+import type { FlowConfig, ExecutionType, FlowType, EventCondition, FlowEvent } from './types';
 
 const { Text } = Typography;
 
@@ -10,6 +10,7 @@ interface FlowConfigModalProps {
   stateName: string;
   existingFlows: FlowConfig[];
   availableEvents: string[];
+  editingFlow?: FlowConfig | null; // If provided, we're editing an existing flow
   onSave: (config: FlowConfig) => void;
   onNext?: () => void;
   onCancel: () => void;
@@ -43,16 +44,17 @@ export default function FlowConfigModal({
   stateName,
   existingFlows,
   availableEvents,
+  editingFlow,
   onSave,
   onNext,
   onCancel,
 }: FlowConfigModalProps) {
   const [form] = Form.useForm();
   const [executionType, setExecutionType] = useState<ExecutionType>('single');
-  const [flowType, setFlowType] = useState<FlowType>('forward');
+  const [flowType, setFlowType] = useState<FlowType>('outbound');
   const [generateEvent, setGenerateEvent] = useState(true);
-  const [eventConditions, setEventConditions] = useState<EventCondition[]>([
-    { id: '1', field: '', operator: '==', value: '', logic: 'AND' }
+  const [events, setEvents] = useState<FlowEvent[]>([
+    { id: '1', eventName: '', conditions: [{ id: 'c1', field: '', operator: '==', value: '', logic: 'AND' }] }
   ]);
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
 
@@ -60,28 +62,58 @@ export default function FlowConfigModal({
     if (visible) {
       form.resetFields();
       setExecutionType('single');
-      setFlowType('forward');
+      setFlowType('outbound');
       setGenerateEvent(true);
-      setEventConditions([{ id: '1', field: '', operator: '==', value: '', logic: 'AND' }]);
+      setEvents([{ id: '1', eventName: '', conditions: [{ id: 'c1', field: '', operator: '==', value: '', logic: 'AND' }] }]);
       setSelectedEvents([]);
     }
   }, [visible, form]);
 
-  const handleAddCondition = () => {
-    setEventConditions([
-      ...eventConditions,
-      { id: String(Date.now()), field: '', operator: '==', value: '', logic: 'AND' }
+  const handleAddEvent = () => {
+    setEvents([
+      ...events,
+      { id: String(Date.now()), eventName: '', conditions: [{ id: 'c1', field: '', operator: '==', value: '', logic: 'AND' }] }
     ]);
   };
 
-  const handleUpdateCondition = (index: number, updates: Partial<EventCondition>) => {
-    const newConditions = [...eventConditions];
-    newConditions[index] = { ...newConditions[index], ...updates };
-    setEventConditions(newConditions);
+  const handleRemoveEvent = (eventId: string) => {
+    setEvents(events.filter(e => e.id !== eventId));
   };
 
-  const handleRemoveCondition = (index: number) => {
-    setEventConditions(eventConditions.filter((_, i) => i !== index));
+  const handleUpdateEventName = (eventId: string, eventName: string) => {
+    setEvents(events.map(e => e.id === eventId ? { ...e, eventName } : e));
+  };
+
+  const handleAddConditionToEvent = (eventId: string) => {
+    setEvents(events.map(e => {
+      if (e.id === eventId) {
+        return {
+          ...e,
+          conditions: [...e.conditions, { id: String(Date.now()), field: '', operator: '==', value: '', logic: 'AND' }]
+        };
+      }
+      return e;
+    }));
+  };
+
+  const handleUpdateCondition = (eventId: string, condIndex: number, updates: Partial<EventCondition>) => {
+    setEvents(events.map(e => {
+      if (e.id === eventId) {
+        const newConditions = [...e.conditions];
+        newConditions[condIndex] = { ...newConditions[condIndex], ...updates };
+        return { ...e, conditions: newConditions };
+      }
+      return e;
+    }));
+  };
+
+  const handleRemoveCondition = (eventId: string, condIndex: number) => {
+    setEvents(events.map(e => {
+      if (e.id === eventId) {
+        return { ...e, conditions: e.conditions.filter((_, i) => i !== condIndex) };
+      }
+      return e;
+    }));
   };
 
   const handleOk = () => {
@@ -97,11 +129,9 @@ export default function FlowConfigModal({
     };
 
     if (generateEvent) {
-      config.eventConfigs = [{
-        conditions: eventConditions.filter(c => c.field),
-        defaultAction: 'skip',
-        defaultValue: '',
-      }];
+      // Filter events that have event name configured and at least one condition field
+      const validEvents = events.filter(e => e.eventName && e.conditions.some(c => c.field));
+      config.events = validEvents;
     }
 
     onSave(config);
@@ -172,19 +202,19 @@ export default function FlowConfigModal({
             onChange={(e) => setFlowType(e.target.value)}
             style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
           >
-            <Radio value="forward">
+            <Radio value="outbound">
               <div>
-                <Text strong>Forward</Text>
+                <Text strong>Outbound</Text>
                 <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-                  Forward flow execution
+                  Outbound flow execution (request/response)
                 </Text>
               </div>
             </Radio>
-            <Radio value="backward">
+            <Radio value="inbound">
               <div>
-                <Text strong>Backward</Text>
+                <Text strong>Inbound</Text>
                 <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-                  Backward flow execution (callback/requery)
+                  Inbound flow execution (callback/requery)
                 </Text>
               </div>
             </Radio>
@@ -235,82 +265,119 @@ export default function FlowConfigModal({
           </Radio.Group>
         </Form.Item>
 
-        {/* Event Condition Configuration - only show if generateEvent is true */}
+        {/* Event Configuration - only show if generateEvent is true */}
         {generateEvent && (
           <div style={{ background: '#fafafa', padding: 16, borderRadius: 8, marginBottom: 16 }}>
-            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
               Event Generation Rules
             </Text>
             <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
-              Configure conditions that determine what events to generate
+              Configure events to generate when conditions match. Multiple events can be configured.
             </Text>
-            <div style={{ marginBottom: 12 }}>
-              {eventConditions.map((cond, idx) => (
-                <div key={cond.id} style={{ marginBottom: 12, padding: 12, background: '#fff', borderRadius: 6, border: '1px solid #e8e8e8' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <Text strong style={{ fontSize: 11 }}>Condition {idx + 1}</Text>
-                    {idx > 0 && (
-                      <Select
-                        size="small"
-                        value={cond.logic}
-                        onChange={(val) => handleUpdateCondition(idx, { logic: val })}
-                        style={{ width: 70 }}
-                      >
-                        <Select.Option value="AND">AND</Select.Option>
-                        <Select.Option value="OR">OR</Select.Option>
-                      </Select>
-                    )}
-                    {eventConditions.length > 1 && (
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleRemoveCondition(idx)}
-                      />
-                    )}
-                  </div>
-                  <Space direction="horizontal" size={8}>
-                    <Select
-                      placeholder="Field"
-                      value={cond.field}
-                      onChange={(val) => handleUpdateCondition(idx, { field: val })}
-                      style={{ width: 160 }}
-                      allowClear
-                    >
-                      {fieldSourceOptions.map(opt => (
-                        <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
-                      ))}
-                    </Select>
-                    <Select
-                      value={cond.operator}
-                      onChange={(val) => handleUpdateCondition(idx, { operator: val })}
-                      style={{ width: 80 }}
-                    >
-                      {operatorOptions.map(op => (
-                        <Select.Option key={op.value} value={op.value}>{op.label}</Select.Option>
-                      ))}
-                    </Select>
-                    {!['isEmpty', 'isNotEmpty'].includes(cond.operator) && (
-                      <Input
-                        placeholder="Value"
-                        value={cond.value}
-                        onChange={(e) => handleUpdateCondition(idx, { value: e.target.value })}
-                        style={{ width: 100 }}
-                      />
-                    )}
-                  </Space>
+
+            {events.map((event, eventIdx) => (
+              <div key={event.id} style={{ marginBottom: 16, padding: 12, background: '#fff', borderRadius: 6, border: '1px solid #e8e8e8' }}>
+                {/* Event Header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <Tag color="blue" style={{ fontSize: 11 }}>Event {eventIdx + 1}</Tag>
+                  <Input
+                    placeholder="Event name (e.g., payment_success)"
+                    value={event.eventName}
+                    onChange={(e) => handleUpdateEventName(event.id, e.target.value)}
+                    style={{ flex: 1, fontSize: 12 }}
+                  />
+                  {events.length > 1 && (
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleRemoveEvent(event.id)}
+                    />
+                  )}
                 </div>
-              ))}
-              <Button
-                type="link"
-                size="small"
-                icon={<PlusOutlined />}
-                onClick={handleAddCondition}
-              >
-                + Add Condition
-              </Button>
-            </div>
+
+                {/* Conditions for this event */}
+                <div style={{ marginBottom: 8 }}>
+                  {event.conditions.map((cond, condIdx) => (
+                    <div key={cond.id} style={{ marginBottom: 8, padding: 8, background: '#fafafa', borderRadius: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                        <Text type="secondary" style={{ fontSize: 10 }}>Condition {condIdx + 1}</Text>
+                        {condIdx > 0 && (
+                          <Select
+                            size="small"
+                            value={cond.logic}
+                            onChange={(val) => handleUpdateCondition(event.id, condIdx, { logic: val })}
+                            style={{ width: 60 }}
+                          >
+                            <Select.Option value="AND">AND</Select.Option>
+                            <Select.Option value="OR">OR</Select.Option>
+                          </Select>
+                        )}
+                        {event.conditions.length > 1 && (
+                          <Button
+                            type="text"
+                            size="small"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => handleRemoveCondition(event.id, condIdx)}
+                          />
+                        )}
+                      </div>
+                      <Space direction="horizontal" size={6}>
+                        <Select
+                          placeholder="Field"
+                          value={cond.field}
+                          onChange={(val) => handleUpdateCondition(event.id, condIdx, { field: val })}
+                          style={{ width: 140 }}
+                          allowClear
+                        >
+                          {fieldSourceOptions.map(opt => (
+                            <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
+                          ))}
+                        </Select>
+                        <Select
+                          value={cond.operator}
+                          onChange={(val) => handleUpdateCondition(event.id, condIdx, { operator: val })}
+                          style={{ width: 70 }}
+                        >
+                          {operatorOptions.map(op => (
+                            <Select.Option key={op.value} value={op.value}>{op.label}</Select.Option>
+                          ))}
+                        </Select>
+                        {!['isEmpty', 'isNotEmpty'].includes(cond.operator) && (
+                          <Input
+                            placeholder="Value"
+                            value={cond.value}
+                            onChange={(e) => handleUpdateCondition(event.id, condIdx, { value: e.target.value })}
+                            style={{ width: 90 }}
+                          />
+                        )}
+                      </Space>
+                    </div>
+                  ))}
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<PlusOutlined />}
+                    onClick={() => handleAddConditionToEvent(event.id)}
+                    style={{ fontSize: 11, padding: '0 0' }}
+                  >
+                    + Add Condition
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            <Button
+              type="dashed"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={handleAddEvent}
+              block
+            >
+              + Add Event
+            </Button>
           </div>
         )}
 
@@ -329,8 +396,8 @@ export default function FlowConfigModal({
           </div>
         )}
 
-        {/* Trigger Events for new flow (if there are existing flows with events) */}
-        {existingFlows.length > 0 && availableEvents.length > 0 && (
+        {/* Trigger Events - only show for new flows when there are existing flows */}
+        {existingFlows.length > 0 && !editingFlow && (
           <>
             <Divider />
             <Form.Item label="Trigger Events (for new flow)">

@@ -21,7 +21,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
       id: 'flow_default_1',
       name: '',
       executionType: 'single',
-      flowType: 'forward',
+      flowType: 'outbound',
       endType: 'wait_external',
       isConfigured: false,
       triggerEvents: [],
@@ -40,9 +40,8 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
 
   // Get available events from all flows (events they can generate)
   const availableEvents = flows
-    .filter(f => f.endType === 'event' && f.eventConfigs)
-    .flatMap(f => f.eventConfigs!.map(e => e.conditions.map(c => c.field).join('')))
-    .filter(Boolean);
+    .filter(f => f.endType === 'event' && f.events)
+    .flatMap(f => f.events!.map(e => e.eventName).filter(Boolean));
 
   const handleAddFlow = () => {
     setEditingFlow(null);
@@ -70,7 +69,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
 
   const handleNextFromConfig = () => {
     // Get flow type from editing flow or default to forward
-    const flowType = editingFlow?.flowType || 'forward';
+    const flowType = editingFlow?.flowType || 'outbound';
     const flowName = editingFlow?.name || `Flow_${stateName}_${Date.now()}`;
     const config: FlowConfig = {
       id: editingFlow?.id || `flow_${Date.now()}`,
@@ -182,8 +181,8 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
                     <Tag color={flow.executionType === 'loop' ? 'orange' : 'default'} style={{ fontSize: 10, margin: 0 }}>
                       {flow.executionType === 'loop' ? 'Loop' : 'Single'}
                     </Tag>
-                    <Tag color={flow.flowType === 'forward' ? 'blue' : 'cyan'} style={{ fontSize: 10, margin: 0 }}>
-                      {flow.flowType === 'forward' ? 'Fwd' : 'Bwd'}
+                    <Tag color={flow.flowType === 'outbound' ? 'blue' : 'cyan'} style={{ fontSize: 10, margin: 0 }}>
+                      {flow.flowType === 'outbound' ? 'Out' : 'In'}
                     </Tag>
                   </div>
 
@@ -228,6 +227,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
         stateName={stateName}
         existingFlows={flows}
         availableEvents={availableEvents}
+        editingFlow={editingFlow}
         onSave={handleSaveFlow}
         onNext={handleNextFromConfig}
         onCancel={() => {

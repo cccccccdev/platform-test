@@ -92,7 +92,7 @@ interface HistorySession {
 const requestTabs: RequestTabType[] = ['params', 'body', 'headers', 'auth', 'signature', 'preScript'];
 
 export default function ApiDebugPage() {
-  const { channelCode, sceneId } = useParams<{ channelCode: string; sceneId: string }>();
+  const { channelCode } = useParams<{ channelCode: string }>();
   const navigate = useNavigate();
   const tabContainerRef = useRef<HTMLDivElement>(null);
 
@@ -242,7 +242,7 @@ pm.variables.set("timestamp", Date.now().toString());
   // History sessions (persisted to localStorage)
   const [historySessions, setHistorySessions] = useState<HistorySession[]>(() => {
     try {
-      const saved = localStorage.getItem('apiDebug_history_' + (sceneId || 'default'));
+      const saved = localStorage.getItem('apiDebug_history_' + (channelCode || 'default'));
       if (saved) return JSON.parse(saved);
     } catch {}
 
@@ -399,9 +399,9 @@ pm.variables.set("timestamp", Date.now().toString());
   // Persist history sessions to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('apiDebug_history_' + (sceneId || 'default'), JSON.stringify(historySessions));
+      localStorage.setItem('apiDebug_history_' + (channelCode || 'default'), JSON.stringify(historySessions));
     } catch {}
-  }, [historySessions, sceneId]);
+  }, [historySessions, channelCode]);
 
   // Add session to history
   const addHistorySession = (session: Omit<HistorySession, 'id' | 'timestamp'>) => {
@@ -429,7 +429,7 @@ pm.variables.set("timestamp", Date.now().toString());
   // Clear all history
   const clearAllHistory = () => {
     setHistorySessions([]);
-    localStorage.removeItem('apiDebug_history_' + (sceneId || 'default'));
+    localStorage.removeItem('apiDebug_history_' + (channelCode || 'default'));
   };
 
   // Restore session to current tab
@@ -1248,7 +1248,7 @@ pm.variables.set("timestamp", Date.now().toString());
           <Space size="middle">
             <Button icon={<ArrowLeftOutlined />} onClick={handleBack} size="small" />
             <span style={{ fontWeight: 600, fontSize: 14 }}>API Debug</span>
-            <Tag color="blue">{sceneId}</Tag>
+            <Tag color="blue">{channelCode}</Tag>
           </Space>
           <Space size="middle">
             <Select value={environment} onChange={setEnvironment} style={{ width: 100 }}>

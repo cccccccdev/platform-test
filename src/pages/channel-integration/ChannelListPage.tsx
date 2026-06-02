@@ -89,6 +89,7 @@ export default function ChannelListPage() {
       { key: 'country', label: 'Country', onClick: () => navigate(`/channel-integration/${record.code}/country`) },
       { key: 'business-type', label: 'Business Type', onClick: () => navigate(`/channel-integration/${record.code}/business-type`) },
       { key: 'credential', label: 'Credential', onClick: () => navigate(`/channel-integration/${record.code}/credential`) },
+      { key: 'debug', label: 'Debug', onClick: () => navigate(`/channel-integration/${record.code}/api-debug`) },
       { type: 'divider' },
       // 第二组：二级菜单
       {

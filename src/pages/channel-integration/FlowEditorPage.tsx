@@ -26,10 +26,10 @@ const COMPONENT_LIBRARY = [
 
 // 根据 flowType 获取预置组件
 const getPresetComponents = (flowType: string): string[] => {
-  if (flowType === 'forward') {
+  if (flowType === 'outbound') {
     return ['generateReference', 'network', 'condition'];
   }
-  if (flowType === 'backward') {
+  if (flowType === 'inbound') {
     return ['inboundRequest', 'inboundResponse', 'sendCompleteMQ'];
   }
   return [];
@@ -260,7 +260,6 @@ const nodeTypes = { flowNode: FlowNodeComponent };
 
 // Context面板组件
 function ContextPanel({
-  onSpiSelect,
   spiData,
   endpoints,
   credentials,
@@ -268,8 +267,9 @@ function ContextPanel({
   generatedFields,
   onFieldSelect,
   isMappingActive,
+  onAddGeneratedField,
+  onAddGlobalVar,
 }: {
-  onSpiSelect: () => void;
   spiData?: { businessType: string; ability: string; action: string };
   endpoints: any[];
   credentials: any[];
@@ -277,6 +277,8 @@ function ContextPanel({
   generatedFields: any[];
   onFieldSelect?: (fieldPath: string) => void;
   isMappingActive?: boolean;
+  onAddGeneratedField?: () => void;
+  onAddGlobalVar?: () => void;
 }) {
   const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
 
@@ -313,18 +315,27 @@ function ContextPanel({
   } : null;
 
   const spiFields = spiData ? {
-    request: [
-      { name: 'amount', type: 'Number', required: true },
-      { name: 'currency', type: 'String', required: true },
-      { name: 'reference', type: 'String', required: true },
-      { name: 'accountNumber', type: 'String', required: true },
-      { name: 'bankCode', type: 'String', required: true },
-    ],
-    response: [
-      { name: 'status', type: 'String' },
-      { name: 'reference', type: 'String' },
-      { name: 'message', type: 'String' },
-    ]
+    request: {
+      amount: '10000',
+      currency: 'NGN',
+      reference: 'TXN_20240115_ABC123',
+      accountNumber: '1234567890',
+      bankCode: '044',
+      bank: {
+        code: '{{spi.request.bankCode}}',
+        account_number: '{{spi.request.accountNumber}}'
+      }
+    },
+    response: {
+      status: true,
+      message: 'Charge attempted',
+      data: {
+        reference: 'ch_123456',
+        status: 'pending',
+        amount: 10000,
+        currency: 'NGN'
+      }
+    }
   } : null;
 
   const renderEmptyState = (msg: string, hint: string) => (
@@ -333,6 +344,72 @@ function ContextPanel({
       <div style={{ color: '#bbb', fontSize: 10 }}>{hint}</div>
     </div>
   );
+
+  // Helper function to render hierarchical JSON fields
+  const getFieldType = (value: any): string => {
+    if (value && typeof value === 'object') {
+      if (Array.isArray(value)) return 'array';
+      return 'object';
+    }
+    return typeof value;
+  };
+
+  const renderJsonFields = (obj: any, prefix: string, baseColor: string, depth: number = 0, isRequired: boolean = false): React.ReactNode[] => {
+    if (!obj || typeof obj !== 'object') return [];
+    const lines: React.ReactNode[] = [];
+    const indent = depth * 16;
+
+    Object.keys(obj).forEach(key => {
+      const value = obj[key];
+      const fieldPath = prefix ? `${prefix}.${key}` : key;
+      const isObject = value && typeof value === 'object' && !Array.isArray(value);
+      const isArray = Array.isArray(value);
+      const fieldType = getFieldType(value);
+
+      lines.push(
+        <div
+          key={fieldPath}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '3px 4px',
+            paddingLeft: indent + 4,
+            color: baseColor,
+            cursor: isMappingActive ? 'pointer' : 'default',
+            fontWeight: isMappingActive ? 500 : 400,
+            background: isMappingActive ? (depth === 0 ? '#e6f7ff' : 'transparent') : 'transparent',
+            borderRadius: 4,
+            fontSize: 11,
+          }}
+          onClick={() => isMappingActive && onFieldSelect?.(`endpoint.${fieldPath}`)}
+        >
+          {depth > 0 && <span style={{ color: '#ddd', marginRight: 2 }}>├─</span>}
+          <span style={{ fontWeight: 500, minWidth: 80 }}>{key}</span>
+          <Tag style={{ fontSize: 9, margin: 0 }}>{fieldType}</Tag>
+          {isRequired && <Tag color="red" style={{ fontSize: 9, margin: 0 }}>必填</Tag>}
+        </div>
+      );
+
+      if (isObject) {
+        lines.push(...renderJsonFields(value, fieldPath, baseColor, depth + 1, isRequired));
+      } else if (isArray && value.length > 0 && typeof value[0] === 'object') {
+        lines.push(...renderJsonFields(value[0], `${fieldPath}[0]`, baseColor, depth + 1, false));
+      }
+    });
+
+    return lines;
+  };
+
+  // Parse JSON sample to extract fields with hierarchy
+  const parseJsonToFields = (jsonStr: string): any => {
+    if (!jsonStr) return null;
+    try {
+      return JSON.parse(jsonStr);
+    } catch {
+      return null;
+    }
+  };
 
   // Mapping active indicator
   const mappingActiveBanner = isMappingActive ? (
@@ -357,7 +434,6 @@ function ContextPanel({
     {
       key: 'spi',
       label: <Space><span>🔵</span><span>SPI</span></Space>,
-      extra: <Button type="text" size="small" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); onSpiSelect(); }} />,
       children: !spiData ? (
           <Text type="secondary" style={{ fontSize: 11 }}>暂无内容，点击 + 添加</Text>
         ) : (
@@ -372,46 +448,9 @@ function ContextPanel({
             {spiFields && (
               <div style={{ fontSize: 10 }}>
                 <div style={{ fontWeight: 500, marginBottom: 4, color: '#1890ff' }}>🔵 spi.request</div>
-                {spiFields.request.map((field: any) => (
-                  <div
-                    key={field.name}
-                    style={{
-                      display: 'flex',
-                      gap: 4,
-                      padding: '2px 4px',
-                      color: isMappingActive ? '#1890ff' : '#666',
-                      cursor: isMappingActive ? 'pointer' : 'default',
-                      fontWeight: isMappingActive ? 500 : 400,
-                      background: isMappingActive ? '#e6f7ff' : 'transparent',
-                      borderRadius: 4,
-                    }}
-                    onClick={() => isMappingActive && onFieldSelect?.(`spi.request.${field.name}`)}
-                  >
-                    <span>{field.name}</span>
-                    <span style={{ color: '#999' }}>{field.type}</span>
-                    {field.required && <Tag style={{ fontSize: 9, padding: '0 2px' }}>必填</Tag>}
-                  </div>
-                ))}
+                {renderJsonFields(spiFields.request, 'spi.request', '#1890ff')}
                 <div style={{ fontWeight: 500, margin: '8px 0 4px', color: '#722ed1' }}>🟣 spi.response</div>
-                {spiFields.response.map((field: any) => (
-                  <div
-                    key={field.name}
-                    style={{
-                      display: 'flex',
-                      gap: 4,
-                      padding: '2px 4px',
-                      color: isMappingActive ? '#722ed1' : '#666',
-                      cursor: isMappingActive ? 'pointer' : 'default',
-                      fontWeight: isMappingActive ? 500 : 400,
-                      background: isMappingActive ? '#f9f0ff' : 'transparent',
-                      borderRadius: 4,
-                    }}
-                    onClick={() => isMappingActive && onFieldSelect?.(`spi.response.${field.name}`)}
-                  >
-                    <span>{field.name}</span>
-                    <span style={{ color: '#999' }}>{field.type}</span>
-                  </div>
-                ))}
+                {renderJsonFields(spiFields.response, 'spi.response', '#722ed1')}
               </div>
             )}
           </div>
@@ -419,9 +458,15 @@ function ContextPanel({
     },
     {
       key: 'generatedFields',
-      label: <Space><span>🟢</span><span>Generated Fields</span></Space>,
+      label: (
+        <Space>
+          <span>🟢</span>
+          <span>Generated Fields</span>
+          <Button type="text" size="small" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); onAddGeneratedField?.(); }} style={{ padding: '0 4px', height: 20 }} />
+        </Space>
+      ),
       children: generatedFields.length === 0 ? (
-        renderEmptyState('暂无 Generated Fields', '请在 Generate Reference 中配置')
+        renderEmptyState('暂无 Generated Fields', '点击上方 + 添加')
       ) : (
         <table style={{ width: '100%', fontSize: 11 }}>
           <thead>
@@ -454,9 +499,15 @@ function ContextPanel({
     },
     {
       key: 'globalVar',
-      label: <Space><span>📝</span><span>Global Variable</span></Space>,
+      label: (
+        <Space>
+          <span>📝</span>
+          <span>Global Variable</span>
+          <Button type="text" size="small" icon={<PlusOutlined />} onClick={(e) => { e.stopPropagation(); onAddGlobalVar?.(); }} style={{ padding: '0 4px', height: 20 }} />
+        </Space>
+      ),
       children: globalVariables.length === 0 ? (
-        renderEmptyState('暂无 Global Variable', '请在配置中添加')
+        renderEmptyState('暂无 Global Variable', '点击上方 + 添加')
       ) : (
         globalVariables.map((g: any, idx: number) => (
           <div
@@ -482,12 +533,24 @@ function ContextPanel({
       children: endpoints.length === 0 ? (
         renderEmptyState('暂无 Endpoint', '请在 Network 组件中配置')
       ) : (
-        endpoints.map(ep => (
-          <div key={ep.id} style={{ padding: '4px 0', fontSize: 11 }}>
-            <div style={{ fontWeight: 500 }}>{ep.name}</div>
-            <div style={{ color: '#888' }}>{ep.method} {ep.url}</div>
-          </div>
-        ))
+        endpoints.map(ep => {
+          const requestObj = parseJsonToFields(ep.requestSample);
+          const responseObj = parseJsonToFields(ep.responseSample);
+          return (
+            <div key={ep.id} style={{ padding: '4px 0', fontSize: 11, marginBottom: 8 }}>
+              <div style={{ fontWeight: 500, marginBottom: 2 }}>{ep.name}</div>
+              <div style={{ color: '#888', marginBottom: 4 }}>{ep.method} {ep.url}</div>
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ fontWeight: 500, marginBottom: 2, color: '#1890ff', fontSize: 10 }}>Request</div>
+                {requestObj && renderJsonFields(requestObj, `endpoint.${ep.id}.request`, '#1890ff')}
+              </div>
+              <div>
+                <div style={{ fontWeight: 500, marginBottom: 2, color: '#722ed1', fontSize: 10 }}>Response</div>
+                {responseObj && renderJsonFields(responseObj, `endpoint.${ep.id}.response`, '#722ed1')}
+              </div>
+            </div>
+          );
+        })
       ),
     },
     {
@@ -507,7 +570,7 @@ function ContextPanel({
   ];
 
   return (
-    <div style={{ width: 240, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: 320, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 14 }}>
         Context
       </div>
@@ -976,6 +1039,107 @@ function NetworkConfigDrawer({
           <div style={{ background: '#fafafa', padding: 12, borderRadius: 4, fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto' }}>
             {localConfig.responseSample || '暂无响应报文示例'}
           </div>
+
+          {selectedEndpoint?.security && (
+            <>
+              <Divider>Security</Divider>
+              {/* Auth Section */}
+              <div style={{ marginBottom: 16 }}>
+                <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>认证 (Auth)</Text>
+                <div style={{ background: '#fafafa', padding: 10, borderRadius: 4, fontSize: 11 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Tag color={selectedEndpoint.security.auth?.type !== 'None' ? 'blue' : 'default'} style={{ fontSize: 10 }}>
+                      {selectedEndpoint.security.auth?.type || 'None'}
+                    </Tag>
+                  </div>
+                  {selectedEndpoint.security.auth?.type === 'Bearer Token' && selectedEndpoint.security.auth?.config?.tokenSource && (
+                    <div style={{ color: '#666', fontSize: 10 }}>Token: {selectedEndpoint.security.auth.config.tokenSource}</div>
+                  )}
+                  {selectedEndpoint.security.auth?.type === 'API Key' && (
+                    <>
+                      <div style={{ color: '#666', fontSize: 10 }}>
+                        Key: {selectedEndpoint.security.auth?.config?.keyName || '-'} | Location: {selectedEndpoint.security.auth?.config?.location || 'header'}
+                      </div>
+                      <div style={{ color: '#666', fontSize: 10 }}>Value: {selectedEndpoint.security.auth?.config?.valueSource || '-'}</div>
+                    </>
+                  )}
+                  {selectedEndpoint.security.auth?.type === 'Basic Auth' && (
+                    <>
+                      <div style={{ color: '#666', fontSize: 10 }}>Username: {selectedEndpoint.security.auth?.config?.usernameSource || '-'}</div>
+                      <div style={{ color: '#666', fontSize: 10 }}>Password: {selectedEndpoint.security.auth?.config?.passwordSource || '-'}</div>
+                    </>
+                  )}
+                  {selectedEndpoint.security.auth?.type === 'OAuth2' && (
+                    <>
+                      <div style={{ color: '#666', fontSize: 10 }}>Token URL: {selectedEndpoint.security.auth?.config?.tokenUrl || '-'}</div>
+                      <div style={{ color: '#666', fontSize: 10 }}>Client ID: {selectedEndpoint.security.auth?.config?.clientIdSource || '-'}</div>
+                      <div style={{ color: '#666', fontSize: 10 }}>Client Secret: {selectedEndpoint.security.auth?.config?.clientSecretSource || '-'}</div>
+                    </>
+                  )}
+                  {selectedEndpoint.security.auth?.type === 'None' && (
+                    <div style={{ color: '#999', fontSize: 10 }}>不添加任何认证信息</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Signature Section */}
+              <div style={{ marginBottom: 16 }}>
+                <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>加签 (Signature)</Text>
+                <div style={{ background: '#fafafa', padding: 10, borderRadius: 4, fontSize: 11 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Tag color={selectedEndpoint.security.signature?.enabled ? 'green' : 'default'} style={{ fontSize: 10 }}>
+                      {selectedEndpoint.security.signature?.enabled ? 'Enabled' : 'Disabled'}
+                    </Tag>
+                  </div>
+                  {selectedEndpoint.security.signature?.enabled && (
+                    <>
+                      <div style={{ color: '#666', fontSize: 10, marginBottom: 4 }}>
+                        Algorithm: <Tag style={{ fontSize: 9 }}>{selectedEndpoint.security.signature.algorithm || '-'}</Tag>
+                      </div>
+                      <div style={{ color: '#666', fontSize: 10, marginBottom: 4 }}>
+                        Fields: {selectedEndpoint.security.signature.fields?.join(' + ') || '-'}
+                      </div>
+                      <div style={{ color: '#666', fontSize: 10, marginBottom: 4 }}>
+                        Secret: {selectedEndpoint.security.signature.secretSource || '-'}
+                      </div>
+                      <div style={{ color: '#666', fontSize: 10 }}>
+                        Write to: {selectedEndpoint.security.signature.writeTo === 'header'
+                          ? `Header (${selectedEndpoint.security.signature.headerName || '-'})`
+                          : selectedEndpoint.security.signature.writeTo === 'body'
+                            ? `Body Field (${selectedEndpoint.security.signature.bodyField || '-'})`
+                            : `Query (${selectedEndpoint.security.signature.queryParam || '-'})`
+                        }
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Encryption Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 10 }}>加密 (Encrypt)</Text>
+                  <div style={{ padding: '6px 8px', background: '#fafafa', borderRadius: 4, fontSize: 11 }}>
+                    {selectedEndpoint.security.encrypt || '-'}
+                  </div>
+                </div>
+                <div>
+                  <Text type="secondary" style={{ fontSize: 10 }}>解密 (Decrypt)</Text>
+                  <div style={{ padding: '6px 8px', background: '#fafafa', borderRadius: 4, fontSize: 11 }}>
+                    {selectedEndpoint.security.decrypt || '-'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Verify Section */}
+              <div style={{ marginTop: 12 }}>
+                <Text type="secondary" style={{ fontSize: 10 }}>验签 (Verify)</Text>
+                <div style={{ padding: '6px 8px', background: '#fafafa', borderRadius: 4, fontSize: 11 }}>
+                  {selectedEndpoint.security.verify || '-'}
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
@@ -1491,7 +1655,208 @@ function EdgeConditionDrawer({
     </Drawer>
   );
 }
-            
+
+// Generated Field Drawer
+function GeneratedFieldDrawer({
+  visible,
+  field,
+  onClose,
+  onSave,
+}: {
+  visible: boolean;
+  field: { name: string; generationType: string; format?: string; timezone?: string } | null;
+  onClose: () => void;
+  onSave: (field: any) => void;
+}) {
+  const [fieldName, setFieldName] = useState(field?.name || '');
+  const [generationType, setGenerationType] = useState(field?.generationType || 'timestamp');
+  const [timezone, setTimezone] = useState(field?.timezone || 'Asia/Shanghai');
+  const [format, setFormat] = useState(field?.format || 'yyyy-MM-dd HH:mm:ss');
+
+  useEffect(() => {
+    if (visible) {
+      setFieldName(field?.name || '');
+      setGenerationType(field?.generationType || 'timestamp');
+      setTimezone(field?.timezone || 'Asia/Shanghai');
+      setFormat(field?.format || 'yyyy-MM-dd HH:mm:ss');
+    }
+  }, [visible, field]);
+
+  const generationTypeOptions = [
+    { value: 'timestamp', label: 'Generate timestamp' },
+    { value: 'currentTimeMillis', label: 'Generate current time millis' },
+    { value: 'digitalRandom', label: 'Generate digital random number' },
+    { value: 'characterRandom', label: 'Generate character random number' },
+    { value: 'callbackUrl', label: 'Generate callback url' },
+  ];
+
+  const timeFormatOptions = [
+    { value: 'yyyy-MM-dd HH:mm:ss', label: 'yyyy-MM-dd HH:mm:ss' },
+    { value: "yyyy-MM-dd'T'HH:mm:ss", label: "yyyy-MM-dd'T'HH:mm:ss" },
+    { value: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", label: "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'" },
+    { value: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", label: "yyyy-MM-dd'T'HH:mm:ss.SSSXXX" },
+    { value: "yyyy-MM-dd'T'HH:mm:ssXXX", label: "yyyy-MM-dd'T'HH:mm:ssXXX" },
+    { value: 'yyyyMMdd', label: 'yyyyMMdd' },
+    { value: 'yyyyMMddHHmmss', label: 'yyyyMMddHHmmss' },
+  ];
+
+  const timezoneOptions = [
+    { value: 'Asia/Shanghai', label: 'Asia/Shanghai (UTC+8)' },
+    { value: 'UTC', label: 'UTC (UTC+0)' },
+    { value: 'America/New_York', label: 'America/New_York (UTC-5)' },
+    { value: 'Europe/London', label: 'Europe/London (UTC+0)' },
+    { value: 'Asia/Tokyo', label: 'Asia/Tokyo (UTC+9)' },
+  ];
+
+  const handleSave = () => {
+    onSave({
+      name: fieldName,
+      generationType,
+      ...(generationType === 'timestamp' && { timezone, format }),
+    });
+    onClose();
+  };
+
+  return (
+    <Drawer
+      title={<Space><span>配置生成字段</span><Tag color="green">{fieldName || 'New Field'}</Tag></Space>}
+      placement="right"
+      width={450}
+      open={visible}
+      onClose={onClose}
+      extra={
+        <Space>
+          <Button onClick={onClose}>取消</Button>
+          <Button type="primary" onClick={handleSave}>保存</Button>
+        </Space>
+      }
+    >
+      <div style={{ marginBottom: 16 }}>
+        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>字段名称</Text>
+        <Input
+          placeholder="请输入字段名称"
+          value={fieldName}
+          onChange={(e) => setFieldName(e.target.value)}
+        />
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>生成类型</Text>
+        <Select
+          style={{ width: '100%' }}
+          value={generationType}
+          onChange={(val) => {
+            setGenerationType(val);
+            if (val !== 'timestamp') {
+              setFormat('');
+              setTimezone('');
+            } else {
+              setTimezone('Asia/Shanghai');
+              setFormat('yyyy-MM-dd HH:mm:ss');
+            }
+          }}
+        >
+          {generationTypeOptions.map(opt => (
+            <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
+          ))}
+        </Select>
+      </div>
+
+      {generationType === 'timestamp' && (
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>时区</Text>
+            <Select
+              style={{ width: '100%' }}
+              value={timezone}
+              onChange={setTimezone}
+            >
+              {timezoneOptions.map(opt => (
+                <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
+              ))}
+            </Select>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>时间戳格式</Text>
+            <Select
+              style={{ width: '100%' }}
+              value={format}
+              onChange={setFormat}
+            >
+              {timeFormatOptions.map(opt => (
+                <Select.Option key={opt.value} value={opt.value}>{opt.label}</Select.Option>
+              ))}
+            </Select>
+          </div>
+        </>
+      )}
+    </Drawer>
+  );
+}
+
+// Global Variable Drawer
+function GlobalVarDrawer({
+  visible,
+  variable,
+  onClose,
+  onSave,
+}: {
+  visible: boolean;
+  variable: { name: string; value: string } | null;
+  onClose: () => void;
+  onSave: (variable: any) => void;
+}) {
+  const [varName, setVarName] = useState(variable?.name || '');
+  const [varValue, setVarValue] = useState(variable?.value || '');
+
+  useEffect(() => {
+    if (visible) {
+      setVarName(variable?.name || '');
+      setVarValue(variable?.value || '');
+    }
+  }, [visible, variable]);
+
+  const handleSave = () => {
+    onSave({ name: varName, value: varValue });
+    onClose();
+  };
+
+  return (
+    <Drawer
+      title={<Space><span>配置全局变量</span><Tag color="gold">{varName || 'New Variable'}</Tag></Space>}
+      placement="right"
+      width={400}
+      open={visible}
+      onClose={onClose}
+      extra={
+        <Space>
+          <Button onClick={onClose}>取消</Button>
+          <Button type="primary" onClick={handleSave}>保存</Button>
+        </Space>
+      }
+    >
+      <div style={{ marginBottom: 16 }}>
+        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>变量名称</Text>
+        <Input
+          placeholder="请输入变量名称"
+          value={varName}
+          onChange={(e) => setVarName(e.target.value)}
+        />
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>固定值</Text>
+        <Input
+          placeholder="请输入固定值"
+          value={varValue}
+          onChange={(e) => setVarValue(e.target.value)}
+        />
+      </div>
+    </Drawer>
+  );
+}
+
 // SPI选择弹窗
 function SpiSelectModal({
   visible,
@@ -1614,6 +1979,14 @@ export default function FlowEditorPage() {
   const [showEdgeConditionDrawer, setShowEdgeConditionDrawer] = useState(false);
   const [selectedEdgeForCondition, setSelectedEdgeForCondition] = useState<Edge | null>(null);
 
+  // Generated field drawer state
+  const [showGeneratedFieldDrawer, setShowGeneratedFieldDrawer] = useState(false);
+  const [editingGeneratedField, setEditingGeneratedField] = useState<any | null>(null);
+
+  // Global variable drawer state
+  const [showGlobalVarDrawer, setShowGlobalVarDrawer] = useState(false);
+  const [editingGlobalVar, setEditingGlobalVar] = useState<any | null>(null);
+
   // Mapping active state - controls whether Context panel fields are clickable for mapping
   const [isMappingActive, setIsMappingActive] = useState(false);
 
@@ -1667,6 +2040,23 @@ export default function FlowEditorPage() {
       protocol: 'HTTPS',
       path: '/v3/charge',
       url: 'https://api.paystack.co/v3/charge',
+      security: {
+        auth: {
+          type: 'Bearer Token',
+          config: { tokenSource: '{{credential.token}}' }
+        },
+        signature: {
+          enabled: true,
+          algorithm: 'HMAC-SHA256',
+          fields: ['{{spi.request.timestamp}}', '{{spi.request.nonce}}'],
+          secretSource: '{{credential.secretKey}}',
+          writeTo: 'header',
+          headerName: 'X-Paystack-Signature'
+        },
+        encrypt: 'AES-256-GCM',
+        decrypt: 'AES-256-GCM',
+        verify: 'RSA-SHA256'
+      },
       requestSample: `{
   "reference": "{{spi.request.reference}}",
   "amount": "{{spi.request.amount}}",
@@ -1695,6 +2085,23 @@ export default function FlowEditorPage() {
       protocol: 'HTTPS',
       path: '/v3/verify/:reference',
       url: 'https://api.paystack.co/v3/verify/:reference',
+      security: {
+        auth: {
+          type: 'API Key',
+          config: { keyName: 'X-API-Key', location: 'header', valueSource: '{{credential.apiKey}}' }
+        },
+        signature: {
+          enabled: true,
+          algorithm: 'HMAC-SHA256',
+          fields: ['{{spi.request.reference}}'],
+          secretSource: '{{credential.secretKey}}',
+          writeTo: 'header',
+          headerName: 'X-Paystack-Signature'
+        },
+        encrypt: 'AES-256-GCM',
+        decrypt: 'AES-256-GCM',
+        verify: 'RSA-SHA256'
+      },
       requestSample: `{
   "reference": "{{spi.request.reference}}"
 }`,
@@ -1713,12 +2120,12 @@ export default function FlowEditorPage() {
   const mockCredentials = [
     { id: 'cred1', name: 'Paystack API Key', type: 'API Key' },
   ];
-  const mockGlobalVars = [
+  const [mockGlobalVars, setMockGlobalVars] = useState<any[]>([
     { name: 'channelCode', value: 'PAYSTACK' },
-  ];
-  const mockGeneratedFields = [
+  ]);
+  const [mockGeneratedFields, setMockGeneratedFields] = useState<any[]>([
     { name: 'rrn', generationType: 'sequence' },
-  ];
+  ]);
 
   const handleAddComponent = useCallback((code: string) => {
     const info = COMPONENT_LIBRARY.find(c => c.code === code);
@@ -1746,7 +2153,7 @@ export default function FlowEditorPage() {
 
   // 根据 action 和 flowType 获取预置组件并初始化画布
   const getInitialNodes = useCallback((): Node[] => {
-    const presetCodes = getPresetComponents(flowType || 'forward');
+    const presetCodes = getPresetComponents(flowType || 'outbound');
     return presetCodes.map((code, idx) => {
       const info = COMPONENT_LIBRARY.find(c => c.code === code);
       return {
@@ -1820,8 +2227,7 @@ export default function FlowEditorPage() {
         </Title>
         <div style={{ flex: 1 }} />
         <Space>
-          <Button icon={<SaveOutlined />} onClick={handleSave}>保存</Button>
-          <Button onClick={() => { console.log('Test click, showNetworkDrawer:', showNetworkDrawer); setShowNetworkDrawer(true); }}>测试Network</Button>
+          <Button icon={<SaveOutlined />} onClick={handleSave}>暂存</Button>
           <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>提交</Button>
         </Space>
       </div>
@@ -1830,7 +2236,6 @@ export default function FlowEditorPage() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         {/* Context 上下文面板 */}
         <ContextPanel
-          onSpiSelect={() => setShowSpiModal(true)}
           spiData={spiData}
           endpoints={mockEndpoints}
           credentials={mockCredentials}
@@ -1838,6 +2243,14 @@ export default function FlowEditorPage() {
           generatedFields={mockGeneratedFields}
           isMappingActive={isMappingActive}
           onFieldSelect={handleContextFieldSelect}
+          onAddGeneratedField={() => {
+            setEditingGeneratedField(null);
+            setShowGeneratedFieldDrawer(true);
+          }}
+          onAddGlobalVar={() => {
+            setEditingGlobalVar(null);
+            setShowGlobalVarDrawer(true);
+          }}
         />
 
         {/* 组件面板 */}
@@ -1935,6 +2348,46 @@ export default function FlowEditorPage() {
           setShowEdgeConditionDrawer(false);
           setSelectedEdgeForCondition(null);
           message.success('Branch condition saved');
+        }}
+      />
+
+      {/* Generated Field Drawer */}
+      <GeneratedFieldDrawer
+        visible={showGeneratedFieldDrawer}
+        field={editingGeneratedField}
+        onClose={() => {
+          setShowGeneratedFieldDrawer(false);
+          setEditingGeneratedField(null);
+        }}
+        onSave={(field) => {
+          if (editingGeneratedField) {
+            setMockGeneratedFields(gfs => gfs.map((g: any) => g.name === editingGeneratedField.name ? field : g));
+          } else {
+            setMockGeneratedFields(gfs => [...gfs, field]);
+          }
+          setShowGeneratedFieldDrawer(false);
+          setEditingGeneratedField(null);
+          message.success('Field saved');
+        }}
+      />
+
+      {/* Global Variable Drawer */}
+      <GlobalVarDrawer
+        visible={showGlobalVarDrawer}
+        variable={editingGlobalVar}
+        onClose={() => {
+          setShowGlobalVarDrawer(false);
+          setEditingGlobalVar(null);
+        }}
+        onSave={(variable) => {
+          if (editingGlobalVar) {
+            setMockGlobalVars(gvs => gvs.map((g: any) => g.name === editingGlobalVar.name ? variable : g));
+          } else {
+            setMockGlobalVars(gvs => [...gvs, variable]);
+          }
+          setShowGlobalVarDrawer(false);
+          setEditingGlobalVar(null);
+          message.success('Variable saved');
         }}
       />
     </div>
