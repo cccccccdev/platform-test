@@ -89,18 +89,10 @@ export default function ChannelListPage() {
       { key: 'country', label: 'Country', onClick: () => navigate(`/channel-integration/${record.code}/country`) },
       { key: 'business-type', label: 'Business Type', onClick: () => navigate(`/channel-integration/${record.code}/business-type`) },
       { key: 'credential', label: 'Credential', onClick: () => navigate(`/channel-integration/${record.code}/credential`) },
+      { key: 'authentication', label: 'Authentication', onClick: () => navigate(`/channel-integration/${record.code}/authentication`) },
       { key: 'debug', label: 'Debug', onClick: () => navigate(`/channel-integration/${record.code}/api-debug`) },
       { type: 'divider' },
       // 第二组：二级菜单
-      {
-        key: 'metadata',
-        label: 'metaData',
-        children: [
-          { key: 'security', label: 'Security', onClick: () => navigate(`/channel-integration/${record.code}/metadata/security`) },
-          { key: 'outbound-endpoints', label: 'outboundEndpoints', onClick: () => navigate(`/channel-integration/${record.code}/metadata/outbound-endpoints`) },
-          { key: 'inbound-endpoints', label: 'inboundEndpoints', onClick: () => navigate(`/channel-integration/${record.code}/metadata/inbound-endpoints`) },
-        ],
-      },
       {
         key: 'integration',
         label: 'Integration',

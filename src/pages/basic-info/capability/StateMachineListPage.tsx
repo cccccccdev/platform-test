@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tabs, Tag, Select } from 'antd';
+import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tabs, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useSearchParams } from 'react-router-dom';
 import { PlusOutlined } from '@ant-design/icons';
@@ -73,7 +73,6 @@ export default function StateMachineListPage() {
       setStateMachineList(prev => [...prev, newItem]);
       setCreateModalOpen(false);
       createForm.resetFields();
-      // Navigate to canvas directly
       window.location.href = `/basic-info/capability/stateMachine/canvas?bt=${bt}&ability=${ability}&sm=${newItem.name}`;
     } catch {}
   };
@@ -92,16 +91,6 @@ export default function StateMachineListPage() {
           {name}
         </Button>
       ),
-    },
-    {
-      title: 'Country',
-      dataIndex: 'country',
-      key: 'country',
-      width: 100,
-      render: (country) => {
-        const c = countries.find(ct => ct.code === country);
-        return <Tag>{c?.name || country}</Tag>;
-      },
     },
     {
       title: 'Description',
@@ -165,21 +154,22 @@ export default function StateMachineListPage() {
             <Title level={4} style={{ marginTop: 0, marginBottom: 4 }}>StateMachine</Title>
             <Text type="secondary">Business Type: {bt} | Ability: {ability}</Text>
           </div>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setCreateModalOpen(true)}
-          >
-            Create StateMachine
-          </Button>
         </div>
 
         {/* Country Tabs */}
         <Tabs
           activeKey={selectedCountry}
-          onChange={setSelectedCountry}
+          onChange={(key) => {
+            setSelectedCountry(key);
+            setCreateModalOpen(true);
+          }}
           style={{ marginBottom: 16 }}
           tabBarStyle={{ borderBottom: '1px solid #f0f0f0' }}
+          tabBarExtraContent={
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
+              Create StateMachine
+            </Button>
+          }
         >
           {countries.map(c => (
             <Tabs.TabPane
@@ -210,18 +200,7 @@ export default function StateMachineListPage() {
         okText="OK"
         cancelText="Cancel"
       >
-        <Form form={createForm} layout="vertical" initialValues={{ country: selectedCountry }}>
-          <Form.Item
-            label="Country"
-            name="country"
-            rules={[{ required: true, message: 'Please select country' }]}
-          >
-            <Select placeholder="Select country">
-              {countries.map(c => (
-                <Select.Option key={c.code} value={c.code}>{c.name}</Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
+        <Form form={createForm} layout="vertical">
           <Form.Item
             label="StateMachine Name"
             name="name"

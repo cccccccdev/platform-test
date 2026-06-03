@@ -12,6 +12,8 @@ import ConfigAbilityListPage from '../pages/channel-integration/ConfigAbilityLis
 import ConfigEditorPage from '../pages/channel-integration/ConfigEditorPage';
 import CodeAbilityListPage from '../pages/channel-integration/CodeAbilityListPage';
 import CodeGuidePage from '../pages/channel-integration/CodeGuidePage';
+import AuthenticationPage from '../pages/channel-integration/AuthenticationPage';
+import CredentialPage from '../pages/channel-integration/CredentialPage';
 
 // Scene pages (existing)
 import SceneListPage from '../pages/channel-integration/SceneListPage';
@@ -52,14 +54,10 @@ const router = createBrowserRouter([
 
       // Channel sub-pages
       { path: 'channel-integration/:channelCode/business-type', element: <BusinessTypePage /> },
-      { path: 'channel-integration/:channelCode/credential', element: <div style={{ padding: 24 }}>Credential Page - 待实现</div> },
+      { path: 'channel-integration/:channelCode/credential', element: <CredentialPage /> },
       { path: 'channel-integration/:channelCode/party', element: <div style={{ padding: 24 }}>Party Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
-
-      // Metadata sub-pages
-      { path: 'channel-integration/:channelCode/metadata/security', element: <div style={{ padding: 24 }}>Security Page - 待实现</div> },
-      { path: 'channel-integration/:channelCode/metadata/outbound-endpoints', element: <div style={{ padding: 24 }}>Outbound Endpoints Page - 待实现</div> },
-      { path: 'channel-integration/:channelCode/metadata/inbound-endpoints', element: <div style={{ padding: 24 }}>Inbound Endpoints Page - 待实现</div> },
+      { path: 'channel-integration/:channelCode/authentication', element: <AuthenticationPage /> },
 
       // Integration pages
       { path: 'channel-integration/:channelCode/integration/match-capability', element: <MatchCapabilityPage /> },

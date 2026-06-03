@@ -217,17 +217,6 @@ export default function ConfigEditorPage() {
     }
   };
 
-  // End type display helper
-  const getEndTypeLabel = (type: string) => {
-    switch (type) {
-      case 'event': return '事件结束';
-      case 'state': return '状态结束';
-      case 'wait_upstream': return '等待上游';
-      case 'wait_external': return '等待外部';
-      default: return type || '-';
-    }
-  };
-
   return (
     <div style={{ padding: 24 }}>
       {/* 面包屑 */}
@@ -314,12 +303,17 @@ export default function ConfigEditorPage() {
                   {getTriggerLabel(type)}
                 </Tag>
               )} />
-              <Table.Column title="Initial State" dataIndex="flowType" key="flowType" width={120} render={(type: string) => (
-                <Tag color={type === 'outbound' ? 'blue' : 'green'}>{type === 'outbound' ? 'Outbound' : 'Inbound'}</Tag>
-              )} />
-              <Table.Column title="End State" dataIndex="endType" key="endType" width={140} render={(type: string) => (
-                <span>{getEndTypeLabel(type)}</span>
-              )} />
+              <Table.Column title="Triggered By" key="triggeredBy" width={180} render={(_: any, record: FlowConfig) => {
+                if (record.triggerType !== 'callback') return <span style={{ color: '#999' }}>-</span>;
+                const triggeringFlows = flows.filter(f => f.outputEvents?.some(e => e.eventName === record.name));
+                return triggeringFlows.length > 0 ? (
+                  <Space wrap>
+                    {triggeringFlows.map(f => (
+                      <Tag key={f.id} color="green">{f.name}</Tag>
+                    ))}
+                  </Space>
+                ) : <span style={{ color: '#999' }}>-</span>;
+              }} />
               <Table.Column title="Status" key="status" width={100} render={(_: any, record: FlowConfig) => (
                 <Tag color={record.isConfigured ? 'success' : 'default'}>
                   {record.isConfigured ? '已配置' : '草稿'}

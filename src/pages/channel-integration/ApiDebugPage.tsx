@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Space, Tag, Input, Select, Typography, message, Modal, Form } from 'antd';
-import { ArrowLeftOutlined, SendOutlined, PlusOutlined, EditOutlined, CopyOutlined, DeleteOutlined, SearchOutlined, SettingOutlined, CloseOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, SendOutlined, PlusOutlined, EditOutlined, CopyOutlined, DeleteOutlined, SearchOutlined, SettingOutlined, CloseOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -135,12 +135,15 @@ export default function ApiDebugPage() {
   const [activeTabId, setActiveTabId] = useState<string>('tc_1');
 
   // Scene variables
-  const [sceneVariables] = useState<SceneVariable[]>([
+  const [sceneVariables, setSceneVariables] = useState<SceneVariable[]>([
     { key: 'baseUrl', initialValue: 'https://api.paystack.co', currentValue: 'https://api.paystack.co', isSecret: false },
     { key: 'secretKey', initialValue: 'sk_live_xxxxx', currentValue: 'sk_live_xxxxx', isSecret: true },
     { key: 'merchantId', initialValue: 'PALMPAY_NG_001', currentValue: 'PALMPAY_NG_001', isSecret: false },
     { key: 'traceId', initialValue: 'PP20260417001', currentValue: 'PP20260417002', isSecret: false },
   ]);
+
+  // Scene variable modal
+  const [showSceneVarModal, setShowSceneVarModal] = useState(false);
 
   // Search
   const [searchText, setSearchText] = useState('');
@@ -238,6 +241,7 @@ pm.variables.set("timestamp", Date.now().toString());
   }[]>([]);
   const [expandedDebugLogs, setExpandedDebugLogs] = useState<Set<number>>(new Set());
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
 
   // History sessions (persisted to localStorage)
   const [historySessions, setHistorySessions] = useState<HistorySession[]>(() => {
@@ -347,9 +351,6 @@ pm.variables.set("timestamp", Date.now().toString());
   const [queryParams, setQueryParams] = useState<QueryParam[]>([
     { key: '', value: '', description: '', enabled: true },
   ]);
-
-  // Environment
-  const [environment, setEnvironment] = useState('daily');
 
   // Rename modal
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
@@ -1214,7 +1215,121 @@ pm.variables.set("timestamp", Date.now().toString());
   };
 
   const handleBack = () => {
-    navigate('/channel-integration/' + channelCode + '/scenes');
+    navigate('/channel-integration/' + channelCode);
+  };
+
+  // Import from cURL
+  const handleImportFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) {
+        message.warning('剪贴板为空');
+        return;
+      }
+      const parsed = parseCurlCommand(text);
+      if (parsed) {
+        const newTab: RequestTab = {
+          id: `tc_${Date.now()}`,
+          name: parsed.name || 'Imported Request',
+          method: parsed.method,
+          status: 'none',
+          request: {
+            url: parsed.url,
+            headers: parsed.headers,
+            body: parsed.body,
+          },
+        };
+        setTabs(prev => [...prev, newTab]);
+        setActiveTabId(newTab.id);
+        setUrl(parsed.url);
+        setMethod(parsed.method);
+        setHeaders(parsed.headers.length > 0 ? parsed.headers : [{ key: 'Content-Type', value: 'application/json', description: '', enabled: true, isAuto: false }]);
+        setBody(parsed.body || '');
+        setActiveRequestTab('params');
+        setQueryParams([{ key: '', value: '', description: '', enabled: true }]);
+        setPathParams([]);
+        message.success('cURL 导入成功');
+      } else {
+        message.error('无效的 cURL 命令');
+      }
+    } catch (err) {
+      message.error('读取剪贴板失败，请确保已授予剪贴板权限');
+    }
+  };
+
+  // Parse cURL command
+  const parseCurlCommand = (curlCommand: string): { method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'; url: string; headers: { key: string; value: string; description: string; enabled: boolean; isAuto: boolean }[]; body: string; name: string } | null => {
+    try {
+      const trimmed = curlCommand.trim();
+      if (!trimmed.toLowerCase().startsWith('curl ')) {
+        return null;
+      }
+
+      const result: { method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'; url: string; headers: { key: string; value: string; description: string; enabled: boolean; isAuto: boolean }[]; body: string; name: string } = {
+        method: 'GET',
+        url: '',
+        headers: [],
+        body: '',
+        name: '',
+      };
+
+      // Extract URL
+      const urlMatch = trimmed.match(/-X\s+(\w+)\s+/i) || trimmed.match(/--request\s+(\w+)\s+/i);
+
+      // Simple URL extraction
+      const httpsMatch = trimmed.match(/https?:\/\/[^\s'"]+/i);
+      if (httpsMatch) {
+        result.url = httpsMatch[0];
+      }
+
+      if (urlMatch) {
+        result.method = urlMatch[1].toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+      } else if (trimmed.includes('-X POST') || trimmed.includes('--request POST')) {
+        result.method = 'POST';
+      } else if (trimmed.includes('-X PUT') || trimmed.includes('--request PUT')) {
+        result.method = 'PUT';
+      } else if (trimmed.includes('-X DELETE') || trimmed.includes('--request DELETE')) {
+        result.method = 'DELETE';
+      } else if (trimmed.includes('-X PATCH') || trimmed.includes('--request PATCH')) {
+        result.method = 'PATCH';
+      }
+
+      result.url = url;
+
+      // Extract headers
+      const headerMatches = trimmed.matchAll(/-H\s+['"]([^'"]+)['"]/gi);
+      for (const match of headerMatches) {
+        const colonIndex = match[1].indexOf(':');
+        if (colonIndex > 0) {
+          result.headers.push({
+            key: match[1].substring(0, colonIndex).trim(),
+            value: match[1].substring(colonIndex + 1).trim(),
+            description: '',
+            enabled: true,
+            isAuto: false,
+          });
+        }
+      }
+
+      // Extract body
+      const dataMatch = trimmed.match(/-d\s+['"](.+?)['"]/s) || trimmed.match(/--data\s+['"](.+?)['"]/s);
+      if (dataMatch) {
+        result.body = dataMatch[1];
+        if (result.method === 'GET') result.method = 'POST';
+      }
+
+      // Generate name from URL path
+      const pathMatch = result.url.match(/https?:\/\/[^\/]+\/(.+)/);
+      if (pathMatch) {
+        result.name = pathMatch[1].split('?')[0].split('/').filter(Boolean).pop() || 'Imported Request';
+      } else {
+        result.name = 'Imported Request';
+      }
+
+      return result;
+    } catch (err) {
+      return null;
+    }
   };
 
   // Render context menu
@@ -1240,6 +1355,65 @@ pm.variables.set("timestamp", Date.now().toString());
     </div>
   );
 
+  // Scene Variable Management Modal
+  const renderSceneVarModal = () => (
+    <Modal
+      title="场景变量管理"
+      open={showSceneVarModal}
+      onCancel={() => setShowSceneVarModal(false)}
+      footer={null}
+      width={600}
+    >
+      <div style={{ padding: '16px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <Text type="secondary">Manage scene variables used in requests</Text>
+          <Button type="primary" icon={<PlusOutlined />} size="small" onClick={() => {
+            const newVar = { key: `var_${Date.now()}`, initialValue: '', currentValue: '', isSecret: false };
+            setSceneVariables(prev => [...prev, newVar]);
+          }}>Add Variable</Button>
+        </div>
+        {sceneVariables.map((v, idx) => (
+          <div key={v.key} style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+            <Input
+              placeholder="Key"
+              value={v.key}
+              onChange={(e) => {
+                const newVars = [...sceneVariables];
+                newVars[idx].key = e.target.value;
+                setSceneVariables(newVars);
+              }}
+              style={{ width: 140 }}
+              disabled={idx < 4}
+            />
+            <Input
+              placeholder="Value"
+              value={v.currentValue}
+              onChange={(e) => {
+                const newVars = [...sceneVariables];
+                newVars[idx].currentValue = e.target.value;
+                newVars[idx].initialValue = e.target.value;
+                setSceneVariables(newVars);
+              }}
+              style={{ flex: 1 }}
+            />
+            <Button
+              type="text"
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => {
+                if (idx >= 4) {
+                  setSceneVariables(prev => prev.filter((_, i) => i !== idx));
+                }
+              }}
+              disabled={idx < 4}
+              danger
+            />
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       {/* Header */}
@@ -1251,11 +1425,7 @@ pm.variables.set("timestamp", Date.now().toString());
             <Tag color="blue">{channelCode}</Tag>
           </Space>
           <Space size="middle">
-            <Select value={environment} onChange={setEnvironment} style={{ width: 100 }}>
-              <Select.Option value="daily">Daily</Select.Option>
-              <Select.Option value="pre">Pre</Select.Option>
-              <Select.Option value="prod">Prod</Select.Option>
-            </Select>
+            <Button icon={<CopyOutlined />} size="small" onClick={handleImportFromClipboard}>Import cURL</Button>
           </Space>
         </div>
       </Card>
@@ -1289,7 +1459,7 @@ pm.variables.set("timestamp", Date.now().toString());
           <div style={{ borderTop: '1px solid #f0f0f0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
               <Text strong style={{ fontSize: 12 }}>场景变量</Text>
-              <Button type="text" size="small" icon={<SettingOutlined />}>管理</Button>
+              <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowSceneVarModal(true)}>管理</Button>
             </div>
             <div style={{ padding: '4px 12px', maxHeight: 160, overflow: 'auto' }}>
               {sceneVariables.map(v => (
@@ -1799,14 +1969,6 @@ pm.variables.set("timestamp", Date.now().toString());
           <div style={{ height: 52, borderTop: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', gap: 16 }}>
             <Space size="middle">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: 12, color: '#666' }}>环境</Text>
-                <Select value={environment} onChange={setEnvironment} style={{ width: 100 }} size="small">
-                  <Select.Option value="daily">Daily</Select.Option>
-                  <Select.Option value="pre">Pre</Select.Option>
-                  <Select.Option value="prod">Prod</Select.Option>
-                </Select>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Text style={{ fontSize: 12, color: '#666' }}>超时</Text>
                 <Input type="number" value={timeout} onChange={(e) => setRequestTimeout(Number(e.target.value))} style={{ width: 80 }} size="small" min={100} max={300000} />
                 <Text style={{ fontSize: 12, color: '#666' }}>ms</Text>
@@ -1863,6 +2025,28 @@ pm.variables.set("timestamp", Date.now().toString());
                 <Text style={{ fontSize: 12, color: '#666' }}>{formatBytes(responseSize)}</Text>
                 <Text style={{ fontSize: 12, color: '#666' }}>|</Text>
                 <Text style={{ fontSize: 12, color: '#999' }}>{response.timestamp}</Text>
+                <div style={{ flex: 1 }} />
+                <Button size="small" icon={<StarFilled style={{ color: '#fa8c16' }} />} onClick={() => {
+                  const session = historySessions.find(s => s.id === activeHistoryId);
+                  const name = session?.name || `${activeTab?.name || 'request'}-${Date.now()}`;
+                  const newSession: HistorySession = {
+                    id: `hs_${Date.now()}`,
+                    name: name,
+                    method: method,
+                    url: url,
+                    headers: headers.filter(h => h.enabled && h.key),
+                    body: body,
+                    responseBody: response?.body || '',
+                    status: response?.status || 0,
+                    statusText: response?.statusText || '',
+                    duration: response?.duration || 0,
+                    timestamp: new Date().toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+                    isSaved: true,
+                  };
+                  setHistorySessions(prev => [newSession, ...prev.filter(s => s.id !== activeHistoryId)]);
+                  message.success('已保存到历史记录', 2);
+                }}>保存记录</Button>
+                <Button size="small" onClick={() => setIsHistoryExpanded(true)}>查看历史</Button>
               </div>
 
               {/* Tab Bar */}
@@ -2033,16 +2217,38 @@ pm.variables.set("timestamp", Date.now().toString());
             {historySessions.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: '#999', fontSize: 12 }}>暂无历史记录</div>
             ) : (
-              historySessions.map(session => {
+              historySessions
+                .sort((a, b) => {
+                  if (a.isSaved && !b.isSaved) return -1;
+                  if (!a.isSaved && b.isSaved) return 1;
+                  return 0;
+                })
+                .map(session => {
                 const isSuccess = session.status >= 200 && session.status < 300;
                 const pathMatch = session.url.match(/https?:\/\/[^\/]+(\/[^\?]*)/);
                 const path = pathMatch ? pathMatch[1] : session.url;
+                const isActive = session.id === activeHistoryId;
                 return (
-                  <div key={session.id} style={{ minWidth: 200, maxWidth: 200, border: '1px solid #e8e8e8', borderRadius: 6, padding: 12, background: '#fff', position: 'relative', flexShrink: 0 }}>
+                  <div
+                    key={session.id}
+                    onClick={() => {
+                      setActiveHistoryId(session.id);
+                      setResponse(session.responseBody ? {
+                        status: session.status,
+                        statusText: session.statusText,
+                        duration: session.duration,
+                        timestamp: session.timestamp,
+                        headers: session.headers?.reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {}) || {},
+                        body: session.responseBody,
+                      } : null);
+                      message.info('已加载历史记录，可点击"恢复"将请求填充到当前 Tab');
+                    }}
+                    style={{ minWidth: 200, maxWidth: 200, border: '1px solid #e8e8e8', borderRadius: 6, padding: 12, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8' }}
+                  >
                     {/* Delete button */}
-                    <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => {
-                      Modal.confirm({ title: '确认删除', content: '确定要删除该条历史记录吗？', onOk: () => deleteHistorySession(session.id) });
-                    }} style={{ position: 'absolute', top: 4, right: 4, fontSize: 10, padding: 0, width: 20, height: 20, color: '#999' }} />
+                    <Button type="text" size="small" icon={<CloseOutlined />} onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: '确认删除', content: '确定要删除该条历史记录吗？', onOk: () => deleteHistorySession(session.id) }); }} style={{ position: 'absolute', top: 4, right: 4, fontSize: 10, padding: 0, width: 20, height: 20, color: '#999' }} />
+                    {/* Star button */}
+                    <Button type="text" size="small" icon={session.isSaved ? <StarFilled style={{ color: '#fa8c16' }} /> : <StarOutlined style={{ color: '#999' }} />} onClick={(e) => { e.stopPropagation(); setHistorySessions(prev => prev.map(s => s.id === session.id ? { ...s, isSaved: !s.isSaved } : s)); }} style={{ position: 'absolute', top: 4, left: 4, fontSize: 10, padding: 0, width: 20, height: 20 }} />
                     {/* Status indicator */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                       <span style={{ fontSize: 10 }}>{isSuccess ? '🟢' : '🔴'}</span>
@@ -2069,8 +2275,29 @@ pm.variables.set("timestamp", Date.now().toString());
                     <div style={{ marginBottom: 8 }}>
                       <Text type="secondary" style={{ fontSize: 10 }}>{session.timestamp}</Text>
                     </div>
-                    {/* Restore button */}
-                    <Button type="link" size="small" onClick={() => restoreSession(session)} style={{ fontSize: 10, padding: 0, height: 'auto' }}>恢复到当前 Tab</Button>
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); restoreSession(session); }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>恢复</Button>
+                      <Button type="link" size="small" onClick={(e) => {
+                        e.stopPropagation();
+                        const exportData = {
+                          name: session.name,
+                          method: session.method,
+                          url: session.url,
+                          headers: session.headers || [],
+                          body: session.body || '',
+                          timestamp: session.timestamp,
+                        };
+                        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `api_debug_${session.name.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        message.success('导出成功');
+                      }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>导出</Button>
+                    </div>
                   </div>
                 );
               })
@@ -2078,6 +2305,9 @@ pm.variables.set("timestamp", Date.now().toString());
           </div>
         )}
       </div>
+
+      {/* Scene Variable Modal */}
+      {renderSceneVarModal()}
     </div>
   );
 }

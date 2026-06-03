@@ -24,11 +24,9 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Button, message, Modal, Input, Typography } from 'antd';
+import { Button, message, Modal, Input, Typography, Space } from 'antd';
 import { LeftOutlined } from '@ant-design/icons';
 import StateNode from './StateNode';
-import StepNode from './StepNode';
-import ResultNode from './ResultNode';
 import ComponentPanel from './ComponentPanel';
 import PropertyPanel from './PropertyPanel';
 
@@ -56,7 +54,7 @@ type AnyEdge = Edge<EdgeData>;
 // Initial preset data (updated per user flow)
 // ─────────────────────────────────────────────────
 const initialNodes: AnyNode[] = [
-  // States
+  // States only
   { id: 's1', type: 'stateNode', position: { x: 100, y: 200 }, data: { name: 'INIT', description: '支付请求入口', businessStatus: 'init' } },
   { id: 's2', type: 'stateNode', position: { x: 420, y: 60 }, data: { name: 'WAITING_OTP', description: '等待用户输入OTP' } },
   { id: 's3', type: 'stateNode', position: { x: 660, y: 60 }, data: { name: 'VERIFYING_OTP', description: '验证OTP' } },
@@ -64,47 +62,20 @@ const initialNodes: AnyNode[] = [
   { id: 's5', type: 'stateNode', position: { x: 420, y: 480 }, data: { name: 'PROGRESSING', description: '无摩擦扣款处理中' } },
   { id: 's6', type: 'stateNode', position: { x: 880, y: 480 }, data: { name: 'SUCCESS', description: '扣款成功', businessStatus: 'success' } },
   { id: 's7', type: 'stateNode', position: { x: 880, y: 240 }, data: { name: 'FAILED', description: '扣款失败', businessStatus: 'fail' } },
-  // Steps
-  { id: 'p1', type: 'stepNode', position: { x: 250, y: 200 }, data: { name: 'InitDebit', description: '初始化扣款并路由' } },
-  { id: 'p2', type: 'stepNode', position: { x: 880, y: 60 }, data: { name: 'Verify', description: '验证OTP' } },
-  { id: 'p3', type: 'stepNode', position: { x: 660, y: 280 }, data: { name: 'QueryAuthResult', description: '轮询认证结果' } },
-  { id: 'p4', type: 'stepNode', position: { x: 660, y: 480 }, data: { name: 'QueryDebitResult', description: '查询扣款结果' } },
-  // Results
-  { id: 'r1', type: 'resultNode', position: { x: 880, y: 170 }, data: { name: 'default', description: '默认结果' } },
-  { id: 'r2', type: 'resultNode', position: { x: 880, y: 370 }, data: { name: 'auth_success', description: '认证成功结果' } },
-  { id: 'r3', type: 'resultNode', position: { x: 880, y: 580 }, data: { name: 'Success_Result', description: '成功结果' } },
-  { id: 'r4', type: 'resultNode', position: { x: 660, y: 580 }, data: { name: 'Fail_Result', description: '失败结果' } },
 ];
 
 const initialEdges: AnyEdge[] = [
-  // INIT → InitDebit
-  { id: 'e1', source: 's1', target: 'p1', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
-  // InitDebit branches
-  { id: 'e2', source: 'p1', target: 's2', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'otp_verify_required' }, label: 'otp_verify_required' },
-  { id: 'e3', source: 'p1', target: 's4', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '3ds_verify_required' }, label: '3ds_verify_required' },
-  { id: 'e4', source: 'p1', target: 's5', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'frictionless' }, label: 'frictionless' },
-  { id: 'e5', source: 'p1', target: 's7', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'not_supported' }, label: 'not_supported' },
-  // WAITING_OTP ↔ VERIFYING_OTP (虚线)
-  { id: 'e6', source: 's2', target: 's3', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2, strokeDasharray: '6 3' }, data: { label: 'user_submit_otp' }, label: 'user_submit_otp' },
-  // VERIFYING_OTP → Verify → default → AUTHENTICATING
-  { id: 'e7', source: 's3', target: 'p2', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
-  { id: 'e8', source: 'p2', target: 'r1', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'default' }, label: 'default' },
-  { id: 'e9', source: 'r1', target: 's4', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
-  // AUTHENTICATING → QueryAuthResult
-  { id: 'e10', source: 's4', target: 'p3', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
-  // QueryAuthResult → auth_success / auth_failed
-  { id: 'e11', source: 'p3', target: 'r2', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'auth_success' }, label: 'auth_success' },
-  { id: 'e12', source: 'p3', target: 's7', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'auth_failed' }, label: 'auth_failed' },
-  // auth_success → PROGRESSING
-  { id: 'e13', source: 'r2', target: 's5', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
-  // PROGRESSING → QueryDebitResult
-  { id: 'e14', source: 's5', target: 'p4', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
-  // QueryDebitResult → debit_success / debit_failed
-  { id: 'e15', source: 'p4', target: 'r3', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'debit_success' }, label: 'debit_success' },
-  { id: 'e16', source: 'p4', target: 'r4', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'debit_failed' }, label: 'debit_failed' },
-  // debit_success → SUCCESS, debit_failed → FAILED
-  { id: 'e17', source: 'r3', target: 's6', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
-  { id: 'e18', source: 'r4', target: 's7', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
+  // State-to-state connections only
+  { id: 'e1', source: 's1', target: 's2', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'otp_verify_required' } },
+  { id: 'e2', source: 's1', target: 's4', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '3ds_verify_required' } },
+  { id: 'e3', source: 's1', target: 's5', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'frictionless' } },
+  { id: 'e4', source: 's1', target: 's7', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'not_supported' } },
+  { id: 'e5', source: 's2', target: 's3', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'user_submit_otp' } },
+  { id: 'e6', source: 's3', target: 's4', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
+  { id: 'e7', source: 's4', target: 's5', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
+  { id: 'e8', source: 's4', target: 's7', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'auth_failed' } },
+  { id: 'e9', source: 's5', target: 's6', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'debit_success' } },
+  { id: 'e10', source: 's5', target: 's7', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'debit_failed' } },
 ];
 
 // Helper: is edge dashed?
@@ -133,8 +104,6 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
   const nodeTypes: NodeTypes = useMemo(
     () => ({
       stateNode: StateNode as any,
-      stepNode: StepNode as any,
-      resultNode: ResultNode as any,
     }),
     [],
   );
@@ -164,11 +133,8 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
       const toNode = nodes.find(n => n.id === connection.target);
       if (!fromNode || !toNode) return;
 
-      const fromType = fromNode.type === 'stateNode' ? 'state' : fromNode.type === 'resultNode' ? 'result' : 'step';
-      const toType = toNode.type === 'stateNode' ? 'state' : toNode.type === 'resultNode' ? 'result' : 'step';
-
-      // Auto-detect line type: dashed only for State → State or Result → Result
-      const isDashed = (fromType === 'state' && toType === 'state') || (fromType === 'result' && toType === 'result');
+      // Auto-detect line type: dashed only for State → State
+      const isDashed = fromNode.type === 'stateNode' && toNode.type === 'stateNode';
 
       const newEdge: AnyEdge = {
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
@@ -254,8 +220,8 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
       });
 
       const id = `${type}_${Date.now()}`;
-      const name = type === 'state' ? `State_${id}` : type === 'step' ? `Step_${id}` : `Result_${id}`;
-      const nodeType = type === 'state' ? 'stateNode' : type === 'step' ? 'stepNode' : 'resultNode';
+      const name = type === 'state' ? `State_${id}` : `State_${id}`;
+      const nodeType = 'stateNode';
 
       const newNode: AnyNode = {
         id,
@@ -362,36 +328,6 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
     [setNodes],
   );
 
-  const handleEdgeTypeUpdate = useCallback(
-    (id: string, isDashed: boolean) => {
-      setEdges(eds =>
-        eds.map(e =>
-          e.id === id
-            ? ({
-                ...e,
-                style: {
-                  ...e.style,
-                  strokeDasharray: isDashed ? '6 3' : '',
-                },
-              } as AnyEdge)
-            : e,
-        ) as AnyEdge[],
-      );
-      setSelectedEdge(prev =>
-        prev && prev.id === id
-          ? {
-              ...prev,
-              style: {
-                ...prev.style,
-                strokeDasharray: isDashed ? '6 3' : '',
-              },
-            }
-          : prev,
-      );
-    },
-    [setEdges],
-  );
-
   const handleEdgeEndpointsUpdate = useCallback(
     (id: string, source: string, target: string) => {
       setEdges(eds =>
@@ -450,8 +386,6 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
   // Statistics & validation
   // ─────────────────────────────────────────────────
   const stateCount = nodes.filter(n => n.type === 'stateNode').length;
-  const stepCount = nodes.filter(n => n.type === 'stepNode').length;
-  const resultCount = nodes.filter(n => n.type === 'resultNode').length;
   const canSave = stateCount >= 1;
 
   // ─────────────────────────────────────────────────
@@ -477,24 +411,6 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
           x: n.position.x,
           y: n.position.y,
         })),
-      steps: nodes
-        .filter(n => n.type === 'stepNode')
-        .map(n => ({
-          id: n.id,
-          name: n.data.name,
-          description: n.data.description || '',
-          x: n.position.x,
-          y: n.position.y,
-        })),
-      results: nodes
-        .filter(n => n.type === 'resultNode')
-        .map(n => ({
-          id: n.id,
-          name: n.data.name,
-          description: n.data.description || '',
-          x: n.position.x,
-          y: n.position.y,
-        })),
       transitions: edges.map(e => ({
         id: e.id,
         from: e.source,
@@ -505,7 +421,10 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
     };
 
     console.log('Draft saved:', JSON.stringify(saveData, null, 2));
-    message.success('Draft saved successfully');
+    message.success('Draft saved successfully', 2);
+    setTimeout(() => {
+      window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
+    }, 500);
   }, [bt, ability, nodes, edges, canSave]);
 
   return (
@@ -535,14 +454,27 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
             <span style={{ fontWeight: 500 }}>stateMachine</span>
           </span>
         </div>
-        <Button
-          type="primary"
-          onClick={handleSaveDraft}
-          disabled={!canSave}
-          title={!canSave ? 'At least 1 State node required to save' : undefined}
-        >
-          Save Draft
-        </Button>
+        <Space>
+          <Button
+            onClick={handleSaveDraft}
+            disabled={!canSave}
+            title={!canSave ? 'At least 1 State node required to save' : undefined}
+          >
+            Save Draft
+          </Button>
+          <Button
+            type="primary"
+            onClick={() => {
+              message.success('Submitted successfully', 2);
+              setTimeout(() => {
+                window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
+              }, 500);
+            }}
+            disabled={!canSave}
+          >
+            Submit
+          </Button>
+        </Space>
       </div>
 
       {/* Context Bar */}
@@ -623,18 +555,19 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
           </ReactFlow>
         </div>
 
-        <PropertyPanel
-          selectedNode={selectedNode}
-          selectedEdge={selectedEdge}
-          nodes={nodes}
-          edges={edges}
-          onNodeUpdate={handleNodeUpdate}
-          onEdgeTypeUpdate={handleEdgeTypeUpdate}
-          onEdgeEndpointsUpdate={handleEdgeEndpointsUpdate}
-          onEdgeLabelUpdate={handleEdgeLabelUpdate}
-          onDeleteNode={handleDeleteNode}
-          onDeleteEdge={handleDeleteEdge}
-        />
+        {(selectedNode || selectedEdge) && (
+          <PropertyPanel
+            selectedNode={selectedNode}
+            selectedEdge={selectedEdge}
+            nodes={nodes}
+            edges={edges}
+            onNodeUpdate={handleNodeUpdate}
+            onEdgeEndpointsUpdate={handleEdgeEndpointsUpdate}
+            onEdgeLabelUpdate={handleEdgeLabelUpdate}
+            onDeleteNode={handleDeleteNode}
+            onDeleteEdge={handleDeleteEdge}
+          />
+        )}
       </div>
 
       {/* Bottom Bar */}
@@ -653,7 +586,7 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
         }}
       >
         <span>
-          States: {stateCount} | Steps: {stepCount} | Results: {resultCount}
+          States: {stateCount}
         </span>
         {canSave ? (
           <span style={{ color: '#22c55e' }}>✓ Ready to save</span>

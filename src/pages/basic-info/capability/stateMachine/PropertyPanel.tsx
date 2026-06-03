@@ -1,4 +1,4 @@
-import { Typography, Input, Button, Divider, Select, Switch, Space } from 'antd';
+import { Typography, Input, Button, Divider, Select } from 'antd';
 import type { Node, Edge } from '@xyflow/react';
 
 const { Text } = Typography;
@@ -13,21 +13,11 @@ const BUSINESS_STATUS_OPTIONS = [
   { label: 'init', value: 'init' },
 ];
 
-// Action options for State nodes
-const ACTION_OPTIONS = [
-  { label: 'transaction', value: 'transaction' },
-  { label: 'query', value: 'query' },
-  { label: 'to_be_verify', value: 'to_be_verify' },
-  { label: 'inbound_transaction', value: 'inbound_transaction' },
-  { label: 'inbound_query', value: 'inbound_query' },
-];
-
 // Use index signature to satisfy React Flow's Record<string, unknown> constraint
 type NodeData = {
   name: string;
   description?: string;
   businessStatus?: string;
-  action?: string;
   [key: string]: unknown;
 };
 
@@ -42,7 +32,6 @@ interface PropertyPanelProps {
   nodes: Node<NodeData>[];
   edges: Edge<EdgeData>[];
   onNodeUpdate: (id: string, data: Partial<NodeData>) => void;
-  onEdgeTypeUpdate: (id: string, isDashed: boolean) => void;
   onEdgeEndpointsUpdate: (id: string, source: string, target: string) => void;
   onEdgeLabelUpdate: (id: string, label: string) => void;
   onDeleteNode: (id: string) => void;
@@ -55,18 +44,12 @@ function getNodeName(nodes: Node<NodeData>[], nodeId: string): string {
   return typeof name === 'string' ? name : nodeId;
 }
 
-function isEdgeDashed(edge: Edge): boolean {
-  const style = edge.style as { strokeDasharray?: string };
-  return !!(style && style.strokeDasharray);
-}
-
 export default function PropertyPanel({
   selectedNode,
   selectedEdge,
   nodes,
   edges,
   onNodeUpdate,
-  onEdgeTypeUpdate,
   onEdgeEndpointsUpdate,
   onEdgeLabelUpdate,
   onDeleteNode,
@@ -115,7 +98,6 @@ export default function PropertyPanel({
 
   // Edge selected
   if (selectedEdge) {
-    const dashed = isEdgeDashed(selectedEdge);
     return (
       <div
         style={{
@@ -141,22 +123,6 @@ export default function PropertyPanel({
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Line Type */}
-          <div>
-            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-              Line Type
-            </Text>
-            <Space>
-              <Switch
-                checked={dashed}
-                onChange={checked => onEdgeTypeUpdate(selectedEdge.id, checked)}
-                checkedChildren="虚线"
-                unCheckedChildren="实线"
-              />
-              <Text style={{ fontSize: 13 }}>{dashed ? '虚线' : '实线'}</Text>
-            </Space>
-          </div>
-
           {/* From / To */}
           <div>
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
@@ -197,10 +163,6 @@ export default function PropertyPanel({
 
   // Node selected
   if (selectedNode) {
-    const isState = selectedNode.type === 'stateNode';
-    const isStep = selectedNode.type === 'stepNode';
-    const isResult = selectedNode.type === 'resultNode';
-
     // Find incoming and outgoing edges for this node
     const incomingEdges = edges.filter(e => e.target === selectedNode.id);
     const outgoingEdges = edges.filter(e => e.source === selectedNode.id);
@@ -226,7 +188,7 @@ export default function PropertyPanel({
             color: '#333',
           }}
         >
-          {isState ? 'State Node Properties' : isResult ? 'Result Node Properties' : 'Step Node Properties'}
+          State Node Properties
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -254,46 +216,19 @@ export default function PropertyPanel({
             />
           </div>
 
-          {/* Business Status Mapping - only for State nodes */}
-          {isState && (
-            <div>
-              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                Business Status Mapping
-              </Text>
-              <Select
-                style={{ width: '100%' }}
-                placeholder="Select business status"
-                value={selectedNode.data.businessStatus}
-                onChange={value => onNodeUpdate(selectedNode.id, { businessStatus: value })}
-                options={BUSINESS_STATUS_OPTIONS}
-                allowClear
-              />
-            </div>
-          )}
-
-          {/* Action - only for State nodes */}
-          {isState && (
-            <div>
-              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                Action
-              </Text>
-              <Select
-                style={{ width: '100%' }}
-                placeholder="Select action"
-                value={selectedNode.data.action}
-                onChange={value => onNodeUpdate(selectedNode.id, { action: value })}
-                options={ACTION_OPTIONS}
-                allowClear
-              />
-            </div>
-          )}
-
-          {/* Type */}
+          {/* Business Status Mapping */}
           <div>
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-              Type
+              Business Status Mapping
             </Text>
-            <Text style={{ fontSize: 13 }}>{isState ? 'State' : isResult ? 'Result' : 'Step'}</Text>
+            <Select
+              style={{ width: '100%' }}
+              placeholder="Select business status"
+              value={selectedNode.data.businessStatus}
+              onChange={value => onNodeUpdate(selectedNode.id, { businessStatus: value })}
+              options={BUSINESS_STATUS_OPTIONS}
+              allowClear
+            />
           </div>
 
           <Divider style={{ margin: '8px 0' }} />
@@ -305,12 +240,10 @@ export default function PropertyPanel({
                 ── Incoming Arcs ──
               </Text>
               {incomingEdges.map(edge => {
-                const edgeDashed = isEdgeDashed(edge);
                 return (
                   <div key={edge.id} style={{ fontSize: 12, marginBottom: 2 }}>
                     <Text>
-                      ← <Text strong>{getNodeName(nodes, edge.source)}</Text>{' '}
-                      <Text type="secondary">({edgeDashed ? '虚线' : '实线'})</Text>
+                      ← <Text strong>{getNodeName(nodes, edge.source)}</Text>
                     </Text>
                   </div>
                 );
@@ -322,19 +255,13 @@ export default function PropertyPanel({
           {outgoingEdges.length > 0 && (
             <div>
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                {isStep || isResult ? '── Outgoing Branches ──' : '── Outgoing Arcs ──'}
+                ── Outgoing Arcs ──
               </Text>
               {outgoingEdges.map(edge => {
-                const label = edge.data?.label;
                 return (
                   <div key={edge.id} style={{ fontSize: 12, marginBottom: 2 }}>
                     <Text>
-                      → <Text strong>{getNodeName(nodes, edge.target)}</Text>{' '}
-                      {label && (
-                        <Text type="secondary" style={{ fontStyle: 'italic' }}>
-                          条件: {label}
-                        </Text>
-                      )}
+                      → <Text strong>{getNodeName(nodes, edge.target)}</Text>
                     </Text>
                   </div>
                 );
