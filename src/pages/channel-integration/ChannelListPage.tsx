@@ -14,36 +14,36 @@ export default function ChannelListPage() {
   const [form] = Form.useForm();
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
 
-  // 筛选条件
+  // Filter conditions
   const [filterCountry, setFilterCountry] = useState<string[]>([]);
   const [filterParty, setFilterParty] = useState<string | null>(null);
   const [filterBT, setFilterBT] = useState<string | null>(null);
   const [filterAbility, setFilterAbility] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // 初始化加载 Mock 数据
+  // Initialize mock data
   useEffect(() => {
     setChannels(mockChannels as unknown as Channel[]);
   }, []);
 
-  // 搜索过滤
+  // Search and filter
   const filteredChannels = channels.filter((c) => {
-    // Channel Code 搜索
+    // Channel Code search
     if (searchText && !c.code.toLowerCase().includes(searchText.toLowerCase())) {
       return false;
     }
-    // 国家筛选
+    // Country filter
     if (filterCountry.length > 0 && !filterCountry.some(country => c.country.includes(country))) {
       return false;
     }
-    // Party 筛选
+    // Party filter
     if (filterParty && c.party !== filterParty) {
       return false;
     }
     return true;
   });
 
-  // 清除所有筛选
+  // Clear all filters
   const clearFilters = () => {
     setFilterCountry([]);
     setFilterParty(null);
@@ -58,10 +58,10 @@ export default function ChannelListPage() {
   const handleCreate = async () => {
     try {
       const values = await form.validateFields();
-      // 检查 Channel Code 是否已存在
+      // Check if Channel Code already exists
       if (channels.some((c) => c.code === values.code)) {
         form.setFields([
-          { name: 'code', errors: ['Channel Code 已存在'] },
+          { name: 'code', errors: ['Channel Code already exists'] },
         ]);
         return;
       }
@@ -75,16 +75,16 @@ export default function ChannelListPage() {
       message.success('Channel created successfully');
       setIsModalOpen(false);
       form.resetFields();
-      // 高亮新行
+      // Highlight new row
       setHighlightedRow(newChannel.code);
       setTimeout(() => setHighlightedRow(null), 2000);
     } catch {}
   };
 
-  // 构建操作菜单
+  // Build action menu
   const getActionMenu = (record: Channel): MenuProps => ({
     items: [
-      // 第一组：直接跳转
+    // First group: direct navigation
       { key: 'party', label: 'Party', onClick: () => navigate(`/channel-integration/${record.code}/party`) },
       { key: 'country', label: 'Country', onClick: () => navigate(`/channel-integration/${record.code}/country`) },
       { key: 'business-type', label: 'Business Type', onClick: () => navigate(`/channel-integration/${record.code}/business-type`) },
@@ -92,7 +92,7 @@ export default function ChannelListPage() {
       { key: 'authentication', label: 'Authentication', onClick: () => navigate(`/channel-integration/${record.code}/authentication`) },
       { key: 'debug', label: 'Debug', onClick: () => navigate(`/channel-integration/${record.code}/api-debug`) },
       { type: 'divider' },
-      // 第二组：二级菜单
+    // Second group: submenu
       {
         key: 'integration',
         label: 'Integration',
@@ -105,7 +105,7 @@ export default function ChannelListPage() {
     ],
   });
 
-  // 表格列定义
+  // Table column definition
   const columns = [
     {
       title: 'Channel Code',
@@ -147,13 +147,13 @@ export default function ChannelListPage() {
       ),
     },
     {
-      title: '操作',
+      title: 'Operation',
       key: 'action',
       width: 120,
       render: (_: any, record: Channel) => (
         <Dropdown menu={getActionMenu(record)} trigger={['click']}>
           <Button type="text" size="small">
-            操作 <DownOutlined />
+            Operation <DownOutlined />
           </Button>
         </Dropdown>
       ),
@@ -162,16 +162,16 @@ export default function ChannelListPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      {/* 面包屑 */}
+      {/* Breadcrumb */}
       <Breadcrumb
         style={{ marginBottom: 16 }}
         items={[
-          { title: '接入平台 2.0' },
+          { title: 'Integration Platform 2.0' },
           { title: 'Channel Integration' },
         ]}
       />
 
-      {/* 页面标题和搜索 */}
+      {/* Page title and search */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
         <Space wrap>
           <Input
@@ -186,11 +186,11 @@ export default function ChannelListPage() {
             onClick={() => setShowFilters(!showFilters)}
             type={showFilters ? 'primary' : 'default'}
           >
-            筛选 {hasActiveFilters && <Badge count={1} size="small" />}
+            Filter {hasActiveFilters && <Badge count={1} size="small" />}
           </Button>
           {hasActiveFilters && (
             <Button icon={<CloseCircleOutlined />} onClick={clearFilters}>
-              清除筛选
+              Clear Filter
             </Button>
           )}
         </Space>
@@ -199,15 +199,15 @@ export default function ChannelListPage() {
         </Button>
       </div>
 
-      {/* 筛选区域 */}
+      {/* Filter area */}
       {showFilters && (
         <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
           <Row gutter={[16, 16]}>
             <Col span={6}>
-              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>国家</div>
+              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Country</div>
               <Select
                 mode="multiple"
-                placeholder="选择国家"
+                placeholder="Select Country"
                 value={filterCountry}
                 onChange={setFilterCountry}
                 style={{ width: '100%' }}
@@ -221,7 +221,7 @@ export default function ChannelListPage() {
             <Col span={6}>
               <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Party</div>
               <Select
-                placeholder="选择 Party"
+                placeholder="Select Party"
                 value={filterParty}
                 onChange={setFilterParty}
                 style={{ width: '100%' }}
@@ -235,7 +235,7 @@ export default function ChannelListPage() {
             <Col span={6}>
               <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Business Type</div>
               <Select
-                placeholder="选择 Business Type"
+                placeholder="Select Business Type"
                 value={filterBT}
                 onChange={setFilterBT}
                 style={{ width: '100%' }}
@@ -249,7 +249,7 @@ export default function ChannelListPage() {
             <Col span={6}>
               <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Ability</div>
               <Select
-                placeholder="选择 Ability"
+                placeholder="Select Ability"
                 value={filterAbility}
                 onChange={setFilterAbility}
                 style={{ width: '100%' }}
@@ -264,13 +264,13 @@ export default function ChannelListPage() {
         </Card>
       )}
 
-      {/* 已选筛选条件展示 */}
+      {/* Selected filter tags display */}
       {hasActiveFilters && (
         <div style={{ marginBottom: 12 }}>
           <Space wrap>
             {searchText && <Tag closable onClose={() => setSearchText('')}>Channel Code: {searchText}</Tag>}
             {filterCountry.map(c => (
-              <Tag key={c} closable onClose={() => setFilterCountry(prev => prev.filter(x => x !== c))}>国家: {c}</Tag>
+              <Tag key={c} closable onClose={() => setFilterCountry(prev => prev.filter(x => x !== c))}>Country: {c}</Tag>
             ))}
             {filterParty && <Tag closable onClose={() => setFilterParty(null)}>Party: {filterParty}</Tag>}
             {filterBT && <Tag closable onClose={() => setFilterBT(null)}>BT: {filterBT}</Tag>}
@@ -279,17 +279,17 @@ export default function ChannelListPage() {
         </div>
       )}
 
-      {/* 渠道表格 */}
+      {/* Channel table */}
       <Table
         dataSource={filteredChannels}
         columns={columns}
         rowKey="code"
         pagination={{ pageSize: 10 }}
         rowClassName={(record) => (highlightedRow === record.code ? 'ant-table-row-highlight' : '')}
-        locale={{ emptyText: '暂无数据' }}
+        locale={{ emptyText: 'No Data' }}
       />
 
-      {/* 新建 Channel 弹窗 */}
+      {/* New Channel modal */}
       <Modal
         title="New Channel"
         open={isModalOpen}
@@ -306,18 +306,18 @@ export default function ChannelListPage() {
             name="code"
             label="Channel Code"
             rules={[
-              { required: true, message: '请输入 Channel Code' },
-              { pattern: /^[A-Z0-9_]+$/, message: '仅允许大写字母+下划线+数字' },
+              { required: true, message: 'Please enter Channel Code' },
+              { pattern: /^[A-Z0-9_]+$/, message: 'Only uppercase letters, underscore, and numbers allowed' },
             ]}
           >
-            <Input placeholder="如: GTB_NG" />
+            <Input placeholder="e.g., GTB_NG" />
           </Form.Item>
           <Form.Item
             name="country"
             label="Country"
-            rules={[{ required: true, message: '请选择 Country' }]}
+            rules={[{ required: true, message: 'Please select Country' }]}
           >
-            <Select mode="multiple" placeholder="选择国家">
+            <Select mode="multiple" placeholder="Select Country">
               {countryOptions.map((c) => (
                 <Select.Option key={c} value={c}>{c}</Select.Option>
               ))}
@@ -326,9 +326,9 @@ export default function ChannelListPage() {
           <Form.Item
             name="party"
             label="Party"
-            rules={[{ required: true, message: '请选择 Party' }]}
+            rules={[{ required: true, message: 'Please select Party' }]}
           >
-            <Select placeholder="选择 Party">
+            <Select placeholder="Select Party">
               {partyOptions.map((p) => (
                 <Select.Option key={p} value={p}>{p}</Select.Option>
               ))}
