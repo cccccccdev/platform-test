@@ -154,9 +154,9 @@ export default function ApiDebugPage() {
   const [url, setUrl] = useState(activeTab?.request.url || '');
   const [activeRequestTab, setActiveRequestTab] = useState<RequestTabType>('params');
   const [headers, setHeaders] = useState<HeaderItem[]>([
-    { key: 'Content-Type', value: 'application/json', description: '由报文格式自动生成', enabled: true, isAuto: true, autoType: 'content-type' },
+    { key: 'Content-Type', value: 'application/json', description: 'Auto-generated based on body format', enabled: true, isAuto: true, autoType: 'content-type' },
     { key: 'X-Request-Id', value: '{{traceId}}', description: '', enabled: true, isAuto: false },
-    { key: 'X-Paystack-Signature', value: '{{sign}}', description: '签名配置完成后自动插入', enabled: true, isAuto: false, autoType: 'signature' },
+    { key: 'X-Paystack-Signature', value: '{{sign}}', description: 'Auto-inserted after signature configuration', enabled: true, isAuto: false, autoType: 'signature' },
     { key: 'X-Debug-Mode', value: 'true', description: '', enabled: false, isAuto: false },
   ]);
   const [body, setBody] = useState(activeTab?.request.body || '');
@@ -199,10 +199,10 @@ export default function ApiDebugPage() {
   const [signatureQueryParam, setSignatureQueryParam] = useState('');
 
   // Pre-request script state
-  const [preScript, setPreScript] = useState(`// 自动生成 traceId
+  const [preScript, setPreScript] = useState(`// Auto-generate traceId
 pm.variables.set("traceId", pm.utils.uuid());
 
-// 自动生成时间戳
+// Auto-generate timestamp
 pm.variables.set("timestamp", Date.now().toString());
 `);
   const [scriptResult, setScriptResult] = useState<ScriptResult | null>(null);
@@ -250,11 +250,11 @@ pm.variables.set("timestamp", Date.now().toString());
       if (saved) return JSON.parse(saved);
     } catch {}
 
-    // Mock data for testing "从 Debug 记录导入" feature
+    // Mock data for testing "Import from Debug record" feature
     const mockSessions: HistorySession[] = [
       {
         id: 'mock_1',
-        name: 'charge 成功场景',
+        name: 'charge success scenario',
         method: 'POST',
         url: 'https://api.paystack.co/charge',
         headers: [
@@ -288,7 +288,7 @@ pm.variables.set("timestamp", Date.now().toString());
       },
       {
         id: 'mock_2',
-        name: 'verify 查单',
+        name: 'verify query order',
         method: 'GET',
         url: 'https://api.paystack.co/verify/{{reference}}',
         headers: [
@@ -314,7 +314,7 @@ pm.variables.set("timestamp", Date.now().toString());
       },
       {
         id: 'mock_3',
-        name: 'refund 退款',
+        name: 'refund',
         method: 'POST',
         url: 'https://api.paystack.co/refund',
         headers: [
@@ -441,7 +441,7 @@ pm.variables.set("timestamp", Date.now().toString());
     setBody(session.body);
     setRequestName(session.name);
     setHasUnsavedChanges(true);
-    message.success('已恢复到当前 Tab');
+    message.success('Restored to current Tab');
   };
 
   // Filter tabs by search
@@ -550,21 +550,21 @@ pm.variables.set("timestamp", Date.now().toString());
         let note = '';
         if (valueExpr.includes('pm.utils.uuid()')) {
           computedValue = 'pp' + (crypto.randomUUID?.()?.replace(/-/g, '').substring(0, 12) || 'xxxxxxxxxxxx');
-          note = 'uuid 生成';
+          note = 'uuid generation';
         } else if (valueExpr.includes('Date.now()')) {
           computedValue = Date.now().toString();
-          note = '时间戳';
+          note = 'timestamp';
         } else if (valueExpr.includes('pm.utils.timestamp()')) {
           computedValue = Date.now().toString();
           note = 'timestamp';
         } else if (valueExpr.includes('pm.utils.md5(')) {
-          note = 'MD5 哈希';
+          note = 'MD5 hash';
           computedValue = '(md5 hash)';
         } else if (valueExpr.includes('pm.utils.sha256(')) {
-          note = 'SHA256 哈希';
+          note = 'SHA256 hash';
           computedValue = '(sha256 hash)';
         } else if (valueExpr.includes('pm.utils.base64(')) {
-          note = 'Base64 编码';
+          note = 'Base64 encoding';
           computedValue = '(base64 encoded)';
         } else if (valueExpr.includes('pm.variables.get("')) {
           continue;
@@ -573,9 +573,9 @@ pm.variables.set("timestamp", Date.now().toString());
         }
         outputs.push({ variable: varName, value: computedValue, note });
       }
-      return { success: true, message: '执行成功', outputs };
+      return { success: true, message: 'Execution successful', outputs };
     } catch (error: any) {
-      return { success: false, message: '执行失败：' + error.message };
+      return { success: false, message: 'Execution failed: ' + error.message };
     }
   };
 
@@ -620,7 +620,7 @@ pm.variables.set("timestamp", Date.now().toString());
 
   const removeHeader = (index: number) => {
     if (headers[index].isAuto) {
-      message.warning('自动生成的 header 无法删除，请禁用该行');
+      message.warning('Auto-generated headers cannot be deleted, please disable the row');
       return;
     }
     setHeaders(headers.filter((_, i) => i !== index));
@@ -640,7 +640,7 @@ pm.variables.set("timestamp", Date.now().toString());
 
   const removeSignaturePart = (id: string) => {
     if (signatureParts.length <= 1) {
-      message.warning('至少需要保留一个签名片段');
+      message.warning('At least one signature fragment must be retained');
       return;
     }
     setSignatureParts(signatureParts.filter(p => p.id !== id));
@@ -850,7 +850,7 @@ pm.variables.set("timestamp", Date.now().toString());
       setJsonParseError(null);
       return true;
     } catch (e) {
-      setJsonParseError('JSON 格式有误，无法同步到表单模式');
+      setJsonParseError('JSON format is incorrect, cannot sync to form mode');
       return false;
     }
   };
@@ -862,7 +862,7 @@ pm.variables.set("timestamp", Date.now().toString());
       setRawJsonText(JSON.stringify(parsed, null, 2));
       setJsonParseError(null);
     } catch (e) {
-      setJsonParseError('JSON 格式有误');
+      setJsonParseError('JSON format is incorrect');
     }
   };
 
@@ -882,7 +882,7 @@ pm.variables.set("timestamp", Date.now().toString());
                 {field.expanded ? '▼' : '▶'}
               </span>
             )}
-            <Input placeholder="字段名" value={field.key} onChange={(e) => updateBodyField(field.id, 'key', e.target.value)} bordered={false} style={{ fontSize: 12, padding: '2px 0', background: field.enabled ? '#fff' : '#f5f5f5', width: 120 }} />
+            <Input placeholder="Field name" value={field.key} onChange={(e) => updateBodyField(field.id, 'key', e.target.value)} bordered={false} style={{ fontSize: 12, padding: '2px 0', background: field.enabled ? '#fff' : '#f5f5f5', width: 120 }} />
           </td>
           <td style={{ padding: '4px 8px' }}>
             <Select value={field.type} onChange={(v) => updateBodyField(field.id, 'type', v)} style={{ width: 80, fontSize: 11 }} size="small">
@@ -897,7 +897,7 @@ pm.variables.set("timestamp", Date.now().toString());
             {hasChildren ? (
               <Text type="secondary" style={{ fontSize: 11 }}>{field.type === 'array' ? 'Array' : 'Object'}</Text>
             ) : (
-              <Input placeholder="值" value={field.value} onChange={(e) => updateBodyField(field.id, 'value', e.target.value)} bordered={false} style={{ fontSize: 12, padding: '2px 0', background: field.enabled ? '#fff' : '#f5f5f5', color: field.value.includes('{{') && field.value.includes('}}') ? '#fa8c16' : '#000' }} />
+              <Input placeholder="Value" value={field.value} onChange={(e) => updateBodyField(field.id, 'value', e.target.value)} bordered={false} style={{ fontSize: 12, padding: '2px 0', background: field.enabled ? '#fff' : '#f5f5f5', color: field.value.includes('{{') && field.value.includes('}}') ? '#fa8c16' : '#000' }} />
             )}
           </td>
           <td style={{ padding: '4px 8px', textAlign: 'center' }}>
@@ -949,7 +949,7 @@ pm.variables.set("timestamp", Date.now().toString());
     const newTab: RequestTab = { ...tab, id: 'tc_' + Date.now(), name: tab.name + '_copy', status: 'none', hasUnsavedChanges: true };
     setTabs([...tabs, newTab]);
     setActiveTabId(newTab.id);
-    message.success('已复制');
+    message.success('Copied');
   };
 
   // Open rename modal
@@ -964,14 +964,14 @@ pm.variables.set("timestamp", Date.now().toString());
     if (renamingTab && newTabName.trim()) {
       setTabs(tabs.map(t => t.id === renamingTab.id ? { ...t, name: newTabName.trim() } : t));
       setIsRenameModalOpen(false);
-      message.success('已重命名');
+      message.success('Renamed');
     }
   };
 
   // Send request with full execution flow
   const handleSend = async () => {
     if (!url) {
-      message.warning('请输入请求地址');
+      message.warning('Please enter the request URL');
       return;
     }
 
@@ -995,26 +995,26 @@ pm.variables.set("timestamp", Date.now().toString());
     const undefinedInRequest = findUndefinedVariables();
     if (undefinedInRequest.length > 0) {
       setUndefinedVars(undefinedInRequest);
-      message.warning('变量 ' + undefinedInRequest.join(', ') + ' 未定义，已以空字符串替代');
+      message.warning('Variable(s) ' + undefinedInRequest.join(', ') + ' are undefined, will be replaced with empty string');
     } else {
       setUndefinedVars([]);
     }
 
     // Step 1: Execute Pre-request Script
     const scriptStart = Date.now();
-    setRequestStatus('正在执行 Pre-request Script...');
+    setRequestStatus('Executing Pre-request Script...');
     await new Promise(resolve => window.setTimeout(resolve, 100));
 
     const scriptExecResult = executePreScript(preScript);
     const scriptDuration = Date.now() - scriptStart;
     if (scriptExecResult.success && scriptExecResult.outputs) {
       const scriptDetails = scriptExecResult.outputs.map(out => ({ key: out.variable, value: out.value }));
-      addDebugLog('Pre-request Script 执行', 'success', scriptDuration, scriptDetails);
+      addDebugLog('Pre-request Script Execution', 'success', scriptDuration, scriptDetails);
       scriptExecResult.outputs.forEach(output => {
         console.log('Script set ' + output.variable + ' = ' + output.value);
       });
     } else if (scriptExecResult.message) {
-      addDebugLog('Pre-request Script 执行', 'error', scriptDuration, [{ key: '错误', value: scriptExecResult.message }]);
+      addDebugLog('Pre-request Script Execution', 'error', scriptDuration, [{ key: 'Error', value: scriptExecResult.message }]);
     }
     setRequestStatus(null);
 
@@ -1029,7 +1029,7 @@ pm.variables.set("timestamp", Date.now().toString());
         varReplacementDetails.push({ key: '{{' + v + '}}', value: variable.currentValue, masked: variable.isSecret });
       }
     });
-    addDebugLog('变量替换', 'success', Date.now() - varStart, varReplacementDetails);
+    addDebugLog('Variable Replacement', 'success', Date.now() - varStart, varReplacementDetails);
 
     // Step 3: Build URL with query params
     let fullUrl = replacedUrl;
@@ -1051,19 +1051,19 @@ pm.variables.set("timestamp", Date.now().toString());
     // Step 4: Calculate signature if enabled
     const sigStart = Date.now();
     if (signatureEnabled) {
-      setRequestStatus('正在计算签名...');
+      setRequestStatus('Calculating signature...');
       await new Promise(resolve => window.setTimeout(resolve, 50));
-      addDebugLog('签名串拼接', 'success', Date.now() - sigStart, [
-        { key: '拼接规则', value: signatureParts.map(p => p.value).join(' + ') },
-        { key: '签名原文', value: signatureParts.map(p => replaceVariables(p.value)).join('') },
-        { key: signatureAlgorithm, value: '已计算' },
-        { key: '写入 Header', value: signatureHeaderName },
+      addDebugLog('Signature string concatenation', 'success', Date.now() - sigStart, [
+        { key: 'Concatenation rule', value: signatureParts.map(p => p.value).join(' + ') },
+        { key: 'Signature raw text', value: signatureParts.map(p => replaceVariables(p.value)).join('') },
+        { key: signatureAlgorithm, value: 'Calculated' },
+        { key: 'Write to Header', value: signatureHeaderName },
       ]);
       setRequestStatus(null);
     }
 
     // Step 5: Send HTTP request
-    setRequestStatus('正在请求 ' + method + ' ' + fullUrl + ' ...');
+    setRequestStatus('Requesting ' + method + ' ' + fullUrl + ' ...');
     const startTime = Date.now();
     setIsRequesting(true);
 
@@ -1120,7 +1120,7 @@ pm.variables.set("timestamp", Date.now().toString());
       const timestamp = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
 
       // Add HTTP send log
-      addDebugLog('HTTP 发送', 'success', duration, [
+      addDebugLog('HTTP Send', 'success', duration, [
         { key: method, value: fullUrl },
         { key: '→', value: res.status + ' ' + res.statusText + '  ' + formatBytes(size) },
       ]);
@@ -1141,7 +1141,7 @@ pm.variables.set("timestamp", Date.now().toString());
       setTabs(tabs.map(t => t.id === activeTabId ? { ...t, status: res.status < 400 ? 'success' : 'error' } : t));
 
       // Add to history sessions
-      const sessionName = requestName || '未命名';
+      const sessionName = requestName || 'Unnamed';
       addHistorySession({
         name: sessionName,
         method,
@@ -1156,16 +1156,16 @@ pm.variables.set("timestamp", Date.now().toString());
       });
 
       setRequestStatus(null);
-      message.success('请求完成 (' + duration + 'ms)');
+      message.success('Request completed (' + duration + 'ms)');
     } catch (error: any) {
       window.clearInterval(timerInterval);
       const duration = Date.now() - startTime;
       const now = new Date();
       const timestamp = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + ' ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
 
-      addDebugLog('HTTP 发送', 'error', duration, [
+      addDebugLog('HTTP Send', 'error', duration, [
         { key: method, value: url },
-        { key: '错误', value: error.name === 'AbortError' ? '请求超时' : error.message },
+        { key: 'Error', value: error.name === 'AbortError' ? 'Request timeout' : error.message },
       ]);
 
       setResponse({
@@ -1183,7 +1183,7 @@ pm.variables.set("timestamp", Date.now().toString());
       setTabs(tabs.map(t => t.id === activeTabId ? { ...t, status: 'error' } : t));
 
       // Add to history sessions (error case - use current state values)
-      const errorSessionName = requestName || '未命名';
+      const errorSessionName = requestName || 'Unnamed';
       const errorHeaders = headers.filter(h => h.enabled && h.key).map(h => ({ key: h.key, value: replaceVariables(h.value) }));
       const errorBody = bodyType === 'raw' ? replaceVariables(body) : body;
       addHistorySession({
@@ -1200,7 +1200,7 @@ pm.variables.set("timestamp", Date.now().toString());
       });
 
       setRequestStatus(null);
-      message.error(error.name === 'AbortError' ? '请求超时' : '请求失败');
+      message.error(error.name === 'AbortError' ? 'Request timeout' : 'Request failed');
     } finally {
       setIsRequesting(false);
       setIsResponseLoading(false);
@@ -1211,7 +1211,7 @@ pm.variables.set("timestamp", Date.now().toString());
   const handleCancel = () => {
     setIsRequesting(false);
     setRequestStatus(null);
-    message.info('请求已取消');
+    message.info('Request cancelled');
   };
 
   const handleBack = () => {
@@ -1223,7 +1223,7 @@ pm.variables.set("timestamp", Date.now().toString());
     try {
       const text = await navigator.clipboard.readText();
       if (!text) {
-        message.warning('剪贴板为空');
+        message.warning('Clipboard is empty');
         return;
       }
       const parsed = parseCurlCommand(text);
@@ -1248,12 +1248,12 @@ pm.variables.set("timestamp", Date.now().toString());
         setActiveRequestTab('params');
         setQueryParams([{ key: '', value: '', description: '', enabled: true }]);
         setPathParams([]);
-        message.success('cURL 导入成功');
+        message.success('cURL import successful');
       } else {
-        message.error('无效的 cURL 命令');
+        message.error('Invalid cURL command');
       }
     } catch (err) {
-      message.error('读取剪贴板失败，请确保已授予剪贴板权限');
+      message.error('Failed to read clipboard, please ensure clipboard permissions are granted');
     }
   };
 
@@ -1337,20 +1337,20 @@ pm.variables.set("timestamp", Date.now().toString());
     <div style={{ background: '#fff', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '4px 0', minWidth: 150 }} onClick={(e) => e.stopPropagation()}>
       <div style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { closeTab(tab.id); setContextMenuTab(null); }}>
         <CloseOutlined style={{ fontSize: 12 }} />
-        <span style={{ fontSize: 12 }}>关闭</span>
+        <span style={{ fontSize: 12 }}>Close</span>
       </div>
       <div style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { closeOtherTabs(tab.id); setContextMenuTab(null); }}>
         <DeleteOutlined style={{ fontSize: 12 }} />
-        <span style={{ fontSize: 12 }}>关闭其他所有</span>
+        <span style={{ fontSize: 12 }}>Close all others</span>
       </div>
       <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
       <div style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { duplicateTab(tab); setContextMenuTab(null); }}>
         <CopyOutlined style={{ fontSize: 12 }} />
-        <span style={{ fontSize: 12 }}>复制请求</span>
+        <span style={{ fontSize: 12 }}>Duplicate request</span>
       </div>
       <div style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }} onClick={() => { openRenameModal(tab); setContextMenuTab(null); }}>
         <EditOutlined style={{ fontSize: 12 }} />
-        <span style={{ fontSize: 12 }}>重命名</span>
+        <span style={{ fontSize: 12 }}>Rename</span>
       </div>
     </div>
   );
@@ -1358,7 +1358,7 @@ pm.variables.set("timestamp", Date.now().toString());
   // Scene Variable Management Modal
   const renderSceneVarModal = () => (
     <Modal
-      title="场景变量管理"
+      title="Scene Variable Management"
       open={showSceneVarModal}
       onCancel={() => setShowSceneVarModal(false)}
       footer={null}
@@ -1435,16 +1435,16 @@ pm.variables.set("timestamp", Date.now().toString());
         {/* Left Panel */}
         <div style={{ width: 220, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: 12, borderBottom: '1px solid #f0f0f0' }}>
-            <Input placeholder="搜索用例" prefix={<SearchOutlined style={{ color: '#999' }} />} value={searchText} onChange={(e) => setSearchText(e.target.value)} size="small" allowClear />
+            <Input placeholder="Search test cases" prefix={<SearchOutlined style={{ color: '#999' }} />} value={searchText} onChange={(e) => setSearchText(e.target.value)} size="small" allowClear />
           </div>
           <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-              <Text strong style={{ fontSize: 12 }}>场景用例</Text>
-              <Button type="text" size="small" icon={<PlusOutlined />} onClick={createNewTab}>新建</Button>
+              <Text strong style={{ fontSize: 12 }}>Test Cases</Text>
+              <Button type="text" size="small" icon={<PlusOutlined />} onClick={createNewTab}>New</Button>
             </div>
             <div style={{ flex: 1, overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
               {filteredTabs.length === 0 ? (
-                <div style={{ padding: 12 }}><Text type="secondary" style={{ fontSize: 11 }}>暂无用例</Text></div>
+                <div style={{ padding: 12 }}><Text type="secondary" style={{ fontSize: 11 }}>No test cases</Text></div>
               ) : (
                 filteredTabs.map(tab => (
                   <div key={tab.id} onClick={() => setActiveTabId(tab.id)} style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', cursor: 'pointer', background: activeTabId === tab.id ? '#e6f7ff' : 'transparent', borderBottom: '1px solid #f5f5f5', gap: 6 }}>
@@ -1458,8 +1458,8 @@ pm.variables.set("timestamp", Date.now().toString());
           </div>
           <div style={{ borderTop: '1px solid #f0f0f0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-              <Text strong style={{ fontSize: 12 }}>场景变量</Text>
-              <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowSceneVarModal(true)}>管理</Button>
+              <Text strong style={{ fontSize: 12 }}>Scene Variables</Text>
+              <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowSceneVarModal(true)}>Manage</Button>
             </div>
             <div style={{ padding: '4px 12px', maxHeight: 160, overflow: 'auto' }}>
               {sceneVariables.map(v => (
@@ -1509,7 +1509,7 @@ pm.variables.set("timestamp", Date.now().toString());
             </Select>
             <Input placeholder="https://api.example.com/endpoint" value={url} onChange={(e) => { setUrl(e.target.value); setHasUnsavedChanges(true); }} style={{ flex: 1 }} />
             {isRequesting ? (
-              <Button danger onClick={handleCancel} style={{ width: 80 }}>⏹ 取消</Button>
+              <Button danger onClick={handleCancel} style={{ width: 80 }}>⏹ Cancel</Button>
             ) : (
               <Button type="primary" icon={<SendOutlined />} onClick={handleSend} style={{ width: 80 }}>▶ Send</Button>
             )}
@@ -1517,8 +1517,8 @@ pm.variables.set("timestamp", Date.now().toString());
 
           {/* Interface Name Row */}
           <div style={{ height: 32, borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>接口名称：</Text>
-            <Input placeholder="选填，用于保存用例" value={requestName} onChange={(e) => { setRequestName(e.target.value); setHasUnsavedChanges(true); }} bordered={false} style={{ flex: 1, fontSize: 12 }} />
+            <Text type="secondary" style={{ fontSize: 12 }}>Interface name:</Text>
+            <Input placeholder="Optional, for saving test case" value={requestName} onChange={(e) => { setRequestName(e.target.value); setHasUnsavedChanges(true); }} bordered={false} style={{ flex: 1, fontSize: 12 }} />
           </div>
 
           {/* Request Content Tabs */}
@@ -1526,7 +1526,7 @@ pm.variables.set("timestamp", Date.now().toString());
             <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0' }}>
               {requestTabs.map(key => (
                 <div key={key} onClick={() => setActiveRequestTab(key)} style={{ padding: '8px 16px', cursor: 'pointer', borderBottom: activeRequestTab === key ? '2px solid #1890ff' : '2px solid transparent', color: activeRequestTab === key ? '#1890ff' : '#666', fontSize: 12 }}>
-                  {key === 'params' ? 'Params' : key === 'body' ? 'Body' : key === 'headers' ? 'Headers' : key === 'auth' ? 'Auth' : key === 'signature' ? '签名配置' : key === 'preScript' ? 'Pre-request Script' : key}
+                  {key === 'params' ? 'Params' : key === 'body' ? 'Body' : key === 'headers' ? 'Headers' : key === 'auth' ? 'Auth' : key === 'signature' ? 'Signature Config' : key === 'preScript' ? 'Pre-request Script' : key}
                 </div>
               ))}
             </div>
@@ -1539,11 +1539,11 @@ pm.variables.set("timestamp", Date.now().toString());
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#fafafa' }}>
-                          <th style={{ width: 40, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>启用</th>
+                          <th style={{ width: 40, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>Enable</th>
                           <th style={{ width: 180, padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Key</th>
                           <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Value</th>
                           <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Description</th>
-                          <th style={{ width: 60, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>操作</th>
+                          <th style={{ width: 60, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>Operation</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1562,7 +1562,7 @@ pm.variables.set("timestamp", Date.now().toString());
                   </div>
                   {pathParams.length > 0 && (
                     <div>
-                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Path 参数根据 URL 中的 :param 自动识别，请填写对应值</Text>
+                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Path parameters are automatically identified from :param in URL, please fill in the corresponding values</Text>
                       <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Path Params</Text>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
@@ -1592,11 +1592,11 @@ pm.variables.set("timestamp", Date.now().toString());
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#fafafa' }}>
-                        <th style={{ width: 40, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>启用</th>
+                        <th style={{ width: 40, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>Enable</th>
                         <th style={{ width: 180, padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Key</th>
                         <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Value</th>
                         <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Description</th>
-                        <th style={{ width: 60, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>操作</th>
+                        <th style={{ width: 60, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>Operation</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1614,10 +1614,10 @@ pm.variables.set("timestamp", Date.now().toString());
                       })}
                     </tbody>
                   </table>
-                  <Button type="link" size="small" onClick={addHeader} style={{ marginTop: 8, padding: 0, fontSize: 11 }}>+ 添加 Header</Button>
+                  <Button type="link" size="small" onClick={addHeader} style={{ marginTop: 8, padding: 0, fontSize: 11 }}>+ Add Header</Button>
                   {headers.filter(h => h.isAuto).length > 0 && (
                     <div style={{ marginTop: 24 }}>
-                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>自动生成</Text>
+                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Auto-generate</Text>
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <tbody>
                           {headers.filter(h => h.isAuto).map((header, idx) => {
@@ -1658,8 +1658,8 @@ pm.variables.set("timestamp", Date.now().toString());
                           <Select.Option value="text">Text</Select.Option>
                         </Select>
                         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                          <Button size="small" type={rawViewMode === 'form' ? 'primary' : 'default'} onClick={() => { if (rawViewMode === 'raw' && jsonParseError) { Modal.warning({ title: 'JSON 格式有误，无法同步到表单模式' }); return; } setRawViewMode('form'); }}>表单模式</Button>
-                          <Button size="small" type={rawViewMode === 'raw' ? 'primary' : 'default'} onClick={() => { setRawViewMode('raw'); syncFormToRawJson(); }}>原始 JSON</Button>
+                          <Button size="small" type={rawViewMode === 'form' ? 'primary' : 'default'} onClick={() => { if (rawViewMode === 'raw' && jsonParseError) { Modal.warning({ title: 'JSON format is incorrect, cannot sync to Form Mode' }); return; } setRawViewMode('form'); }}>Form Mode</Button>
+                          <Button size="small" type={rawViewMode === 'raw' ? 'primary' : 'default'} onClick={() => { setRawViewMode('raw'); syncFormToRawJson(); }}>Raw JSON</Button>
                         </div>
                       </>
                     )}
@@ -1669,15 +1669,15 @@ pm.variables.set("timestamp", Date.now().toString());
                     <>
                       {rawViewMode === 'form' ? (
                         <div>
-                          <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>JSON 表单</Text>
+                          <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>JSON Form</Text>
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ background: '#fafafa' }}>
-                                <th style={{ width: 40, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>启用</th>
-                                <th style={{ width: 160, padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>字段名</th>
-                                <th style={{ width: 100, padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>类型</th>
-                                <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>值</th>
-                                <th style={{ width: 80, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>操作</th>
+                                <th style={{ width: 40, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>Enable</th>
+                                <th style={{ width: 160, padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Field Name</th>
+                                <th style={{ width: 100, padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Type</th>
+                                <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Value</th>
+                                <th style={{ width: 80, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>Operation</th>
                               </tr>
                             </thead>
                             <tbody>{bodyFields.map(field => renderBodyFieldRow(field, 0))}</tbody>
@@ -1686,7 +1686,7 @@ pm.variables.set("timestamp", Date.now().toString());
                         </div>
                       ) : (
                         <div>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}><Button size="small" onClick={formatJson}>格式化</Button></div>
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}><Button size="small" onClick={formatJson}>Format</Button></div>
                           <TextArea rows={16} value={rawJsonText} onChange={(e) => { setRawJsonText(e.target.value); setHasUnsavedChanges(true); window.setTimeout(() => { syncRawJsonToForm(e.target.value); }, 600); }} style={{ fontFamily: 'Monaco, Consolas, monospace', fontSize: 12, borderColor: jsonParseError ? '#ff4d4f' : undefined }} placeholder='{\n  "key": "value"\n}' />
                           {jsonParseError && <Text type="danger" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>{jsonParseError}</Text>}
                         </div>
@@ -1703,11 +1703,11 @@ pm.variables.set("timestamp", Date.now().toString());
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                           <tr style={{ background: '#fafafa' }}>
-                            <th style={{ width: 40, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>启用</th>
+                            <th style={{ width: 40, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>Enable</th>
                             <th style={{ width: 180, padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Key</th>
                             <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Value</th>
                             <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#666' }}>Description</th>
-                            <th style={{ width: 60, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>操作</th>
+                            <th style={{ width: 60, padding: '6px 8px', textAlign: 'center', fontSize: 11, fontWeight: 500, color: '#666' }}>Operation</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1737,10 +1737,10 @@ pm.variables.set("timestamp", Date.now().toString());
                               <br />
                               <Text type="secondary" style={{ fontSize: 11 }}>{(binaryFile.size / 1024).toFixed(2)} KB</Text>
                               <br />
-                              <Button type="link" size="small" onClick={(e) => { e.preventDefault(); setBinaryFile(null); }}>移除</Button>
+                              <Button type="link" size="small" onClick={(e) => { e.preventDefault(); setBinaryFile(null); }}>Remove</Button>
                             </div>
                           ) : (
-                            <Text type="secondary" style={{ fontSize: 12 }}>点击上传或拖拽文件到此处</Text>
+                            <Text type="secondary" style={{ fontSize: 12 }}>Click to upload or drag file here</Text>
                           )}
                         </div>
                       </label>
@@ -1752,7 +1752,7 @@ pm.variables.set("timestamp", Date.now().toString());
               {activeRequestTab === 'auth' && (
                 <div>
                   <div style={{ marginBottom: 24 }}>
-                    <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>认证类型</Text>
+                    <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Auth Type</Text>
                     <Select value={authType} onChange={(v) => { setAuthType(v); setHasUnsavedChanges(true); }} style={{ width: 200 }}>
                       <Select.Option value="none">None</Select.Option>
                       <Select.Option value="bearer">Bearer Token</Select.Option>
@@ -1767,21 +1767,21 @@ pm.variables.set("timestamp", Date.now().toString());
                         <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Token</Text>
                         <Input placeholder="Enter token" value={bearerToken} onChange={(e) => { setBearerToken(e.target.value); setHasUnsavedChanges(true); }} addonBefore="Bearer" style={{ width: 400, color: bearerToken.includes('{{') ? '#fa8c16' : '#000' }} />
                       </div>
-                      <Text type="secondary" style={{ fontSize: 11 }}>将自动添加 Authorization: Bearer {bearerToken || '{token}'} 到 Headers</Text>
+                      <Text type="secondary" style={{ fontSize: 11 }}>Will auto-add Authorization: Bearer {bearerToken || '{token}'} to Headers</Text>
                     </div>
                   )}
                   {authType === 'apiKey' && (
                     <div>
                       <div style={{ marginBottom: 16 }}>
-                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Key 名称</Text>
+                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Key Name</Text>
                         <Input placeholder="X-API-Key" value={apiKeyName} onChange={(e) => { setApiKeyName(e.target.value); setHasUnsavedChanges(true); }} style={{ width: 300, color: apiKeyName.includes('{{') ? '#fa8c16' : '#000' }} />
                       </div>
                       <div style={{ marginBottom: 16 }}>
-                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Key 值</Text>
+                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Key Value</Text>
                         <Input placeholder="API Key value" value={apiKeyValue} onChange={(e) => { setApiKeyValue(e.target.value); setHasUnsavedChanges(true); }} style={{ width: 400, color: apiKeyValue.includes('{{') ? '#fa8c16' : '#000' }} />
                       </div>
                       <div>
-                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>添加位置</Text>
+                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Add Location</Text>
                         <Space size="middle">
                           <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}><input type="radio" name="apiKeyLocation" checked={apiKeyLocation === 'header'} onChange={() => { setApiKeyLocation('header'); setHasUnsavedChanges(true); }} />Header</label>
                           <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}><input type="radio" name="apiKeyLocation" checked={apiKeyLocation === 'query'} onChange={() => { setApiKeyLocation('query'); setHasUnsavedChanges(true); }} />Query Param</label>
@@ -1792,14 +1792,14 @@ pm.variables.set("timestamp", Date.now().toString());
                   {authType === 'basic' && (
                     <div>
                       <div style={{ marginBottom: 16 }}>
-                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>用户名</Text>
+                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Username</Text>
                         <Input placeholder="Username" value={basicUsername} onChange={(e) => { setBasicUsername(e.target.value); setHasUnsavedChanges(true); }} style={{ width: 300 }} />
                       </div>
                       <div style={{ marginBottom: 16 }}>
-                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>密码</Text>
+                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Password</Text>
                         <Input placeholder="Password" value={basicPassword} onChange={(e) => { setBasicPassword(e.target.value); setHasUnsavedChanges(true); }} type="password" style={{ width: 300, color: basicPassword.includes('{{') ? '#fa8c16' : '#000' }} />
                       </div>
-                      <Text type="secondary" style={{ fontSize: 11 }}>将自动添加 Authorization: Basic {'{base64(username:password)}'} 到 Headers</Text>
+                      <Text type="secondary" style={{ fontSize: 11 }}>Will auto-add Authorization: Basic {'{base64(username:password)}'} to Headers</Text>
                     </div>
                   )}
                   {authType === 'oauth2' && (
@@ -1809,25 +1809,25 @@ pm.variables.set("timestamp", Date.now().toString());
                         <Input placeholder="Access Token" value={oauth2Token} onChange={(e) => { setOauth2Token(e.target.value); setHasUnsavedChanges(true); }} style={{ width: 400, color: oauth2Token.includes('{{') ? '#fa8c16' : '#000' }} />
                       </div>
                       <div style={{ marginBottom: 16 }}>
-                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Token 前缀</Text>
+                        <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Token Prefix</Text>
                         <Input placeholder="Bearer" value={oauth2Prefix} onChange={(e) => { setOauth2Prefix(e.target.value); setHasUnsavedChanges(true); }} style={{ width: 150 }} />
                       </div>
-                      <Text type="secondary" style={{ fontSize: 11 }}>将自动添加 Authorization: {oauth2Prefix || 'Bearer'} {'{accessToken}'} 到 Headers</Text>
+                      <Text type="secondary" style={{ fontSize: 11 }}>Will auto-add Authorization: {oauth2Prefix || 'Bearer'} {'{accessToken}'} to Headers</Text>
                     </div>
                   )}
-                  {authType === 'none' && <Text type="secondary" style={{ fontSize: 12 }}>不添加任何认证信息</Text>}
+                  {authType === 'none' && <Text type="secondary" style={{ fontSize: 12 }}>No authentication info added</Text>}
                 </div>
               )}
 
               {activeRequestTab === 'signature' && (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-                    <Text strong style={{ fontSize: 12 }}>启用签名</Text>
+                    <Text strong style={{ fontSize: 12 }}>Enable Signature</Text>
                     <input type="checkbox" checked={signatureEnabled} onChange={(e) => { setSignatureEnabled(e.target.checked); setHasUnsavedChanges(true); }} style={{ cursor: 'pointer', width: 16, height: 16 }} />
                   </div>
                   <div style={{ opacity: signatureEnabled ? 1 : 0.5, pointerEvents: signatureEnabled ? 'auto' : 'none' }}>
                     <div style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>签名算法</Text>
+                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Signature Algorithm</Text>
                       <Select value={signatureAlgorithm} onChange={(v) => { setSignatureAlgorithm(v); setHasUnsavedChanges(true); }} style={{ width: 180 }}>
                         <Select.Option value="HMAC-MD5">HMAC-MD5</Select.Option>
                         <Select.Option value="HMAC-SHA256">HMAC-SHA256</Select.Option>
@@ -1835,26 +1835,26 @@ pm.variables.set("timestamp", Date.now().toString());
                       </Select>
                     </div>
                     <div style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>签名串组成（按顺序拼接）</Text>
+                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Signature String Composition (concatenated in order)</Text>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                         {signatureParts.map((part, idx) => (
                           <div key={part.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Text type="secondary" style={{ fontSize: 11, width: 20 }}>{idx + 1}.</Text>
-                            <Input placeholder="输入签名片段" value={part.value} onChange={(e) => updateSignaturePart(part.id, e.target.value)} style={{ flex: 1, color: part.value.includes('{{') ? '#fa8c16' : '#000' }} />
+                            <Input placeholder="Enter signature fragment" value={part.value} onChange={(e) => updateSignaturePart(part.id, e.target.value)} style={{ flex: 1, color: part.value.includes('{{') ? '#fa8c16' : '#000' }} />
                             <Button type="text" size="small" onClick={() => moveSignaturePart(idx, Math.max(0, idx - 1))} disabled={idx === 0} style={{ fontSize: 12 }}>↑</Button>
                             <Button type="text" size="small" onClick={() => moveSignaturePart(idx, Math.min(signatureParts.length - 1, idx + 1))} disabled={idx === signatureParts.length - 1} style={{ fontSize: 12 }}>↓</Button>
                             <Button type="text" danger size="small" onClick={() => removeSignaturePart(part.id)} style={{ fontSize: 11 }}>🗑</Button>
                           </div>
                         ))}
                       </div>
-                      <Button type="link" size="small" onClick={addSignaturePart} style={{ marginTop: 8, padding: 0, fontSize: 11 }}>+ 添加片段</Button>
+                      <Button type="link" size="small" onClick={addSignaturePart} style={{ marginTop: 8, padding: 0, fontSize: 11 }}>+ Add Fragment</Button>
                     </div>
                     <div style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>签名密钥</Text>
-                      <Input placeholder="输入密钥" value={signatureKey} onChange={(e) => { setSignatureKey(e.target.value); setHasUnsavedChanges(true); }} addonBefore="密钥来源" style={{ width: 400, color: signatureKey.includes('{{') ? '#fa8c16' : '#000' }} />
+                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Signature Key</Text>
+                      <Input placeholder="Enter key" value={signatureKey} onChange={(e) => { setSignatureKey(e.target.value); setHasUnsavedChanges(true); }} addonBefore="Key Source" style={{ width: 400, color: signatureKey.includes('{{') ? '#fa8c16' : '#000' }} />
                     </div>
                     <div style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>签名结果写入位置</Text>
+                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Signature Result Write Location</Text>
                       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <input type="radio" name="signatureTarget" checked={signatureTarget === 'header'} onChange={() => { setSignatureTarget('header'); setHasUnsavedChanges(true); }} style={{ cursor: 'pointer' }} />
@@ -1863,36 +1863,36 @@ pm.variables.set("timestamp", Date.now().toString());
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <input type="radio" name="signatureTarget" checked={signatureTarget === 'body'} onChange={() => { setSignatureTarget('body'); setHasUnsavedChanges(true); }} style={{ cursor: 'pointer' }} />
-                          <Text style={{ fontSize: 12 }}>Body 字段</Text>
-                          <Input placeholder="目标字段名" value={signatureBodyField} onChange={(e) => { setSignatureBodyField(e.target.value); setHasUnsavedChanges(true); }} disabled={signatureTarget !== 'body'} style={{ width: 200, fontSize: 12 }} />
+                          <Text style={{ fontSize: 12 }}>Body Field</Text>
+                          <Input placeholder="Target field name" value={signatureBodyField} onChange={(e) => { setSignatureBodyField(e.target.value); setHasUnsavedChanges(true); }} disabled={signatureTarget !== 'body'} style={{ width: 200, fontSize: 12 }} />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <input type="radio" name="signatureTarget" checked={signatureTarget === 'query'} onChange={() => { setSignatureTarget('query'); setHasUnsavedChanges(true); }} style={{ cursor: 'pointer' }} />
                           <Text style={{ fontSize: 12 }}>Query Param</Text>
-                          <Input placeholder="参数名" value={signatureQueryParam} onChange={(e) => { setSignatureQueryParam(e.target.value); setHasUnsavedChanges(true); }} disabled={signatureTarget !== 'query'} style={{ width: 200, fontSize: 12 }} />
+                          <Input placeholder="Parameter name" value={signatureQueryParam} onChange={(e) => { setSignatureQueryParam(e.target.value); setHasUnsavedChanges(true); }} disabled={signatureTarget !== 'query'} style={{ width: 200, fontSize: 12 }} />
                         </div>
                       </Space>
-                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>说明：签名结果同时自动写入场景变量 {'{{sign}}'}</Text>
+                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>Note: Signature result is also auto-written to scene variable {'{{sign}}'}</Text>
                     </div>
                     <div style={{ background: '#f5f5f5', borderRadius: 4, padding: 16, fontFamily: 'Monaco, Consolas, monospace' }}>
-                      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>签名预览</Text>
+                      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Signature Preview</Text>
                       <div style={{ marginBottom: 12 }}>
-                        <Text type="secondary" style={{ fontSize: 11 }}>签名原文：</Text>
-                        <div style={{ background: '#fff', padding: 8, borderRadius: 4, marginTop: 4, fontSize: 12, wordBreak: 'break-all' }}>{calculateSignaturePreview().raw || '（请填写签名片段）'}</div>
+                        <Text type="secondary" style={{ fontSize: 11 }}>Signature raw text：</Text>
+                        <div style={{ background: '#fff', padding: 8, borderRadius: 4, marginTop: 4, fontSize: 12, wordBreak: 'break-all' }}>{calculateSignaturePreview().raw || '(Please fill in signature fragment)'}</div>
                       </div>
                       <div>
-                        <Text type="secondary" style={{ fontSize: 11 }}>{signatureAlgorithm} 结果：</Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>{signatureAlgorithm} Result:</Text>
                         <div style={{ background: '#fff', padding: 8, borderRadius: 4, marginTop: 4, fontSize: 12, color: calculateSignaturePreview().canCalculate ? '#52c41a' : '#999' }}>
                           {calculateSignaturePreview().result}
-                          {calculateSignaturePreview().canCalculate && <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>（已写入变量 &#123;&#123;sign&#125;&#125;）</Text>}
+                          {calculateSignaturePreview().canCalculate && <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>(Written to variable &#123;&#123;sign&#125;&#125;)</Text>}
                         </div>
                       </div>
                       <div style={{ marginTop: 12 }}>
-                        <Text type="secondary" style={{ fontSize: 10 }}>规则：</Text>
+                        <Text type="secondary" style={{ fontSize: 10 }}>Rules:</Text>
                         <ul style={{ margin: '4px 0 0 0', paddingLeft: 16, fontSize: 10, color: '#999' }}>
-                          <li>所有片段变量均已赋值时自动计算并展示</li>
-                          <li>有变量未赋值时展示占位符原文，不计算</li>
-                          <li>密钥变量永久显示 ••••••••，不参与明文展示</li>
+                          <li>Auto-calculated and displayed when all fragment variables are assigned</li>
+                          <li>Show placeholder raw text when variable is unassigned, do not calculate</li>
+                          <li>Key variable always shows ••••••••, not in plaintext</li>
                         </ul>
                       </div>
                     </div>
@@ -1902,37 +1902,37 @@ pm.variables.set("timestamp", Date.now().toString());
 
               {activeRequestTab === 'preScript' && (
                 <div>
-                  <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 16 }}>Pre-request Script 在每次点击 Send 前自动执行，用于动态生成变量值。</Text>
+                  <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 16 }}>Pre-request Script auto-executes before each Send click to dynamically generate variable values.</Text>
                   <div style={{ border: '1px solid #d9d9d9', borderRadius: 4, marginBottom: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fafafa', borderBottom: '1px solid #d9d9d9' }}>
                       <Text strong style={{ fontSize: 12 }}>JavaScript</Text>
-                      <Button size="small" onClick={() => { setPreScript(''); setScriptResult(null); }}>清空</Button>
+                      <Button size="small" onClick={() => { setPreScript(''); setScriptResult(null); }}>Clear</Button>
                     </div>
-                    <TextArea value={preScript} onChange={(e) => { setPreScript(e.target.value); setHasUnsavedChanges(true); }} rows={10} style={{ fontFamily: 'Monaco, Consolas, monospace', fontSize: 12, border: 'none', borderRadius: 0 }} placeholder="// 在此编写 Pre-request Script..." />
+                    <TextArea value={preScript} onChange={(e) => { setPreScript(e.target.value); setHasUnsavedChanges(true); }} rows={10} style={{ fontFamily: 'Monaco, Consolas, monospace', fontSize: 12, border: 'none', borderRadius: 0 }} placeholder="// Write Pre-request Script here..." />
                   </div>
                   <div style={{ marginBottom: 16 }}>
                     <div onClick={() => setShowBuiltinFunctions(!showBuiltinFunctions)} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px 0' }}>
-                      <Text style={{ fontSize: 12, color: '#666' }}>{showBuiltinFunctions ? '▼' : '▶'} 内置函数参考</Text>
+                      <Text style={{ fontSize: 12, color: '#666' }}>{showBuiltinFunctions ? '▼' : '▶'} Built-in Function Reference</Text>
                     </div>
                     {showBuiltinFunctions && (
                       <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 4, fontFamily: 'Monaco, Consolas, monospace', fontSize: 11 }}>
                         <div style={{ marginBottom: 12 }}>
-                          <Text strong style={{ fontSize: 11 }}>变量操作：</Text>
+                          <Text strong style={{ fontSize: 11 }}>Variable Operations:</Text>
                           <div style={{ marginTop: 4, paddingLeft: 12 }}>
-                            <div>pm.variables.set("key", "value")    设置场景变量</div>
-                            <div>pm.variables.get("key")             获取场景变量当前值</div>
+                            <div>pm.variables.set("key", "value")    Set scene variable</div>
+                            <div>pm.variables.get("key")             Get scene variable current value</div>
                           </div>
                         </div>
                         <div>
-                          <Text strong style={{ fontSize: 11 }}>工具函数：</Text>
+                          <Text strong style={{ fontSize: 11 }}>Utility Functions:</Text>
                           <div style={{ marginTop: 4, paddingLeft: 12 }}>
-                            <div>pm.utils.uuid()                     生成 UUID（无连字符小写）</div>
-                            <div>pm.utils.timestamp()                当前 Unix 毫秒时间戳（字符串）</div>
-                            <div>pm.utils.md5(str)                   MD5 哈希（小写十六进制）</div>
-                            <div>pm.utils.sha256(str)                SHA256 哈希（小写十六进制）</div>
-                            <div>pm.utils.base64(str)                Base64 编码</div>
-                            <div>pm.utils.base64Decode(str)          Base64 解码</div>
-                            <div>pm.utils.hmacSha256(str, key)       HMAC-SHA256（小写十六进制）</div>
+                            <div>pm.utils.uuid()                     Generate UUID (lowercase without hyphens)</div>
+                            <div>pm.utils.timestamp()                Current Unix millisecond timestamp (string)</div>
+                            <div>pm.utils.md5(str)                   MD5 hash (lowercase hex)</div>
+                            <div>pm.utils.sha256(str)                SHA256 hash (lowercase hex)</div>
+                            <div>pm.utils.base64(str)                Base64 encoding</div>
+                            <div>pm.utils.base64Decode(str)          Base64 decoding</div>
+                            <div>pm.utils.hmacSha256(str, key)       HMAC-SHA256 (lowercase hex)</div>
                           </div>
                         </div>
                       </div>
@@ -1940,7 +1940,7 @@ pm.variables.set("timestamp", Date.now().toString());
                   </div>
                   {scriptResult && (
                     <div style={{ background: '#f5f5f5', padding: 12, borderRadius: 4, fontFamily: 'Monaco, Consolas, monospace' }}>
-                      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>执行结果</Text>
+                      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Execution Result</Text>
                       {scriptResult.success ? (
                         <div>
                           {scriptResult.outputs?.map((out, idx) => (
@@ -1959,7 +1959,7 @@ pm.variables.set("timestamp", Date.now().toString());
                       )}
                     </div>
                   )}
-                  <Button size="small" onClick={() => { const result = executePreScript(preScript); setScriptResult(result); }} style={{ marginTop: 12 }}>测试执行</Button>
+                  <Button size="small" onClick={() => { const result = executePreScript(preScript); setScriptResult(result); }} style={{ marginTop: 12 }}>Test Execute</Button>
                 </div>
               )}
             </div>
@@ -1969,22 +1969,22 @@ pm.variables.set("timestamp", Date.now().toString());
           <div style={{ height: 52, borderTop: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', gap: 16 }}>
             <Space size="middle">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: 12, color: '#666' }}>超时</Text>
+                <Text style={{ fontSize: 12, color: '#666' }}>Timeout</Text>
                 <Input type="number" value={timeout} onChange={(e) => setRequestTimeout(Number(e.target.value))} style={{ width: 80 }} size="small" min={100} max={300000} />
                 <Text style={{ fontSize: 12, color: '#666' }}>ms</Text>
               </div>
               {requestStatus && <Text type="secondary" style={{ fontSize: 11 }}>{requestStatus}</Text>}
               {undefinedVars.length > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff7e6', padding: '4px 12px', borderRadius: 4, border: '1px solid #ffd591' }}>
-                  <Text style={{ fontSize: 11, color: '#fa8c16' }}>⚠ 以下变量未定义：{undefinedVars.join(', ')}，发送后将以空字符串替代</Text>
-                  <Button type="link" size="small" onClick={() => setUndefinedVars([])} style={{ fontSize: 11, padding: 0, height: 'auto' }}>忽略继续</Button>
+                  <Text style={{ fontSize: 11, color: '#fa8c16' }}>⚠ Undefined variables: {undefinedVars.join(', ')}, will be replaced with empty string after sending</Text>
+                  <Button type="link" size="small" onClick={() => setUndefinedVars([])} style={{ fontSize: 11, padding: 0, height: 'auto' }}>Ignore and Continue</Button>
                 </div>
               )}
             </Space>
             <Space size="middle">
-              <Button onClick={() => setIsSaveSessionModalOpen(true)}>保存 Session</Button>
+              <Button onClick={() => setIsSaveSessionModalOpen(true)}>Save Session</Button>
               {isRequesting ? (
-                <Button danger onClick={handleCancel} style={{ width: 100 }}>⏹ 取消</Button>
+                <Button danger onClick={handleCancel} style={{ width: 100 }}>⏹ Cancel</Button>
               ) : (
                 <Button type="primary" onClick={handleSend} style={{ width: 100 }}>▶ Send</Button>
               )}
@@ -1998,8 +1998,8 @@ pm.variables.set("timestamp", Date.now().toString());
           {isResponseLoading && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
               <div style={{ width: 48, height: 48, border: '3px solid #f0f0f0', borderTopColor: '#1890ff', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-              <Text style={{ fontSize: 13, color: '#666' }}>正在请求 {method} {url}...</Text>
-              <Text style={{ fontSize: 12, color: '#999' }}>已耗时 {elapsedTime}ms</Text>
+              <Text style={{ fontSize: 13, color: '#666' }}>Requesting {method} {url}...</Text>
+              <Text style={{ fontSize: 12, color: '#999' }}>Elapsed {elapsedTime}ms</Text>
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           )}
@@ -2008,7 +2008,7 @@ pm.variables.set("timestamp", Date.now().toString());
           {!isResponseLoading && !response && (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
               <div style={{ fontSize: 48, color: '#d9d9d9' }}>↔</div>
-              <Text type="secondary" style={{ fontSize: 13 }}>发送请求后，响应结果将展示在这里</Text>
+              <Text type="secondary" style={{ fontSize: 13 }}>Response will be displayed here after sending request</Text>
             </div>
           )}
 
@@ -2044,16 +2044,16 @@ pm.variables.set("timestamp", Date.now().toString());
                     isSaved: true,
                   };
                   setHistorySessions(prev => [newSession, ...prev.filter(s => s.id !== activeHistoryId)]);
-                  message.success('已保存到历史记录', 2);
-                }}>保存记录</Button>
-                <Button size="small" onClick={() => setIsHistoryExpanded(true)}>查看历史</Button>
+                  message.success('Saved to history', 2);
+                }}>Save Record</Button>
+                <Button size="small" onClick={() => setIsHistoryExpanded(true)}>View History</Button>
               </div>
 
               {/* Tab Bar */}
               <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #f0f0f0', padding: '0 16px' }}>
                 <div onClick={() => setResponseTab('body')} style={{ padding: '8px 16px', cursor: 'pointer', borderBottom: responseTab === 'body' ? '2px solid #1890ff' : '2px solid transparent', color: responseTab === 'body' ? '#1890ff' : '#666', fontSize: 12 }}>Body</div>
                 <div onClick={() => setResponseTab('headers')} style={{ padding: '8px 16px', cursor: 'pointer', borderBottom: responseTab === 'headers' ? '2px solid #1890ff' : '2px solid transparent', color: responseTab === 'headers' ? '#1890ff' : '#666', fontSize: 12 }}>Headers</div>
-                <div onClick={() => setResponseTab('debugLog')} style={{ padding: '8px 16px', cursor: 'pointer', borderBottom: responseTab === 'debugLog' ? '2px solid #1890ff' : '2px solid transparent', color: responseTab === 'debugLog' ? '#1890ff' : '#666', fontSize: 12 }}>调试日志</div>
+                <div onClick={() => setResponseTab('debugLog')} style={{ padding: '8px 16px', cursor: 'pointer', borderBottom: responseTab === 'debugLog' ? '2px solid #1890ff' : '2px solid transparent', color: responseTab === 'debugLog' ? '#1890ff' : '#666', fontSize: 12 }}>Debug Log</div>
               </div>
 
               {/* Tab Content */}
@@ -2063,7 +2063,7 @@ pm.variables.set("timestamp", Date.now().toString());
                   <div style={{ padding: 16 }}>
                     {/* Toolbar */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
-                      <Text type="secondary" style={{ fontSize: 11 }}>格式</Text>
+                      <Text type="secondary" style={{ fontSize: 11 }}>Format</Text>
                       <Select value="json" size="small" style={{ width: 80 }}>
                         <Select.Option value="json">JSON</Select.Option>
                       </Select>
@@ -2071,7 +2071,7 @@ pm.variables.set("timestamp", Date.now().toString());
                         <Button onClick={() => setBodyViewMode('pretty')} type={bodyViewMode === 'pretty' ? 'primary' : 'default'}>Pretty</Button>
                         <Button onClick={() => setBodyViewMode('raw')} type={bodyViewMode === 'raw' ? 'primary' : 'default'}>Raw</Button>
                       </Button.Group>
-                      <Button size="small" icon={<CopyOutlined />} onClick={() => { navigator.clipboard.writeText(response.body || ''); message.success('已复制'); }}>复制</Button>
+                      <Button size="small" icon={<CopyOutlined />} onClick={() => { navigator.clipboard.writeText(response.body || ''); message.success('Copied'); }}>Copy</Button>
                     </div>
 
                     {/* Body Content */}
@@ -2123,7 +2123,7 @@ pm.variables.set("timestamp", Date.now().toString());
                   <div style={{ padding: 16 }}>
                     {debugLogs.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: 32 }}>
-                        <Text type="secondary" style={{ fontSize: 12 }}>暂无调试日志</Text>
+                        <Text type="secondary" style={{ fontSize: 12 }}>No Debug Log</Text>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2169,16 +2169,16 @@ pm.variables.set("timestamp", Date.now().toString());
       </div>
 
       {/* Rename Modal */}
-      <Modal title="重命名用例" open={isRenameModalOpen} onOk={handleRename} onCancel={() => setIsRenameModalOpen(false)}>
+      <Modal title="Rename Test Case" open={isRenameModalOpen} onOk={handleRename} onCancel={() => setIsRenameModalOpen(false)}>
         <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="用例名称"><Input value={newTabName} onChange={(e) => setNewTabName(e.target.value)} placeholder="请输入用例名称" /></Form.Item>
+          <Form.Item label="Test Case Name"><Input value={newTabName} onChange={(e) => setNewTabName(e.target.value)} placeholder="Please enter test case name" /></Form.Item>
         </Form>
       </Modal>
 
       {/* Save Session Modal */}
-      <Modal title="保存 Session" open={isSaveSessionModalOpen} onOk={() => {
+      <Modal title="Save Session" open={isSaveSessionModalOpen} onOk={() => {
         addHistorySession({
-          name: sessionName || '未命名',
+          name: sessionName || 'Unnamed',
           method,
           url,
           headers: headers.filter(h => h.enabled && h.key).map(h => ({ key: h.key, value: h.value })),
@@ -2189,13 +2189,13 @@ pm.variables.set("timestamp", Date.now().toString());
           duration: 0,
           isSaved: true,
         });
-        message.success('Session 已保存');
+        message.success('Session Saved');
         setIsSaveSessionModalOpen(false);
         setSessionName('');
       }} onCancel={() => { setIsSaveSessionModalOpen(false); setSessionName(''); }}>
         <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="备注名"><Input value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="如：charge 成功场景" /></Form.Item>
-          <Text type="secondary" style={{ fontSize: 12 }}>保存后可在场景编辑页 HTTP Request 节点配置时导入此 Session</Text>
+          <Form.Item label="Remark Name"><Input value={sessionName} onChange={(e) => setSessionName(e.target.value)} placeholder="e.g., charge success scenario" /></Form.Item>
+          <Text type="secondary" style={{ fontSize: 12 }}>After saving, this Session can be imported when configuring HTTP Request node in scene editing page</Text>
         </Form>
       </Modal>
 
@@ -2204,10 +2204,10 @@ pm.variables.set("timestamp", Date.now().toString());
         {/* Collapsed Title Bar */}
         <div onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', cursor: 'pointer', background: '#fafafa' }}>
           <Space size="middle">
-            <span style={{ fontSize: 12, color: '#666' }}>{isHistoryExpanded ? '▼' : '▲'} 历史 Session（共 {historySessions.length} 条）</span>
+            <span style={{ fontSize: 12, color: '#666' }}>{isHistoryExpanded ? '▼' : '▲'} History Session (total {historySessions.length})</span>
           </Space>
           <Space size="middle">
-            <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: '确认清空', content: '确定要清空所有历史记录吗？', onOk: () => clearAllHistory() }); }} style={{ fontSize: 11, padding: 0, height: 'auto' }}>清空全部</Button>
+            <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: 'Confirm Clear', content: 'Are you sure you want to clear all history?', onOk: () => clearAllHistory() }); }} style={{ fontSize: 11, padding: 0, height: 'auto' }}>Clear All</Button>
           </Space>
         </div>
 
@@ -2215,7 +2215,7 @@ pm.variables.set("timestamp", Date.now().toString());
         {isHistoryExpanded && (
           <div style={{ height: 120, overflowX: 'auto', overflowY: 'hidden', padding: '12px 16px', display: 'flex', gap: 12 }}>
             {historySessions.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: '#999', fontSize: 12 }}>暂无历史记录</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: '#999', fontSize: 12 }}>No history</div>
             ) : (
               historySessions
                 .sort((a, b) => {
@@ -2241,12 +2241,12 @@ pm.variables.set("timestamp", Date.now().toString());
                         headers: session.headers?.reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {}) || {},
                         body: session.responseBody,
                       } : null);
-                      message.info('已加载历史记录，可点击"恢复"将请求填充到当前 Tab');
+                      message.info('History loaded, click "Restore" to fill request to current Tab');
                     }}
                     style={{ minWidth: 200, maxWidth: 200, border: '1px solid #e8e8e8', borderRadius: 6, padding: 12, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8' }}
                   >
                     {/* Delete button */}
-                    <Button type="text" size="small" icon={<CloseOutlined />} onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: '确认删除', content: '确定要删除该条历史记录吗？', onOk: () => deleteHistorySession(session.id) }); }} style={{ position: 'absolute', top: 4, right: 4, fontSize: 10, padding: 0, width: 20, height: 20, color: '#999' }} />
+                    <Button type="text" size="small" icon={<CloseOutlined />} onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: 'Confirm Delete', content: 'Are you sure you want to delete this history?', onOk: () => deleteHistorySession(session.id) }); }} style={{ position: 'absolute', top: 4, right: 4, fontSize: 10, padding: 0, width: 20, height: 20, color: '#999' }} />
                     {/* Star button */}
                     <Button type="text" size="small" icon={session.isSaved ? <StarFilled style={{ color: '#fa8c16' }} /> : <StarOutlined style={{ color: '#999' }} />} onClick={(e) => { e.stopPropagation(); setHistorySessions(prev => prev.map(s => s.id === session.id ? { ...s, isSaved: !s.isSaved } : s)); }} style={{ position: 'absolute', top: 4, left: 4, fontSize: 10, padding: 0, width: 20, height: 20 }} />
                     {/* Status indicator */}
@@ -2268,7 +2268,7 @@ pm.variables.set("timestamp", Date.now().toString());
                         </>
                       )}
                       {session.status === 0 && (
-                        <span style={{ fontSize: 10, color: '#999' }}>{session.statusText || '未发送'}</span>
+                        <span style={{ fontSize: 10, color: '#999' }}>{session.statusText || 'Not sent'}</span>
                       )}
                     </div>
                     {/* Timestamp */}
@@ -2277,7 +2277,7 @@ pm.variables.set("timestamp", Date.now().toString());
                     </div>
                     {/* Action buttons */}
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); restoreSession(session); }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>恢复</Button>
+                      <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); restoreSession(session); }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>Restore</Button>
                       <Button type="link" size="small" onClick={(e) => {
                         e.stopPropagation();
                         const exportData = {
@@ -2295,8 +2295,8 @@ pm.variables.set("timestamp", Date.now().toString());
                         a.download = `api_debug_${session.name.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.json`;
                         a.click();
                         URL.revokeObjectURL(url);
-                        message.success('导出成功');
-                      }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>导出</Button>
+                        message.success('Export Successful');
+                      }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>Export</Button>
                     </div>
                   </div>
                 );

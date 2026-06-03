@@ -102,8 +102,8 @@ export default function ConfigEditorPage() {
 
   // Mock state machines - in real app this would come from API/state management
   const availableStateMachines = useMemo(() => [
-    { name: 'Default_Refund_StateMachine', description: 'REFUND状态机' },
-    { name: 'BankCard_Debit_StateMachine', description: '银行卡扣款状态机' },
+    { name: 'Default_Refund_StateMachine', description: 'REFUND state machine' },
+    { name: 'BankCard_Debit_StateMachine', description: 'Bank card debit state machine' },
   ], []);
 
   // Get state machine flow data - extracting States only with their connections
@@ -132,7 +132,7 @@ export default function ConfigEditorPage() {
       { id: 'e2', source: 's1', target: 's4', type: 'smoothstep', markerEnd: { type: 'arrowclosed' }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
       { id: 'e3', source: 's1', target: 's5', type: 'smoothstep', markerEnd: { type: 'arrowclosed' }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
       { id: 'e4', source: 's1', target: 's7', type: 'smoothstep', markerEnd: { type: 'arrowclosed' }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
-      { id: 'e5', source: 's2', target: 's3', type: 'smoothstep', markerEnd: { type: 'arrowclosed' }, style: { stroke: '#333', strokeWidth: 2, strokeDasharray: '6 3' }, data: { label: '虚线' } },
+      { id: 'e5', source: 's2', target: 's3', type: 'smoothstep', markerEnd: { type: 'arrowclosed' }, style: { stroke: '#333', strokeWidth: 2, strokeDasharray: '6 3' }, data: { label: '' } },
       { id: 'e6', source: 's3', target: 's4', type: 'smoothstep', markerEnd: { type: 'arrowclosed' }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
       { id: 'e7', source: 's4', target: 's5', type: 'smoothstep', markerEnd: { type: 'arrowclosed' }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
       { id: 'e8', source: 's4', target: 's7', type: 'smoothstep', markerEnd: { type: 'arrowclosed' }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: '' } },
@@ -191,17 +191,17 @@ export default function ConfigEditorPage() {
     setEditingFlow(null);
   };
 
-  // 返回列表
+  // Back to list
   const handleBack = () => {
     navigate(`/channel-integration/${channelCode}/integration/config`);
   };
 
-  // 保存草稿
+  // Save draft
   const handleSaveDraft = () => {
     message.success('Saved successfully', 2);
   };
 
-  // 提交
+  // Submit
   const handleSubmit = () => {
     message.success('Submitted, version v1.2.0 generated');
   };
@@ -209,17 +209,17 @@ export default function ConfigEditorPage() {
   // Trigger type display helper
   const getTriggerLabel = (type: TriggerType) => {
     switch (type) {
-      case 'upstream': return '上游触发';
-      case 'external': return '外部触发';
-      case 'timer': return '定时触发';
-      case 'callback': return '回调触发';
-      default: return '未知';
+      case 'upstream': return 'Upstream Trigger';
+      case 'external': return 'External Trigger';
+      case 'timer': return 'Timer Trigger';
+      case 'callback': return 'Callback Trigger';
+      default: return 'Unknown';
     }
   };
 
   return (
     <div style={{ padding: 24 }}>
-      {/* 面包屑 */}
+      {/* Breadcrumb */}
       <Breadcrumb
         style={{ marginBottom: 16 }}
         items={[
@@ -316,7 +316,7 @@ export default function ConfigEditorPage() {
               }} />
               <Table.Column title="Status" key="status" width={100} render={(_: any, record: FlowConfig) => (
                 <Tag color={record.isConfigured ? 'success' : 'default'}>
-                  {record.isConfigured ? '已配置' : '草稿'}
+                  {record.isConfigured ? 'Configured' : 'Draft'}
                 </Tag>
               )} />
               <Table.Column title="Operation" key="operation" width={160} render={(_: any, record: FlowConfig) => (

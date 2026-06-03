@@ -16,10 +16,10 @@ interface FlowConfigModalProps {
 }
 
 const triggerTypeOptions = [
-  { value: 'upstream', label: '上游触发' },
-  { value: 'external', label: '外部触发' },
-  { value: 'timer', label: '定时任务触发' },
-  { value: 'callback', label: '异步触发' },
+  { value: 'upstream', label: 'Upstream Trigger' },
+  { value: 'external', label: 'External Trigger' },
+  { value: 'timer', label: 'Timer Trigger' },
+  { value: 'callback', label: 'Callback Trigger' },
 ];
 
 // All available actions for this ability
@@ -107,7 +107,7 @@ export default function FlowConfigModal({
         </Form.Item>
 
         {/* Trigger Type */}
-        <Form.Item label="触发类型">
+        <Form.Item label="Trigger Type">
           <Radio.Group
             value={triggerType}
             onChange={(e) => {
@@ -143,7 +143,7 @@ export default function FlowConfigModal({
         </Form.Item>
 
         {/* Sub-states */}
-        <Form.Item label="开始子状态">
+        <Form.Item label="Start Sub-state">
           {showInitDefault ? (
             <Input value="INIT" disabled />
           ) : (
@@ -164,7 +164,7 @@ export default function FlowConfigModal({
           )}
           {showInitDefault && (
             <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-              Action选择了transaction和INBOUND时，子状态默认INIT
+              When transaction and INBOUND are selected, sub-state defaults to INIT
             </Text>
           )}
         </Form.Item>

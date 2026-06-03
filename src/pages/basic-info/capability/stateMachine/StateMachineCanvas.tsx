@@ -55,13 +55,13 @@ type AnyEdge = Edge<EdgeData>;
 // ─────────────────────────────────────────────────
 const initialNodes: AnyNode[] = [
   // States only
-  { id: 's1', type: 'stateNode', position: { x: 100, y: 200 }, data: { name: 'INIT', description: '支付请求入口', businessStatus: 'init' } },
-  { id: 's2', type: 'stateNode', position: { x: 420, y: 60 }, data: { name: 'WAITING_OTP', description: '等待用户输入OTP' } },
-  { id: 's3', type: 'stateNode', position: { x: 660, y: 60 }, data: { name: 'VERIFYING_OTP', description: '验证OTP' } },
-  { id: 's4', type: 'stateNode', position: { x: 420, y: 280 }, data: { name: 'AUTHENTICATING', description: '3DS认证中' } },
-  { id: 's5', type: 'stateNode', position: { x: 420, y: 480 }, data: { name: 'PROGRESSING', description: '无摩擦扣款处理中' } },
-  { id: 's6', type: 'stateNode', position: { x: 880, y: 480 }, data: { name: 'SUCCESS', description: '扣款成功', businessStatus: 'success' } },
-  { id: 's7', type: 'stateNode', position: { x: 880, y: 240 }, data: { name: 'FAILED', description: '扣款失败', businessStatus: 'fail' } },
+  { id: 's1', type: 'stateNode', position: { x: 100, y: 200 }, data: { name: 'INIT', description: 'Payment request entry', businessStatus: 'init' } },
+  { id: 's2', type: 'stateNode', position: { x: 420, y: 60 }, data: { name: 'WAITING_OTP', description: 'Waiting for OTP input' } },
+  { id: 's3', type: 'stateNode', position: { x: 660, y: 60 }, data: { name: 'VERIFYING_OTP', description: 'Verifying OTP' } },
+  { id: 's4', type: 'stateNode', position: { x: 420, y: 280 }, data: { name: 'AUTHENTICATING', description: '3DS authentication in progress' } },
+  { id: 's5', type: 'stateNode', position: { x: 420, y: 480 }, data: { name: 'PROGRESSING', description: 'Frictionless debit processing' } },
+  { id: 's6', type: 'stateNode', position: { x: 880, y: 480 }, data: { name: 'SUCCESS', description: 'Debit successful', businessStatus: 'success' } },
+  { id: 's7', type: 'stateNode', position: { x: 880, y: 240 }, data: { name: 'FAILED', description: 'Debit failed', businessStatus: 'fail' } },
 ];
 
 const initialEdges: AnyEdge[] = [
