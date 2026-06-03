@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tabs, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useSearchParams } from 'react-router-dom';
@@ -11,6 +11,7 @@ interface StateMachineItem {
   name: string;
   country: string;
   description?: string;
+  status: 'draft' | 'submitted';
   createTime: string;
   updateTime: string;
   operator: string;
@@ -29,6 +30,24 @@ const countries = [
   { code: 'ZM', name: 'Zambia' },
 ];
 
+// localStorage key for state machine statuses
+const STORAGE_KEY = 'stateMachineStatuses';
+
+function getStoredStatuses(): Record<string, 'draft' | 'submitted'> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStatus(name: string, status: 'draft' | 'submitted') {
+  const statuses = getStoredStatuses();
+  statuses[name] = status;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(statuses));
+}
+
 export default function StateMachineListPage() {
   const [searchParams] = useSearchParams();
   const bt = searchParams.get('bt') || '';
@@ -43,6 +62,7 @@ export default function StateMachineListPage() {
       name: 'Default_Refund_StateMachine',
       country: 'NG',
       description: 'REFUND state machine',
+      status: 'submitted',
       createTime: '2026-05-19 10:00:00',
       updateTime: '2026-05-19 10:00:00',
       operator: 'admin',
@@ -52,11 +72,21 @@ export default function StateMachineListPage() {
       name: 'BankCard_Debit_StateMachine',
       country: 'NG',
       description: 'Bank card debit state machine',
+      status: 'draft',
       createTime: '2026-05-19 11:00:00',
       updateTime: '2026-05-19 11:00:00',
       operator: 'admin',
     },
   ]);
+
+  // Sync status from localStorage when component mounts
+  useEffect(() => {
+    const storedStatuses = getStoredStatuses();
+    setStateMachineList(prev => prev.map(sm => ({
+      ...sm,
+      status: storedStatuses[sm.name] || sm.status,
+    })));
+  }, []);
 
   const handleCreate = async () => {
     try {
@@ -66,10 +96,12 @@ export default function StateMachineListPage() {
         name: values.name,
         country: selectedCountry,
         description: values.description || '',
+        status: 'draft',
         createTime: new Date().toLocaleString(),
         updateTime: new Date().toLocaleString(),
         operator: '—',
       };
+      saveStatus(newItem.name, 'draft');
       setStateMachineList(prev => [...prev, newItem]);
       setCreateModalOpen(false);
       createForm.resetFields();
@@ -114,6 +146,17 @@ export default function StateMachineListPage() {
       dataIndex: 'operator',
       key: 'operator',
       width: 120,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: 'draft' | 'submitted') => (
+        <Tag color={status === 'submitted' ? 'success' : 'default'}>
+          {status === 'submitted' ? 'Submitted' : 'Draft'}
+        </Tag>
+      ),
     },
     {
       title: 'Operation',

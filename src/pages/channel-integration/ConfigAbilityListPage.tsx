@@ -16,20 +16,20 @@ export default function ConfigAbilityListPage() {
   const [form] = Form.useForm();
   const [selectedBT, setSelectedBT] = useState<string>('');
 
-  // Deploy/Status/Control 弹窗状态
+  // Deploy/Status/Control modal state
   const [deployTarget, setDeployTarget] = useState<Ability | null>(null);
   const [statusTarget, setStatusTarget] = useState<Ability | null>(null);
   const [controlTarget, setControlTarget] = useState<Ability | null>(null);
 
-  // 初始化加载 Mock 数据
+  // Initialize mock data
   useEffect(() => {
     setAbilities([...mockAbilities]);
   }, [channelCode]);
 
-  // 获取 Config Integration 的 BT 列表
+  // Get Config Integration BT list
   const configBTs = ['COLLECTION', 'DISBURSEMENT'];
 
-  // 新增 Ability
+  // Add Ability
   const handleAdd = async () => {
     try {
       const values = await form.validateFields();
@@ -47,11 +47,11 @@ export default function ConfigAbilityListPage() {
     } catch {}
   };
 
-  // 删除 Ability
+  // Delete Ability
   const handleDelete = (record: Ability) => {
     Modal.confirm({
-      title: '确认删除',
-      content: '确认删除该 Ability 配置？删除后不可恢复。',
+      title: 'Confirm Delete',
+      content: 'Are you sure you want to delete this Ability config? This cannot be undone.',
       okText: 'Confirm Delete',
       okButtonProps: { danger: true },
       cancelText: 'Cancel',
@@ -62,15 +62,15 @@ export default function ConfigAbilityListPage() {
     });
   };
 
-  // 渲染发布状态
+  // Render publish status
   const renderPublishStatus = (record: Ability) => {
     if (record.publishStatus === 'draft') {
-      return <Tag color="default">草稿</Tag>;
+      return <Tag color="default">Draft</Tag>;
     }
     if (record.publishStatus === 'pending') {
-      return <Tag color="orange">待发布</Tag>;
+      return <Tag color="orange">Pending Publish</Tag>;
     }
-    // published：渲染 badges
+    // published: render badges
     const visible = record.badges.slice(0, 2);
     const hidden = record.badges.slice(2);
     return (
@@ -87,7 +87,7 @@ export default function ConfigAbilityListPage() {
     );
   };
 
-  // 渲染操作列
+  // Render operation column
   const renderActions = (record: Ability) => {
     const isDraft = record.publishStatus === 'draft';
     if (isDraft) {
@@ -122,7 +122,7 @@ export default function ConfigAbilityListPage() {
     );
   };
 
-  // 表格列定义
+  // Table column definition
   const columns = [
     {
       title: 'Business Type',
@@ -136,12 +136,12 @@ export default function ConfigAbilityListPage() {
       key: 'ability',
     },
     {
-      title: '发布状态',
+      title: 'Publish Status',
       key: 'publishStatus',
       render: (_: any, record: Ability) => renderPublishStatus(record),
     },
     {
-      title: '操作',
+      title: 'Operation',
       key: 'action',
       render: (_: any, record: Ability) => renderActions(record),
     },
@@ -149,7 +149,7 @@ export default function ConfigAbilityListPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      {/* 面包屑 */}
+      {/* Breadcrumb */}
       <Breadcrumb
         style={{ marginBottom: 16 }}
         items={[
@@ -160,7 +160,7 @@ export default function ConfigAbilityListPage() {
         ]}
       />
 
-      {/* 页面标题和按钮 */}
+      {/* Page title and buttons */}
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ margin: 0 }}>Config Integration</h2>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
@@ -168,16 +168,16 @@ export default function ConfigAbilityListPage() {
         </Button>
       </div>
 
-      {/* 列表 */}
+      {/* List */}
       <Table
         dataSource={abilities}
         columns={columns}
         rowKey={(record) => `${record.bt}-${record.ability}`}
         pagination={false}
-        locale={{ emptyText: '暂无 Ability，点击 + Add Ability 创建' }}
+        locale={{ emptyText: 'No Ability yet, click + Add Ability to create' }}
       />
 
-      {/* 新增 Ability 弹窗 */}
+      {/* Add Ability modal */}
       <Modal
         title="Add Ability"
         open={isModalOpen}
@@ -194,10 +194,10 @@ export default function ConfigAbilityListPage() {
           <Form.Item
             name="bt"
             label="Business Type"
-            rules={[{ required: true, message: '请选择 Business Type' }]}
+            rules={[{ required: true, message: 'Please select Business Type' }]}
           >
             <Select
-              placeholder="选择 Business Type"
+              placeholder="Select Business Type"
               onChange={(val) => {
                 form.setFieldsValue({ ability: undefined });
                 setSelectedBT(val);
@@ -211,9 +211,9 @@ export default function ConfigAbilityListPage() {
           <Form.Item
             name="ability"
             label="Ability"
-            rules={[{ required: true, message: '请选择 Ability' }]}
+            rules={[{ required: true, message: 'Please select Ability' }]}
           >
-            <Select placeholder="选择 Ability">
+            <Select placeholder="Select Ability">
               {(abilityOptions[selectedBT] || []).map((a) => (
                 <Select.Option key={a} value={a}>{a}</Select.Option>
               ))}
@@ -222,7 +222,7 @@ export default function ConfigAbilityListPage() {
         </Form>
       </Modal>
 
-      {/* Deploy 弹窗 */}
+      {/* Deploy modal */}
       <DeployModal
         open={!!deployTarget}
         bt={deployTarget?.bt || ''}
@@ -234,7 +234,7 @@ export default function ConfigAbilityListPage() {
         onCancel={() => setDeployTarget(null)}
       />
 
-      {/* Status 弹窗 */}
+      {/* Status modal */}
       <StatusModal
         open={!!statusTarget}
         bt={statusTarget?.bt || ''}
@@ -242,12 +242,12 @@ export default function ConfigAbilityListPage() {
         onCancel={() => setStatusTarget(null)}
       />
 
-      {/* Control 弹窗 */}
+      {/* Control modal */}
       <ControlModal
         open={!!controlTarget}
         ability={controlTarget?.ability || ''}
         cloud="AWS"
-        env="生产"
+        env="Production"
         onCancel={() => setControlTarget(null)}
       />
     </div>

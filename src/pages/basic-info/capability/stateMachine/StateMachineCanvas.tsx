@@ -87,7 +87,7 @@ function isEdgeDashed(edge: Edge): boolean {
 // ─────────────────────────────────────────────────
 // Canvas Content Component
 // ─────────────────────────────────────────────────
-function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
+function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: string }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<AnyEdge>(initialEdges);
   const [selectedNode, setSelectedNode] = useState<AnyNode | null>(null);
@@ -391,6 +391,18 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
   // ─────────────────────────────────────────────────
   // Save logic
   // ─────────────────────────────────────────────────
+  // localStorage key for state machine statuses
+  const STORAGE_KEY = 'stateMachineStatuses';
+
+  const saveStatusToStorage = (name: string, status: 'draft' | 'submitted') => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const statuses = stored ? JSON.parse(stored) : {};
+      statuses[name] = status;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(statuses));
+    } catch {}
+  };
+
   const handleSaveDraft = useCallback(() => {
     if (!canSave) {
       message.error('At least 1 State node required to save');
@@ -421,11 +433,14 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
     };
 
     console.log('Draft saved:', JSON.stringify(saveData, null, 2));
+    if (sm) {
+      saveStatusToStorage(sm, 'draft');
+    }
     message.success('Draft saved successfully', 2);
     setTimeout(() => {
       window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
     }, 500);
-  }, [bt, ability, nodes, edges, canSave]);
+  }, [bt, ability, nodes, edges, canSave, sm]);
 
   return (
     <>
@@ -443,9 +458,9 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to="/basic-info/capability">
+          <Link to={`/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`}>
             <Button type="text" icon={<LeftOutlined />}>
-              Back to Capability
+              Back to stateMachine
             </Button>
           </Link>
           <span style={{ color: '#ccc' }}>|</span>
@@ -465,6 +480,9 @@ function CanvasContent({ bt, ability }: { bt: string; ability: string }) {
           <Button
             type="primary"
             onClick={() => {
+              if (sm) {
+                saveStatusToStorage(sm, 'submitted');
+              }
               message.success('Submitted successfully', 2);
               setTimeout(() => {
                 window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
@@ -648,11 +666,12 @@ export default function StateMachineCanvas() {
   const [searchParams] = useSearchParams();
   const bt = searchParams.get('bt') || '';
   const ability = searchParams.get('ability') || '';
+  const sm = searchParams.get('sm') || '';
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <ReactFlowProvider>
-        <CanvasContent bt={bt} ability={ability} />
+        <CanvasContent bt={bt} ability={ability} sm={sm} />
       </ReactFlowProvider>
     </div>
   );
