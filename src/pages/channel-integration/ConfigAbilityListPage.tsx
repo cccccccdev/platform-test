@@ -94,7 +94,7 @@ export default function ConfigAbilityListPage() {
       return (
         <Space>
           <Button size="small" onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/${record.bt}/${record.ability}`)}>
-            Modify
+            Config
           </Button>
           <Button size="small" danger onClick={() => handleDelete(record)}>
             Delete
@@ -105,19 +105,13 @@ export default function ConfigAbilityListPage() {
     return (
       <Space wrap>
         <Button size="small" onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/${record.bt}/${record.ability}`)}>
-          Modify
+          Config
         </Button>
         <Button size="small">Detail</Button>
         <Button size="small" type="primary" onClick={() => setDeployTarget(record)}>
           Deploy
         </Button>
-        <Button size="small" onClick={() => setStatusTarget(record)}>
-          Status
-        </Button>
         <Button size="small">Log</Button>
-        <Button size="small" onClick={() => setControlTarget(record)}>
-          Control
-        </Button>
       </Space>
     );
   };
