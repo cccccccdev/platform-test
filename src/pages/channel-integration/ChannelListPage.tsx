@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Input, Space, Modal, Form, Select, Tag, Breadcrumb, Badge, Row, Col, Card, message, Dropdown } from 'antd';
-import { SearchOutlined, DownOutlined, FilterOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Table, Button, Input, Space, Modal, Form, Select, Tag, Breadcrumb, Row, Col, Card, message, Dropdown } from 'antd';
+import { SearchOutlined, DownOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { mockChannels, countryOptions, partyOptions, businessTypeOptions } from '../../mock/data';
@@ -19,7 +19,6 @@ export default function ChannelListPage() {
   const [filterParty, setFilterParty] = useState<string | null>(null);
   const [filterBT, setFilterBT] = useState<string | null>(null);
   const [filterAbility, setFilterAbility] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
 
   // Initialize mock data
   useEffect(() => {
@@ -170,13 +169,6 @@ export default function ChannelListPage() {
             onChange={(e) => setSearchText(e.target.value)}
             style={{ width: 250 }}
           />
-          <Button
-            icon={<FilterOutlined />}
-            onClick={() => setShowFilters(!showFilters)}
-            type={showFilters ? 'primary' : 'default'}
-          >
-            Filter {hasActiveFilters && <Badge count={1} size="small" />}
-          </Button>
           {hasActiveFilters && (
             <Button icon={<CloseCircleOutlined />} onClick={clearFilters}>
               Clear Filter
@@ -194,8 +186,7 @@ export default function ChannelListPage() {
       </div>
 
       {/* Filter area */}
-      {showFilters && (
-        <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
+      <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
           <Row gutter={[16, 16]}>
             <Col span={6}>
               <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Country</div>
@@ -256,7 +247,6 @@ export default function ChannelListPage() {
             </Col>
           </Row>
         </Card>
-      )}
 
       {/* Selected filter tags display */}
       {hasActiveFilters && (
