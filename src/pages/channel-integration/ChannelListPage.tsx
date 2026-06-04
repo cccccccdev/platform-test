@@ -184,11 +184,11 @@ export default function ChannelListPage() {
           )}
         </Space>
         <Space>
-          <Button onClick={() => setIsModalOpen(true)}>
-            Create Channel
-          </Button>
           <Button>
             Channel Status
+          </Button>
+          <Button onClick={() => setIsModalOpen(true)}>
+            Create Channel
           </Button>
         </Space>
       </div>
