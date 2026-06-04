@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tabs, Tag } from 'antd';
+import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useSearchParams } from 'react-router-dom';
 import { PlusOutlined } from '@ant-design/icons';
@@ -9,26 +9,12 @@ const { Title, Text } = Typography;
 interface StateMachineItem {
   id: string;
   name: string;
-  country: string;
   description?: string;
   status: 'draft' | 'submitted';
   createTime: string;
   updateTime: string;
   operator: string;
 }
-
-const countries = [
-  { code: 'NG', name: 'Nigeria' },
-  { code: 'GH', name: 'Ghana' },
-  { code: 'KE', name: 'Kenya' },
-  { code: 'UG', name: 'Uganda' },
-  { code: 'TZ', name: 'Tanzania' },
-  { code: 'ET', name: 'Ethiopia' },
-  { code: 'SN', name: 'Senegal' },
-  { code: 'CI', name: 'Côte d\'Ivoire' },
-  { code: 'CM', name: 'Cameroon' },
-  { code: 'ZM', name: 'Zambia' },
-];
 
 // localStorage key for state machine statuses
 const STORAGE_KEY = 'stateMachineStatuses';
@@ -55,12 +41,10 @@ export default function StateMachineListPage() {
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createForm] = Form.useForm();
-  const [selectedCountry, setSelectedCountry] = useState<string>('NG');
   const [stateMachineList, setStateMachineList] = useState<StateMachineItem[]>([
     {
       id: 'sm1',
       name: 'Default_Refund_StateMachine',
-      country: 'NG',
       description: 'REFUND state machine',
       status: 'submitted',
       createTime: '2026-05-19 10:00:00',
@@ -70,7 +54,6 @@ export default function StateMachineListPage() {
     {
       id: 'sm2',
       name: 'BankCard_Debit_StateMachine',
-      country: 'NG',
       description: 'Bank card debit state machine',
       status: 'draft',
       createTime: '2026-05-19 11:00:00',
@@ -94,7 +77,6 @@ export default function StateMachineListPage() {
       const newItem: StateMachineItem = {
         id: `sm_${Date.now()}`,
         name: values.name,
-        country: selectedCountry,
         description: values.description || '',
         status: 'draft',
         createTime: new Date().toLocaleString(),
@@ -197,38 +179,18 @@ export default function StateMachineListPage() {
             <Title level={4} style={{ marginTop: 0, marginBottom: 4 }}>StateMachine</Title>
             <Text type="secondary">Business Type: {bt} | Ability: {ability}</Text>
           </div>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
+            Create StateMachine
+          </Button>
         </div>
 
-        {/* Country Tabs */}
-        <Tabs
-          activeKey={selectedCountry}
-          onChange={(key) => {
-            setSelectedCountry(key);
-            setCreateModalOpen(true);
-          }}
-          style={{ marginBottom: 16 }}
-          tabBarStyle={{ borderBottom: '1px solid #f0f0f0' }}
-          tabBarExtraContent={
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
-              Create StateMachine
-            </Button>
-          }
-        >
-          {countries.map(c => (
-            <Tabs.TabPane
-              key={c.code}
-              tab={<span>{c.name} <Tag style={{ marginLeft: 4, fontSize: 10 }}>{stateMachineList.filter(sm => sm.country === c.code).length}</Tag></span>}
-            />
-          ))}
-        </Tabs>
-
-        {/* State Machine Table filtered by country */}
+        {/* State Machine Table */}
         <Table
-          dataSource={stateMachineList.filter(sm => sm.country === selectedCountry)}
+          dataSource={stateMachineList}
           columns={columns}
           rowKey="id"
           pagination={false}
-          locale={{ emptyText: 'No StateMachine in this country' }}
+          locale={{ emptyText: 'No StateMachine' }}
         />
       </div>
 
