@@ -136,17 +136,6 @@ export default function ChannelListPage() {
       key: 'party',
     },
     {
-      title: 'Channel Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => (
-        <Space>
-          <Badge color={status === 'Active' ? '#52c41a' : '#d9d9d9'} />
-          {status}
-        </Space>
-      ),
-    },
-    {
       title: 'Operation',
       key: 'action',
       width: 120,
@@ -194,8 +183,11 @@ export default function ChannelListPage() {
             </Button>
           )}
         </Space>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
-          + New Channel
+        <Button icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
+          Create Channel
+        </Button>
+        <Button>
+          Channel Status
         </Button>
       </div>
 
