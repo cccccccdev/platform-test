@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Input, Space, Modal, Form, Select, Tag, Breadcrumb, Row, Col, Card, message, Dropdown } from 'antd';
+import { Table, Button, Input, Space, Modal, Form, Select, Tag, Breadcrumb, Card, message, Dropdown } from 'antd';
 import { SearchOutlined, DownOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -187,66 +187,80 @@ export default function ChannelListPage() {
 
       {/* Filter area */}
       <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
-          <Row gutter={[16, 16]}>
-            <Col span={6}>
-              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Country</div>
-              <Select
-                mode="multiple"
-                placeholder="Select Country"
-                value={filterCountry}
-                onChange={setFilterCountry}
-                style={{ width: '100%' }}
-                allowClear
-              >
-                {countryOptions.map((c) => (
-                  <Select.Option key={c} value={c}>{c}</Select.Option>
-                ))}
-              </Select>
-            </Col>
-            <Col span={6}>
-              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Party</div>
-              <Select
-                placeholder="Select Party"
-                value={filterParty}
-                onChange={setFilterParty}
-                style={{ width: '100%' }}
-                allowClear
-              >
-                {partyOptions.map((p) => (
-                  <Select.Option key={p} value={p}>{p}</Select.Option>
-                ))}
-              </Select>
-            </Col>
-            <Col span={6}>
-              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Business Type</div>
-              <Select
-                placeholder="Select Business Type"
-                value={filterBT}
-                onChange={setFilterBT}
-                style={{ width: '100%' }}
-                allowClear
-              >
-                {businessTypeOptions.map((bt) => (
-                  <Select.Option key={bt} value={bt}>{bt}</Select.Option>
-                ))}
-              </Select>
-            </Col>
-            <Col span={6}>
-              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Ability</div>
-              <Select
-                placeholder="Select Ability"
-                value={filterAbility}
-                onChange={setFilterAbility}
-                style={{ width: '100%' }}
-                allowClear
-              >
-                {['CARD_PAY', 'USSD_PAY', 'WALLET_PAY', 'BANK_TRF'].map((a) => (
-                  <Select.Option key={a} value={a}>{a}</Select.Option>
-                ))}
-              </Select>
-            </Col>
-          </Row>
-        </Card>
+        <Space wrap>
+          <div>
+            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Channel Code</div>
+            <Input
+              placeholder="Search"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              style={{ width: 150 }}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Country</div>
+            <Select
+              mode="multiple"
+              placeholder="Select Country"
+              value={filterCountry}
+              onChange={setFilterCountry}
+              style={{ width: 150 }}
+              allowClear
+            >
+              {countryOptions.map((c) => (
+                <Select.Option key={c} value={c}>{c}</Select.Option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Party</div>
+            <Select
+              placeholder="Select Party"
+              value={filterParty}
+              onChange={setFilterParty}
+              style={{ width: 150 }}
+              allowClear
+            >
+              {partyOptions.map((p) => (
+                <Select.Option key={p} value={p}>{p}</Select.Option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Business Type</div>
+            <Select
+              placeholder="Select Business Type"
+              value={filterBT}
+              onChange={setFilterBT}
+              style={{ width: 150 }}
+              allowClear
+            >
+              {businessTypeOptions.map((bt) => (
+                <Select.Option key={bt} value={bt}>{bt}</Select.Option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Ability</div>
+            <Select
+              placeholder="Select Ability"
+              value={filterAbility}
+              onChange={setFilterAbility}
+              style={{ width: 150 }}
+              allowClear
+            >
+              {['CARD_PAY', 'USSD_PAY', 'WALLET_PAY', 'BANK_TRF'].map((a) => (
+                <Select.Option key={a} value={a}>{a}</Select.Option>
+              ))}
+            </Select>
+          </div>
+          {hasActiveFilters && (
+            <Button icon={<CloseCircleOutlined />} onClick={clearFilters}>
+              Clear Filter
+            </Button>
+          )}
+        </Space>
+      </Card>
 
       {/* Selected filter tags display */}
       {hasActiveFilters && (
