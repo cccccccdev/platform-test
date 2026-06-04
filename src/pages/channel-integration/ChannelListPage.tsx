@@ -183,12 +183,14 @@ export default function ChannelListPage() {
             </Button>
           )}
         </Space>
-        <Button onClick={() => setIsModalOpen(true)}>
-          Create Channel
-        </Button>
-        <Button>
-          Channel Status
-        </Button>
+        <Space>
+          <Button onClick={() => setIsModalOpen(true)}>
+            Create Channel
+          </Button>
+          <Button>
+            Channel Status
+          </Button>
+        </Space>
       </div>
 
       {/* Filter area */}
