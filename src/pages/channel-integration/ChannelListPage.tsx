@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Input, Space, Modal, Form, Select, Tag, Breadcrumb, Badge, Row, Col, Card, message, Dropdown } from 'antd';
-import { PlusOutlined, SearchOutlined, DownOutlined, FilterOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { SearchOutlined, DownOutlined, FilterOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { mockChannels, countryOptions, partyOptions, businessTypeOptions } from '../../mock/data';
@@ -183,7 +183,7 @@ export default function ChannelListPage() {
             </Button>
           )}
         </Space>
-        <Button icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
+        <Button onClick={() => setIsModalOpen(true)}>
           Create Channel
         </Button>
         <Button>
