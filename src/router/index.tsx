@@ -6,6 +6,7 @@ import HomePage from '../pages/home/HomePage';
 
 // Channel Integration pages (no sidebar)
 import ChannelListPage from '../pages/channel-integration/ChannelListPage';
+import BasicInfoPage from '../pages/channel-integration/BasicInfoPage';
 import BusinessTypePage from '../pages/channel-integration/BusinessTypePage';
 import MatchCapabilityPage from '../pages/channel-integration/MatchCapabilityPage';
 import ConfigAbilityListPage from '../pages/channel-integration/ConfigAbilityListPage';
@@ -58,6 +59,7 @@ const router = createBrowserRouter([
       { path: 'channel-integration/:channelCode/party', element: <div style={{ padding: 24 }}>Party Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/authentication', element: <AuthenticationPage /> },
+      { path: 'channel-integration/:channelCode/basic-info', element: <BasicInfoPage /> },
 
       // Integration pages
       { path: 'channel-integration/:channelCode/integration/match-capability', element: <MatchCapabilityPage /> },

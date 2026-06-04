@@ -3,10 +3,25 @@
 
 // 渠道列表
 export const mockChannels = [
-  { code: 'GTB_NG', country: ['Nigeria'], party: 'PalmPay NG', status: 'Active' },
-  { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: 'PalmPay NG', status: 'Inactive' },
-  { code: 'PAYSTACK_NG', country: ['Nigeria'], party: 'PalmPay GH', status: 'Active' },
+  { code: 'GTB_NG', country: ['Nigeria'], party: ['PalmPay NG'], status: 'Active', productOwner: 'zhangsan', developmentOwner: 'lisi', operationOwner: 'wangwu', productApprover: 'zhaoliu', developmentApprover: 'sunqi', operationApprover: 'zhouba', operator: 'admin', operationTime: '2026-05-20 10:00:00' },
+  { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: ['PalmPay NG'], status: 'Inactive', productOwner: 'zhangsan', developmentOwner: 'lisi', operationOwner: 'wangwu', productApprover: 'zhaoliu', developmentApprover: 'sunqi', operationApprover: 'zhouba', operator: 'admin', operationTime: '2026-05-20 11:00:00' },
+  { code: 'PAYSTACK_NG', country: ['Nigeria'], party: ['PalmPay GH'], status: 'Active', productOwner: 'zhangsan', developmentOwner: 'lisi', operationOwner: 'wangwu', productApprover: 'zhaoliu', developmentApprover: 'sunqi', operationApprover: 'zhouba', operator: 'admin', operationTime: '2026-05-20 12:00:00' },
 ]
+
+// Credential 列表（按 channelCode 索引）
+export const mockCredentials: Record<string, Array<{ id: string; key: string; description?: string }>> = {
+  GTB_NG: [
+    { id: 'cred_1', key: 'API_KEY', description: 'Main API key' },
+    { id: 'cred_2', key: 'SECRET_KEY', description: 'Secret key for signing' },
+    { id: 'cred_3', key: 'APP_ID', description: 'Application ID' },
+  ],
+  ZENITH_NG: [
+    { id: 'cred_4', key: 'BEARER_TOKEN', description: 'Bearer token' },
+  ],
+  PAYSTACK_NG: [
+    { id: 'cred_5', key: 'PUBLIC_KEY', description: 'Public key' },
+  ],
+}
 
 // Business Type 列表（按 channelCode 索引）
 export const mockBusinessTypes: Record<string, Array<{ bt: string; mode: 'Config Integration' | 'Code Integration' }>> = {

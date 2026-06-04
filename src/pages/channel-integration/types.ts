@@ -2,8 +2,16 @@
 export interface Channel {
   code: string;
   country: string[];
-  party: string;
+  party: string[];
   status: 'Active' | 'Inactive';
+  productOwner: string;
+  developmentOwner: string;
+  operationOwner: string;
+  productApprover: string;
+  developmentApprover: string;
+  operationApprover: string;
+  operator: string;
+  operationTime: string;
 }
 
 export interface BusinessType {
