@@ -261,15 +261,9 @@ export default function ChannelListPage() {
           <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/authentication`)}>
             Authentication
           </Button>
-          <Dropdown menu={{ items: [
-            { key: 'match-capability', label: 'matchCapability', onClick: () => navigate(`/channel-integration/${record.code}/integration/match-capability`) },
-            { key: 'config', label: 'Config Integration', onClick: () => navigate(`/channel-integration/${record.code}/integration/config`) },
-            { key: 'code', label: 'Code Integration', onClick: () => navigate(`/channel-integration/${record.code}/integration/code`) },
-          ]}} trigger={['click']}>
-            <Button type="primary" size="small">
-              Integration <DownOutlined />
-            </Button>
-          </Dropdown>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/integration`)}>
+            Integration
+          </Button>
           <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/channel-info`)}>
             Channel Info
           </Button>

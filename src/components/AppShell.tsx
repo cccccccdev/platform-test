@@ -79,27 +79,7 @@ export default function AppShell() {
         />
       </Sider>
       <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'margin-left 0.2s', height: '100vh', overflow: 'hidden' }}>
-        <Header
-          style={{
-            padding: '0 24px',
-            background: '#fff',
-            display: 'flex',
-            alignItems: 'center',
-            borderBottom: '1px solid #e5e4e7',
-            position: 'sticky',
-            top: 0,
-            zIndex: 100,
-            height: 64,
-          }}
-        >
-          <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a2e' }}>
-            接入平台 2.0
-          </span>
-          <span style={{ fontSize: 13, color: '#999', marginLeft: 12 }}>
-            可视化流程编排
-          </span>
-        </Header>
-        <Content style={{ height: 'calc(100vh - 64px)', overflow: 'hidden', background: '#f5f5f5' }}>
+        <Content style={{ height: '100vh', overflow: 'hidden', background: '#f5f5f5' }}>
           <div style={{ height: '100%', overflow: 'auto', padding: 16 }}>
             <Outlet />
           </div>

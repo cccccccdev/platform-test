@@ -143,22 +143,11 @@ export default function ConfigAbilityListPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Breadcrumb */}
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
-        items={[
-          { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
-          { title: channelCode },
-          { title: 'Integration' },
-          { title: 'Config Integration' },
-        ]}
-      />
-
       {/* Page title and buttons */}
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ margin: 0 }}>Config Integration</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
-          + Add Ability
+        <Button type="primary" onClick={() => setIsModalOpen(true)}>
+          Add Ability
         </Button>
       </div>
 
@@ -168,7 +157,7 @@ export default function ConfigAbilityListPage() {
         columns={columns}
         rowKey={(record) => `${record.bt}-${record.ability}`}
         pagination={false}
-        locale={{ emptyText: 'No Ability yet, click + Add Ability to create' }}
+        locale={{ emptyText: 'No Ability yet, click Add Ability to create' }}
       />
 
       {/* Add Ability modal */}

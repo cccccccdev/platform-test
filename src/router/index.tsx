@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import OrchestrationLayout from '../components/OrchestrationLayout';
+import IntegrationLayout from '../components/IntegrationLayout';
 import NoSidebarLayout from '../components/NoSidebarLayout';
 import HomePage from '../pages/home/HomePage';
 
@@ -61,14 +62,20 @@ const router = createBrowserRouter([
       { path: 'channel-integration/:channelCode/authentication', element: <AuthenticationPage /> },
       { path: 'channel-integration/:channelCode/basic-info', element: <BasicInfoPage /> },
 
-      // Integration pages
-      { path: 'channel-integration/:channelCode/integration/match-capability', element: <MatchCapabilityPage /> },
-      { path: 'channel-integration/:channelCode/integration/config', element: <ConfigAbilityListPage /> },
-      { path: 'channel-integration/:channelCode/integration/config/:bt/:ability/:stepIndex', element: <FlowEditorPage /> },
-      { path: 'channel-integration/:channelCode/integration/config/test', element: <TestPage /> },
-      { path: 'channel-integration/:channelCode/integration/config/:bt/:ability', element: <ConfigEditorPage /> },
-      { path: 'channel-integration/:channelCode/integration/code', element: <CodeAbilityListPage /> },
-      { path: 'channel-integration/:channelCode/integration/code/:bt/:ability', element: <CodeGuidePage /> },
+      // Integration pages (with left sidebar navigation)
+      {
+        element: <IntegrationLayout />,
+        children: [
+          { path: 'channel-integration/:channelCode/integration', element: <ConfigAbilityListPage /> },
+          { path: 'channel-integration/:channelCode/integration/match-capability', element: <MatchCapabilityPage /> },
+          { path: 'channel-integration/:channelCode/integration/config', element: <ConfigAbilityListPage /> },
+          { path: 'channel-integration/:channelCode/integration/config/:bt/:ability/:stepIndex', element: <FlowEditorPage /> },
+          { path: 'channel-integration/:channelCode/integration/config/test', element: <TestPage /> },
+          { path: 'channel-integration/:channelCode/integration/config/:bt/:ability', element: <ConfigEditorPage /> },
+          { path: 'channel-integration/:channelCode/integration/code', element: <CodeAbilityListPage /> },
+          { path: 'channel-integration/:channelCode/integration/code/:bt/:ability', element: <CodeGuidePage /> },
+        ],
+      },
 
       // Scene pages (existing)
       { path: 'channel-integration/:channelCode/scenes', element: <SceneListPage /> },

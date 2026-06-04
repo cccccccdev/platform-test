@@ -265,8 +265,8 @@ export default function AuthenticationPage() {
       <Breadcrumb
         style={{ marginBottom: 16 }}
         items={[
+          { title: 'Omnicore Solution' },
           { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
-          { title: channelCode },
           { title: 'Authentication' },
         ]}
       />
