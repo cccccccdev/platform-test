@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Input, Space, Modal, Form, Select, Tag, Breadcrumb, Card, message, Dropdown } from 'antd';
-import { SearchOutlined, DownOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import type { MenuProps } from 'antd';
+import { DownOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { mockChannels, countryOptions, partyOptions, businessTypeOptions } from '../../mock/data';
 import type { Channel } from './types';
@@ -20,27 +19,35 @@ export default function ChannelListPage() {
   const [filterBT, setFilterBT] = useState<string | null>(null);
   const [filterAbility, setFilterAbility] = useState<string | null>(null);
 
+  // Search trigger - only filter when Search button is clicked
+  const [searchTrigger, setSearchTrigger] = useState(false);
+
   // Initialize mock data
   useEffect(() => {
     setChannels(mockChannels as unknown as Channel[]);
   }, []);
 
-  // Search and filter
+  // Search and filter - only active when searchTrigger is true
   const filteredChannels = channels.filter((c) => {
     // Channel Code search
-    if (searchText && !c.code.toLowerCase().includes(searchText.toLowerCase())) {
+    if (searchTrigger && searchText && !c.code.toLowerCase().includes(searchText.toLowerCase())) {
       return false;
     }
     // Country filter
-    if (filterCountry.length > 0 && !filterCountry.some(country => c.country.includes(country))) {
+    if (searchTrigger && filterCountry.length > 0 && !filterCountry.some(country => c.country.includes(country))) {
       return false;
     }
     // Party filter
-    if (filterParty && c.party !== filterParty) {
+    if (searchTrigger && filterParty && c.party !== filterParty) {
       return false;
     }
     return true;
   });
+
+  // Handle Search button click
+  const handleSearch = () => {
+    setSearchTrigger(true);
+  };
 
   // Clear all filters
   const clearFilters = () => {
@@ -49,9 +56,10 @@ export default function ChannelListPage() {
     setFilterBT(null);
     setFilterAbility(null);
     setSearchText('');
+    setSearchTrigger(false);
   };
 
-  const hasActiveFilters = filterCountry.length > 0 || filterParty || filterBT || filterAbility || searchText;
+  const hasActiveFilters = searchTrigger;
 
   // 新建 Channel
   const handleCreate = async () => {
@@ -79,30 +87,6 @@ export default function ChannelListPage() {
       setTimeout(() => setHighlightedRow(null), 2000);
     } catch {}
   };
-
-  // Build action menu
-  const getActionMenu = (record: Channel): MenuProps => ({
-    items: [
-    // First group: direct navigation
-      { key: 'party', label: 'Party', onClick: () => navigate(`/channel-integration/${record.code}/party`) },
-      { key: 'country', label: 'Country', onClick: () => navigate(`/channel-integration/${record.code}/country`) },
-      { key: 'business-type', label: 'Business Type', onClick: () => navigate(`/channel-integration/${record.code}/business-type`) },
-      { key: 'credential', label: 'Credential', onClick: () => navigate(`/channel-integration/${record.code}/credential`) },
-      { key: 'authentication', label: 'Authentication', onClick: () => navigate(`/channel-integration/${record.code}/authentication`) },
-      { key: 'debug', label: 'Debug', onClick: () => navigate(`/channel-integration/${record.code}/api-debug`) },
-      { type: 'divider' },
-    // Second group: submenu
-      {
-        key: 'integration',
-        label: 'Integration',
-        children: [
-          { key: 'match-capability', label: 'matchCapability', onClick: () => navigate(`/channel-integration/${record.code}/integration/match-capability`) },
-          { key: 'config', label: 'Config Integration', onClick: () => navigate(`/channel-integration/${record.code}/integration/config`) },
-          { key: 'code', label: 'Code Integration', onClick: () => navigate(`/channel-integration/${record.code}/integration/code`) },
-        ],
-      },
-    ],
-  });
 
   // Table column definition
   const columns = [
@@ -137,13 +121,43 @@ export default function ChannelListPage() {
     {
       title: 'Operation',
       key: 'action',
-      width: 120,
+      width: 900,
       render: (_: any, record: Channel) => (
-        <Dropdown menu={getActionMenu(record)} trigger={['click']}>
-          <Button type="text" size="small">
-            Operation <DownOutlined />
+        <Space size="small">
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/api-debug`)}>
+            Debug
           </Button>
-        </Dropdown>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/business-type`)}>
+            Business Type
+          </Button>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/country`)}>
+            Country
+          </Button>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/party`)}>
+            Party
+          </Button>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/credential`)}>
+            Credential
+          </Button>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/authentication`)}>
+            Authentication
+          </Button>
+          <Dropdown menu={{ items: [
+            { key: 'match-capability', label: 'matchCapability', onClick: () => navigate(`/channel-integration/${record.code}/integration/match-capability`) },
+            { key: 'config', label: 'Config Integration', onClick: () => navigate(`/channel-integration/${record.code}/integration/config`) },
+            { key: 'code', label: 'Code Integration', onClick: () => navigate(`/channel-integration/${record.code}/integration/code`) },
+          ]}} trigger={['click']}>
+            <Button type="primary" size="small">
+              Integration <DownOutlined />
+            </Button>
+          </Dropdown>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/channel-info`)}>
+            Channel Info
+          </Button>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/offline-info`)}>
+            OfflineInfo
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -154,128 +168,108 @@ export default function ChannelListPage() {
       <Breadcrumb
         style={{ marginBottom: 16 }}
         items={[
-          { title: 'Integration Platform 2.0' },
+          { title: 'Omnicore Solution' },
           { title: 'Channel Integration' },
         ]}
       />
 
-      {/* Page title and search */}
+      {/* Page title and buttons */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-        <Space wrap>
-          <Input
-            placeholder="Search by Channel Code"
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 250 }}
-          />
+        <Space>
           {hasActiveFilters && (
             <Button icon={<CloseCircleOutlined />} onClick={clearFilters}>
               Clear Filter
             </Button>
           )}
-        </Space>
-        <Space>
-          <Button>
-            Channel Status
-          </Button>
-          <Button onClick={() => setIsModalOpen(true)}>
-            Create Channel
-          </Button>
         </Space>
       </div>
 
       {/* Filter area */}
       <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
-        <Space wrap>
-          <div>
-            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Channel Code</div>
-            <Input
-              placeholder="Search"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              style={{ width: 150 }}
-            />
-          </div>
-          <div>
-            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Country</div>
-            <Select
-              mode="multiple"
-              placeholder="Select Country"
-              value={filterCountry}
-              onChange={setFilterCountry}
-              style={{ width: 150 }}
-              allowClear
-            >
-              {countryOptions.map((c) => (
-                <Select.Option key={c} value={c}>{c}</Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Party</div>
-            <Select
-              placeholder="Select Party"
-              value={filterParty}
-              onChange={setFilterParty}
-              style={{ width: 150 }}
-              allowClear
-            >
-              {partyOptions.map((p) => (
-                <Select.Option key={p} value={p}>{p}</Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Business Type</div>
-            <Select
-              placeholder="Select Business Type"
-              value={filterBT}
-              onChange={setFilterBT}
-              style={{ width: 150 }}
-              allowClear
-            >
-              {businessTypeOptions.map((bt) => (
-                <Select.Option key={bt} value={bt}>{bt}</Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Ability</div>
-            <Select
-              placeholder="Select Ability"
-              value={filterAbility}
-              onChange={setFilterAbility}
-              style={{ width: 150 }}
-              allowClear
-            >
-              {['CARD_PAY', 'USSD_PAY', 'WALLET_PAY', 'BANK_TRF'].map((a) => (
-                <Select.Option key={a} value={a}>{a}</Select.Option>
-              ))}
-            </Select>
-          </div>
-          {hasActiveFilters && (
-            <Button icon={<CloseCircleOutlined />} onClick={clearFilters}>
-              Clear Filter
-            </Button>
-          )}
-        </Space>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <Space wrap align="end">
+            <div>
+              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Channel Code</div>
+              <Input
+                placeholder="Search"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{ width: 150 }}
+              />
+            </div>
+            <div>
+              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Country</div>
+              <Select
+                mode="multiple"
+                placeholder="Select Country"
+                value={filterCountry}
+                onChange={setFilterCountry}
+                style={{ width: 150 }}
+                allowClear
+              >
+                {countryOptions.map((c) => (
+                  <Select.Option key={c} value={c}>{c}</Select.Option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Party</div>
+              <Select
+                placeholder="Select Party"
+                value={filterParty}
+                onChange={setFilterParty}
+                style={{ width: 150 }}
+                allowClear
+              >
+                {partyOptions.map((p) => (
+                  <Select.Option key={p} value={p}>{p}</Select.Option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Business Type</div>
+              <Select
+                placeholder="Select Business Type"
+                value={filterBT}
+                onChange={setFilterBT}
+                style={{ width: 150 }}
+                allowClear
+              >
+                {businessTypeOptions.map((bt) => (
+                  <Select.Option key={bt} value={bt}>{bt}</Select.Option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Ability</div>
+              <Select
+                placeholder="Select Ability"
+                value={filterAbility}
+                onChange={setFilterAbility}
+                style={{ width: 150 }}
+                allowClear
+              >
+                {['CARD_PAY', 'USSD_PAY', 'WALLET_PAY', 'BANK_TRF'].map((a) => (
+                  <Select.Option key={a} value={a}>{a}</Select.Option>
+                ))}
+              </Select>
+            </div>
+          </Space>
+          <Button type="primary" onClick={handleSearch}>
+            Search
+          </Button>
+        </div>
       </Card>
 
-      {/* Selected filter tags display */}
-      {hasActiveFilters && (
-        <div style={{ marginBottom: 12 }}>
-          <Space wrap>
-            {searchText && <Tag closable onClose={() => setSearchText('')}>Channel Code: {searchText}</Tag>}
-            {filterCountry.map(c => (
-              <Tag key={c} closable onClose={() => setFilterCountry(prev => prev.filter(x => x !== c))}>Country: {c}</Tag>
-            ))}
-            {filterParty && <Tag closable onClose={() => setFilterParty(null)}>Party: {filterParty}</Tag>}
-            {filterBT && <Tag closable onClose={() => setFilterBT(null)}>BT: {filterBT}</Tag>}
-            {filterAbility && <Tag closable onClose={() => setFilterAbility(null)}>Ability: {filterAbility}</Tag>}
-          </Space>
-        </div>
-      )}
+      {/* Action buttons */}
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+        <Button>
+          Channel Status
+        </Button>
+        <Button onClick={() => setIsModalOpen(true)}>
+          Create Channel
+        </Button>
+      </div>
 
       {/* Channel table */}
       <Table
@@ -347,4 +341,3 @@ export default function ChannelListPage() {
     </div>
   );
 }
-
