@@ -1516,7 +1516,10 @@ pm.variables.set("timestamp", Date.now().toString());
       title="Scene Variable Management"
       open={showSceneVarModal}
       onCancel={() => setShowSceneVarModal(false)}
-      footer={null}
+      footer={[
+        <Button key="cancel" onClick={() => setShowSceneVarModal(false)}>Cancel</Button>,
+        <Button key="submit" type="primary" onClick={() => setShowSceneVarModal(false)}>Submit</Button>,
+      ]}
       width={600}
     >
       <div style={{ padding: '16px 0' }}>
@@ -1575,7 +1578,10 @@ pm.variables.set("timestamp", Date.now().toString());
       title="Debug Credentials Management"
       open={showDebugCredModal}
       onCancel={() => setShowDebugCredModal(false)}
-      footer={null}
+      footer={[
+        <Button key="cancel" onClick={() => setShowDebugCredModal(false)}>Cancel</Button>,
+        <Button key="submit" type="primary" onClick={() => setShowDebugCredModal(false)}>Submit</Button>,
+      ]}
       width={600}
     >
       <div style={{ padding: '16px 0' }}>
