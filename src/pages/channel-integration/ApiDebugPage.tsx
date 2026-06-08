@@ -916,9 +916,12 @@ pm.variables.set("timestamp", Date.now().toString());
 
   // Create new tab
   const createNewTab = () => {
+    const sceneName = prompt('请输入场景名称 / Enter scene name:', '');
+    if (sceneName === null) return; // User cancelled
+    const name = sceneName.trim() || 'new_scene';
     const newTab: RequestTab = {
       id: 'tc_' + Date.now(),
-      name: 'new_scene',
+      name: name,
       method: 'POST',
       status: 'none',
       request: { url: '', headers: [{ key: 'Content-Type', value: 'application/json' }], body: '' },
