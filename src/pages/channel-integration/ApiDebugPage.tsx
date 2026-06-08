@@ -1641,7 +1641,7 @@ pm.variables.set("timestamp", Date.now().toString());
       </Card>
 
       {/* Main Content */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingBottom: isHistoryExpanded ? 152 : 32 }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingBottom: isHistoryExpanded ? 140 : 32 }}>
         {/* Left Panel */}
         <div style={{ width: 220, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: 12, borderBottom: '1px solid #f0f0f0' }}>
@@ -1652,7 +1652,7 @@ pm.variables.set("timestamp", Date.now().toString());
               <Text strong style={{ fontSize: 12 }}>Scenes</Text>
               <Button type="text" size="small" icon={<PlusOutlined />} onClick={createNewTab}>New Scene</Button>
             </div>
-            <div style={{ flex: 1, overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+            <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
               {filteredTabs.length === 0 ? (
                 <div style={{ padding: 12 }}><Text type="secondary" style={{ fontSize: 11 }}>No scenes</Text></div>
               ) : (
@@ -1687,7 +1687,7 @@ pm.variables.set("timestamp", Date.now().toString());
               </Space>
               <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowDebugCredModal(true)}>Manage</Button>
             </div>
-            <div style={{ padding: '4px 12px', maxHeight: 120, overflow: 'auto' }}>
+            <div style={{ padding: '4px 12px', maxHeight: 80, overflow: 'auto' }}>
               {debugCredentials.filter(c => c.value).map(c => (
                 <div key={c.id} style={{ display: 'flex', alignItems: 'center', padding: '4px 0', fontSize: 11, gap: 4 }}>
                   <Text style={{ width: 70, color: '#666', flexShrink: 0 }}>{c.name}</Text>
@@ -1707,7 +1707,7 @@ pm.variables.set("timestamp", Date.now().toString());
               <Text strong style={{ fontSize: 12 }}>Scene Variables</Text>
               <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowSceneVarModal(true)}>Manage</Button>
             </div>
-            <div style={{ padding: '4px 12px', maxHeight: 160, overflow: 'auto' }}>
+            <div style={{ padding: '4px 12px', maxHeight: 100, overflow: 'auto' }}>
               {sceneVariables.map(v => (
                 <div key={v.key} style={{ display: 'flex', alignItems: 'center', padding: '4px 0', fontSize: 11, gap: 4 }}>
                   <Text style={{ width: 60, color: '#666', flexShrink: 0 }}>{v.key}</Text>
@@ -2941,7 +2941,7 @@ pm.variables.set("timestamp", Date.now().toString());
 
         {/* Expanded Content */}
         {isHistoryExpanded && (
-          <div style={{ height: 120, overflowX: 'auto', overflowY: 'hidden', padding: '12px 16px', display: 'flex', gap: 12 }}>
+          <div style={{ height: 100, overflowX: 'auto', overflowY: 'hidden', padding: '8px 16px', display: 'flex', gap: 12 }}>
             {historySessions.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: '#999', fontSize: 12 }}>No history</div>
             ) : (
