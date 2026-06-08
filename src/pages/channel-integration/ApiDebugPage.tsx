@@ -1656,7 +1656,7 @@ pm.variables.set("timestamp", Date.now().toString());
       </Card>
 
       {/* Main Content */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingBottom: isHistoryExpanded ? 118 : 32 }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingBottom: isHistoryExpanded ? 160 : 32 }}>
         {/* Left Panel */}
         <div style={{ width: 220, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: 12, borderBottom: '1px solid #f0f0f0' }}>
@@ -2942,7 +2942,7 @@ pm.variables.set("timestamp", Date.now().toString());
       {/* History Session Bar */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #e8e8e8', zIndex: 100, boxShadow: '0 -2px 8px rgba(0,0,0,0.08)' }}>
         {/* Collapsed Title Bar */}
-        <div onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', cursor: 'pointer', background: '#fafafa' }}>
+        <div onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', cursor: 'pointer', background: '#fafafa' }}>
           <Space size="middle">
             <span style={{ fontSize: 12, color: '#666' }}>{isHistoryExpanded ? '▼' : '▲'} 请求历史（团队共享，不可删除）</span>
            <span style={{ fontSize: 11, color: '#999' }}>（total {historySessions.length}）</span>
@@ -2956,7 +2956,7 @@ pm.variables.set("timestamp", Date.now().toString());
 
         {/* Expanded Content */}
         {isHistoryExpanded && (
-          <div style={{ height: 90, overflowX: 'auto', overflowY: 'hidden', padding: '8px 16px', display: 'flex', gap: 10 }}>
+          <div style={{ height: 130, overflowX: 'auto', overflowY: 'auto', padding: '8px 16px', display: 'flex', gap: 10 }}>
             {historySessions.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: '#999', fontSize: 12 }}>No history</div>
             ) : (
@@ -2987,7 +2987,7 @@ pm.variables.set("timestamp", Date.now().toString());
                       } : null);
                       message.info('History loaded, click "Restore" to fill request to current Tab');
                     }}
-                    style={{ minWidth: 160, maxWidth: 160, height: 74, border: '1px solid #e8e8e8', borderRadius: 6, padding: 8, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8', overflow: 'hidden' }}
+                    style={{ minWidth: 180, maxWidth: 180, height: 90, border: '1px solid #e8e8e8', borderRadius: 6, padding: 8, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8', overflow: 'hidden' }}
                                    >
                     {/* Star button */}
                     <Button type="text" size="small" icon={session.isSaved ? <StarFilled style={{ color: '#fa8c16' }} /> : <StarOutlined style={{ color: '#999' }} />} onClick={(e) => {
