@@ -435,6 +435,9 @@ pm.variables.set("timestamp", Date.now().toString());
   const [isNewSceneModalOpen, setIsNewSceneModalOpen] = useState(false);
   const [newSceneName, setNewSceneName] = useState('');
 
+  // Track if double-click is pending to avoid single-click action
+  const [pendingDoubleClick, setPendingDoubleClick] = useState<string | null>(null);
+
   // Context menu
   const [contextMenuTab, setContextMenuTab] = useState<RequestTab | null>(null);
 
@@ -1654,7 +1657,18 @@ pm.variables.set("timestamp", Date.now().toString());
                 <div style={{ padding: 12 }}><Text type="secondary" style={{ fontSize: 11 }}>No scenes</Text></div>
               ) : (
                 filteredTabs.map(tab => (
-                  <div key={tab.id} onClick={() => loadScene(tab)} onDoubleClick={() => openRenameModal(tab)} style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', cursor: 'pointer', background: activeTabId === tab.id ? '#e6f7ff' : 'transparent', borderBottom: '1px solid #f5f5f5', gap: 6 }}>
+                  <div key={tab.id} onClick={() => {
+                  if (pendingDoubleClick === tab.id) {
+                    setPendingDoubleClick(null);
+                    return;
+                  }
+                  loadScene(tab);
+                }} onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setPendingDoubleClick(tab.id);
+                  setTimeout(() => setPendingDoubleClick(null), 300);
+                  openRenameModal(tab);
+                }} style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', cursor: 'pointer', background: activeTabId === tab.id ? '#e6f7ff' : 'transparent', borderBottom: '1px solid #f5f5f5', gap: 6 }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: getStatusDotColor(tab), flexShrink: 0 }} />
                     <Tag style={{ fontSize: 9, padding: '0 2px', margin: 0, background: getMethodColor(tab.method), border: 'none', color: '#fff' }}>{tab.method}</Tag>
                     <Text ellipsis style={{ flex: 1, fontSize: 12 }}>{tab.name}</Text>
