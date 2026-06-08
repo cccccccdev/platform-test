@@ -503,6 +503,32 @@ pm.variables.set("timestamp", Date.now().toString());
     return newSession.id;
   };
 
+  // Restore session to current tab
+  const restoreSession = (session: HistorySession) => {
+    setMethod(session.method as any);
+    setUrl(session.url);
+    setHeaders(session.headers.map(h => ({ key: h.key, value: h.value, description: '', enabled: true, isAuto: false })));
+    setBody(session.body);
+    setRequestName(session.name);
+    setHasUnsavedChanges(true);
+    message.success('Restored to current Tab');
+  };
+
+  // Copy history as new scene
+  const copyAsScene = (session: HistorySession) => {
+    const newTab: RequestTab = {
+      id: 'tc_' + Date.now(),
+      name: session.name + '_copy',
+      method: session.method as any,
+      status: 'none',
+      request: { url: session.url, headers: session.headers, body: session.body },
+      createdBy: 'User'
+    };
+    setTabs([...tabs, newTab]);
+    setActiveTabId(newTab.id);
+    message.success('已复制为场景');
+  };
+
    // Filter tabs by search
   const filteredTabs = tabs.filter(t =>
     t.name.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -3004,9 +3030,32 @@ pm.variables.set("timestamp", Date.now().toString());
                       )}
                     </div>
                     {/* Timestamp */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                       <Text type="secondary" style={{ fontSize: 9 }}>{session.timestamp}</Text>
                       {session.operator && <Text type="secondary" style={{ fontSize: 9 }}>by {session.operator}</Text>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); restoreSession(session); }} style={{ fontSize: 9, padding: 0, height: 'auto' }}>重新发送</Button>
+                      <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); copyAsScene(session); }} style={{ fontSize: 9, padding: 0, height: 'auto' }}>复制为场景</Button>
+                      <Button type="link" size="small" onClick={(e) => {
+                        e.stopPropagation();
+                        const exportData = {
+                          name: session.name,
+                          method: session.method,
+                          url: session.url,
+                          headers: session.headers || [],
+                          body: session.body || '',
+                          timestamp: session.timestamp,
+                        };
+                        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `api_debug_${session.name.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        message.success('Export Successful');
+                      }} style={{ fontSize: 9, padding: 0, height: 'auto' }}>导出</Button>
                     </div>
                   </div>
                 );
