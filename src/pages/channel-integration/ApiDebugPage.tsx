@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Space, Tag, Input, Select, Typography, message, Modal, Form } from 'antd';
-import { ArrowLeftOutlined, SendOutlined, PlusOutlined, EditOutlined, CopyOutlined, DeleteOutlined, SearchOutlined, SettingOutlined, CloseOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
+import { Card, Button, Space, Tag, Input, Select, Typography, message, Modal, Form, Switch, Radio } from 'antd';
+import { ArrowLeftOutlined, SendOutlined, PlusOutlined, EditOutlined, CopyOutlined, DeleteOutlined, SearchOutlined, SettingOutlined, CloseOutlined, StarOutlined, StarFilled, EyeOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -17,6 +17,7 @@ interface RequestTab {
     body: string;
   };
   hasUnsavedChanges?: boolean;
+  createdBy?: string; // Creator of this scene
 }
 
 interface SceneVariable {
@@ -24,6 +25,12 @@ interface SceneVariable {
   initialValue: string;
   currentValue: string;
   isSecret: boolean;
+}
+
+interface DebugCredential {
+  id: string;
+  name: string;
+  value: string;
 }
 
 interface QueryParam {
@@ -63,10 +70,7 @@ type ApiKeyLocation = 'header' | 'query';
 type BodyType = 'raw' | 'form-data' | 'x-www-form-urlencoded' | 'binary';
 type RawFormat = 'json' | 'xml' | 'text';
 type RawViewMode = 'form' | 'raw';
-type RequestTabType = 'params' | 'body' | 'headers' | 'auth' | 'signature' | 'preScript';
-type SignatureAlgorithm = 'HMAC-MD5' | 'HMAC-SHA256' | 'RSA-SHA256';
-type SignatureTarget = 'header' | 'body' | 'query';
-type SignaturePart = { id: string; value: string };
+type RequestTabType = 'params' | 'body' | 'headers' | 'auth' | 'requestSecurity' | 'responseSecurity' | 'preScript';
 
 interface ScriptResult {
   success: boolean;
@@ -87,9 +91,12 @@ interface HistorySession {
   duration: number;
   timestamp: string;
   isSaved: boolean;
+  operator?: string; // Who sent this request
+  markedBy?: string; // Who marked this as starred
+  markedAt?: string; // When it was marked
 }
 
-const requestTabs: RequestTabType[] = ['params', 'body', 'headers', 'auth', 'signature', 'preScript'];
+const requestTabs: RequestTabType[] = ['params', 'body', 'headers', 'auth', 'requestSecurity', 'responseSecurity', 'preScript'];
 
 export default function ApiDebugPage() {
   const { channelCode } = useParams<{ channelCode: string }>();
@@ -107,7 +114,8 @@ export default function ApiDebugPage() {
         url: 'https://api.paystack.co/charge',
         headers: [{ key: 'Content-Type', value: 'application/json' }],
         body: '{"amount": 10000, "currency": "NGN"}',
-      }
+      },
+      createdBy: '张三',
     },
     {
       id: 'tc_2',
@@ -118,7 +126,8 @@ export default function ApiDebugPage() {
         url: 'https://api.paystack.co/verify/:reference',
         headers: [],
         body: '',
-      }
+      },
+      createdBy: '李四',
     },
     {
       id: 'tc_3',
@@ -129,21 +138,32 @@ export default function ApiDebugPage() {
         url: 'https://api.paystack.co/refund',
         headers: [],
         body: '{"transaction": "123"}',
-      }
+      },
+      createdBy: '王五',
     },
   ]);
   const [activeTabId, setActiveTabId] = useState<string>('tc_1');
 
-  // Scene variables
+  // Scene variables (independent - no auto-loaded Channel variables)
   const [sceneVariables, setSceneVariables] = useState<SceneVariable[]>([
     { key: 'baseUrl', initialValue: 'https://api.paystack.co', currentValue: 'https://api.paystack.co', isSecret: false },
-    { key: 'secretKey', initialValue: 'sk_live_xxxxx', currentValue: 'sk_live_xxxxx', isSecret: true },
-    { key: 'merchantId', initialValue: 'PALMPAY_NG_001', currentValue: 'PALMPAY_NG_001', isSecret: false },
-    { key: 'traceId', initialValue: 'PP20260417001', currentValue: 'PP20260417002', isSecret: false },
   ]);
 
   // Scene variable modal
   const [showSceneVarModal, setShowSceneVarModal] = useState(false);
+
+  // Debug Credentials (independent - not coupled with Channel Credential)
+  const [debugCredentials, setDebugCredentials] = useState<DebugCredential[]>([
+    { id: 'cred_1', name: 'merchantPrivateKey', value: '' },
+    { id: 'cred_2', name: 'merchantPublicKey', value: '' },
+    { id: 'cred_3', name: 'aesKey', value: '' },
+    { id: 'cred_4', name: 'aesIv', value: '' },
+  ]);
+
+  // Debug Credentials modal
+  const [showDebugCredModal, setShowDebugCredModal] = useState(false);
+  const [viewingCredId, setViewingCredId] = useState<string | null>(null);
+  const [viewingCredValue, setViewingCredValue] = useState<string | null>(null);
 
   // Search
   const [searchText, setSearchText] = useState('');
@@ -184,19 +204,70 @@ export default function ApiDebugPage() {
   const [jsonParseError, setJsonParseError] = useState<string | null>(null);
   const [binaryFile, setBinaryFile] = useState<{ name: string; size: number } | null>(null);
 
-  // Signature config state
-  const [signatureEnabled, setSignatureEnabled] = useState(false);
-  const [signatureAlgorithm, setSignatureAlgorithm] = useState<SignatureAlgorithm>('HMAC-SHA256');
-  const [signatureParts, setSignatureParts] = useState<SignaturePart[]>([
-    { id: '1', value: '{{traceId}}' },
-    { id: '2', value: '{{amount}}' },
-    { id: '3', value: '{{currency}}' },
+  // Signing Scheme state
+  const [signingSchemeEnabled, setSigningSchemeEnabled] = useState(false);
+
+  // Signature Verification Scheme state
+  const [verifySchemeEnabled, setVerifySchemeEnabled] = useState(false);
+
+  // Encryption Protocal state
+  const [encryptProtocalEnabled, setEncryptProtocalEnabled] = useState(false);
+
+  // Decryption Protocal state
+  const [decryptProtocalEnabled, setDecryptProtocalEnabled] = useState(false);
+
+  // Signing detailed config
+  const [signingSchemeId, setSigningSchemeId] = useState<string | null>(null);
+  const [signingSourceSection, setSigningSourceSection] = useState<string | null>(null);
+  const [signingSourceFieldMode, setSigningSourceFieldMode] = useState<'all' | 'select'>('all');
+  const [signingSourceFields, setSigningSourceFields] = useState<string[]>([]);
+  const [signingDestSection, setSigningDestSection] = useState<string | null>(null);
+  const [signingDestField, setSigningDestField] = useState<string | null>(null);
+  const [signingSecretKeyRef, setSigningSecretKeyRef] = useState('');
+  const [signingSecretKeySource, setSigningSecretKeySource] = useState<'manual' | 'debugCredential' | 'sceneVariable'>('debugCredential');
+  const [signingConvertStringScript, setSigningConvertStringScript] = useState('');
+  const [signingBase64Encode, setSigningBase64Encode] = useState(false);
+
+  // Verification detailed config
+  const [verifySchemeId, setVerifySchemeId] = useState<string | null>(null);
+  const [verifySourceSection, setVerifySourceSection] = useState<string | null>(null);
+  const [verifySourceField, setVerifySourceField] = useState<string | null>(null);
+  const [verifyDestFieldMode, setVerifyDestFieldMode] = useState<'all' | 'select'>('all');
+  const [verifyDestFields, setVerifyDestFields] = useState<string[]>([]);
+  const [verifySecretKeyRef, setVerifySecretKeyRef] = useState('');
+  const [verifySecretKeySource, setVerifySecretKeySource] = useState<'manual' | 'debugCredential' | 'sceneVariable'>('debugCredential');
+  const [verifyBase64Decode, setVerifyBase64Decode] = useState(false);
+
+  // Encryption detailed config
+  const [encryptSchemeId, setEncryptSchemeId] = useState<string | null>(null);
+  const [encryptSourceSection, setEncryptSourceSection] = useState<string | null>(null);
+  const [encryptSourceFieldMode, setEncryptSourceFieldMode] = useState<'all' | 'select'>('all');
+  const [encryptSourceFields, setEncryptSourceFields] = useState<string[]>([]);
+  const [encryptDestSection, setEncryptDestSection] = useState<string | null>(null);
+  const [encryptDestField, setEncryptDestField] = useState<string | null>(null);
+  const [encryptSecretKeyRef, setEncryptSecretKeyRef] = useState('');
+  const [encryptSecretKeySource, setEncryptSecretKeySource] = useState<'manual' | 'debugCredential' | 'sceneVariable'>('debugCredential');
+  const [encryptIvRef, setEncryptIvRef] = useState('');
+  const [encryptIvSource, setEncryptIvSource] = useState<'manual' | 'debugCredential' | 'sceneVariable'>('debugCredential');
+  const [encryptBase64Encode, setEncryptBase64Encode] = useState(false);
+
+  // Decryption detailed config
+  const [decryptSchemeId, setDecryptSchemeId] = useState<string | null>(null);
+  const [decryptSourceSection, setDecryptSourceSection] = useState<string | null>(null);
+  const [decryptSourceField, setDecryptSourceField] = useState<string | null>(null);
+  const [decryptDestFieldMode, setDecryptDestFieldMode] = useState<'all' | 'select'>('all');
+  const [decryptDestFields, setDecryptDestFields] = useState<string[]>([]);
+  const [decryptSecretKeyRef, setDecryptSecretKeyRef] = useState('');
+  const [decryptSecretKeySource, setDecryptSecretKeySource] = useState<'manual' | 'debugCredential' | 'sceneVariable'>('debugCredential');
+  const [decryptIvRef, setDecryptIvRef] = useState('');
+  const [decryptIvSource, setDecryptIvSource] = useState<'manual' | 'debugCredential' | 'sceneVariable'>('debugCredential');
+  const [decryptBase64Decode, setDecryptBase64Decode] = useState(false);
+
+  // Response Field Mapping
+  const [responseFieldMappings, setResponseFieldMappings] = useState<{ fieldName: string; jsonPath: string; alias: string }[]>([
+    { fieldName: 'status', jsonPath: '$.result.status', alias: '交易状态' },
+    { fieldName: 'orderId', jsonPath: '$.result.orderId', alias: '订单号' },
   ]);
-  const [signatureKey, setSignatureKey] = useState('{{secretKey}}');
-  const [signatureTarget, setSignatureTarget] = useState<SignatureTarget>('header');
-  const [signatureHeaderName, setSignatureHeaderName] = useState('X-Paystack-Signature');
-  const [signatureBodyField, setSignatureBodyField] = useState('');
-  const [signatureQueryParam, setSignatureQueryParam] = useState('');
 
   // Pre-request script state
   const [preScript, setPreScript] = useState(`// Auto-generate traceId
@@ -242,6 +313,9 @@ pm.variables.set("timestamp", Date.now().toString());
   const [expandedDebugLogs, setExpandedDebugLogs] = useState<Set<number>>(new Set());
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
+
+  // History filter: 'all' | 'starred' | 'unstarred'
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'starred' | 'unstarred'>('all');
 
   // History sessions (persisted to localStorage)
   const [historySessions, setHistorySessions] = useState<HistorySession[]>(() => {
@@ -420,17 +494,6 @@ pm.variables.set("timestamp", Date.now().toString());
       return updated;
     });
     return newSession.id;
-  };
-
-  // Delete session from history
-  const deleteHistorySession = (id: string) => {
-    setHistorySessions(prev => prev.filter(s => s.id !== id));
-  };
-
-  // Clear all history
-  const clearAllHistory = () => {
-    setHistorySessions([]);
-    localStorage.removeItem('apiDebug_history_' + (channelCode || 'default'));
   };
 
   // Restore session to current tab
@@ -625,67 +688,6 @@ pm.variables.set("timestamp", Date.now().toString());
     }
     setHeaders(headers.filter((_, i) => i !== index));
     setHasUnsavedChanges(true);
-  };
-
-  // Signature part management
-  const addSignaturePart = () => {
-    setSignatureParts([...signatureParts, { id: 'part_' + Date.now(), value: '' }]);
-    setHasUnsavedChanges(true);
-  };
-
-  const updateSignaturePart = (id: string, value: string) => {
-    setSignatureParts(signatureParts.map(p => p.id === id ? { ...p, value } : p));
-    setHasUnsavedChanges(true);
-  };
-
-  const removeSignaturePart = (id: string) => {
-    if (signatureParts.length <= 1) {
-      message.warning('At least one signature fragment must be retained');
-      return;
-    }
-    setSignatureParts(signatureParts.filter(p => p.id !== id));
-    setHasUnsavedChanges(true);
-  };
-
-  const moveSignaturePart = (fromIndex: number, toIndex: number) => {
-    const newParts = [...signatureParts];
-    const [moved] = newParts.splice(fromIndex, 1);
-    newParts.splice(toIndex, 0, moved);
-    setSignatureParts(newParts);
-    setHasUnsavedChanges(true);
-  };
-
-  // Calculate signature preview
-  const calculateSignaturePreview = () => {
-    const allVarsDefined = signatureParts.every(p => {
-      const matches = p.value.match(/\{\{([^}]+)\}\}/g);
-      if (!matches) return true;
-      return matches.every(varName => {
-        const key = varName.replace(/\{\{|\}\}/g, '');
-        return sceneVariables.some(v => v.key === key);
-      });
-    });
-    const keyDefined = signatureKey.match(/\{\{([^}]+)\}\}/g)?.every(varName => {
-      const key = varName.replace(/\{\{|\}\}/g, '');
-      return sceneVariables.some(v => v.key === key);
-    }) ?? true;
-    const canCalculate = allVarsDefined && keyDefined;
-    let rawString = signatureParts.map(p => p.value).join('');
-    signatureParts.forEach(p => {
-      const matches = p.value.match(/\{\{([^}]+)\}\}/g);
-      if (matches) {
-        matches.forEach(varName => {
-          const key = varName.replace(/\{\{|\}\}/g, '');
-          const found = sceneVariables.find(v => v.key === key);
-          if (found) {
-            rawString = rawString.replace(varName, found.currentValue);
-          }
-        });
-      }
-    });
-    const displayRaw = canCalculate ? rawString : signatureParts.map(p => p.value).join('');
-    const displayResult = canCalculate ? 'a3f5b2c1d4e6...' : '••••••••';
-    return { raw: displayRaw, result: displayResult, canCalculate };
   };
 
   // Body field management
@@ -916,10 +918,11 @@ pm.variables.set("timestamp", Date.now().toString());
   const createNewTab = () => {
     const newTab: RequestTab = {
       id: 'tc_' + Date.now(),
-      name: 'new_request',
+      name: 'new_scene',
       method: 'POST',
       status: 'none',
-      request: { url: '', headers: [{ key: 'Content-Type', value: 'application/json' }], body: '' }
+      request: { url: '', headers: [{ key: 'Content-Type', value: 'application/json' }], body: '' },
+      createdBy: 'User'
     };
     setTabs([...tabs, newTab]);
     setActiveTabId(newTab.id);
@@ -1050,14 +1053,15 @@ pm.variables.set("timestamp", Date.now().toString());
 
     // Step 4: Calculate signature if enabled
     const sigStart = Date.now();
-    if (signatureEnabled) {
+    if (signingSchemeEnabled) {
       setRequestStatus('Calculating signature...');
       await new Promise(resolve => window.setTimeout(resolve, 50));
-      addDebugLog('Signature string concatenation', 'success', Date.now() - sigStart, [
-        { key: 'Concatenation rule', value: signatureParts.map(p => p.value).join(' + ') },
-        { key: 'Signature raw text', value: signatureParts.map(p => replaceVariables(p.value)).join('') },
-        { key: signatureAlgorithm, value: 'Calculated' },
-        { key: 'Write to Header', value: signatureHeaderName },
+      addDebugLog('Signing scheme', 'success', Date.now() - sigStart, [
+        { key: 'Scheme ID', value: signingSchemeId || 'Not selected' },
+        { key: 'Source Section', value: signingSourceSection || 'Not selected' },
+        { key: 'Source Fields', value: signingSourceFieldMode === 'all' ? 'All Fields' : signingSourceFields.join(', ') },
+        { key: 'Dest Section', value: signingDestSection || 'Not selected' },
+        { key: 'Dest Field', value: signingDestField || 'Not selected' },
       ]);
       setRequestStatus(null);
     }
@@ -1153,6 +1157,7 @@ pm.variables.set("timestamp", Date.now().toString());
         statusText: res.statusText,
         duration,
         isSaved: false,
+        operator: 'User',
       });
 
       setRequestStatus(null);
@@ -1197,6 +1202,7 @@ pm.variables.set("timestamp", Date.now().toString());
         statusText: error.name === 'AbortError' ? 'Timeout' : 'Network Error',
         duration,
         isSaved: false,
+        operator: 'User',
       });
 
       setRequestStatus(null);
@@ -1352,8 +1358,95 @@ pm.variables.set("timestamp", Date.now().toString());
         <EditOutlined style={{ fontSize: 12 }} />
         <span style={{ fontSize: 12 }}>Rename</span>
       </div>
+      <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
+      <div style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, color: '#ff4d4f' }} onClick={() => { closeTab(tab.id); setContextMenuTab(null); }}>
+        <DeleteOutlined style={{ fontSize: 12 }} />
+        <span style={{ fontSize: 12 }}>Delete Scene</span>
+      </div>
     </div>
   );
+
+  // Secret Key Input - Three-in-one selection (Manual / Debug Credentials / Scene Variables)
+  const renderSecretKeyInput = (
+    source: 'manual' | 'debugCredential' | 'sceneVariable',
+    setSource: (v: 'manual' | 'debugCredential' | 'sceneVariable') => void,
+    value: string,
+    setValue: (v: string) => void
+  ) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleSourceChange = (e: any) => {
+      setSource(e.target.value as 'manual' | 'debugCredential' | 'sceneVariable');
+      setHasUnsavedChanges(true);
+    };
+
+    return (
+      <div>
+        <Radio.Group
+          value={source}
+          onChange={handleSourceChange}
+          style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 4 }}
+        >
+          <Radio value="manual" style={{ fontSize: 11 }}>
+            <Text style={{ fontSize: 11 }}>Manual Input</Text>
+          </Radio>
+          <Radio value="debugCredential" style={{ fontSize: 11 }}>
+            <Text style={{ fontSize: 11 }}>From Debug Credentials</Text>
+          </Radio>
+          <Radio value="sceneVariable" style={{ fontSize: 11 }}>
+            <Text style={{ fontSize: 11 }}>From Scene Variables</Text>
+          </Radio>
+        </Radio.Group>
+
+        {source === 'manual' && (
+          <Input
+            placeholder="Enter secret key manually"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setHasUnsavedChanges(true); }}
+            type="password"
+            style={{ width: '100%' }}
+          />
+        )}
+
+        {source === 'debugCredential' && (
+          <Select
+            placeholder="Select from Debug Credentials"
+            value={value || undefined}
+            onChange={(v) => { setValue(v ? `{{credential.${v}}}` : ''); setHasUnsavedChanges(true); }}
+            style={{ width: '100%' }}
+            allowClear
+          >
+            {debugCredentials.filter(c => c.value).map(c => (
+              <Select.Option key={c.id} value={c.name}>
+                {`{{credential.${c.name}}}`}
+              </Select.Option>
+            ))}
+          </Select>
+        )}
+
+        {source === 'sceneVariable' && (
+          <Select
+            placeholder="Select from Scene Variables"
+            value={value || undefined}
+            onChange={(v) => { setValue(v ? `{{variable.${v}}}` : ''); setHasUnsavedChanges(true); }}
+            style={{ width: '100%' }}
+            allowClear
+          >
+            {sceneVariables.filter(v => v.currentValue).map(v => (
+              <Select.Option key={v.key} value={v.key}>
+                {`{{variable.${v.key}}}`}
+              </Select.Option>
+            ))}
+          </Select>
+        )}
+
+        {source === 'manual' && (
+          <Text type="secondary" style={{ fontSize: 10, display: 'block', marginTop: 4 }}>
+            ⚠️ Manual input will not be saved to Debug Credentials
+          </Text>
+        )}
+      </div>
+    );
+  };
 
   // Scene Variable Management Modal
   const renderSceneVarModal = () => (
@@ -1414,6 +1507,76 @@ pm.variables.set("timestamp", Date.now().toString());
     </Modal>
   );
 
+  // Debug Credentials Management Modal
+  const renderDebugCredModal = () => (
+    <Modal
+      title="Debug Credentials Management"
+      open={showDebugCredModal}
+      onCancel={() => setShowDebugCredModal(false)}
+      footer={null}
+      width={600}
+    >
+      <div style={{ padding: '16px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <Text type="secondary">Manage credentials for Debug requests (independent from Channel Credential)</Text>
+          <Button type="primary" icon={<PlusOutlined />} size="small" onClick={() => {
+            const newCred = { id: `cred_${Date.now()}`, name: `credential_${Date.now()}`, value: '' };
+            setDebugCredentials(prev => [...prev, newCred]);
+          }}>Add Credential</Button>
+        </div>
+        {debugCredentials.map((c, idx) => (
+          <div key={c.id} style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+            <Input
+              placeholder="Name"
+              value={c.name}
+              onChange={(e) => {
+                const newCreds = [...debugCredentials];
+                newCreds[idx].name = e.target.value;
+                setDebugCredentials(newCreds);
+              }}
+              style={{ width: 160 }}
+              disabled={idx < 4}
+            />
+            <Input
+              placeholder="Value (will be masked after save)"
+              value={viewingCredId === c.id ? (viewingCredValue || '') : c.value}
+              type={viewingCredId === c.id ? 'text' : 'password'}
+              onChange={(e) => {
+                const newCreds = [...debugCredentials];
+                newCreds[idx].value = e.target.value;
+                setDebugCredentials(newCreds);
+              }}
+              style={{ flex: 1 }}
+              disabled={idx < 4}
+            />
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => {
+                setViewingCredId(c.id);
+                setViewingCredValue(c.value);
+                setTimeout(() => { setViewingCredId(null); setViewingCredValue(null); }, 5000);
+              }}
+            />
+            <Button
+              type="text"
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => {
+                if (idx >= 4) {
+                  setDebugCredentials(prev => prev.filter((_, i) => i !== idx));
+                }
+              }}
+              disabled={idx < 4}
+              danger
+            />
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
       {/* Header */}
@@ -1435,27 +1598,52 @@ pm.variables.set("timestamp", Date.now().toString());
         {/* Left Panel */}
         <div style={{ width: 220, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: 12, borderBottom: '1px solid #f0f0f0' }}>
-            <Input placeholder="Search test cases" prefix={<SearchOutlined style={{ color: '#999' }} />} value={searchText} onChange={(e) => setSearchText(e.target.value)} size="small" allowClear />
+            <Input placeholder="Search scenes" prefix={<SearchOutlined style={{ color: '#999' }} />} value={searchText} onChange={(e) => setSearchText(e.target.value)} size="small" allowClear />
           </div>
           <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-              <Text strong style={{ fontSize: 12 }}>Test Cases</Text>
-              <Button type="text" size="small" icon={<PlusOutlined />} onClick={createNewTab}>New</Button>
+              <Text strong style={{ fontSize: 12 }}>Scenes</Text>
+              <Button type="text" size="small" icon={<PlusOutlined />} onClick={createNewTab}>New Scene</Button>
             </div>
             <div style={{ flex: 1, overflow: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
               {filteredTabs.length === 0 ? (
-                <div style={{ padding: 12 }}><Text type="secondary" style={{ fontSize: 11 }}>No test cases</Text></div>
+                <div style={{ padding: 12 }}><Text type="secondary" style={{ fontSize: 11 }}>No scenes</Text></div>
               ) : (
                 filteredTabs.map(tab => (
                   <div key={tab.id} onClick={() => setActiveTabId(tab.id)} style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', cursor: 'pointer', background: activeTabId === tab.id ? '#e6f7ff' : 'transparent', borderBottom: '1px solid #f5f5f5', gap: 6 }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: getStatusDotColor(tab), flexShrink: 0 }} />
                     <Tag style={{ fontSize: 9, padding: '0 2px', margin: 0, background: getMethodColor(tab.method), border: 'none', color: '#fff' }}>{tab.method}</Tag>
                     <Text ellipsis style={{ flex: 1, fontSize: 12 }}>{tab.name}</Text>
+                    {tab.createdBy && <Text style={{ fontSize: 9, color: '#999', flexShrink: 0 }}>{tab.createdBy}</Text>}
                   </div>
                 ))
               )}
             </div>
           </div>
+
+          {/* Debug Credentials Section - Independent from Channel Credential */}
+          <div style={{ borderTop: '1px solid #f0f0f0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+              <Space>
+                <Text strong style={{ fontSize: 12 }}>🔒 Debug Credentials</Text>
+              </Space>
+              <Button type="text" size="small" icon={<SettingOutlined />} onClick={() => setShowDebugCredModal(true)}>Manage</Button>
+            </div>
+            <div style={{ padding: '4px 12px', maxHeight: 120, overflow: 'auto' }}>
+              {debugCredentials.filter(c => c.value).map(c => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', padding: '4px 0', fontSize: 11, gap: 4 }}>
+                  <Text style={{ width: 70, color: '#666', flexShrink: 0 }}>{c.name}</Text>
+                  <Text ellipsis style={{ flex: 1, color: '#999', fontFamily: 'Monospace' }}>••••••••</Text>
+                  <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => { setViewingCredId(c.id); setViewingCredValue(c.value); setTimeout(() => { setViewingCredId(null); setViewingCredValue(null); }, 5000); }} />
+                </div>
+              ))}
+              {debugCredentials.filter(c => c.value).length === 0 && (
+                <Text type="secondary" style={{ fontSize: 10 }}>No credentials configured</Text>
+              )}
+            </div>
+          </div>
+
+          {/* Scene Variables Section - Independent from Channel Variables */}
           <div style={{ borderTop: '1px solid #f0f0f0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
               <Text strong style={{ fontSize: 12 }}>Scene Variables</Text>
@@ -1526,7 +1714,7 @@ pm.variables.set("timestamp", Date.now().toString());
             <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0' }}>
               {requestTabs.map(key => (
                 <div key={key} onClick={() => setActiveRequestTab(key)} style={{ padding: '8px 16px', cursor: 'pointer', borderBottom: activeRequestTab === key ? '2px solid #1890ff' : '2px solid transparent', color: activeRequestTab === key ? '#1890ff' : '#666', fontSize: 12 }}>
-                  {key === 'params' ? 'Params' : key === 'body' ? 'Body' : key === 'headers' ? 'Headers' : key === 'auth' ? 'Auth' : key === 'signature' ? 'Signature Config' : key === 'preScript' ? 'Pre-request Script' : key}
+                  {key === 'params' ? 'Params' : key === 'body' ? 'Body' : key === 'headers' ? 'Headers' : key === 'auth' ? 'Auth' : key === 'requestSecurity' ? '🔐 Request Security' : key === 'responseSecurity' ? '🔓 Response Security' : key === 'preScript' ? 'Pre-request Script' : key}
                 </div>
               ))}
             </div>
@@ -1819,83 +2007,553 @@ pm.variables.set("timestamp", Date.now().toString());
                 </div>
               )}
 
-              {activeRequestTab === 'signature' && (
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-                    <Text strong style={{ fontSize: 12 }}>Enable Signature</Text>
-                    <input type="checkbox" checked={signatureEnabled} onChange={(e) => { setSignatureEnabled(e.target.checked); setHasUnsavedChanges(true); }} style={{ cursor: 'pointer', width: 16, height: 16 }} />
-                  </div>
-                  <div style={{ opacity: signatureEnabled ? 1 : 0.5, pointerEvents: signatureEnabled ? 'auto' : 'none' }}>
-                    <div style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Signature Algorithm</Text>
-                      <Select value={signatureAlgorithm} onChange={(v) => { setSignatureAlgorithm(v); setHasUnsavedChanges(true); }} style={{ width: 180 }}>
-                        <Select.Option value="HMAC-MD5">HMAC-MD5</Select.Option>
-                        <Select.Option value="HMAC-SHA256">HMAC-SHA256</Select.Option>
-                        <Select.Option value="RSA-SHA256">RSA-SHA256</Select.Option>
-                      </Select>
-                    </div>
-                    <div style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Signature String Composition (concatenated in order)</Text>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {signatureParts.map((part, idx) => (
-                          <div key={part.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <Text type="secondary" style={{ fontSize: 11, width: 20 }}>{idx + 1}.</Text>
-                            <Input placeholder="Enter signature fragment" value={part.value} onChange={(e) => updateSignaturePart(part.id, e.target.value)} style={{ flex: 1, color: part.value.includes('{{') ? '#fa8c16' : '#000' }} />
-                            <Button type="text" size="small" onClick={() => moveSignaturePart(idx, Math.max(0, idx - 1))} disabled={idx === 0} style={{ fontSize: 12 }}>↑</Button>
-                            <Button type="text" size="small" onClick={() => moveSignaturePart(idx, Math.min(signatureParts.length - 1, idx + 1))} disabled={idx === signatureParts.length - 1} style={{ fontSize: 12 }}>↓</Button>
-                            <Button type="text" danger size="small" onClick={() => removeSignaturePart(part.id)} style={{ fontSize: 11 }}>🗑</Button>
-                          </div>
-                        ))}
-                      </div>
-                      <Button type="link" size="small" onClick={addSignaturePart} style={{ marginTop: 8, padding: 0, fontSize: 11 }}>+ Add Fragment</Button>
-                    </div>
-                    <div style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Signature Key</Text>
-                      <Input placeholder="Enter key" value={signatureKey} onChange={(e) => { setSignatureKey(e.target.value); setHasUnsavedChanges(true); }} addonBefore="Key Source" style={{ width: 400, color: signatureKey.includes('{{') ? '#fa8c16' : '#000' }} />
-                    </div>
-                    <div style={{ marginBottom: 24 }}>
-                      <Text style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Signature Result Write Location</Text>
-                      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input type="radio" name="signatureTarget" checked={signatureTarget === 'header'} onChange={() => { setSignatureTarget('header'); setHasUnsavedChanges(true); }} style={{ cursor: 'pointer' }} />
-                          <Text style={{ fontSize: 12 }}>Header</Text>
-                          <Input placeholder="X-Paystack-Signature" value={signatureHeaderName} onChange={(e) => { setSignatureHeaderName(e.target.value); setHasUnsavedChanges(true); }} disabled={signatureTarget !== 'header'} style={{ width: 200, fontSize: 12 }} />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input type="radio" name="signatureTarget" checked={signatureTarget === 'body'} onChange={() => { setSignatureTarget('body'); setHasUnsavedChanges(true); }} style={{ cursor: 'pointer' }} />
-                          <Text style={{ fontSize: 12 }}>Body Field</Text>
-                          <Input placeholder="Target field name" value={signatureBodyField} onChange={(e) => { setSignatureBodyField(e.target.value); setHasUnsavedChanges(true); }} disabled={signatureTarget !== 'body'} style={{ width: 200, fontSize: 12 }} />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input type="radio" name="signatureTarget" checked={signatureTarget === 'query'} onChange={() => { setSignatureTarget('query'); setHasUnsavedChanges(true); }} style={{ cursor: 'pointer' }} />
-                          <Text style={{ fontSize: 12 }}>Query Param</Text>
-                          <Input placeholder="Parameter name" value={signatureQueryParam} onChange={(e) => { setSignatureQueryParam(e.target.value); setHasUnsavedChanges(true); }} disabled={signatureTarget !== 'query'} style={{ width: 200, fontSize: 12 }} />
-                        </div>
+              {activeRequestTab === 'requestSecurity' && (
+                <div style={{ maxHeight: 600, overflow: 'auto' }}>
+                  {/* Signing Section */}
+                  <div style={{ marginBottom: 20, border: '1px solid #e8e8e8', borderRadius: 8, padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                      <Space>
+                        <Text strong style={{ fontSize: 13 }}>Signing</Text>
+                        <Tag color="blue">加签</Tag>
                       </Space>
-                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>Note: Signature result is also auto-written to scene variable {'{{sign}}'}</Text>
+                      <Space>
+                        <Text type="secondary" style={{ fontSize: 11 }}>Enable</Text>
+                        <Switch size="small" checked={signingSchemeEnabled} onChange={(checked) => { setSigningSchemeEnabled(checked); setHasUnsavedChanges(true); }} />
+                      </Space>
                     </div>
-                    <div style={{ background: '#f5f5f5', borderRadius: 4, padding: 16, fontFamily: 'Monaco, Consolas, monospace' }}>
-                      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Signature Preview</Text>
-                      <div style={{ marginBottom: 12 }}>
-                        <Text type="secondary" style={{ fontSize: 11 }}>Signature raw text：</Text>
-                        <div style={{ background: '#fff', padding: 8, borderRadius: 4, marginTop: 4, fontSize: 12, wordBreak: 'break-all' }}>{calculateSignaturePreview().raw || '(Please fill in signature fragment)'}</div>
-                      </div>
-                      <div>
-                        <Text type="secondary" style={{ fontSize: 11 }}>{signatureAlgorithm} Result:</Text>
-                        <div style={{ background: '#fff', padding: 8, borderRadius: 4, marginTop: 4, fontSize: 12, color: calculateSignaturePreview().canCalculate ? '#52c41a' : '#999' }}>
-                          {calculateSignaturePreview().result}
-                          {calculateSignaturePreview().canCalculate && <Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>(Written to variable &#123;&#123;sign&#125;&#125;)</Text>}
+                    <div style={{ opacity: signingSchemeEnabled ? 1 : 0.5, pointerEvents: signingSchemeEnabled ? 'auto' : 'none' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Signing Algorithm <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                          <Select
+                            placeholder="Select algorithm"
+                            value={signingSchemeId}
+                            onChange={(v) => { setSigningSchemeId(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="SHA256">SHA256</Select.Option>
+                            <Select.Option value="SHA256WithRSA">SHA256 with RSA</Select.Option>
+                            <Select.Option value="SHA512">SHA512</Select.Option>
+                            <Select.Option value="SHA512WithRSA">SHA512 with RSA</Select.Option>
+                            <Select.Option value="MD5">MD5</Select.Option>
+                            <Select.Option value="HMAC">HMAC</Select.Option>
+                          </Select>
+                        </div>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Secret Key <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                          {renderSecretKeyInput(
+                            signingSecretKeySource,
+                            setSigningSecretKeySource,
+                            signingSecretKeyRef,
+                            setSigningSecretKeyRef
+                          )}
                         </div>
                       </div>
-                      <div style={{ marginTop: 12 }}>
-                        <Text type="secondary" style={{ fontSize: 10 }}>Rules:</Text>
-                        <ul style={{ margin: '4px 0 0 0', paddingLeft: 16, fontSize: 10, color: '#999' }}>
-                          <li>Auto-calculated and displayed when all fragment variables are assigned</li>
-                          <li>Show placeholder raw text when variable is unassigned, do not calculate</li>
-                          <li>Key variable always shows ••••••••, not in plaintext</li>
-                        </ul>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Signing Source Fields <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <Select
+                            placeholder="Select section"
+                            value={signingSourceSection}
+                            onChange={(v) => { setSigningSourceSection(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="body">Request Body</Select.Option>
+                            <Select.Option value="header">Request Header</Select.Option>
+                            <Select.Option value="params">Query Params</Select.Option>
+                          </Select>
+                          <Select
+                            placeholder="Field selection mode"
+                            value={signingSourceFieldMode}
+                            onChange={(v) => { setSigningSourceFieldMode(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                          >
+                            <Select.Option value="all">Select All Fields</Select.Option>
+                            <Select.Option value="select">Choose Fields to Select</Select.Option>
+                          </Select>
+                        </div>
+                        {signingSourceSection && signingSourceFieldMode === 'select' && (
+                          <div style={{ marginTop: 8, padding: 12, background: '#fafafa', borderRadius: 4, maxHeight: 120, overflow: 'auto' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {(signingSourceSection === 'body' ? ['amount', 'currency', 'reference', 'customer', 'email', 'metadata'] :
+                                signingSourceSection === 'header' ? ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Timestamp'] :
+                                ['amount', 'currency', 'reference']).map(field => (
+                                <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Switch size="small" checked={signingSourceFields.includes(field)} onChange={(checked) => {
+                                    if (checked) {
+                                      setSigningSourceFields([...signingSourceFields, field]);
+                                    } else {
+                                      setSigningSourceFields(signingSourceFields.filter(f => f !== field));
+                                    }
+                                    setHasUnsavedChanges(true);
+                                  }} />
+                                  <Text style={{ fontSize: 11 }}>{field}</Text>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Convert String (Groovy Script)</Text>
+                        <Input.TextArea
+                          placeholder="fields.sort { it.name }.collect { &quot;${it.name}=${it.value}&quot; }.join(&quot;&&quot;)"
+                          value={signingConvertStringScript}
+                          onChange={(e) => { setSigningConvertStringScript(e.target.value); setHasUnsavedChanges(true); }}
+                          rows={2}
+                          style={{ fontFamily: 'monospace' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                        <Space>
+                          <Text type="secondary" style={{ fontSize: 11 }}>Base64 Encode</Text>
+                          <Switch size="small" checked={signingBase64Encode} onChange={(checked) => { setSigningBase64Encode(checked); setHasUnsavedChanges(true); }} />
+                        </Space>
+                      </div>
+
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Signing Destination</Text>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <Select
+                            placeholder="Select area"
+                            value={signingDestSection}
+                            onChange={(v) => { setSigningDestSection(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="header">Request Header</Select.Option>
+                            <Select.Option value="body">Request Body</Select.Option>
+                          </Select>
+                          <Select
+                            placeholder="Select field"
+                            value={signingDestField}
+                            onChange={(v) => { setSigningDestField(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="X-Signature">X-Signature</Select.Option>
+                            <Select.Option value="signature">signature</Select.Option>
+                          </Select>
+                        </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Encryption Section */}
+                  <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                      <Space>
+                        <Text strong style={{ fontSize: 13 }}>Encryption</Text>
+                        <Tag color="purple">加密</Tag>
+                      </Space>
+                      <Space>
+                        <Text type="secondary" style={{ fontSize: 11 }}>Enable</Text>
+                        <Switch size="small" checked={encryptProtocalEnabled} onChange={(checked) => { setEncryptProtocalEnabled(checked); setHasUnsavedChanges(true); }} />
+                      </Space>
+                    </div>
+                    <div style={{ opacity: encryptProtocalEnabled ? 1 : 0.5, pointerEvents: encryptProtocalEnabled ? 'auto' : 'none' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Encryption Algorithm <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                          <Select
+                            placeholder="Select algorithm"
+                            value={encryptSchemeId}
+                            onChange={(v) => { setEncryptSchemeId(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="AES_CBC">AES with CBC</Select.Option>
+                            <Select.Option value="AES_ECB">AES with ECB</Select.Option>
+                            <Select.Option value="RSA">RSA</Select.Option>
+                          </Select>
+                        </div>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Secret Key <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                          {renderSecretKeyInput(
+                            encryptSecretKeySource,
+                            setEncryptSecretKeySource,
+                            encryptSecretKeyRef,
+                            setEncryptSecretKeyRef
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Initialization Vector (IV)</Text>
+                          {renderSecretKeyInput(
+                            encryptIvSource,
+                            setEncryptIvSource,
+                            encryptIvRef,
+                            setEncryptIvRef
+                          )}
+                        </div>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Base64 Encode</Text>
+                          <Switch size="small" checked={encryptBase64Encode} onChange={(checked) => { setEncryptBase64Encode(checked); setHasUnsavedChanges(true); }} />
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Encryption Source Fields <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <Select
+                            placeholder="Select section"
+                            value={encryptSourceSection}
+                            onChange={(v) => { setEncryptSourceSection(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="body">Request Body</Select.Option>
+                            <Select.Option value="header">Request Header</Select.Option>
+                          </Select>
+                          <Select
+                            placeholder="Field selection mode"
+                            value={encryptSourceFieldMode}
+                            onChange={(v) => { setEncryptSourceFieldMode(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                          >
+                            <Select.Option value="all">Select All Fields</Select.Option>
+                            <Select.Option value="select">Choose Fields to Select</Select.Option>
+                          </Select>
+                        </div>
+                        {encryptSourceSection && encryptSourceFieldMode === 'select' && (
+                          <div style={{ marginTop: 8, padding: 12, background: '#fafafa', borderRadius: 4, maxHeight: 100, overflow: 'auto' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {['accountNumber', 'cardNumber', 'cvv', 'pin'].map(field => (
+                                <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Switch size="small" checked={encryptSourceFields.includes(field)} onChange={(checked) => {
+                                    if (checked) {
+                                      setEncryptSourceFields([...encryptSourceFields, field]);
+                                    } else {
+                                      setEncryptSourceFields(encryptSourceFields.filter(f => f !== field));
+                                    }
+                                    setHasUnsavedChanges(true);
+                                  }} />
+                                  <Text style={{ fontSize: 11 }}>{field}</Text>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Encrypted Destination</Text>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <Select
+                            placeholder="Select area"
+                            value={encryptDestSection}
+                            onChange={(v) => { setEncryptDestSection(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="header">Request Header</Select.Option>
+                            <Select.Option value="body">Request Body</Select.Option>
+                          </Select>
+                          <Select
+                            placeholder="Select field"
+                            value={encryptDestField}
+                            onChange={(v) => { setEncryptDestField(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="encryptedData">encryptedData</Select.Option>
+                            <Select.Option value="X-Encrypted-Data">X-Encrypted-Data</Select.Option>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeRequestTab === 'responseSecurity' && (
+                <div style={{ maxHeight: 600, overflow: 'auto' }}>
+                  {/* Signature Verification Section */}
+                  <div style={{ marginBottom: 20, border: '1px solid #e8e8e8', borderRadius: 8, padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                      <Space>
+                        <Text strong style={{ fontSize: 13 }}>Signature Verification</Text>
+                        <Tag color="green">验签</Tag>
+                      </Space>
+                      <Space>
+                        <Text type="secondary" style={{ fontSize: 11 }}>Enable</Text>
+                        <Switch size="small" checked={verifySchemeEnabled} onChange={(checked) => { setVerifySchemeEnabled(checked); setHasUnsavedChanges(true); }} />
+                      </Space>
+                    </div>
+                    <div style={{ opacity: verifySchemeEnabled ? 1 : 0.5, pointerEvents: verifySchemeEnabled ? 'auto' : 'none' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Verification Algorithm <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                          <Select
+                            placeholder="Select algorithm"
+                            value={verifySchemeId}
+                            onChange={(v) => { setVerifySchemeId(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="SHA256">SHA256</Select.Option>
+                            <Select.Option value="SHA256WithRSA">SHA256 with RSA</Select.Option>
+                            <Select.Option value="SHA512">SHA512</Select.Option>
+                            <Select.Option value="HMAC">HMAC</Select.Option>
+                          </Select>
+                        </div>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Secret Key <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                          {renderSecretKeyInput(
+                            verifySecretKeySource,
+                            setVerifySecretKeySource,
+                            verifySecretKeyRef,
+                            setVerifySecretKeyRef
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Response Signature Field <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <Select
+                            placeholder="Select area"
+                            value={verifySourceSection}
+                            onChange={(v) => { setVerifySourceSection(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="header">Response Header</Select.Option>
+                            <Select.Option value="body">Response Body</Select.Option>
+                          </Select>
+                          <Select
+                            placeholder="Select field"
+                            value={verifySourceField}
+                            onChange={(v) => { setVerifySourceField(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="X-Signature">X-Signature</Select.Option>
+                            <Select.Option value="signature">signature</Select.Option>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Verification Source Fields</Text>
+                        <Select
+                          placeholder="Field selection mode"
+                          value={verifyDestFieldMode}
+                          onChange={(v) => { setVerifyDestFieldMode(v); setHasUnsavedChanges(true); }}
+                          style={{ width: '100%' }}
+                        >
+                          <Select.Option value="all">Select All Fields</Select.Option>
+                          <Select.Option value="select">Choose Fields to Select</Select.Option>
+                        </Select>
+                        {verifyDestFieldMode === 'select' && (
+                          <div style={{ marginTop: 8, padding: 12, background: '#fafafa', borderRadius: 4, maxHeight: 80, overflow: 'auto' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {['verifyResult', 'isValid', 'validationStatus'].map(field => (
+                                <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Switch size="small" checked={verifyDestFields.includes(field)} onChange={(checked) => {
+                                    if (checked) {
+                                      setVerifyDestFields([...verifyDestFields, field]);
+                                    } else {
+                                      setVerifyDestFields(verifyDestFields.filter(f => f !== field));
+                                    }
+                                    setHasUnsavedChanges(true);
+                                  }} />
+                                  <Text style={{ fontSize: 11 }}>{field}</Text>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <Space>
+                          <Text type="secondary" style={{ fontSize: 11 }}>Base64 Decode First</Text>
+                          <Switch size="small" checked={verifyBase64Decode} onChange={(checked) => { setVerifyBase64Decode(checked); setHasUnsavedChanges(true); }} />
+                        </Space>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Decryption Section */}
+                  <div style={{ marginBottom: 20, border: '1px solid #e8e8e8', borderRadius: 8, padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                      <Space>
+                        <Text strong style={{ fontSize: 13 }}>Decryption</Text>
+                        <Tag color="orange">解密</Tag>
+                      </Space>
+                      <Space>
+                        <Text type="secondary" style={{ fontSize: 11 }}>Enable</Text>
+                        <Switch size="small" checked={decryptProtocalEnabled} onChange={(checked) => { setDecryptProtocalEnabled(checked); setHasUnsavedChanges(true); }} />
+                      </Space>
+                    </div>
+                    <div style={{ opacity: decryptProtocalEnabled ? 1 : 0.5, pointerEvents: decryptProtocalEnabled ? 'auto' : 'none' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Decryption Algorithm <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                          <Select
+                            placeholder="Select algorithm"
+                            value={decryptSchemeId}
+                            onChange={(v) => { setDecryptSchemeId(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="AES_CBC">AES with CBC</Select.Option>
+                            <Select.Option value="AES_ECB">AES with ECB</Select.Option>
+                            <Select.Option value="RSA">RSA</Select.Option>
+                          </Select>
+                        </div>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Secret Key <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                          {renderSecretKeyInput(
+                            decryptSecretKeySource,
+                            setDecryptSecretKeySource,
+                            decryptSecretKeyRef,
+                            setDecryptSecretKeyRef
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Initialization Vector (IV)</Text>
+                          {renderSecretKeyInput(
+                            decryptIvSource,
+                            setDecryptIvSource,
+                            decryptIvRef,
+                            setDecryptIvRef
+                          )}
+                        </div>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Base64 Decode First</Text>
+                          <Switch size="small" checked={decryptBase64Decode} onChange={(checked) => { setDecryptBase64Decode(checked); setHasUnsavedChanges(true); }} />
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Response Encrypted Field <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                          <Select
+                            placeholder="Select area"
+                            value={decryptSourceSection}
+                            onChange={(v) => { setDecryptSourceSection(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="body">Response Body</Select.Option>
+                            <Select.Option value="header">Response Header</Select.Option>
+                          </Select>
+                          <Select
+                            placeholder="Select field"
+                            value={decryptSourceField}
+                            onChange={(v) => { setDecryptSourceField(v); setHasUnsavedChanges(true); }}
+                            style={{ width: '100%' }}
+                            allowClear
+                          >
+                            <Select.Option value="encryptedData">encryptedData</Select.Option>
+                            <Select.Option value="data">data</Select.Option>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>Decrypted Destination Fields</Text>
+                        <Select
+                          placeholder="Field selection mode"
+                          value={decryptDestFieldMode}
+                          onChange={(v) => { setDecryptDestFieldMode(v); setHasUnsavedChanges(true); }}
+                          style={{ width: '100%' }}
+                        >
+                          <Select.Option value="all">Select All Fields</Select.Option>
+                          <Select.Option value="select">Choose Fields to Select</Select.Option>
+                        </Select>
+                        {decryptDestFieldMode === 'select' && (
+                          <div style={{ marginTop: 8, padding: 12, background: '#fafafa', borderRadius: 4, maxHeight: 80, overflow: 'auto' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                              {['accountNumber', 'balance', 'transactionStatus', 'merchantName'].map(field => (
+                                <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Switch size="small" checked={decryptDestFields.includes(field)} onChange={(checked) => {
+                                    if (checked) {
+                                      setDecryptDestFields([...decryptDestFields, field]);
+                                    } else {
+                                      setDecryptDestFields(decryptDestFields.filter(f => f !== field));
+                                    }
+                                    setHasUnsavedChanges(true);
+                                  }} />
+                                  <Text style={{ fontSize: 11 }}>{field}</Text>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Response Field Mapping Section */}
+                  <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #f0f0f0' }}>
+                      <Space>
+                        <Text strong style={{ fontSize: 13 }}>Response Field Mapping</Text>
+                        <Tag color="cyan">字段提取</Tag>
+                      </Space>
+                    </div>
+                    <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
+                      从原始响应(验签/解密后)中提取关键字段，供调试日志展示
+                    </Text>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                          <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#666', fontWeight: 400 }}>Field Name</th>
+                          <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#666', fontWeight: 400 }}>JSONPath / XPath</th>
+                          <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: '#666', fontWeight: 400 }}>Alias</th>
+                          <th style={{ width: 60 }}></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {responseFieldMappings.map((mapping, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                            <td style={{ padding: '8px 12px' }}>
+                              <Input
+                                placeholder="fieldName"
+                                value={mapping.fieldName}
+                                onChange={(e) => { const newMappings = [...responseFieldMappings]; newMappings[idx].fieldName = e.target.value; setResponseFieldMappings(newMappings); setHasUnsavedChanges(true); }}
+                                style={{ fontSize: 11 }}
+                              />
+                            </td>
+                            <td style={{ padding: '8px 12px' }}>
+                              <Input
+                                placeholder="$.result.status"
+                                value={mapping.jsonPath}
+                                onChange={(e) => { const newMappings = [...responseFieldMappings]; newMappings[idx].jsonPath = e.target.value; setResponseFieldMappings(newMappings); setHasUnsavedChanges(true); }}
+                                style={{ fontSize: 11 }}
+                              />
+                            </td>
+                            <td style={{ padding: '8px 12px' }}>
+                              <Input
+                                placeholder="交易状态"
+                                value={mapping.alias}
+                                onChange={(e) => { const newMappings = [...responseFieldMappings]; newMappings[idx].alias = e.target.value; setResponseFieldMappings(newMappings); setHasUnsavedChanges(true); }}
+                                style={{ fontSize: 11 }}
+                              />
+                            </td>
+                            <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                              <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => { const newMappings = responseFieldMappings.filter((_, i) => i !== idx); setResponseFieldMappings(newMappings); setHasUnsavedChanges(true); }} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => { setResponseFieldMappings([...responseFieldMappings, { fieldName: '', jsonPath: '', alias: '' }]); setHasUnsavedChanges(true); }} style={{ marginTop: 8 }}>
+                      添加字段
+                    </Button>
                   </div>
                 </div>
               )}
@@ -2188,6 +2846,7 @@ pm.variables.set("timestamp", Date.now().toString());
           statusText: '',
           duration: 0,
           isSaved: true,
+          operator: 'User',
         });
         message.success('Session Saved');
         setIsSaveSessionModalOpen(false);
@@ -2204,10 +2863,13 @@ pm.variables.set("timestamp", Date.now().toString());
         {/* Collapsed Title Bar */}
         <div onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', cursor: 'pointer', background: '#fafafa' }}>
           <Space size="middle">
-            <span style={{ fontSize: 12, color: '#666' }}>{isHistoryExpanded ? '▼' : '▲'} History Session (total {historySessions.length})</span>
+            <span style={{ fontSize: 12, color: '#666' }}>{isHistoryExpanded ? '▼' : '▲'} 请求历史（团队共享，不可删除）</span>
+           <span style={{ fontSize: 11, color: '#999' }}>（total {historySessions.length}）</span>
           </Space>
           <Space size="middle">
-            <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: 'Confirm Clear', content: 'Are you sure you want to clear all history?', onOk: () => clearAllHistory() }); }} style={{ fontSize: 11, padding: 0, height: 'auto' }}>Clear All</Button>
+            <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); setHistoryFilter('all'); }} style={{ fontSize: 11, padding: 0, height: 'auto', color: historyFilter === 'all' ? '#1890ff' : '#999' }}>全部</Button>
+            <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); setHistoryFilter('starred'); }} style={{ fontSize: 11, padding: 0, height: 'auto', color: historyFilter === 'starred' ? '#fa8c16' : '#999' }}>⭐已标记</Button>
+            <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); setHistoryFilter('unstarred'); }} style={{ fontSize: 11, padding: 0, height: 'auto', color: historyFilter === 'unstarred' ? '#666' : '#999' }}>未标记</Button>
           </Space>
         </div>
 
@@ -2218,6 +2880,7 @@ pm.variables.set("timestamp", Date.now().toString());
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: '#999', fontSize: 12 }}>No history</div>
             ) : (
               historySessions
+                .filter(s => historyFilter === 'all' ? true : historyFilter === 'starred' ? s.isSaved : !s.isSaved)
                 .sort((a, b) => {
                   if (a.isSaved && !b.isSaved) return -1;
                   if (!a.isSaved && b.isSaved) return 1;
@@ -2244,11 +2907,27 @@ pm.variables.set("timestamp", Date.now().toString());
                       message.info('History loaded, click "Restore" to fill request to current Tab');
                     }}
                     style={{ minWidth: 200, maxWidth: 200, border: '1px solid #e8e8e8', borderRadius: 6, padding: 12, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8' }}
-                  >
-                    {/* Delete button */}
-                    <Button type="text" size="small" icon={<CloseOutlined />} onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: 'Confirm Delete', content: 'Are you sure you want to delete this history?', onOk: () => deleteHistorySession(session.id) }); }} style={{ position: 'absolute', top: 4, right: 4, fontSize: 10, padding: 0, width: 20, height: 20, color: '#999' }} />
+                                   >
                     {/* Star button */}
-                    <Button type="text" size="small" icon={session.isSaved ? <StarFilled style={{ color: '#fa8c16' }} /> : <StarOutlined style={{ color: '#999' }} />} onClick={(e) => { e.stopPropagation(); setHistorySessions(prev => prev.map(s => s.id === session.id ? { ...s, isSaved: !s.isSaved } : s)); }} style={{ position: 'absolute', top: 4, left: 4, fontSize: 10, padding: 0, width: 20, height: 20 }} />
+                    <Button type="text" size="small" icon={session.isSaved ? <StarFilled style={{ color: '#fa8c16' }} /> : <StarOutlined style={{ color: '#999' }} />} onClick={(e) => {
+                      e.stopPropagation();
+                      if (session.isSaved) {
+                        // Confirm before un-starring
+                        Modal.confirm({
+                          title: '取消标记确认',
+                          content: session.markedBy ? `此记录由 ${session.markedBy} 标记，取消标记将影响团队共识交付物确认。是否继续？` : '确定要取消标记吗？',
+                          okText: '确认取消',
+                          cancelText: '保留标记',
+                          onOk: () => {
+                            setHistorySessions(prev => prev.map(s => s.id === session.id ? { ...s, isSaved: false, markedBy: undefined, markedAt: undefined } : s));
+                          }
+                        });
+                      } else {
+                        // Mark as starred - set marker info
+                        const now = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0') + ' ' + String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0');
+                        setHistorySessions(prev => prev.map(s => s.id === session.id ? { ...s, isSaved: true, markedBy: 'User', markedAt: now } : s));
+                      }
+                    }} style={{ position: 'absolute', top: 4, left: 4, fontSize: 10, padding: 0, width: 20, height: 20 }} />
                     {/* Status indicator */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                       <span style={{ fontSize: 10 }}>{isSuccess ? '🟢' : '🔴'}</span>
@@ -2272,9 +2951,15 @@ pm.variables.set("timestamp", Date.now().toString());
                       )}
                     </div>
                     {/* Timestamp */}
-                    <div style={{ marginBottom: 8 }}>
+                    <div style={{ marginBottom: 4 }}>
                       <Text type="secondary" style={{ fontSize: 10 }}>{session.timestamp}</Text>
+                      {session.operator && <Text type="secondary" style={{ fontSize: 10, marginLeft: 8 }}>by {session.operator}</Text>}
                     </div>
+                    {session.isSaved && session.markedBy && (
+                      <div style={{ marginBottom: 8 }}>
+                        <Text style={{ fontSize: 9, color: '#fa8c16' }}>⭐ {session.markedBy} {session.markedAt}</Text>
+                      </div>
+                    )}
                     {/* Action buttons */}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); restoreSession(session); }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>Restore</Button>
@@ -2308,6 +2993,9 @@ pm.variables.set("timestamp", Date.now().toString());
 
       {/* Scene Variable Modal */}
       {renderSceneVarModal()}
+
+      {/* Debug Credentials Modal */}
+      {renderDebugCredModal()}
     </div>
   );
 }

@@ -61,29 +61,26 @@ const stateMachineStates = [
   { value: 'FAILED', label: 'FAILED' },
 ];
 
-interface FlowConfigModalProps {
+interface FlowSettingsModalProps {
   visible: boolean;
-  stateName: string;
+  flow: FlowConfig | null;
   existingFlows: FlowConfig[];
-  availableEvents: string[];
-  editingFlow?: FlowConfig | null;
   onSave: (config: FlowConfig) => void;
-  onNext?: () => void;
   onCancel: () => void;
 }
 
-export default function FlowConfigModal({
+export default function FlowSettingsModal({
   visible,
-  stateName: _stateName,
+  flow,
   existingFlows,
-  availableEvents: _availableEvents,
-  editingFlow: _editingFlow,
   onSave,
   onCancel,
-}: FlowConfigModalProps) {
+}: FlowSettingsModalProps) {
   const [form] = Form.useForm();
   const [triggerType, setTriggerType] = useState<string>('UPSTREAM_TRIGGERED');
   const [hasChanges, setHasChanges] = useState(false);
+  const [showChangeWarning, setShowChangeWarning] = useState(false);
+  const [pendingTriggerType, setPendingTriggerType] = useState<string | null>(null);
 
   // Get Reference Action options from existing flows
   const referenceActionOptions = existingFlows
@@ -100,28 +97,57 @@ export default function FlowConfigModal({
     .map(v => ({ value: v, label: v }));
 
   useEffect(() => {
-    if (visible) {
-      form.resetFields();
-      setTriggerType('UPSTREAM_TRIGGERED');
+    if (visible && flow) {
+      form.setFieldsValue({
+        flowName: flow.name,
+        triggerAction: flow.triggerEvents?.[0] || undefined,
+        originalRequestAction: flow.triggerEvents?.[0] || undefined,
+        referenceActions: flow.outputEvents?.map(e => e.eventName) || [],
+        triggerSubState: flow.stateConditions?.[0]?.value || undefined,
+      });
+      setTriggerType(flow.triggerType || 'UPSTREAM_TRIGGERED');
       setHasChanges(false);
     }
-  }, [visible, form]);
-
-  // Check if flow name is unique
-  const isFlowNameUnique = (name: string) => {
-    return !existingFlows.some(f => f.name === name);
-  };
-
-  const handleTriggerTypeChange = (e: any) => {
-    setTriggerType(e.target.value);
-    form.setFieldValue('triggerAction', undefined);
-    form.setFieldValue('originalRequestAction', undefined);
-    form.setFieldValue('referenceActions', undefined);
-    form.setFieldValue('triggerSubState', undefined);
-  };
+  }, [visible, flow, form]);
 
   const handleValuesChange = () => {
     setHasChanges(true);
+  };
+
+  const handleTriggerTypeChange = (e: any) => {
+    const newType = e.target.value;
+    // Show warning when changing trigger type that affects SPI
+    if (newType !== triggerType) {
+      setPendingTriggerType(newType);
+      setShowChangeWarning(true);
+    }
+  };
+
+  const handleWarningConfirm = () => {
+    if (pendingTriggerType) {
+      setTriggerType(pendingTriggerType);
+      form.setFieldValue('triggerAction', undefined);
+      form.setFieldValue('originalRequestAction', undefined);
+      form.setFieldValue('referenceActions', undefined);
+      form.setFieldValue('triggerSubState', undefined);
+      setHasChanges(true);
+    }
+    setShowChangeWarning(false);
+    setPendingTriggerType(null);
+  };
+
+  const handleWarningCancel = () => {
+    setShowChangeWarning(false);
+    setPendingTriggerType(null);
+  };
+
+  const handleActionChange = (fieldName: string, _newAction: string, isRemoving?: boolean) => {
+    if (isRemoving) {
+      setPendingTriggerType(fieldName === 'triggerAction' ? triggerType : triggerType);
+      setShowChangeWarning(true);
+    } else {
+      setHasChanges(true);
+    }
   };
 
   const handleClose = () => {
@@ -138,30 +164,23 @@ export default function FlowConfigModal({
     }
   };
 
-  const handleAdd = () => {
+  const handleConfirm = () => {
     form.validateFields().then((values) => {
-      if (!isFlowNameUnique(values.flowName)) {
-        form.setFields([
-          { name: 'flowName', errors: ['Flow Name already exists in this version'] },
-        ]);
-        return;
-      }
+      if (!flow) return;
 
-      const config: FlowConfig = {
-        id: `flow_${Date.now()}`,
+      const updatedConfig: FlowConfig = {
+        ...flow,
         name: values.flowName,
-        executionType: 'single',
-        flowType: 'outbound',
-        endType: 'wait_external',
         triggerType: triggerType as TriggerType,
-        // Ensure triggerEvents is always an array
-        triggerEvents: Array.isArray(values.triggerAction) ? values.triggerAction : values.triggerAction ? [values.triggerAction] : Array.isArray(values.originalRequestAction) ? values.originalRequestAction : values.originalRequestAction ? [values.originalRequestAction] : [],
+        triggerEvents: Array.isArray(values.triggerAction) ? values.triggerAction :
+          values.triggerAction ? [values.triggerAction] :
+          Array.isArray(values.originalRequestAction) ? values.originalRequestAction :
+          values.originalRequestAction ? [values.originalRequestAction] : [],
         outputEvents: values.referenceActions?.map((action: string) => ({ eventName: action })) || [],
         stateConditions: values.triggerSubState ? [{ id: '1', field: 'state', operator: '==', value: values.triggerSubState }] : [],
-        isConfigured: false,
       };
 
-      onSave(config);
+      onSave(updatedConfig);
       onCancel();
     });
   };
@@ -176,7 +195,10 @@ export default function FlowConfigModal({
             label="Trigger Action"
             rules={[{ required: true, message: 'Please select Trigger Action' }]}
           >
-            <Select placeholder="Select action">
+            <Select
+              placeholder="Select action"
+              onChange={() => handleActionChange('triggerAction', '', false)}
+            >
               {triggerActionOptions.map(opt => (
                 <Select.Option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -193,7 +215,10 @@ export default function FlowConfigModal({
             label="Original Request Action"
             rules={[{ required: true, message: 'Please select Original Request Action' }]}
           >
-            <Select placeholder="Select action">
+            <Select
+              placeholder="Select action"
+              onChange={() => handleActionChange('originalRequestAction', '', false)}
+            >
               {originalRequestActionOptions.length > 0 ? (
                 originalRequestActionOptions.map(opt => (
                   <Select.Option key={opt.value} value={opt.value}>
@@ -218,7 +243,19 @@ export default function FlowConfigModal({
             label="Reference Action"
             rules={[{ required: true, message: 'Please select Reference Action' }]}
           >
-            <Select mode="multiple" placeholder="Select action(s)">
+            <Select
+              mode="multiple"
+              placeholder="Select action(s)"
+              onChange={(values) => {
+                const currentValues = form.getFieldValue('referenceActions') || [];
+                const isRemoving = values.length < currentValues.length;
+                if (isRemoving) {
+                  handleActionChange('referenceActions', '', true);
+                } else {
+                  setHasChanges(true);
+                }
+              }}
+            >
               {referenceActionOptions.length > 0 ? (
                 referenceActionOptions.map(opt => (
                   <Select.Option key={opt.value} value={opt.value}>
@@ -244,7 +281,10 @@ export default function FlowConfigModal({
               label="Trigger Sub-state"
               rules={[{ required: true, message: 'Please select Trigger Sub-state' }]}
             >
-              <Select placeholder="Select sub-state">
+              <Select
+                placeholder="Select sub-state"
+                onChange={() => setHasChanges(true)}
+              >
                 {stateMachineStates.map(opt => (
                   <Select.Option key={opt.value} value={opt.value}>
                     {opt.label}
@@ -257,7 +297,19 @@ export default function FlowConfigModal({
               label="Reference Action"
               rules={[{ required: true, message: 'Please select Reference Action' }]}
             >
-              <Select mode="multiple" placeholder="Select action(s)">
+              <Select
+                mode="multiple"
+                placeholder="Select action(s)"
+                onChange={(values) => {
+                  const currentValues = form.getFieldValue('referenceActions') || [];
+                  const isRemoving = values.length < currentValues.length;
+                  if (isRemoving) {
+                    handleActionChange('referenceActions', '', true);
+                  } else {
+                    setHasChanges(true);
+                  }
+                }}
+              >
                 {referenceActionOptions.length > 0 ? (
                   referenceActionOptions.map(opt => (
                     <Select.Option key={opt.value} value={opt.value}>
@@ -281,71 +333,98 @@ export default function FlowConfigModal({
     }
   };
 
+  if (!flow) return null;
+
   return (
-    <Modal
-      title="New Flow"
-      open={visible}
-      onCancel={handleClose}
-      footer={[
-        <Button key="cancel" onClick={handleClose}>
-          Cancel
-        </Button>,
-        <Button key="add" type="primary" onClick={handleAdd}>
-          Add
-        </Button>,
-      ]}
-      width={600}
-      closeIcon={<span />}
-    >
-      <Form
-        form={form}
-        layout="vertical"
-        style={{ marginTop: 16 }}
-        onValuesChange={handleValuesChange}
+    <>
+      <Modal
+        title="Flow Settings"
+        open={visible}
+        onCancel={handleClose}
+        footer={[
+          <Button key="cancel" onClick={handleClose}>
+            Cancel
+          </Button>,
+          <Button key="confirm" type="primary" onClick={handleConfirm}>
+            Confirm
+          </Button>,
+        ]}
+        width={600}
+        closeIcon={<span />}
       >
-        {/* Flow Name */}
-        <Form.Item
-          name="flowName"
-          label="Flow Name"
-          rules={[
-            { required: true, message: 'Please enter Flow Name' },
-            { validator: (_, value) => isFlowNameUnique(value) ? Promise.resolve() : Promise.reject('Flow Name already exists') },
-          ]}
+        <Form
+          form={form}
+          layout="vertical"
+          style={{ marginTop: 16 }}
+          onValuesChange={handleValuesChange}
         >
-          <Input placeholder="Enter Flow Name" />
-        </Form.Item>
+          {/* Flow ID - read only */}
+          <Form.Item label="Flow ID">
+            <Input value={flow.id} disabled />
+          </Form.Item>
 
-        {/* Trigger Type */}
-        <Form.Item
-          label={
-            <Space>
-              Trigger Type
-              <span style={{ color: '#ff4d4f' }}>*</span>
-            </Space>
-          }
-        >
-          <Radio.Group
-            value={triggerType}
-            onChange={handleTriggerTypeChange}
-            style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+          {/* Flow Name */}
+          <Form.Item
+            name="flowName"
+            label="Flow Name"
+            rules={[{ required: true, message: 'Please enter Flow Name' }]}
           >
-            {triggerTypeOptions.map(opt => (
-              <Radio key={opt.value} value={opt.value} style={{ height: 'auto', padding: '8px 0' }}>
-                <Space>
-                  <Text>{opt.label}</Text>
-                  <Text type="secondary">({opt.labelCn})</Text>
-                  <Tooltip title={opt.description}>
-                    <QuestionCircleOutlined style={{ color: '#999' }} />
-                  </Tooltip>
-                </Space>
-              </Radio>
-            ))}
-          </Radio.Group>
-        </Form.Item>
+            <Input placeholder="Enter Flow Name" />
+          </Form.Item>
 
-        {/* Dynamic Fields */}
-        {renderDynamicFields()}
-      </Form>
-    </Modal>
+          {/* Trigger Type */}
+          <Form.Item label={<Space>Trigger Type<span style={{ color: '#ff4d4f' }}>*</span></Space>}>
+            <Radio.Group
+              value={triggerType}
+              onChange={handleTriggerTypeChange}
+              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+            >
+              {triggerTypeOptions.map(opt => (
+                <Radio key={opt.value} value={opt.value} style={{ height: 'auto', padding: '8px 0' }}>
+                  <Space>
+                    <Text>{opt.label}</Text>
+                    <Text type="secondary">({opt.labelCn})</Text>
+                    <Tooltip title={opt.description}>
+                      <QuestionCircleOutlined style={{ color: '#999' }} />
+                    </Tooltip>
+                  </Space>
+                </Radio>
+              ))}
+            </Radio.Group>
+          </Form.Item>
+
+          {/* Dynamic Fields */}
+          {renderDynamicFields()}
+        </Form>
+      </Modal>
+
+      {/* Change Warning Modal */}
+      <Modal
+        title="Warning"
+        open={showChangeWarning}
+        onCancel={handleWarningCancel}
+        footer={[
+          <Button key="cancel" onClick={handleWarningCancel}>
+            Cancel
+          </Button>,
+          <Button key="confirm" type="primary" danger onClick={handleWarningConfirm}>
+            Confirm
+          </Button>,
+        ]}
+        width={500}
+      >
+        <div style={{ padding: '8px 0' }}>
+          <p style={{ marginBottom: 16 }}>
+            You are about to change the Trigger Type or remove an Action.
+          </p>
+          <p style={{ marginBottom: 16 }}>
+            This action will clear all existing component configurations in this Flow. You will need to reconfigure the components after saving.
+          </p>
+          <p>
+            If you do not want to lose your current configuration, click Cancel and keep your existing setup.
+          </p>
+        </div>
+      </Modal>
+    </>
   );
 }

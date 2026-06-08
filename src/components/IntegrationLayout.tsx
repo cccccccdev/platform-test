@@ -10,27 +10,9 @@ import {
 const { Sider, Content } = Layout;
 
 export default function IntegrationLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true); // Default collapsed
   const location = useLocation();
   const navigate = useNavigate();
-
-  const menuItems = [
-    {
-      key: '/channel-integration/match-capability',
-      icon: <DatabaseOutlined />,
-      label: 'Match Capability',
-    },
-    {
-      key: '/channel-integration/config',
-      icon: <SettingOutlined />,
-      label: 'Config Integration',
-    },
-    {
-      key: '/channel-integration/code',
-      icon: <CodeOutlined />,
-      label: 'Code Integration',
-    },
-  ];
 
   // Extract channelCode from current path
   const pathParts = location.pathname.split('/');
@@ -45,7 +27,7 @@ export default function IntegrationLayout() {
       label: 'Match Capability',
     },
     {
-      key: `/channel-integration/${channelCode}/integration/config`,
+      key: `/channel-integration/${channelCode}/integration`,
       icon: <SettingOutlined />,
       label: 'Config Integration',
     },
@@ -55,6 +37,11 @@ export default function IntegrationLayout() {
       label: 'Code Integration',
     },
   ];
+
+  // Handle menu click - navigate directly
+  const handleMenuClick = ({ key }: { key: string }) => {
+    navigate(key);
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -99,7 +86,7 @@ export default function IntegrationLayout() {
           mode="inline"
           selectedKeys={[location.pathname]}
           items={getMenuItems()}
-          onClick={({ key }) => navigate(key)}
+          onClick={handleMenuClick}
           style={{ borderRight: 0 }}
         />
       </Sider>

@@ -1,11 +1,12 @@
-import { useState, useCallback, useMemo } from 'react';
-import { Button, Space, message, Breadcrumb, Select, Modal, Typography, Table, Tag } from 'antd';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Button, Space, Select, Modal, Typography, Table, Tag, Breadcrumb } from 'antd';
 import { PlusOutlined, EyeOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import FlowConfigModal from './FlowConfigModal';
+import FlowSettingsModal from './FlowSettingsModal';
 import type { FlowConfig, TriggerType } from './types';
 
 const { Text, Title } = Typography;
@@ -81,11 +82,12 @@ function StateMachineSelectorModal({
 }
 
 export default function ConfigEditorPage() {
-  const { channelCode, ability } = useParams<{ channelCode: string; ability: string }>();
+  const { channelCode } = useParams<{ channelCode: string; ability: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // State machine related states
-  const [showStateMachineSelector, setShowStateMachineSelector] = useState(true);
+  const [showStateMachineSelector, setShowStateMachineSelector] = useState(false);
   const [selectedStateMachine, setSelectedStateMachine] = useState<string | null>(null);
   const [stateMachineNodes, setStateMachineNodes] = useState<Node[]>([]);
   const [stateMachineEdges, setStateMachineEdges] = useState<Edge[]>([]);
@@ -97,6 +99,10 @@ export default function ConfigEditorPage() {
   const [showFlowConfigModal, setShowFlowConfigModal] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowConfig | null>(null);
 
+  // Flow settings modal - for editing flow settings
+  const [showFlowSettingsModal, setShowFlowSettingsModal] = useState(false);
+  const [editingFlowForSettings, setEditingFlowForSettings] = useState<FlowConfig | null>(null);
+
   // Flows list for this state machine
   const [flows, setFlows] = useState<FlowConfig[]>([]);
 
@@ -105,6 +111,26 @@ export default function ConfigEditorPage() {
     { name: 'Default_Refund_StateMachine', description: 'REFUND state machine' },
     { name: 'BankCard_Debit_StateMachine', description: 'Bank card debit state machine' },
   ], []);
+
+  // Auto-select state machine if passed via query param, otherwise use first available
+  useEffect(() => {
+    const smParam = searchParams.get('sm');
+    let smName: string;
+
+    if (smParam) {
+      smName = decodeURIComponent(smParam);
+    } else {
+      // Default to first available state machine
+      smName = availableStateMachines[0]?.name || '';
+    }
+
+    if (smName) {
+      const flow = getStateMachineFlow(smName);
+      setStateMachineNodes(flow.nodes);
+      setStateMachineEdges(flow.edges);
+      setSelectedStateMachine(smName);
+    }
+  }, [searchParams]);
 
   // Get state machine flow data - extracting States only with their connections
   const getStateMachineFlow = useCallback((_smName: string) => {
@@ -157,12 +183,12 @@ export default function ConfigEditorPage() {
     setShowFlowConfigModal(true);
   };
 
-  // Edit existing flow - open config modal
+  // Edit existing flow - open settings modal
   const handleEditFlow = (flowId: string) => {
     const flow = flows.find(f => f.id === flowId);
     if (flow) {
-      setEditingFlow(flow);
-      setShowFlowConfigModal(true);
+      setEditingFlowForSettings(flow);
+      setShowFlowSettingsModal(true);
     }
   };
 
@@ -174,6 +200,13 @@ export default function ConfigEditorPage() {
   const handleFlowConfigSave = (config: FlowConfig) => {
     console.log('Flow config saved:', config);
     setFlows(prev => [...prev, config]);
+  };
+
+  const handleFlowSettingsSave = (config: FlowConfig) => {
+    console.log('Flow settings saved:', config);
+    setFlows(prev => prev.map(f => f.id === config.id ? config : f));
+    setShowFlowSettingsModal(false);
+    setEditingFlowForSettings(null);
   };
 
   const handleFlowConfigNext = () => {
@@ -191,46 +224,20 @@ export default function ConfigEditorPage() {
     setEditingFlow(null);
   };
 
-  // Back to list
-  const handleBack = () => {
-    navigate(`/channel-integration/${channelCode}/integration/config`);
-  };
-
-  // Save draft
-  const handleSaveDraft = () => {
-    message.success('Saved successfully', 2);
-  };
-
-  // Submit
-  const handleSubmit = () => {
-    message.success('Submitted, version v1.2.0 generated');
-  };
-
   // Trigger type display helper
   const getTriggerLabel = (type: TriggerType) => {
     switch (type) {
-      case 'upstream': return 'Upstream Trigger';
-      case 'external': return 'External Trigger';
-      case 'timer': return 'Timer Trigger';
-      case 'callback': return 'Callback Trigger';
+      case 'UPSTREAM_TRIGGERED': return 'Upstream Trigger';
+      case 'EXTERNAL_INBOUND_TRIGGERED': return 'External Trigger';
+      case 'CALLBACK_TRIGGERED': return 'Callback Trigger';
+      case 'ASYNC_TRIGGERED': return 'Async Trigger';
+      case 'SCHEDULED_TRIGGERED': return 'Scheduled Trigger';
       default: return 'Unknown';
     }
   };
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Breadcrumb */}
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
-        items={[
-          { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
-          { title: channelCode },
-          { title: 'Integration' },
-          { title: 'Config Integration', onClick: handleBack },
-          { title: ability },
-        ]}
-      />
-
       {/* State Machine Selector Modal */}
       <StateMachineSelectorModal
         visible={showStateMachineSelector}
@@ -262,6 +269,17 @@ export default function ConfigEditorPage() {
         </div>
       </Modal>
 
+      {/* Breadcrumb */}
+      <Breadcrumb
+        style={{ marginBottom: 16 }}
+        items={[
+          { title: 'Channel Integration', href: `/channel-integration` },
+          { title: channelCode, href: `/channel-integration/${channelCode}/integration` },
+          { title: 'Config Integration', href: `/channel-integration/${channelCode}/integration` },
+          { title: 'Flow Configuration' },
+        ]}
+      />
+
       {/* Header - always show */}
       {selectedStateMachine && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -276,8 +294,6 @@ export default function ConfigEditorPage() {
               View StateMachine
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleAddFlow}>Add Flow</Button>
-            <Button onClick={handleSaveDraft}>Save Draft</Button>
-            <Button type="primary" onClick={handleSubmit}>Submit</Button>
           </Space>
         </div>
       )}
@@ -295,31 +311,55 @@ export default function ConfigEditorPage() {
               <Table.Column title="Flow Name" dataIndex="name" key="name" />
               <Table.Column title="Trigger Type" dataIndex="triggerType" key="triggerType" width={140} render={(type: TriggerType) => (
                 <Tag color={
-                  type === 'upstream' ? 'blue' :
-                  type === 'external' ? 'purple' :
-                  type === 'timer' ? 'orange' :
-                  type === 'callback' ? 'green' : 'default'
+                  type === 'UPSTREAM_TRIGGERED' ? 'blue' :
+                  type === 'EXTERNAL_INBOUND_TRIGGERED' ? 'purple' :
+                  type === 'CALLBACK_TRIGGERED' ? 'orange' :
+                  type === 'ASYNC_TRIGGERED' ? 'green' :
+                  type === 'SCHEDULED_TRIGGERED' ? 'cyan' : 'default'
                 }>
                   {getTriggerLabel(type)}
                 </Tag>
               )} />
               <Table.Column title="Triggered By" key="triggeredBy" width={180} render={(_: any, record: FlowConfig) => {
-                if (record.triggerType !== 'callback') return <span style={{ color: '#999' }}>-</span>;
-                const triggeringFlows = flows.filter(f => f.outputEvents?.some(e => e.eventName === record.name));
-                return triggeringFlows.length > 0 ? (
-                  <Space wrap>
-                    {triggeringFlows.map(f => (
-                      <Tag key={f.id} color="green">{f.name}</Tag>
-                    ))}
-                  </Space>
-                ) : <span style={{ color: '#999' }}>-</span>;
+                // UPSTREAM_TRIGGERED or EXTERNAL_INBOUND_TRIGGERED - show Trigger Action
+                if (record.triggerType === 'UPSTREAM_TRIGGERED' || record.triggerType === 'EXTERNAL_INBOUND_TRIGGERED') {
+                  const actions = record.triggerEvents || [];
+                  return actions.length > 0 ? (
+                    <Space wrap>
+                      {actions.map((action, idx) => (
+                        <Tag key={idx} color="blue">{action}</Tag>
+                      ))}
+                    </Space>
+                  ) : <span style={{ color: '#999' }}>-</span>;
+                }
+                // CALLBACK_TRIGGERED - show CALLBACK
+                if (record.triggerType === 'CALLBACK_TRIGGERED') {
+                  return <Tag color="orange">CALLBACK</Tag>;
+                }
+                // ASYNC_TRIGGERED - show flow names that trigger this flow
+                if (record.triggerType === 'ASYNC_TRIGGERED') {
+                  const triggeringFlows = flows.filter(f => f.outputEvents?.some(e => e.eventName === record.name));
+                  return triggeringFlows.length > 0 ? (
+                    <Space wrap>
+                      {triggeringFlows.map(f => (
+                        <Tag key={f.id} color="green">{f.name}</Tag>
+                      ))}
+                    </Space>
+                  ) : <span style={{ color: '#999' }}>-</span>;
+                }
+                // SCHEDULED_TRIGGERED - show Trigger Sub-state
+                if (record.triggerType === 'SCHEDULED_TRIGGERED') {
+                  const subState = record.stateConditions?.[0]?.value;
+                  return subState ? <Tag color="cyan">{subState}</Tag> : <span style={{ color: '#999' }}>-</span>;
+                }
+                return <span style={{ color: '#999' }}>-</span>;
               }} />
               <Table.Column title="Status" key="status" width={100} render={(_: any, record: FlowConfig) => (
                 <Tag color={record.isConfigured ? 'success' : 'default'}>
                   {record.isConfigured ? 'Configured' : 'Draft'}
                 </Tag>
               )} />
-              <Table.Column title="Operation" key="operation" width={160} render={(_: any, record: FlowConfig) => (
+              <Table.Column title="Operation" key="operation" width={180} render={(_: any, record: FlowConfig) => (
                 <Space>
                   <Button
                     type="text"
@@ -327,7 +367,7 @@ export default function ConfigEditorPage() {
                     icon={<SettingOutlined />}
                     onClick={() => handleEditFlow(record.id)}
                   >
-                    Config
+                    Settings
                   </Button>
                   <Button
                     type="text"
@@ -335,7 +375,7 @@ export default function ConfigEditorPage() {
                     icon={<EditOutlined />}
                     onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/COLLECTION/CARD_PAY/${record.id}`)}
                   >
-                    Edit
+                    Edit Components
                   </Button>
                 </Space>
               )} />
@@ -355,6 +395,18 @@ export default function ConfigEditorPage() {
         onCancel={() => {
           setShowFlowConfigModal(false);
           setEditingFlow(null);
+        }}
+      />
+
+      {/* Flow Settings Modal */}
+      <FlowSettingsModal
+        visible={showFlowSettingsModal}
+        flow={editingFlowForSettings}
+        existingFlows={flows}
+        onSave={handleFlowSettingsSave}
+        onCancel={() => {
+          setShowFlowSettingsModal(false);
+          setEditingFlowForSettings(null);
         }}
       />
 

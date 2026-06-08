@@ -69,13 +69,15 @@ const router = createBrowserRouter([
           { path: 'channel-integration/:channelCode/integration', element: <ConfigAbilityListPage /> },
           { path: 'channel-integration/:channelCode/integration/match-capability', element: <MatchCapabilityPage /> },
           { path: 'channel-integration/:channelCode/integration/config', element: <ConfigAbilityListPage /> },
-          { path: 'channel-integration/:channelCode/integration/config/:bt/:ability/:stepIndex', element: <FlowEditorPage /> },
           { path: 'channel-integration/:channelCode/integration/config/test', element: <TestPage /> },
           { path: 'channel-integration/:channelCode/integration/config/:bt/:ability', element: <ConfigEditorPage /> },
           { path: 'channel-integration/:channelCode/integration/code', element: <CodeAbilityListPage /> },
           { path: 'channel-integration/:channelCode/integration/code/:bt/:ability', element: <CodeGuidePage /> },
         ],
       },
+
+      // Flow Editor page (without sidebar - uses NoSidebarLayout)
+      { path: 'channel-integration/:channelCode/integration/config/:bt/:ability/:stepIndex', element: <FlowEditorPage /> },
 
       // Scene pages (existing)
       { path: 'channel-integration/:channelCode/scenes', element: <SceneListPage /> },

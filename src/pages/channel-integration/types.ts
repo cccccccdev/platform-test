@@ -76,7 +76,7 @@ export interface FieldMapping {
 export type ExecutionType = 'single' | 'loop';
 export type FlowType = 'outbound' | 'inbound';
 export type EndType = 'event' | 'state' | 'wait_upstream' | 'wait_external';
-export type TriggerType = 'upstream' | 'external' | 'timer' | 'callback';
+export type TriggerType = 'UPSTREAM_TRIGGERED' | 'EXTERNAL_INBOUND_TRIGGERED' | 'CALLBACK_TRIGGERED' | 'ASYNC_TRIGGERED' | 'SCHEDULED_TRIGGERED';
 
 export interface EventCondition {
   id: string;
@@ -131,4 +131,30 @@ export interface StateFlowData {
   flows: FlowConfig[];
   // Available events from previous flows (for trigger configuration)
   availableEvents?: string[];
+}
+
+// Cloud and environment types for publish status
+export type CloudType = 'BD' | 'PK' | 'ALIYUN' | 'ALIYUN_FRANKFURT' | 'ONELOOP';
+export type EnvType = 'DAILY' | 'PRE' | 'PROD';
+
+// Publish status for flow version
+export type PublishStatusType = 'draft' | 'submitted' | 'published';
+
+// Flow version (sub-record) under a BT + Ability
+export interface FlowVersion {
+  id: string;
+  version: string;
+  stateMachine: string;
+  publishStatus: PublishStatusType;
+  badges: Array<{ cloud: CloudType; env: EnvType }>;
+  remark?: string;
+  operator: string;
+  operationTime: string;
+}
+
+// Config Ability main record (BT + Ability)
+export interface ConfigAbility {
+  bt: string;
+  ability: string;
+  versions: FlowVersion[];
 }
