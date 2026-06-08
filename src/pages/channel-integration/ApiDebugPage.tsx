@@ -1283,7 +1283,7 @@ pm.variables.set("timestamp", Date.now().toString());
   };
 
   const handleBack = () => {
-    navigate('/channel-integration/' + channelCode);
+    navigate('/channel-integration');
   };
 
   // Import from cURL
