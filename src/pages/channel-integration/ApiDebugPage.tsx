@@ -503,18 +503,7 @@ pm.variables.set("timestamp", Date.now().toString());
     return newSession.id;
   };
 
-  // Restore session to current tab
-  const restoreSession = (session: HistorySession) => {
-    setMethod(session.method as any);
-    setUrl(session.url);
-    setHeaders(session.headers.map(h => ({ key: h.key, value: h.value, description: '', enabled: true, isAuto: false })));
-    setBody(session.body);
-    setRequestName(session.name);
-    setHasUnsavedChanges(true);
-    message.success('Restored to current Tab');
-  };
-
-  // Filter tabs by search
+   // Filter tabs by search
   const filteredTabs = tabs.filter(t =>
     t.name.toLowerCase().includes(searchText.toLowerCase()) ||
     t.request.url.toLowerCase().includes(searchText.toLowerCase())
@@ -1641,7 +1630,7 @@ pm.variables.set("timestamp", Date.now().toString());
       </Card>
 
       {/* Main Content */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingBottom: isHistoryExpanded ? 140 : 32 }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingBottom: isHistoryExpanded ? 118 : 32 }}>
         {/* Left Panel */}
         <div style={{ width: 220, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: 12, borderBottom: '1px solid #f0f0f0' }}>
@@ -2927,7 +2916,7 @@ pm.variables.set("timestamp", Date.now().toString());
       {/* History Session Bar */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #e8e8e8', zIndex: 100, boxShadow: '0 -2px 8px rgba(0,0,0,0.08)' }}>
         {/* Collapsed Title Bar */}
-        <div onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', cursor: 'pointer', background: '#fafafa' }}>
+        <div onClick={() => setIsHistoryExpanded(!isHistoryExpanded)} style={{ height: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', cursor: 'pointer', background: '#fafafa' }}>
           <Space size="middle">
             <span style={{ fontSize: 12, color: '#666' }}>{isHistoryExpanded ? '▼' : '▲'} 请求历史（团队共享，不可删除）</span>
            <span style={{ fontSize: 11, color: '#999' }}>（total {historySessions.length}）</span>
@@ -2941,7 +2930,7 @@ pm.variables.set("timestamp", Date.now().toString());
 
         {/* Expanded Content */}
         {isHistoryExpanded && (
-          <div style={{ height: 100, overflowX: 'auto', overflowY: 'hidden', padding: '8px 16px', display: 'flex', gap: 12 }}>
+          <div style={{ height: 90, overflowX: 'auto', overflowY: 'hidden', padding: '8px 16px', display: 'flex', gap: 10 }}>
             {historySessions.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: '#999', fontSize: 12 }}>No history</div>
             ) : (
@@ -2972,13 +2961,12 @@ pm.variables.set("timestamp", Date.now().toString());
                       } : null);
                       message.info('History loaded, click "Restore" to fill request to current Tab');
                     }}
-                    style={{ minWidth: 200, maxWidth: 200, border: '1px solid #e8e8e8', borderRadius: 6, padding: 12, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8' }}
+                    style={{ minWidth: 160, maxWidth: 160, height: 74, border: '1px solid #e8e8e8', borderRadius: 6, padding: 8, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8', overflow: 'hidden' }}
                                    >
                     {/* Star button */}
                     <Button type="text" size="small" icon={session.isSaved ? <StarFilled style={{ color: '#fa8c16' }} /> : <StarOutlined style={{ color: '#999' }} />} onClick={(e) => {
                       e.stopPropagation();
                       if (session.isSaved) {
-                        // Confirm before un-starring
                         Modal.confirm({
                           title: '取消标记确认',
                           content: session.markedBy ? `此记录由 ${session.markedBy} 标记，取消标记将影响团队共识交付物确认。是否继续？` : '确定要取消标记吗？',
@@ -2989,65 +2977,36 @@ pm.variables.set("timestamp", Date.now().toString());
                           }
                         });
                       } else {
-                        // Mark as starred - set marker info
                         const now = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0') + '-' + String(new Date().getDate()).padStart(2, '0') + ' ' + String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0');
                         setHistorySessions(prev => prev.map(s => s.id === session.id ? { ...s, isSaved: true, markedBy: 'User', markedAt: now } : s));
                       }
-                    }} style={{ position: 'absolute', top: 4, left: 4, fontSize: 10, padding: 0, width: 20, height: 20 }} />
+                    }} style={{ position: 'absolute', top: 2, left: 2, fontSize: 9, padding: 0, width: 16, height: 16 }} />
                     {/* Status indicator */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                      <span style={{ fontSize: 10 }}>{isSuccess ? '🟢' : '🔴'}</span>
-                      <Text strong style={{ fontSize: 12 }} ellipsis>{session.name}</Text>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, paddingLeft: 18 }}>
+                      <span style={{ fontSize: 9 }}>{isSuccess ? '🟢' : '🔴'}</span>
+                      <Text strong style={{ fontSize: 11 }} ellipsis>{session.name}</Text>
                     </div>
-                    {/* Method, path, status */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                      <Tag style={{ fontSize: 9, padding: '0 2px', margin: 0, background: getMethodColor(session.method), border: 'none', color: '#fff' }}>{session.method}</Tag>
-                      <Text style={{ fontSize: 11, color: '#666' }} ellipsis>{path}</Text>
+                    {/* Method, path */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                      <Tag style={{ fontSize: 8, padding: '0 2px', margin: 0, background: getMethodColor(session.method), border: 'none', color: '#fff' }}>{session.method}</Tag>
+                      <Text style={{ fontSize: 10, color: '#666' }} ellipsis>{path}</Text>
                     </div>
                     {/* Status and duration */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                       {session.status > 0 && (
                         <>
-                          <span style={{ fontSize: 10, color: isSuccess ? '#52c41a' : '#ff4d4f', fontWeight: 500 }}>{session.status} {session.statusText}</span>
-                          <span style={{ fontSize: 10, color: '#999' }}>{session.duration}ms</span>
+                          <span style={{ fontSize: 9, color: isSuccess ? '#52c41a' : '#ff4d4f', fontWeight: 500 }}>{session.status}</span>
+                          <span style={{ fontSize: 9, color: '#999' }}>{session.duration}ms</span>
                         </>
                       )}
                       {session.status === 0 && (
-                        <span style={{ fontSize: 10, color: '#999' }}>{session.statusText || 'Not sent'}</span>
+                        <span style={{ fontSize: 9, color: '#999' }}>{session.statusText || 'Not sent'}</span>
                       )}
                     </div>
                     {/* Timestamp */}
-                    <div style={{ marginBottom: 4 }}>
-                      <Text type="secondary" style={{ fontSize: 10 }}>{session.timestamp}</Text>
-                      {session.operator && <Text type="secondary" style={{ fontSize: 10, marginLeft: 8 }}>by {session.operator}</Text>}
-                    </div>
-                    {session.isSaved && session.markedBy && (
-                      <div style={{ marginBottom: 8 }}>
-                        <Text style={{ fontSize: 9, color: '#fa8c16' }}>⭐ {session.markedBy} {session.markedAt}</Text>
-                      </div>
-                    )}
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); restoreSession(session); }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>Restore</Button>
-                      <Button type="link" size="small" onClick={(e) => {
-                        e.stopPropagation();
-                        const exportData = {
-                          name: session.name,
-                          method: session.method,
-                          url: session.url,
-                          headers: session.headers || [],
-                          body: session.body || '',
-                          timestamp: session.timestamp,
-                        };
-                        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `api_debug_${session.name.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.json`;
-                        a.click();
-                        URL.revokeObjectURL(url);
-                        message.success('Export Successful');
-                      }} style={{ fontSize: 10, padding: 0, height: 'auto' }}>Export</Button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Text type="secondary" style={{ fontSize: 9 }}>{session.timestamp}</Text>
+                      {session.operator && <Text type="secondary" style={{ fontSize: 9 }}>by {session.operator}</Text>}
                     </div>
                   </div>
                 );
