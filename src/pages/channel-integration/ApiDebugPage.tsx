@@ -431,6 +431,10 @@ pm.variables.set("timestamp", Date.now().toString());
   const [renamingTab, setRenamingTab] = useState<RequestTab | null>(null);
   const [newTabName, setNewTabName] = useState('');
 
+  // New Scene modal
+  const [isNewSceneModalOpen, setIsNewSceneModalOpen] = useState(false);
+  const [newSceneName, setNewSceneName] = useState('');
+
   // Context menu
   const [contextMenuTab, setContextMenuTab] = useState<RequestTab | null>(null);
 
@@ -914,11 +918,15 @@ pm.variables.set("timestamp", Date.now().toString());
     );
   };
 
-  // Create new tab
+  // Create new tab - open modal
   const createNewTab = () => {
-    const sceneName = prompt('请输入场景名称 / Enter scene name:', '');
-    if (sceneName === null) return; // User cancelled
-    const name = sceneName.trim() || 'new_scene';
+    setNewSceneName('');
+    setIsNewSceneModalOpen(true);
+  };
+
+  // Confirm create new scene
+  const handleCreateNewScene = () => {
+    const name = newSceneName.trim() || 'new_scene';
     const newTab: RequestTab = {
       id: 'tc_' + Date.now(),
       name: name,
@@ -930,6 +938,8 @@ pm.variables.set("timestamp", Date.now().toString());
     setTabs([...tabs, newTab]);
     setActiveTabId(newTab.id);
     setActiveRequestTab('params');
+    setIsNewSceneModalOpen(false);
+    setNewSceneName('');
   };
 
   // Close tab
@@ -972,6 +982,37 @@ pm.variables.set("timestamp", Date.now().toString());
       setIsRenameModalOpen(false);
       message.success('Renamed');
     }
+  };
+
+  // Save current Request Builder config as scene
+  const handleSaveScene = () => {
+    if (!requestName.trim()) {
+      message.warning('请输入场景名称');
+      return;
+    }
+    const newTab: RequestTab = {
+      id: 'tc_' + Date.now(),
+      name: requestName.trim(),
+      method,
+      status: 'none',
+      request: { url, headers: headers.filter(h => h.enabled && h.key).map(h => ({ key: h.key, value: h.value })), body },
+      createdBy: 'User'
+    };
+    setTabs([...tabs, newTab]);
+    setActiveTabId(newTab.id);
+    message.success('场景已保存');
+  };
+
+  // Load scene config into Request Builder
+  const loadScene = (tab: RequestTab) => {
+    setMethod(tab.method);
+    setUrl(tab.request.url);
+    setHeaders(tab.request.headers.map(h => ({ key: h.key, value: h.value, description: '', enabled: true, isAuto: false })));
+    setBody(tab.request.body);
+    setRequestName(tab.name);
+    setActiveTabId(tab.id);
+    setHasUnsavedChanges(false);
+    message.success('场景已加载');
   };
 
   // Send request with full execution flow
@@ -1613,7 +1654,7 @@ pm.variables.set("timestamp", Date.now().toString());
                 <div style={{ padding: 12 }}><Text type="secondary" style={{ fontSize: 11 }}>No scenes</Text></div>
               ) : (
                 filteredTabs.map(tab => (
-                  <div key={tab.id} onClick={() => setActiveTabId(tab.id)} style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', cursor: 'pointer', background: activeTabId === tab.id ? '#e6f7ff' : 'transparent', borderBottom: '1px solid #f5f5f5', gap: 6 }}>
+                  <div key={tab.id} onClick={() => loadScene(tab)} onDoubleClick={() => openRenameModal(tab)} style={{ display: 'flex', alignItems: 'center', padding: '6px 12px', cursor: 'pointer', background: activeTabId === tab.id ? '#e6f7ff' : 'transparent', borderBottom: '1px solid #f5f5f5', gap: 6 }}>
                     <span style={{ width: 6, height: 6, borderRadius: '50%', background: getStatusDotColor(tab), flexShrink: 0 }} />
                     <Tag style={{ fontSize: 9, padding: '0 2px', margin: 0, background: getMethodColor(tab.method), border: 'none', color: '#fff' }}>{tab.method}</Tag>
                     <Text ellipsis style={{ flex: 1, fontSize: 12 }}>{tab.name}</Text>
@@ -1708,8 +1749,9 @@ pm.variables.set("timestamp", Date.now().toString());
 
           {/* Interface Name Row */}
           <div style={{ height: 32, borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>Interface name:</Text>
-            <Input placeholder="Optional, for saving test case" value={requestName} onChange={(e) => { setRequestName(e.target.value); setHasUnsavedChanges(true); }} bordered={false} style={{ flex: 1, fontSize: 12 }} />
+            <Text type="secondary" style={{ fontSize: 12 }}>场景名称:</Text>
+            <Input placeholder="输入场景名称" value={requestName} onChange={(e) => { setRequestName(e.target.value); setHasUnsavedChanges(true); }} bordered={false} style={{ flex: 1, fontSize: 12 }} />
+            <Button size="small" type="primary" onClick={handleSaveScene} disabled={!requestName.trim()}>保存场景</Button>
           </div>
 
           {/* Request Content Tabs */}
@@ -2830,9 +2872,16 @@ pm.variables.set("timestamp", Date.now().toString());
       </div>
 
       {/* Rename Modal */}
-      <Modal title="Rename Test Case" open={isRenameModalOpen} onOk={handleRename} onCancel={() => setIsRenameModalOpen(false)}>
+      <Modal title="重命名场景" open={isRenameModalOpen} onOk={handleRename} onCancel={() => setIsRenameModalOpen(false)}>
         <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="Test Case Name"><Input value={newTabName} onChange={(e) => setNewTabName(e.target.value)} placeholder="Please enter test case name" /></Form.Item>
+          <Form.Item label="场景名称"><Input value={newTabName} onChange={(e) => setNewTabName(e.target.value)} placeholder="请输入场景名称" /></Form.Item>
+        </Form>
+      </Modal>
+
+      {/* New Scene Modal */}
+      <Modal title="新建场景" open={isNewSceneModalOpen} onOk={handleCreateNewScene} onCancel={() => setIsNewSceneModalOpen(false)}>
+        <Form layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item label="场景名称"><Input value={newSceneName} onChange={(e) => setNewSceneName(e.target.value)} placeholder="请输入场景名称，如：支付-异常金额" /></Form.Item>
         </Form>
       </Modal>
 
