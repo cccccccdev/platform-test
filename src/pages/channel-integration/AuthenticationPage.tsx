@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Breadcrumb, Typography, Table, Button, Space, Modal, Form, Input, Select, Tag, message } from 'antd';
+import { Breadcrumb, Typography, Table, Button, Modal, Form, Input, Select, Tag } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { mockCredentials } from '../../mock/data';
@@ -70,11 +70,6 @@ export default function AuthenticationPage() {
       scopes: auth.credentials?.scopes,
     });
     setIsModalOpen(true);
-  };
-
-  const handleDeleteAuth = (id: string) => {
-    setAuthConfigs(prev => prev.filter(a => a.id !== id));
-    message.success('Deleted successfully', 2);
   };
 
   const handleModalOk = () => {

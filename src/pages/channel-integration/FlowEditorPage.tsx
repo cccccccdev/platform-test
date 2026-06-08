@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio } from 'antd';
+import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio, Switch } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined } from '@ant-design/icons';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
 import type { Node, Edge, Connection } from '@xyflow/react';
@@ -688,10 +688,14 @@ function NetworkConfigDrawer({
   visible,
   code,
   name,
-  endpoints,
+  endpoints: _externalEndpoints,
   generatedFields,
   isMappingActive,
   onMappingActiveChange,
+  onMappingContextChange,
+  activeMappingContext,
+  selectedContextField,
+  onFieldSelect,
   onClose,
   onSave,
 }: {
@@ -702,31 +706,39 @@ function NetworkConfigDrawer({
   generatedFields: any[];
   isMappingActive?: boolean;
   onMappingActiveChange?: (active: boolean) => void;
+  onMappingContextChange?: (context: { section: string; rowIndex: number } | null) => void;
+  activeMappingContext?: { section: string; rowIndex: number } | null;
+  // Selected field from Context panel - passed from parent when user selects a field
+  selectedContextField?: string | null;
+  // Callback for when user selects a field from Context panel
+  onFieldSelect?: (fieldPath: string) => void;
   onClose: () => void;
   onSave: (config: any) => void;
 }) {
-  const [activeTab, setActiveTab] = useState('basic');
-  const [activeMappingContext, setActiveMappingContext] = useState<{ section: string; rowIndex: number } | null>(null);
-  void isMappingActive; // passed to ContextPanel via parent
-  void onMappingActiveChange; // used to signal parent when mapping mode is entered
+  const [activeTab, setActiveTab] = useState('endpointBasicInfo');
+  const [localMappingContext, setLocalMappingContext] = useState<{ section: string; rowIndex: number } | null>(null);
+  // Use prop if provided, otherwise use local state
+  const effectiveMappingContext = activeMappingContext !== undefined ? activeMappingContext : localMappingContext;
+  const setEffectiveMappingContext = activeMappingContext !== undefined ? (onMappingContextChange ?? setLocalMappingContext) : setLocalMappingContext;
+  // Ref to store the pending context for field selection
+  const pendingContextRef = useRef<{ section: string; rowIndex: number } | null>(null);
+
+  // localConfig stores the endpoint configuration (single endpoint per network)
   const [localConfig, setLocalConfig] = useState<any>({
-    endpointId: '',
-    // Basic Info
-    protocol: 'HTTPS',
+    // Endpoint basic info - path is the endpoint name
     path: '',
     method: 'POST',
-    requestSample: '',
-    responseSample: '',
-    // Request Mapping
-    requestMappingMode: 'default', // default | custom
-    pathVariables: [],
-    queryParams: [],
-    requestHeaders: [],
-    requestBody: [],
-    // Response Mapping
-    responseMappingMode: 'default',
-    responseHeaders: [],
-    responseBody: [],
+    protocol: 'HTTPS',
+    // Security
+    authId: null as string | null, // Reference to auth from Authentication page
+    signature: { enabled: false, algorithm: '', fields: [], secretSource: '', writeTo: 'header', headerName: '' },
+    encrypt: '',
+    decrypt: '',
+    verify: '',
+    // Request fields with inline mapping
+    requestFields: [],
+    // Response fields with inline mapping
+    responseFields: [],
     // Response Code
     responseCodeFields: [],
     responseMessageFields: [],
@@ -734,15 +746,63 @@ function NetworkConfigDrawer({
 
   // Sync mapping active state to parent via callback
   useEffect(() => {
-    if (activeMappingContext) {
+    if (effectiveMappingContext) {
+      pendingContextRef.current = effectiveMappingContext;
       onMappingActiveChange?.(true);
     }
-  }, [activeMappingContext, onMappingActiveChange]);
+  }, [effectiveMappingContext, onMappingActiveChange]);
 
-  const selectedEndpoint = endpoints.find(ep => ep.id === localConfig.endpointId);
+  // When isMappingActive becomes false, check if we have a pending context that needs clearing
+  useEffect(() => {
+    if (!isMappingActive && pendingContextRef.current) {
+      pendingContextRef.current = null;
+    }
+  }, [isMappingActive]);
 
-  const updateConfig = (updates: any) => {
+  // Watch selectedContextField prop - when parent sets this, update local config
+  useEffect(() => {
+    if (selectedContextField && pendingContextRef.current) {
+      const context = pendingContextRef.current;
+      const { section, rowIndex } = context;
+      setLocalConfig((prev: any) => {
+        const currentData = prev[section] || [];
+        const newData = [...currentData];
+        newData[rowIndex] = { ...newData[rowIndex], spiField: selectedContextField };
+        return { ...prev, [section]: newData };
+      });
+      pendingContextRef.current = null;
+      onFieldSelect?.(selectedContextField);
+    }
+  }, [selectedContextField, onFieldSelect]);
+
+  const updateConfig = useCallback((updates: any) => {
     setLocalConfig((prev: any) => ({ ...prev, ...updates }));
+  }, []);
+
+  // Add request field with inline mapping
+  const handleAddRequestField = () => {
+    const newField = { id: Date.now(), fieldName: '', spiField: '', mappingMode: 'direct' };
+    setLocalConfig((prev: any) => ({
+      ...prev,
+      requestFields: [...prev.requestFields, newField],
+    }));
+  };
+
+  // Add response field with inline mapping
+  const handleAddResponseField = () => {
+    const newField = { id: Date.now(), fieldName: '', spiField: '', mappingMode: 'direct' };
+    setLocalConfig((prev: any) => ({
+      ...prev,
+      responseFields: [...prev.responseFields, newField],
+    }));
+  };
+
+  // Activate mapping mode for a specific field
+  const handleActivateMapping = (section: string, rowIndex: number) => {
+    const context = { section, rowIndex };
+    pendingContextRef.current = context;
+    setEffectiveMappingContext(context);
+    onMappingActiveChange?.(true);
   };
 
   const handleSave = () => {
@@ -750,89 +810,202 @@ function NetworkConfigDrawer({
     onClose();
   };
 
-  // Helper: Parse JSON sample to extract field paths
-  const parseJsonToFields = (jsonStr: string, prefix = ''): { label: string; value: string }[] => {
-    if (!jsonStr) return [];
-    try {
-      const obj = JSON.parse(jsonStr);
-      const fields: { label: string; value: string }[] = [];
+  // Endpoint Basic Info Tab - single endpoint per network, path is the name
+  const renderEndpointBasicInfoTab = () => (
+    <div style={{ maxHeight: 500, overflow: 'auto' }}>
+      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Endpoint 基本信息</Text>
 
-      const traverse = (o: any, path: string) => {
-        if (o && typeof o === 'object') {
-          Object.keys(o).forEach(key => {
-            const currentPath = path ? `${path}.${key}` : key;
-            if (typeof o[key] === 'object' && o[key] !== null && !Array.isArray(o[key])) {
-              traverse(o[key], currentPath);
-            } else {
-              fields.push({ label: currentPath, value: currentPath });
-            }
-          });
-        }
-      };
-
-      traverse(obj, prefix);
-      return fields;
-    } catch {
-      return [];
-    }
-  };
-
-  // Get request body fields from requestSample
-  const requestBodyFields = parseJsonToFields(localConfig.requestSample);
-
-  // Get response body fields from responseSample
-  const responseBodyFields = parseJsonToFields(localConfig.responseSample);
-
-  // Request mapping section with Select dropdowns
-  const renderRequestMappingSection = (
-    title: string,
-    data: any[],
-    dataKey: string,
-    endpointFieldOptions: { label: string; value: string }[]
-  ) => (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Text strong style={{ fontSize: 12 }}>{title}</Text>
-        <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
-          const newData = [...data, { id: Date.now(), endpointField: '', spiField: '', mappingMode: 'direct' }];
-          updateConfig({ [dataKey]: newData });
-        }}>+ 添加</Button>
+      {/* Basic Info - Path is the endpoint name */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11 }}>Path (Endpoint Name)</Text>
+          <Input
+            size="small"
+            placeholder="/v3/charge"
+            value={localConfig.path}
+            onChange={e => updateConfig({ path: e.target.value })}
+          />
+        </div>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11 }}>Method</Text>
+          <Select
+            size="small"
+            style={{ width: '100%' }}
+            value={localConfig.method}
+            onChange={(val: any) => updateConfig({ method: val })}
+          >
+            <Select.Option value="GET">GET</Select.Option>
+            <Select.Option value="POST">POST</Select.Option>
+            <Select.Option value="PUT">PUT</Select.Option>
+            <Select.Option value="DELETE">DELETE</Select.Option>
+          </Select>
+        </div>
+        <div>
+          <Text type="secondary" style={{ fontSize: 11 }}>Protocol</Text>
+          <Select
+            size="small"
+            style={{ width: '100%' }}
+            value={localConfig.protocol}
+            onChange={(val: any) => updateConfig({ protocol: val })}
+          >
+            <Select.Option value="HTTP">HTTP</Select.Option>
+            <Select.Option value="HTTPS">HTTPS</Select.Option>
+          </Select>
+        </div>
       </div>
-      {data.length === 0 ? (
+    </div>
+  );
+
+  // Security Tab - Auth from Authentication page, plus Signature, Encrypt, Decrypt, Verify
+  const renderSecurityTab = () => (
+    <div style={{ maxHeight: 500, overflow: 'auto' }}>
+      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Security 配置</Text>
+
+      {/* Auth - Reference to Authentication page configured Auth */}
+      <div style={{ marginBottom: 16 }}>
+        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>认证 (Auth)</Text>
+        <Select
+          size="small"
+          style={{ width: 300 }}
+          placeholder="选择 Auth 配置"
+          value={localConfig.authId}
+          onChange={(val: any) => updateConfig({ authId: val })}
+          allowClear
+        >
+          {/* Mock auth options - in real app would come from Authentication page */}
+          <Select.Option value="auth_paystack_bearer">Paystack Bearer Token</Select.Option>
+          <Select.Option value="auth_paystack_apikey">Paystack API Key</Select.Option>
+          <Select.Option value="auth_stripe">Stripe API Key</Select.Option>
+        </Select>
+        <div style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
+          从 Authentication 页面配置的 Auth 中选择
+        </div>
+      </div>
+
+      {/* Signature - 加签 */}
+      <div style={{ marginBottom: 16 }}>
+        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>加签 (Signature)</Text>
+        <Space>
+          <Switch
+            size="small"
+            checked={localConfig.signature?.enabled}
+            onChange={(val: any) => updateConfig({ signature: { ...localConfig.signature, enabled: val } })}
+          />
+          <Text type="secondary" style={{ fontSize: 11 }}>Enabled</Text>
+        </Space>
+        {localConfig.signature?.enabled && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Select
+              size="small"
+              placeholder="Algorithm"
+              style={{ width: 150 }}
+              value={localConfig.signature?.algorithm}
+              onChange={(val: any) => updateConfig({ signature: { ...localConfig.signature, algorithm: val } })}
+            >
+              <Select.Option value="HMAC-SHA256">HMAC-SHA256</Select.Option>
+              <Select.Option value="HMAC-SHA512">HMAC-SHA512</Select.Option>
+              <Select.Option value="RSA-SHA256">RSA-SHA256</Select.Option>
+            </Select>
+            <Input
+              size="small"
+              placeholder="Fields (comma separated)"
+              value={localConfig.signature?.fields?.join(', ') || ''}
+              onChange={(e: any) => updateConfig({ signature: { ...localConfig.signature, fields: e.target.value.split(',') } })}
+            />
+            <Input
+              size="small"
+              placeholder="Secret source"
+              value={localConfig.signature?.secretSource || ''}
+              onChange={(e: any) => updateConfig({ signature: { ...localConfig.signature, secretSource: e.target.value } })}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Encrypt / Decrypt */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+        <div>
+          <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>加密 (Encrypt)</Text>
+          <Select
+            size="small"
+            style={{ width: '100%' }}
+            placeholder="Select"
+            value={localConfig.encrypt}
+            onChange={(val: any) => updateConfig({ encrypt: val })}
+            allowClear
+          >
+            <Select.Option value="AES-256-GCM">AES-256-GCM</Select.Option>
+            <Select.Option value="DES">DES</Select.Option>
+          </Select>
+        </div>
+        <div>
+          <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>解密 (Decrypt)</Text>
+          <Select
+            size="small"
+            style={{ width: '100%' }}
+            placeholder="Select"
+            value={localConfig.decrypt}
+            onChange={(val: any) => updateConfig({ decrypt: val })}
+            allowClear
+          >
+            <Select.Option value="AES-256-GCM">AES-256-GCM</Select.Option>
+            <Select.Option value="DES">DES</Select.Option>
+          </Select>
+        </div>
+      </div>
+
+      {/* Verify - 验签 */}
+      <div>
+        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>验签 (Verify)</Text>
+        <Select
+          size="small"
+          style={{ width: '100%' }}
+          placeholder="Select"
+          value={localConfig.verify}
+          onChange={(val: any) => updateConfig({ verify: val })}
+          allowClear
+        >
+          <Select.Option value="RSA-SHA256">RSA-SHA256</Select.Option>
+        </Select>
+      </div>
+    </div>
+  );
+
+  // Request Fields Tab - with inline SPI mapping
+  const renderRequestTab = () => (
+    <div style={{ maxHeight: 500, overflow: 'auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text strong style={{ fontSize: 12 }}>Request 字段映射</Text>
+        <Button type="link" size="small" icon={<PlusOutlined />} onClick={handleAddRequestField}>+ 添加字段</Button>
+      </div>
+
+      {localConfig.requestFields.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
-          暂无配置
+          暂无 Request 字段，点击上方添加
         </div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
           <thead>
             <tr style={{ background: '#fafafa' }}>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>Endpoint 字段</th>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '35%' }}>SPI 字段</th>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '15%' }}>模式</th>
+              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '35%' }}>字段名称</th>
+              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '40%' }}>SPI 字段</th>
               <th style={{ width: 40 }}></th>
             </tr>
           </thead>
           <tbody>
-            {data.map((item: any, idx: number) => (
+            {localConfig.requestFields.map((item: any, idx: number) => (
               <tr key={item.id || idx}>
                 <td style={{ padding: '2px' }}>
-                  <Select
+                  <Input
                     size="small"
-                    style={{ width: '100%' }}
-                    placeholder="选择字段"
-                    value={item.endpointField}
-                    onChange={val => {
-                      const newData = [...data];
-                      newData[idx] = { ...newData[idx], endpointField: val };
-                      updateConfig({ [dataKey]: newData });
+                    placeholder="字段名"
+                    value={item.fieldName}
+                    onChange={e => {
+                      const newData = [...localConfig.requestFields];
+                      newData[idx] = { ...newData[idx], fieldName: e.target.value };
+                      updateConfig({ requestFields: newData });
                     }}
-                    showSearch
-                    optionFilterProp="label"
-                  >
-                    {endpointFieldOptions.map(f => (
-                      <Select.Option key={f.value} value={f.value} label={f.label}>{f.label}</Select.Option>
-                    ))}
-                  </Select>
+                  />
                 </td>
                 <td style={{ padding: '2px' }}>
                   <div
@@ -846,32 +1019,14 @@ function NetworkConfigDrawer({
                       background: item.spiField ? '#fafafa' : '#fff',
                       color: item.spiField ? '#333' : '#bfbfbf',
                     }}
-                    onClick={() => {
-                      setActiveMappingContext({ section: dataKey, rowIndex: idx });
-                      onMappingActiveChange?.(true);
-                    }}
+                    onClick={() => handleActivateMapping('requestFields', idx)}
                   >
                     {item.spiField || '点击选择SPI字段'}
                   </div>
                 </td>
-                <td style={{ padding: '2px' }}>
-                  <Select
-                    size="small"
-                    style={{ width: '100%' }}
-                    value={item.mappingMode || 'direct'}
-                    onChange={val => {
-                      const newData = [...data];
-                      newData[idx] = { ...newData[idx], mappingMode: val };
-                      updateConfig({ [dataKey]: newData });
-                    }}
-                  >
-                    <Select.Option value="direct">直接赋值</Select.Option>
-                    <Select.Option value="fixed">固定值</Select.Option>
-                  </Select>
-                </td>
                 <td>
                   <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => {
-                    updateConfig({ [dataKey]: data.filter((_: any, i: number) => i !== idx) });
+                    updateConfig({ requestFields: localConfig.requestFields.filter((_: any, i: number) => i !== idx) });
                   }} />
                 </td>
               </tr>
@@ -882,56 +1037,41 @@ function NetworkConfigDrawer({
     </div>
   );
 
-  // Response mapping section with Select dropdowns
-  const renderResponseMappingSection = (
-    title: string,
-    data: any[],
-    dataKey: string,
-    endpointFieldOptions: { label: string; value: string }[]
-  ) => (
-    <div style={{ marginBottom: 16 }}>
+  // Response Fields Tab - with inline SPI mapping
+  const renderResponseTab = () => (
+    <div style={{ maxHeight: 500, overflow: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Text strong style={{ fontSize: 12 }}>{title}</Text>
-        <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
-          const newData = [...data, { id: Date.now(), endpointField: '', spiField: '', mappingMode: 'direct' }];
-          updateConfig({ [dataKey]: newData });
-        }}>+ 添加</Button>
+        <Text strong style={{ fontSize: 12 }}>Response 字段映射</Text>
+        <Button type="link" size="small" icon={<PlusOutlined />} onClick={handleAddResponseField}>+ 添加字段</Button>
       </div>
-      {data.length === 0 ? (
+
+      {localConfig.responseFields.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
-          暂无配置
+          暂无 Response 字段，点击上方添加
         </div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
           <thead>
             <tr style={{ background: '#fafafa' }}>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>Response 字段</th>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '35%' }}>SPI 字段</th>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '15%' }}>模式</th>
+              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '35%' }}>字段名称</th>
+              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '40%' }}>SPI 字段</th>
               <th style={{ width: 40 }}></th>
             </tr>
           </thead>
           <tbody>
-            {data.map((item: any, idx: number) => (
+            {localConfig.responseFields.map((item: any, idx: number) => (
               <tr key={item.id || idx}>
                 <td style={{ padding: '2px' }}>
-                  <Select
+                  <Input
                     size="small"
-                    style={{ width: '100%' }}
-                    placeholder="选择字段"
-                    value={item.endpointField}
-                    onChange={val => {
-                      const newData = [...data];
-                      newData[idx] = { ...newData[idx], endpointField: val };
-                      updateConfig({ [dataKey]: newData });
+                    placeholder="字段名"
+                    value={item.fieldName}
+                    onChange={e => {
+                      const newData = [...localConfig.responseFields];
+                      newData[idx] = { ...newData[idx], fieldName: e.target.value };
+                      updateConfig({ responseFields: newData });
                     }}
-                    showSearch
-                    optionFilterProp="label"
-                  >
-                    {endpointFieldOptions.map(f => (
-                      <Select.Option key={f.value} value={f.value} label={f.label}>{f.label}</Select.Option>
-                    ))}
-                  </Select>
+                  />
                 </td>
                 <td style={{ padding: '2px' }}>
                   <div
@@ -945,358 +1085,20 @@ function NetworkConfigDrawer({
                       background: item.spiField ? '#fafafa' : '#fff',
                       color: item.spiField ? '#333' : '#bfbfbf',
                     }}
-                    onClick={() => {
-                      setActiveMappingContext({ section: dataKey, rowIndex: idx });
-                      onMappingActiveChange?.(true);
-                    }}
+                    onClick={() => handleActivateMapping('responseFields', idx)}
                   >
                     {item.spiField || '点击选择SPI字段'}
                   </div>
                 </td>
-                <td style={{ padding: '2px' }}>
-                  <Select
-                    size="small"
-                    style={{ width: '100%' }}
-                    value={item.mappingMode || 'direct'}
-                    onChange={val => {
-                      const newData = [...data];
-                      newData[idx] = { ...newData[idx], mappingMode: val };
-                      updateConfig({ [dataKey]: newData });
-                    }}
-                  >
-                    <Select.Option value="direct">直接赋值</Select.Option>
-                    <Select.Option value="fixed">固定值</Select.Option>
-                  </Select>
-                </td>
                 <td>
                   <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => {
-                    updateConfig({ [dataKey]: data.filter((_: any, i: number) => i !== idx) });
+                    updateConfig({ responseFields: localConfig.responseFields.filter((_: any, i: number) => i !== idx) });
                   }} />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
-    </div>
-  );
-
-  // Basic Info Tab
-  const renderBasicInfoTab = () => (
-    <div>
-      <Divider style={{ marginTop: 0 }}>Endpoint 选择</Divider>
-      <Select
-        placeholder="请选择 Endpoint"
-        style={{ width: '100%' }}
-        value={localConfig.endpointId}
-        onChange={val => {
-          const ep = endpoints.find(e => e.id === val);
-          updateConfig({
-            endpointId: val,
-            protocol: ep?.protocol || 'HTTPS',
-            path: ep?.path || '',
-            method: ep?.method || 'POST',
-            requestSample: ep?.requestSample || '',
-            responseSample: ep?.responseSample || '',
-          });
-        }}
-      >
-        {endpoints.map(ep => (
-          <Select.Option key={ep.id} value={ep.id}>{ep.name}</Select.Option>
-        ))}
-      </Select>
-
-      {selectedEndpoint && (
-        <>
-          <Divider>Basic Information Details</Divider>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>Protocol</Text>
-              <div style={{ padding: '8px 12px', background: '#fafafa', borderRadius: 4, fontWeight: 500 }}>
-                {localConfig.protocol}
-              </div>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>Method</Text>
-              <div style={{ padding: '8px 12px', background: '#fafafa', borderRadius: 4, fontWeight: 500 }}>
-                {localConfig.method}
-              </div>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>Path</Text>
-              <div style={{ padding: '8px 12px', background: '#fafafa', borderRadius: 4, fontWeight: 500, wordBreak: 'break-all' }}>
-                {localConfig.path}
-              </div>
-            </div>
-          </div>
-
-          <Divider>Request 报文示例</Divider>
-          <div style={{ background: '#fafafa', padding: 12, borderRadius: 4, fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto' }}>
-            {localConfig.requestSample || '暂无请求报文示例'}
-          </div>
-
-          <Divider>Response 报文示例</Divider>
-          <div style={{ background: '#fafafa', padding: 12, borderRadius: 4, fontFamily: 'monospace', fontSize: 11, whiteSpace: 'pre-wrap', maxHeight: 150, overflow: 'auto' }}>
-            {localConfig.responseSample || '暂无响应报文示例'}
-          </div>
-
-          {selectedEndpoint?.security && (
-            <>
-              <Divider>Security</Divider>
-              {/* Auth Section */}
-              <div style={{ marginBottom: 16 }}>
-                <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>认证 (Auth)</Text>
-                <div style={{ background: '#fafafa', padding: 10, borderRadius: 4, fontSize: 11 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Tag color={selectedEndpoint.security.auth?.type !== 'None' ? 'blue' : 'default'} style={{ fontSize: 10 }}>
-                      {selectedEndpoint.security.auth?.type || 'None'}
-                    </Tag>
-                  </div>
-                  {selectedEndpoint.security.auth?.type === 'Bearer Token' && selectedEndpoint.security.auth?.config?.tokenSource && (
-                    <div style={{ color: '#666', fontSize: 10 }}>Token: {selectedEndpoint.security.auth.config.tokenSource}</div>
-                  )}
-                  {selectedEndpoint.security.auth?.type === 'API Key' && (
-                    <>
-                      <div style={{ color: '#666', fontSize: 10 }}>
-                        Key: {selectedEndpoint.security.auth?.config?.keyName || '-'} | Location: {selectedEndpoint.security.auth?.config?.location || 'header'}
-                      </div>
-                      <div style={{ color: '#666', fontSize: 10 }}>Value: {selectedEndpoint.security.auth?.config?.valueSource || '-'}</div>
-                    </>
-                  )}
-                  {selectedEndpoint.security.auth?.type === 'Basic Auth' && (
-                    <>
-                      <div style={{ color: '#666', fontSize: 10 }}>Username: {selectedEndpoint.security.auth?.config?.usernameSource || '-'}</div>
-                      <div style={{ color: '#666', fontSize: 10 }}>Password: {selectedEndpoint.security.auth?.config?.passwordSource || '-'}</div>
-                    </>
-                  )}
-                  {selectedEndpoint.security.auth?.type === 'OAuth2' && (
-                    <>
-                      <div style={{ color: '#666', fontSize: 10 }}>Token URL: {selectedEndpoint.security.auth?.config?.tokenUrl || '-'}</div>
-                      <div style={{ color: '#666', fontSize: 10 }}>Client ID: {selectedEndpoint.security.auth?.config?.clientIdSource || '-'}</div>
-                      <div style={{ color: '#666', fontSize: 10 }}>Client Secret: {selectedEndpoint.security.auth?.config?.clientSecretSource || '-'}</div>
-                    </>
-                  )}
-                  {selectedEndpoint.security.auth?.type === 'None' && (
-                    <div style={{ color: '#999', fontSize: 10 }}>不添加任何认证信息</div>
-                  )}
-                </div>
-              </div>
-
-              {/* Signature Section */}
-              <div style={{ marginBottom: 16 }}>
-                <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>加签 (Signature)</Text>
-                <div style={{ background: '#fafafa', padding: 10, borderRadius: 4, fontSize: 11 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Tag color={selectedEndpoint.security.signature?.enabled ? 'green' : 'default'} style={{ fontSize: 10 }}>
-                      {selectedEndpoint.security.signature?.enabled ? 'Enabled' : 'Disabled'}
-                    </Tag>
-                  </div>
-                  {selectedEndpoint.security.signature?.enabled && (
-                    <>
-                      <div style={{ color: '#666', fontSize: 10, marginBottom: 4 }}>
-                        Algorithm: <Tag style={{ fontSize: 9 }}>{selectedEndpoint.security.signature.algorithm || '-'}</Tag>
-                      </div>
-                      <div style={{ color: '#666', fontSize: 10, marginBottom: 4 }}>
-                        Fields: {selectedEndpoint.security.signature.fields?.join(' + ') || '-'}
-                      </div>
-                      <div style={{ color: '#666', fontSize: 10, marginBottom: 4 }}>
-                        Secret: {selectedEndpoint.security.signature.secretSource || '-'}
-                      </div>
-                      <div style={{ color: '#666', fontSize: 10 }}>
-                        Write to: {selectedEndpoint.security.signature.writeTo === 'header'
-                          ? `Header (${selectedEndpoint.security.signature.headerName || '-'})`
-                          : selectedEndpoint.security.signature.writeTo === 'body'
-                            ? `Body Field (${selectedEndpoint.security.signature.bodyField || '-'})`
-                            : `Query (${selectedEndpoint.security.signature.queryParam || '-'})`
-                        }
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Encryption Section */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <Text type="secondary" style={{ fontSize: 10 }}>加密 (Encrypt)</Text>
-                  <div style={{ padding: '6px 8px', background: '#fafafa', borderRadius: 4, fontSize: 11 }}>
-                    {selectedEndpoint.security.encrypt || '-'}
-                  </div>
-                </div>
-                <div>
-                  <Text type="secondary" style={{ fontSize: 10 }}>解密 (Decrypt)</Text>
-                  <div style={{ padding: '6px 8px', background: '#fafafa', borderRadius: 4, fontSize: 11 }}>
-                    {selectedEndpoint.security.decrypt || '-'}
-                  </div>
-                </div>
-              </div>
-
-              {/* Verify Section */}
-              <div style={{ marginTop: 12 }}>
-                <Text type="secondary" style={{ fontSize: 10 }}>验签 (Verify)</Text>
-                <div style={{ padding: '6px 8px', background: '#fafafa', borderRadius: 4, fontSize: 11 }}>
-                  {selectedEndpoint.security.verify || '-'}
-                </div>
-              </div>
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-
-  // Request Mapping Tab
-  const renderRequestMappingTab = () => (
-    <div style={{ maxHeight: 500, overflow: 'auto' }}>
-      <Divider style={{ marginTop: 0 }}>Component Instance 映射模式</Divider>
-      <Radio.Group
-        value={localConfig.requestMappingMode}
-        onChange={e => updateConfig({ requestMappingMode: e.target.value })}
-        style={{ marginBottom: 16 }}
-      >
-        <Radio.Button value="default">Default</Radio.Button>
-        <Radio.Button value="custom">Custom</Radio.Button>
-      </Radio.Group>
-
-      {localConfig.requestMappingMode === 'default' ? (
-        <>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
-            Default 模式：展示所有 Endpoint 字段，选择 SPI 字段完成映射
-          </Text>
-          <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Request Body 映射</Text>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr style={{ background: '#fafafa' }}>
-                  <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>Endpoint 字段</th>
-                  <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>SPI 字段</th>
-                  <th style={{ width: 40 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {requestBodyFields.length === 0 ? (
-                  <tr><td colSpan={3} style={{ padding: 16, textAlign: 'center', color: '#999' }}>请先在 Basic Info 选择 Endpoint</td></tr>
-                ) : (
-                  requestBodyFields.map((f: any) => (
-                    <tr key={f.value}>
-                      <td style={{ padding: '4px', background: '#f9f9f9' }}>
-                        <Text style={{ fontSize: 11 }}>{f.label}</Text>
-                      </td>
-                      <td style={{ padding: '2px' }}>
-                        <Select size="small" style={{ width: '100%' }} placeholder="选择SPI字段" allowClear>
-                          <Select.OptGroup label="🔵 spi.request">
-                            <Select.Option value="spi.request.amount">spi.request.amount</Select.Option>
-                            <Select.Option value="spi.request.currency">spi.request.currency</Select.Option>
-                            <Select.Option value="spi.request.reference">spi.request.reference</Select.Option>
-                            <Select.Option value="spi.request.accountNumber">spi.request.accountNumber</Select.Option>
-                            <Select.Option value="spi.request.bankCode">spi.request.bankCode</Select.Option>
-                            <Select.Option value="spi.request.email">spi.request.email</Select.Option>
-                          </Select.OptGroup>
-                          <Select.OptGroup label="🟢 generatedFields">
-                            {generatedFields.map((gf: any) => (
-                              <Select.Option key={gf.name} value={`generatedFields.${gf.name}`}>{gf.name}</Select.Option>
-                            ))}
-                          </Select.OptGroup>
-                        </Select>
-                      </td>
-                      <td></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : (
-        <>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
-            Custom 模式：通过脚本构建复杂映射逻辑
-          </Text>
-          {renderRequestMappingSection('Path Variables', localConfig.pathVariables, 'pathVariables', requestBodyFields)}
-          {renderRequestMappingSection('Query Parameters', localConfig.queryParams, 'queryParams', requestBodyFields)}
-          {renderRequestMappingSection('Request Headers', localConfig.requestHeaders, 'requestHeaders', [
-            { label: 'Authorization', value: 'Authorization' },
-            { label: 'Content-Type', value: 'Content-Type' },
-            { label: 'X-Api-Key', value: 'X-Api-Key' },
-          ])}
-          {renderRequestMappingSection('Request Body', localConfig.requestBody, 'requestBody', requestBodyFields)}
-        </>
-      )}
-    </div>
-  );
-
-  // Response Mapping Tab
-  const renderResponseMappingTab = () => (
-    <div style={{ maxHeight: 500, overflow: 'auto' }}>
-      <Divider style={{ marginTop: 0 }}>Component Instance 映射模式</Divider>
-      <Radio.Group
-        value={localConfig.responseMappingMode}
-        onChange={e => updateConfig({ responseMappingMode: e.target.value })}
-        style={{ marginBottom: 16 }}
-      >
-        <Radio.Button value="default">Default</Radio.Button>
-        <Radio.Button value="custom">Custom</Radio.Button>
-      </Radio.Group>
-
-      {localConfig.responseMappingMode === 'default' ? (
-        <>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
-            Default 模式：展示所有 Response 字段，选择 SPI 字段完成映射
-          </Text>
-          <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Response Body 映射</Text>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead>
-                <tr style={{ background: '#fafafa' }}>
-                  <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>Response 字段</th>
-                  <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '45%' }}>SPI 字段</th>
-                  <th style={{ width: 40 }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {responseBodyFields.length === 0 ? (
-                  <tr><td colSpan={3} style={{ padding: 16, textAlign: 'center', color: '#999' }}>请先在 Basic Info 选择 Endpoint</td></tr>
-                ) : (
-                  responseBodyFields.map((f: any) => (
-                    <tr key={f.value}>
-                      <td style={{ padding: '4px', background: '#f9f9f9' }}>
-                        <Text style={{ fontSize: 11 }}>{f.label}</Text>
-                      </td>
-                      <td style={{ padding: '2px' }}>
-                        <Select size="small" style={{ width: '100%' }} placeholder="选择SPI字段" allowClear>
-                          <Select.OptGroup label="🔵 channelResponse">
-                            <Select.Option value="channelResponse.status">channelResponse.status</Select.Option>
-                            <Select.Option value="channelResponse.message">channelResponse.message</Select.Option>
-                            <Select.Option value="channelResponse.reference">channelResponse.reference</Select.Option>
-                            <Select.Option value="channelResponse.data">channelResponse.data</Select.Option>
-                            <Select.Option value="channelResponse.code">channelResponse.code</Select.Option>
-                          </Select.OptGroup>
-                          <Select.OptGroup label="🟢 generatedFields">
-                            {generatedFields.map((gf: any) => (
-                              <Select.Option key={gf.name} value={`generatedFields.${gf.name}`}>{gf.name}</Select.Option>
-                            ))}
-                          </Select.OptGroup>
-                        </Select>
-                      </td>
-                      <td></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : (
-        <>
-          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 12 }}>
-            Custom 模式：通过脚本构建复杂映射逻辑
-          </Text>
-          {renderResponseMappingSection('Response Headers', localConfig.responseHeaders, 'responseHeaders', [
-            { label: 'Content-Type', value: 'Content-Type' },
-            { label: 'X-Request-Id', value: 'X-Request-Id' },
-          ])}
-          {renderResponseMappingSection('Response Body', localConfig.responseBody, 'responseBody', responseBodyFields)}
-        </>
       )}
     </div>
   );
@@ -1459,16 +1261,18 @@ function NetworkConfigDrawer({
         activeKey={activeTab}
         onChange={setActiveTab}
         items={[
-          { key: 'basic', label: 'Basic Info' },
-          { key: 'request', label: 'Request Mapping' },
-          { key: 'response', label: 'Response Mapping' },
+          { key: 'endpointBasicInfo', label: 'Endpoint Basic Info' },
+          { key: 'request', label: 'Request' },
+          { key: 'response', label: 'Response' },
+          { key: 'security', label: 'Security' },
           { key: 'code', label: 'Response Code' },
         ]}
       />
       <div style={{ marginTop: 16 }}>
-        {activeTab === 'basic' && renderBasicInfoTab()}
-        {activeTab === 'request' && renderRequestMappingTab()}
-        {activeTab === 'response' && renderResponseMappingTab()}
+        {activeTab === 'endpointBasicInfo' && renderEndpointBasicInfoTab()}
+        {activeTab === 'request' && renderRequestTab()}
+        {activeTab === 'response' && renderResponseTab()}
+        {activeTab === 'security' && renderSecurityTab()}
         {activeTab === 'code' && renderResponseCodeTab()}
       </div>
     </Drawer>
@@ -1990,11 +1794,33 @@ export default function FlowEditorPage() {
   // Mapping active state - controls whether Context panel fields are clickable for mapping
   const [isMappingActive, setIsMappingActive] = useState(false);
 
+  // Selected context field - passed to drawer when user selects from Context panel
+  const [selectedContextField, setSelectedContextField] = useState<string | null>(null);
+
+  // Active mapping context - which field in NetworkConfigDrawer is being mapped
+  const [activeMappingContext, setActiveMappingContext] = useState<{ section: string; rowIndex: number } | null>(null);
+
+  // Callback from NetworkConfigDrawer when user clicks SPI field
+  const handleMappingContextSet = useCallback((context: { section: string; rowIndex: number } | null) => {
+    setActiveMappingContext(context);
+    if (context) {
+      setIsMappingActive(true);
+      setSelectedContextField(null); // Reset selected field
+    }
+  }, []);
+
+  // Unsaved changes warning modal
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+
   // Handle field selection from Context panel when mapping is active
   const handleContextFieldSelect = useCallback((fieldPath: string) => {
-    // activeMappingContext is passed from NetworkConfigDrawer via onMappingContextChange
-    console.log('Field selected in mapping mode:', fieldPath);
-  }, []);
+    if (activeMappingContext) {
+      console.log('Field selected for mapping:', fieldPath, activeMappingContext);
+      // Set the selected field - drawer will pick it up via prop
+      setSelectedContextField(fieldPath);
+      setIsMappingActive(false);
+    }
+  }, [activeMappingContext]);
 
   // Handle connection between nodes
   const onConnect = useCallback((connection: Connection) => {
@@ -2206,6 +2032,10 @@ export default function FlowEditorPage() {
     message.success('Submitted successfully', 2);
   };
 
+  const performNavigation = () => {
+    navigate(-1);
+  };
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
@@ -2218,8 +2048,8 @@ export default function FlowEditorPage() {
         padding: '0 24px',
         gap: 16,
       }}>
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>
-          返回
+        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setShowUnsavedModal(true)}>
+          Back
         </Button>
         <Divider type="vertical" style={{ height: 24 }} />
         <Title level={5} style={{ margin: 0 }}>
@@ -2227,8 +2057,8 @@ export default function FlowEditorPage() {
         </Title>
         <div style={{ flex: 1 }} />
         <Space>
-          <Button icon={<SaveOutlined />} onClick={handleSave}>暂存</Button>
-          <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>提交</Button>
+          <Button icon={<SaveOutlined />} onClick={handleSave}>Save as draft</Button>
+          <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>Submit</Button>
         </Space>
       </div>
 
@@ -2315,6 +2145,13 @@ export default function FlowEditorPage() {
         generatedFields={mockGeneratedFields}
         isMappingActive={isMappingActive}
         onMappingActiveChange={setIsMappingActive}
+        activeMappingContext={activeMappingContext}
+        onMappingContextChange={handleMappingContextSet}
+        selectedContextField={selectedContextField}
+        onFieldSelect={(_field) => {
+          // When drawer selects a field, clear the selection
+          setSelectedContextField(null);
+        }}
         onClose={() => setShowNetworkDrawer(false)}
         onSave={(config) => {
           console.log('Network config saved:', config);
@@ -2390,6 +2227,26 @@ export default function FlowEditorPage() {
           message.success('Variable saved');
         }}
       />
+
+      {/* Unsaved Changes Warning Modal */}
+      <Modal
+        title="Unsaved Changes"
+        open={showUnsavedModal}
+        onCancel={() => setShowUnsavedModal(false)}
+        footer={[
+          <Button key="cancel" onClick={() => performNavigation()}>
+            Cancel
+          </Button>,
+          <Button key="saveDraft" onClick={() => { handleSave(); performNavigation(); }}>
+            Save as draft
+          </Button>,
+          <Button key="submit" type="primary" onClick={() => { handleSubmit(); performNavigation(); }}>
+            Submit
+          </Button>,
+        ]}
+      >
+        <p>You have unsaved changes. Please save, submit, or discard your changes before leaving.</p>
+      </Modal>
     </div>
   );
 }

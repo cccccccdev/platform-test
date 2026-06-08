@@ -61,7 +61,7 @@ export default function BasicInfoPage() {
   const { channelCode } = useParams<{ channelCode: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm();
-  const [channel, setChannel] = useState<Channel | null>(null);
+  const [, setChannel] = useState<Channel | null>(null);
 
   useEffect(() => {
     const found = mockChannels.find((c) => (c as unknown as Channel).code === channelCode);

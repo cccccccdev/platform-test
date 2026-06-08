@@ -7,7 +7,7 @@ import {
   ForkOutlined,
 } from '@ant-design/icons';
 
-const { Sider, Content, Header } = Layout;
+const { Sider, Content } = Layout;
 
 const menuItems = [
   { key: '/home', icon: <HomeOutlined />, label: '首页' },

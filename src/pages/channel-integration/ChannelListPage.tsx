@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Input, Space, Modal, Form, Select, Tag, Breadcrumb, Card, message, Dropdown, TreeSelect } from 'antd';
-import { DownOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Table, Button, Input, Space, Modal, Form, Select, Tag, Breadcrumb, Card, message, TreeSelect } from 'antd';
+import { CloseCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { mockChannels, countryOptions, partyOptions, businessTypeOptions } from '../../mock/data';
 import type { Channel } from './types';
@@ -95,7 +95,7 @@ export default function ChannelListPage() {
       return false;
     }
     // Party filter
-    if (searchTrigger && filterParty && c.party !== filterParty) {
+    if (searchTrigger && filterParty && !c.party.includes(filterParty)) {
       return false;
     }
     return true;
