@@ -1656,7 +1656,7 @@ pm.variables.set("timestamp", Date.now().toString());
       </Card>
 
       {/* Main Content */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingBottom: isHistoryExpanded ? 160 : 32 }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', paddingBottom: isHistoryExpanded ? 190 : 32 }}>
         {/* Left Panel */}
         <div style={{ width: 220, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: 12, borderBottom: '1px solid #f0f0f0' }}>
@@ -2956,7 +2956,7 @@ pm.variables.set("timestamp", Date.now().toString());
 
         {/* Expanded Content */}
         {isHistoryExpanded && (
-          <div style={{ height: 130, overflowX: 'auto', overflowY: 'auto', padding: '8px 16px', display: 'flex', gap: 10 }}>
+          <div style={{ height: 160, overflowX: 'auto', overflowY: 'auto', padding: '10px 16px', display: 'flex', gap: 12 }}>
             {historySessions.length === 0 ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', color: '#999', fontSize: 12 }}>No history</div>
             ) : (
@@ -2987,7 +2987,7 @@ pm.variables.set("timestamp", Date.now().toString());
                       } : null);
                       message.info('History loaded, click "Restore" to fill request to current Tab');
                     }}
-                    style={{ minWidth: 180, maxWidth: 180, height: 90, border: '1px solid #e8e8e8', borderRadius: 6, padding: 8, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8', overflow: 'hidden' }}
+                    style={{ minWidth: 220, maxWidth: 220, height: 110, border: '1px solid #e8e8e8', borderRadius: 6, padding: 10, background: '#fff', position: 'relative', flexShrink: 0, cursor: 'pointer', borderColor: isActive ? '#1890ff' : '#e8e8e8', overflow: 'hidden' }}
                                    >
                     {/* Star button */}
                     <Button type="text" size="small" icon={session.isSaved ? <StarFilled style={{ color: '#fa8c16' }} /> : <StarOutlined style={{ color: '#999' }} />} onClick={(e) => {
