@@ -116,6 +116,7 @@ const router = createBrowserRouter([
           { path: 'merchant', element: <MerchantPage /> },
           { path: 'capability', element: <CapabilityPage /> },
           { path: 'capability/stateMachine', element: <StateMachineListPage /> },
+          { path: 'stateMachine', element: <StateMachineListPage /> },
         ],
       },
     ],

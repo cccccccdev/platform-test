@@ -8,6 +8,7 @@ import {
   TransactionOutlined,
   ShopOutlined,
   UnorderedListOutlined,
+  ControlOutlined,
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -110,6 +111,13 @@ export default function BasicInfoIndex() {
       icon: <UnorderedListOutlined style={{ color: '#fa541c' }} />,
       color: '#fa541c',
       path: '/basic-info/merchant',
+    },
+    {
+      title: '状态机',
+      description: '维护状态机，关联到业务类型能力',
+      icon: <ControlOutlined style={{ color: '#1890ff' }} />,
+      color: '#1890ff',
+      path: '/basic-info/stateMachine',
     },
   ];
 
