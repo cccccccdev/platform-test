@@ -15,6 +15,7 @@ import {
   FileTextOutlined,
   MessageOutlined,
   UserOutlined,
+  ControlOutlined,
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -142,6 +143,7 @@ export default function HomePage() {
         { name: 'Response Code', path: '/basic-info/response-code', icon: <MessageOutlined /> },
         { name: 'Application', path: '/basic-info/application', icon: <AppstoreOutlined /> },
         { name: 'Service', path: '/basic-info/service', icon: <ApiOutlined /> },
+        { name: 'StateMachine', path: '/basic-info/stateMachine', icon: <ControlOutlined /> },
       ],
     },
     {
