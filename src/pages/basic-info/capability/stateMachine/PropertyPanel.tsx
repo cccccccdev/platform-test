@@ -1,16 +1,16 @@
-import { Typography, Input, Button, Divider, Select } from 'antd';
+import { Typography, Input, Button, Divider, Select, Popconfirm } from 'antd';
 import type { Node, Edge } from '@xyflow/react';
 
 const { Text } = Typography;
 const { TextArea } = Input;
 
-// Business status options
+// Business status options for normal states
 const BUSINESS_STATUS_OPTIONS = [
-  { label: 'success', value: 'success' },
-  { label: 'pending', value: 'pending' },
-  { label: 'fail', value: 'fail' },
-  { label: 'to_be_verify', value: 'to_be_verify' },
-  { label: 'init', value: 'init' },
+  { label: 'TO_BE_VERIFY', value: 'TO_BE_VERIFY' },
+  { label: 'VERIFYING', value: 'VERIFYING' },
+  { label: 'PENDING', value: 'PENDING' },
+  { label: 'SUCCESS', value: 'SUCCESS' },
+  { label: 'FAIL', value: 'FAIL' },
 ];
 
 // Use index signature to satisfy React Flow's Record<string, unknown> constraint
@@ -18,6 +18,7 @@ type NodeData = {
   name: string;
   description?: string;
   businessStatus?: string;
+  nodeType?: 'init' | 'state';
   [key: string]: unknown;
 };
 
@@ -42,6 +43,10 @@ function getNodeName(nodes: Node<NodeData>[], nodeId: string): string {
   const node = nodes.find(n => n.id === nodeId);
   const name = node?.data?.name;
   return typeof name === 'string' ? name : nodeId;
+}
+
+function isInitNode(node: Node<NodeData>): boolean {
+  return node.data?.nodeType === 'init' || node.data?.name === 'INIT';
 }
 
 export default function PropertyPanel({
@@ -98,6 +103,16 @@ export default function PropertyPanel({
 
   // Edge selected
   if (selectedEdge) {
+    const sourceNode = nodes.find(n => n.id === selectedEdge.source);
+    const targetNode = nodes.find(n => n.id === selectedEdge.target);
+    const isSourceEndNode = sourceNode?.data?.businessStatus === 'SUCCESS' || sourceNode?.data?.businessStatus === 'FAIL';
+    const wouldCreateDuplicate = nodes.some(n =>
+      n.id !== selectedEdge.source &&
+      edges.some(e => e.id !== selectedEdge.id && e.source === selectedEdge.target && e.target === n.id)
+    );
+
+    const canSwap = !isSourceEndNode && !wouldCreateDuplicate;
+
     return (
       <div
         style={{
@@ -134,9 +149,15 @@ export default function PropertyPanel({
           </div>
 
           {/* Swap Direction Button */}
-          <Button block onClick={() => onEdgeEndpointsUpdate(selectedEdge.id, selectedEdge.target, selectedEdge.source)}>
-            Swap Direction
-          </Button>
+          <Popconfirm
+            title="Swap direction?"
+            onConfirm={() => onEdgeEndpointsUpdate(selectedEdge.id, selectedEdge.target, selectedEdge.source)}
+            disabled={!canSwap}
+          >
+            <Button block disabled={!canSwap}>
+              Swap Direction
+            </Button>
+          </Popconfirm>
 
           {/* Description / Label */}
           <div>
@@ -146,16 +167,21 @@ export default function PropertyPanel({
             <Input
               value={selectedEdge.data?.label || ''}
               onChange={e => onEdgeLabelUpdate(selectedEdge.id, e.target.value)}
-              placeholder="Enter description"
+              placeholder="Enter description (optional)"
             />
           </div>
 
           <Divider style={{ margin: '8px 0' }} />
 
           {/* Delete Edge Button */}
-          <Button danger type="primary" block onClick={() => onDeleteEdge(selectedEdge.id)}>
-            Delete Edge
-          </Button>
+          <Popconfirm
+            title="Delete this edge?"
+            onConfirm={() => onDeleteEdge(selectedEdge.id)}
+          >
+            <Button danger type="primary" block>
+              Delete Edge
+            </Button>
+          </Popconfirm>
         </div>
       </div>
     );
@@ -163,6 +189,7 @@ export default function PropertyPanel({
 
   // Node selected
   if (selectedNode) {
+    const isInit = isInitNode(selectedNode);
     // Find incoming and outgoing edges for this node
     const incomingEdges = edges.filter(e => e.target === selectedNode.id);
     const outgoingEdges = edges.filter(e => e.source === selectedNode.id);
@@ -195,12 +222,19 @@ export default function PropertyPanel({
           {/* Node Name */}
           <div>
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-              Node Name
+              Node Name {isInit && <span style={{ color: '#ff4d4f' }}>*</span>}
             </Text>
             <Input
               value={selectedNode.data.name}
               onChange={e => onNodeUpdate(selectedNode.id, { name: e.target.value })}
+              disabled={isInit}
+              placeholder={isInit ? 'INIT' : 'Enter node name'}
             />
+            {isInit && (
+              <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
+                INIT node name is fixed
+              </Text>
+            )}
           </div>
 
           {/* Description */}
@@ -219,16 +253,30 @@ export default function PropertyPanel({
           {/* Business Status Mapping */}
           <div>
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-              Business Status Mapping
+              Business Status Mapping {isInit && <span style={{ color: '#ff4d4f' }}>*</span>}
             </Text>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="Select business status"
-              value={selectedNode.data.businessStatus}
-              onChange={value => onNodeUpdate(selectedNode.id, { businessStatus: value })}
-              options={BUSINESS_STATUS_OPTIONS}
-              allowClear
-            />
+            {isInit ? (
+              <Select
+                style={{ width: '100%' }}
+                value="INIT"
+                disabled
+                options={[{ label: 'INIT', value: 'INIT' }]}
+              />
+            ) : (
+              <Select
+                style={{ width: '100%' }}
+                placeholder="Select business status"
+                value={selectedNode.data.businessStatus}
+                onChange={value => onNodeUpdate(selectedNode.id, { businessStatus: value })}
+                options={BUSINESS_STATUS_OPTIONS}
+                allowClear
+              />
+            )}
+            {isInit && (
+              <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
+                INIT status is fixed
+              </Text>
+            )}
           </div>
 
           <Divider style={{ margin: '8px 0' }} />
@@ -272,9 +320,16 @@ export default function PropertyPanel({
           <Divider style={{ margin: '8px 0' }} />
 
           {/* Delete Node Button */}
-          <Button danger type="primary" block onClick={() => onDeleteNode(selectedNode.id)}>
-            Delete Node
-          </Button>
+          <Popconfirm
+            title={incomingEdges.length > 0 || outgoingEdges.length > 0
+              ? 'Delete this node? Related edges will also be deleted.'
+              : 'Delete this node?'}
+            onConfirm={() => onDeleteNode(selectedNode.id)}
+          >
+            <Button danger type="primary" block>
+              Delete Node
+            </Button>
+          </Popconfirm>
         </div>
       </div>
     );

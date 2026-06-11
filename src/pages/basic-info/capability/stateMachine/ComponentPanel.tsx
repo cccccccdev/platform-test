@@ -28,6 +28,50 @@ export default function ComponentPanel() {
       </div>
 
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* INIT State Card */}
+        <div
+          draggable
+          onDragStart={e => onDragStart(e, 'init_state')}
+          style={{
+            background: '#e6f7ff',
+            border: '1px solid #1890ff',
+            borderRadius: 8,
+            padding: '12px 16px',
+            cursor: 'grab',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            transition: 'transform 0.15s, box-shadow 0.15s',
+          }}
+          onMouseEnter={e => {
+            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(24,144,255,0.2)';
+          }}
+          onMouseLeave={e => {
+            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+            (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: '50%',
+              background: '#1890ff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="8" stroke="#fff" strokeWidth="2" />
+              <circle cx="12" cy="12" r="3" fill="#fff" />
+            </svg>
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#1890ff' }}>INIT State</span>
+        </div>
+
         {/* State Card */}
         <div
           draggable

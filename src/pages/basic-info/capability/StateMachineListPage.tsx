@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tag, Select, message } from 'antd';
+import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useSearchParams } from 'react-router-dom';
-import { PlusOutlined, LinkOutlined } from '@ant-design/icons';
+import { PlusOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -10,19 +10,25 @@ interface StateMachineItem {
   id: string;
   name: string;
   description?: string;
-  status: 'draft' | 'submitted';
-  createTime: string;
-  updateTime: string;
+  status: 'DRAFT' | 'SUBMITTED';
   operator: string;
-  linkedBt?: string;
-  linkedAbility?: string;
+  operationTime: string;
 }
 
 // localStorage keys
 const STORAGE_KEY = 'stateMachineStatuses';
 const SM_LIST_KEY = 'stateMachineList';
+const LINKED_SM_KEY = 'linkedStateMachines';
 
-function getStoredStatuses(): Record<string, 'draft' | 'submitted'> {
+interface LinkedSMRecord {
+  bt: string;
+  ability: string;
+  smName: string;
+  operator: string;
+  operationTime: string;
+}
+
+function getStoredStatuses(): Record<string, 'DRAFT' | 'SUBMITTED'> {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     return stored ? JSON.parse(stored) : {};
@@ -31,7 +37,7 @@ function getStoredStatuses(): Record<string, 'draft' | 'submitted'> {
   }
 }
 
-function saveStatus(name: string, status: 'draft' | 'submitted') {
+function saveStatus(name: string, status: 'DRAFT' | 'SUBMITTED') {
   const statuses = getStoredStatuses();
   statuses[name] = status;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(statuses));
@@ -50,20 +56,34 @@ function saveList(list: StateMachineItem[]) {
   localStorage.setItem(SM_LIST_KEY, JSON.stringify(list));
 }
 
-// Mock business types and abilities for linking
-const mockBusinessTypes = [
-  { value: 'COLLECTION', label: 'COLLECTION' },
-  { value: 'PAYMENT', label: 'PAYMENT' },
-  { value: 'REFUND', label: 'REFUND' },
-  { value: 'TRANSFER', label: 'TRANSFER' },
-];
+function getLinkedSMList(): LinkedSMRecord[] {
+  try {
+    const stored = localStorage.getItem(LINKED_SM_KEY);
+    const parsed = stored ? JSON.parse(stored) : [];
+    // Merge with mock data if no stored data
+    if (parsed.length === 0) {
+      return [
+        { bt: 'BANK_CARD_DEBIT', ability: 'REFUND', smName: 'Default_Refund_StateMachine', operator: 'admin', operationTime: '2026-05-19 10:00:00' },
+        { bt: 'INFO_PAYMENT', ability: 'TRANSACTION', smName: 'Default_Refund_StateMachine', operator: 'admin', operationTime: '2026-05-20 14:30:00' },
+        { bt: 'BANK_CARD_DEBIT', ability: 'RE_QUERY', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
+      ];
+    }
+    return parsed;
+  } catch {
+    return [];
+  }
+}
 
-const mockAbilities = [
-  { value: 'CARD_PAY', label: 'CARD_PAY' },
-  { value: 'USSD_PAY', label: 'USSD_PAY' },
-  { value: 'QR_PAY', label: 'QR_PAY' },
-  { value: 'BANK_TRANSFER', label: 'BANK_TRANSFER' },
-];
+function isStateMachineLinked(smName: string): boolean {
+  const linkedList = getLinkedSMList();
+  return linkedList.some(r => r.smName === smName);
+}
+
+function isStateMachineReferenced(smName: string): boolean {
+  // Placeholder: In real implementation, this would check Channel Integration references
+  // For now, return false to allow modify/delete
+  return false;
+}
 
 export default function StateMachineListPage() {
   const [searchParams] = useSearchParams();
@@ -71,17 +91,24 @@ export default function StateMachineListPage() {
   const ability = searchParams.get('ability') || '';
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [linkModalOpen, setLinkModalOpen] = useState(false);
-  const [editingSM, setEditingSM] = useState<StateMachineItem | null>(null);
   const [createForm] = Form.useForm();
-  const [linkForm] = Form.useForm();
   const [stateMachineList, setStateMachineList] = useState<StateMachineItem[]>([]);
+  const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
+
+  const getLinkedRecordsForSM = (smName: string): LinkedSMRecord[] => {
+    const allLinked = getLinkedSMList();
+    return allLinked.filter(r => r.smName === smName);
+  };
 
   // Load from localStorage
   useEffect(() => {
     const storedList = getStoredList();
+    const storedStatuses = getStoredStatuses();
     if (storedList.length > 0) {
-      setStateMachineList(storedList);
+      setStateMachineList(storedList.map(sm => ({
+        ...sm,
+        status: storedStatuses[sm.name] || sm.status,
+      })));
     } else {
       // Default demo data
       setStateMachineList([
@@ -89,52 +116,48 @@ export default function StateMachineListPage() {
           id: 'sm1',
           name: 'Default_Refund_StateMachine',
           description: 'REFUND state machine',
-          status: 'submitted',
-          createTime: '2026-05-19 10:00:00',
-          updateTime: '2026-05-19 10:00:00',
+          status: 'SUBMITTED',
           operator: 'admin',
-          linkedBt: 'REFUND',
-          linkedAbility: 'CARD_PAY',
+          operationTime: '2026-05-19 10:00:00',
         },
         {
           id: 'sm2',
           name: 'BankCard_Debit_StateMachine',
           description: 'Bank card debit state machine',
-          status: 'draft',
-          createTime: '2026-05-19 11:00:00',
-          updateTime: '2026-05-19 11:00:00',
+          status: 'DRAFT',
           operator: 'admin',
-          linkedBt: 'PAYMENT',
-          linkedAbility: 'CARD_PAY',
+          operationTime: '2026-05-19 11:00:00',
         },
       ]);
     }
   }, []);
 
-  // Sync status from localStorage
-  useEffect(() => {
-    const storedStatuses = getStoredStatuses();
-    setStateMachineList(prev => prev.map(sm => ({
-      ...sm,
-      status: storedStatuses[sm.name] || sm.status,
-    })));
-  }, []);
-
   const handleCreate = async () => {
     try {
       const values = await createForm.validateFields();
+      // Validate name: only letters, numbers, underscores, hyphens
+      const nameRegex = /^[a-zA-Z0-9_-]+$/;
+      if (!nameRegex.test(values.name)) {
+        message.error('StateMachine Name only supports letters, numbers, underscores and hyphens');
+        return;
+      }
+
+      // Check for duplicate name
+      const exists = stateMachineList.some(sm => sm.name === values.name);
+      if (exists) {
+        message.error('StateMachine name already exists');
+        return;
+      }
+
       const newItem: StateMachineItem = {
         id: `sm_${Date.now()}`,
         name: values.name,
         description: values.description || '',
-        status: 'draft',
-        createTime: new Date().toLocaleString(),
-        updateTime: new Date().toLocaleString(),
+        status: 'DRAFT',
         operator: '—',
-        linkedBt: bt || values.linkedBt || '',
-        linkedAbility: ability || values.linkedAbility || '',
+        operationTime: new Date().toLocaleString(),
       };
-      saveStatus(newItem.name, 'draft');
+      saveStatus(newItem.name, 'DRAFT');
       const updatedList = [...stateMachineList, newItem];
       setStateMachineList(updatedList);
       saveList(updatedList);
@@ -144,50 +167,33 @@ export default function StateMachineListPage() {
     } catch {}
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, name: string) => {
+    if (isStateMachineLinked(name)) {
+      message.error('Cannot delete: StateMachine is linked in Capability');
+      return;
+    }
+    if (isStateMachineReferenced(name)) {
+      message.error('Cannot delete: StateMachine is referenced in Channel Integration');
+      return;
+    }
     const updatedList = stateMachineList.filter(item => item.id !== id);
     setStateMachineList(updatedList);
     saveList(updatedList);
     message.success('Deleted');
   };
 
-  const handleLink = async () => {
-    try {
-      const values = await linkForm.validateFields();
-      if (!editingSM) return;
-
-      const updatedList = stateMachineList.map(sm =>
-        sm.id === editingSM.id
-          ? { ...sm, linkedBt: values.linkedBt, linkedAbility: values.linkedAbility, updateTime: new Date().toLocaleString() }
-          : sm
-      );
-      setStateMachineList(updatedList);
-      saveList(updatedList);
-      setLinkModalOpen(false);
-      linkForm.resetFields();
-      setEditingSM(null);
-      message.success('Linked successfully');
-    } catch {}
+  const openModify = (sm: StateMachineItem) => {
+    const queryParams = new URLSearchParams();
+    queryParams.set('sm', sm.name);
+    queryParams.set('mode', 'edit');
+    window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
   };
 
-  const handleUnlink = (id: string) => {
-    const updatedList = stateMachineList.map(sm =>
-      sm.id === id
-        ? { ...sm, linkedBt: '', linkedAbility: '', updateTime: new Date().toLocaleString() }
-        : sm
-    );
-    setStateMachineList(updatedList);
-    saveList(updatedList);
-    message.success('Unlinked');
-  };
-
-  const openLinkModal = (sm: StateMachineItem) => {
-    setEditingSM(sm);
-    linkForm.setFieldsValue({
-      linkedBt: sm.linkedBt || bt,
-      linkedAbility: sm.linkedAbility || ability,
-    });
-    setLinkModalOpen(true);
+  const openDetail = (sm: StateMachineItem) => {
+    const queryParams = new URLSearchParams();
+    queryParams.set('sm', sm.name);
+    queryParams.set('mode', 'view');
+    window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
   };
 
   const columns: ColumnsType<StateMachineItem> = [
@@ -195,16 +201,38 @@ export default function StateMachineListPage() {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      render: (name, record) => (
-        <Button type="link" onClick={() => {
-          const queryParams = new URLSearchParams();
-          if (record.linkedBt) queryParams.set('bt', record.linkedBt);
-          if (record.linkedAbility) queryParams.set('ability', record.linkedAbility);
-          queryParams.set('sm', name);
-          window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
-        }}>
-          {name}
-        </Button>
+      render: (name, record) => {
+        const isExpanded = expandedRowKeys.includes(record.id);
+        return (
+          <Space>
+            <span
+              style={{ cursor: 'pointer', color: '#1890ff', fontSize: 12 }}
+              onClick={() => {
+                if (isExpanded) {
+                  setExpandedRowKeys(expandedRowKeys.filter(k => k !== record.id));
+                } else {
+                  setExpandedRowKeys([...expandedRowKeys, record.id]);
+                }
+              }}
+            >
+              {isExpanded ? <DownOutlined /> : <RightOutlined />}
+            </span>
+            <Button type="link" onClick={() => openModify(record)}>
+              {name}
+            </Button>
+          </Space>
+        );
+      },
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 120,
+      render: (status: 'DRAFT' | 'SUBMITTED') => (
+        <Tag color={status === 'SUBMITTED' ? 'success' : 'default'}>
+          {status}
+        </Tag>
       ),
     },
     {
@@ -213,81 +241,54 @@ export default function StateMachineListPage() {
       key: 'description',
     },
     {
-      title: 'Linked Business Type',
-      dataIndex: 'linkedBt',
-      key: 'linkedBt',
-      width: 150,
-      render: (bt) => bt ? <Tag color="blue">{bt}</Tag> : <Text type="secondary">-</Text>,
-    },
-    {
-      title: 'Linked Ability',
-      dataIndex: 'linkedAbility',
-      key: 'linkedAbility',
-      width: 150,
-      render: (ability) => ability ? <Tag color="purple">{ability}</Tag> : <Text type="secondary">-</Text>,
-    },
-    {
-      title: 'Create Time',
-      dataIndex: 'createTime',
-      key: 'createTime',
-      width: 180,
-    },
-    {
-      title: 'Update Time',
-      dataIndex: 'updateTime',
-      key: 'updateTime',
-      width: 180,
-    },
-    {
       title: 'Operator',
       dataIndex: 'operator',
       key: 'operator',
       width: 120,
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 100,
-      render: (status: 'draft' | 'submitted') => (
-        <Tag color={status === 'submitted' ? 'success' : 'default'}>
-          {status === 'submitted' ? 'Submitted' : 'Draft'}
-        </Tag>
-      ),
+      title: 'Operation Time',
+      dataIndex: 'operationTime',
+      key: 'operationTime',
+      width: 180,
     },
     {
       title: 'Operation',
       key: 'operation',
-      width: 280,
-      render: (_, record) => (
-        <Space size="small">
-          <Button type="link" size="small" onClick={() => {
-            const queryParams = new URLSearchParams();
-            if (record.linkedBt) queryParams.set('bt', record.linkedBt);
-            if (record.linkedAbility) queryParams.set('ability', record.linkedAbility);
-            queryParams.set('sm', record.name);
-            window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
-          }}>
-            Edit
-          </Button>
-          <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => openLinkModal(record)}>
-            Link
-          </Button>
-          {(record.linkedBt || record.linkedAbility) && (
-            <Button type="link" size="small" danger onClick={() => handleUnlink(record.id)}>
-              Unlink
+      width: 200,
+      render: (_, record) => {
+        const linked = isStateMachineLinked(record.name);
+        const referenced = isStateMachineReferenced(record.name);
+        const canModify = !linked && !referenced;
+        const canDelete = !linked && !referenced;
+
+        return (
+          <Space size="small">
+            <Button
+              type="link"
+              size="small"
+              disabled={!canModify}
+              onClick={() => openModify(record)}
+            >
+              Modify
             </Button>
-          )}
-          <Popconfirm
-            title="Delete this state machine?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="OK"
-            cancelText="Cancel"
-          >
-            <Button type="link" size="small" danger>Delete</Button>
-          </Popconfirm>
-        </Space>
-      ),
+            <Button type="link" size="small" onClick={() => openDetail(record)}>
+              Detail
+            </Button>
+            <Popconfirm
+              title="Delete this state machine?"
+              onConfirm={() => handleDelete(record.id, record.name)}
+              okText="OK"
+              cancelText="Cancel"
+              disabled={!canDelete}
+            >
+              <Button type="link" size="small" danger disabled={!canDelete}>
+                Delete
+              </Button>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -300,9 +301,9 @@ export default function StateMachineListPage() {
         style={{ margin: '16px 0' }}
         items={[
           { title: 'Basic Info', href: '/basic-info' },
-          ...(isStandalone ? [{ title: 'StateMachine' }] : [
+          ...(isStandalone ? [{ title: 'State Machine' }] : [
             { title: 'Capability', href: '/basic-info/capability' },
-            { title: 'StateMachine' },
+            { title: 'State Machine' },
           ]),
         ]}
       />
@@ -310,9 +311,9 @@ export default function StateMachineListPage() {
       <div style={{ background: '#fff', padding: 24, borderRadius: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div>
-            <Title level={4} style={{ marginTop: 0, marginBottom: 4 }}>StateMachine</Title>
+            <Title level={4} style={{ marginTop: 0, marginBottom: 4 }}>State Machine</Title>
             {isStandalone ? (
-              <Text type="secondary">Create and manage state machines, link to Business Type abilities</Text>
+              <Text type="secondary">Create and manage state machines</Text>
             ) : (
               <Space>
                 <Text type="secondary">Business Type: </Text>
@@ -323,7 +324,7 @@ export default function StateMachineListPage() {
             )}
           </div>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
-            Create StateMachine
+            Create
           </Button>
         </div>
 
@@ -332,61 +333,57 @@ export default function StateMachineListPage() {
           columns={columns}
           rowKey="id"
           pagination={false}
-          locale={{ emptyText: 'No StateMachine' }}
+          expandable={{
+            expandedRowKeys,
+            onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as string[]),
+            expandedRowRender: (record) => {
+              const linkedRecords = getLinkedRecordsForSM(record.name);
+              return (
+                <div style={{ padding: '8px 0' }}>
+                  {linkedRecords.length === 0 ? (
+                    <div style={{ color: '#999' }}>No linked Business Type & Ability</div>
+                  ) : (
+                     <Table
+                      dataSource={linkedRecords}
+                      rowKey={(r) => `${r.bt}-${r.ability}-${r.smName}`}
+                      pagination={false}
+                      size="small"
+                      style={{ marginTop: 8, background: '#fafafa' }}
+                    >
+                      <Table.Column title="Business Type" dataIndex="bt" render={(bt) => <Tag color="blue">{bt}</Tag>} />
+                      <Table.Column title="Ability" dataIndex="ability" render={(ability) => <Tag color="purple">{ability}</Tag>} />
+                      <Table.Column title="Operator" dataIndex="operator" />
+                      <Table.Column title="Operation Time" dataIndex="operationTime" />
+                    </Table>
+                  )}
+                </div>
+              );
+            },
+          }}
+          locale={{ emptyText: '暂无 State Machine' }}
         />
       </div>
 
       {/* Create Modal */}
       <Modal
-        title="Create StateMachine"
+        title="Create State Machine"
         open={createModalOpen}
         onCancel={() => { setCreateModalOpen(false); createForm.resetFields(); }}
         onOk={handleCreate}
-        okText="OK"
+        okText="Create"
         cancelText="Cancel"
       >
         <Form form={createForm} layout="vertical">
           <Form.Item
-            label="StateMachine Name"
+            label="State Machine Name"
             name="name"
             rules={[{ required: true, message: 'Please enter StateMachine name' }]}
+            extra="Only supports letters, numbers, underscores and hyphens"
           >
             <Input placeholder="Enter StateMachine name" />
           </Form.Item>
           <Form.Item label="Description" name="description">
             <Input.TextArea placeholder="Enter description (optional)" rows={3} />
-          </Form.Item>
-          {isStandalone && (
-            <>
-              <Form.Item label="Linked Business Type" name="linkedBt">
-                <Select placeholder="Select business type (optional)" options={mockBusinessTypes} allowClear style={{ width: '100%' }} />
-              </Form.Item>
-              <Form.Item label="Linked Ability" name="linkedAbility">
-                <Select placeholder="Select ability (optional)" options={mockAbilities} allowClear style={{ width: '100%' }} />
-              </Form.Item>
-            </>
-          )}
-        </Form>
-      </Modal>
-
-      {/* Link Modal */}
-      <Modal
-        title="Link StateMachine to Business Type & Ability"
-        open={linkModalOpen}
-        onCancel={() => { setLinkModalOpen(false); linkForm.resetFields(); setEditingSM(null); }}
-        onOk={handleLink}
-        okText="Link"
-        cancelText="Cancel"
-      >
-        <Form form={linkForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="StateMachine Name">
-            <Input value={editingSM?.name} disabled />
-          </Form.Item>
-          <Form.Item label="Business Type" name="linkedBt" rules={[{ required: true, message: 'Please select Business Type' }]}>
-            <Select placeholder="Select business type" options={mockBusinessTypes} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item label="Ability" name="linkedAbility" rules={[{ required: true, message: 'Please select Ability' }]}>
-            <Select placeholder="Select ability" options={mockAbilities} style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>

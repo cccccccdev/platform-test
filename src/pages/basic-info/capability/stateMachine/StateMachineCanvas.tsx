@@ -24,7 +24,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Button, message, Modal, Input, Typography, Space } from 'antd';
+import { Button, message, Modal, Input, Typography, Space, Tag, Popconfirm } from 'antd';
 import { LeftOutlined } from '@ant-design/icons';
 import StateNode from './StateNode';
 import ComponentPanel from './ComponentPanel';
@@ -39,6 +39,8 @@ const { Text } = Typography;
 type NodeData = {
   name: string;
   description?: string;
+  businessStatus?: string;
+  nodeType?: 'init' | 'state';
   [key: string]: unknown;
 };
 
@@ -55,13 +57,13 @@ type AnyEdge = Edge<EdgeData>;
 // ─────────────────────────────────────────────────
 const initialNodes: AnyNode[] = [
   // States only
-  { id: 's1', type: 'stateNode', position: { x: 100, y: 200 }, data: { name: 'INIT', description: 'Payment request entry', businessStatus: 'init' } },
+  { id: 's1', type: 'stateNode', position: { x: 100, y: 200 }, data: { name: 'INIT', description: 'Payment request entry', businessStatus: 'INIT', nodeType: 'init' } },
   { id: 's2', type: 'stateNode', position: { x: 420, y: 60 }, data: { name: 'WAITING_OTP', description: 'Waiting for OTP input' } },
   { id: 's3', type: 'stateNode', position: { x: 660, y: 60 }, data: { name: 'VERIFYING_OTP', description: 'Verifying OTP' } },
   { id: 's4', type: 'stateNode', position: { x: 420, y: 280 }, data: { name: 'AUTHENTICATING', description: '3DS authentication in progress' } },
   { id: 's5', type: 'stateNode', position: { x: 420, y: 480 }, data: { name: 'PROGRESSING', description: 'Frictionless debit processing' } },
-  { id: 's6', type: 'stateNode', position: { x: 880, y: 480 }, data: { name: 'SUCCESS', description: 'Debit successful', businessStatus: 'success' } },
-  { id: 's7', type: 'stateNode', position: { x: 880, y: 240 }, data: { name: 'FAILED', description: 'Debit failed', businessStatus: 'fail' } },
+  { id: 's6', type: 'stateNode', position: { x: 880, y: 480 }, data: { name: 'SUCCESS', description: 'Debit successful', businessStatus: 'SUCCESS' } },
+  { id: 's7', type: 'stateNode', position: { x: 880, y: 240 }, data: { name: 'FAILED', description: 'Debit failed', businessStatus: 'FAIL' } },
 ];
 
 const initialEdges: AnyEdge[] = [
@@ -85,9 +87,128 @@ function isEdgeDashed(edge: Edge): boolean {
 }
 
 // ─────────────────────────────────────────────────
+// Validation
+// ─────────────────────────────────────────────────
+interface ValidationError {
+  type: 'node' | 'edge' | 'general';
+  message: string;
+  nodeId?: string;
+  edgeId?: string;
+}
+
+function validateStateMachine(nodes: AnyNode[], edges: AnyEdge[]): ValidationError[] {
+  const errors: ValidationError[] = [];
+
+  // Filter state nodes
+  const stateNodes = nodes.filter(n => n.type === 'stateNode');
+  const initNodes = stateNodes.filter(n => n.data?.name === 'INIT' || n.data?.nodeType === 'init');
+
+  // Check at least 1 INIT State
+  if (initNodes.length === 0) {
+    errors.push({ type: 'general', message: 'At least 1 INIT State is required' });
+  }
+
+  // Check at least 1 normal State node
+  const normalNodes = stateNodes.filter(n => n.data?.name !== 'INIT' && n.data?.nodeType !== 'init');
+  if (normalNodes.length === 0) {
+    errors.push({ type: 'general', message: 'At least 1 State node is required' });
+  }
+
+  // Check each node
+  for (const node of stateNodes) {
+    const isInit = node.data?.name === 'INIT' || node.data?.nodeType === 'init';
+
+    // Node Name not empty
+    if (!node.data?.name || node.data.name.trim() === '') {
+      errors.push({ type: 'node', message: 'Node Name cannot be empty', nodeId: node.id });
+    }
+
+    // Description not empty
+    if (!node.data?.description || node.data.description.trim() === '') {
+      errors.push({ type: 'node', message: 'Description cannot be empty', nodeId: node.id });
+    }
+
+    // Business Status Mapping not empty (for normal nodes)
+    if (!isInit && (!node.data?.businessStatus || node.data.businessStatus.trim() === '')) {
+      errors.push({ type: 'node', message: 'Business Status Mapping cannot be empty', nodeId: node.id });
+    }
+
+    // INIT must have name INIT
+    if (isInit && node.data?.name !== 'INIT') {
+      errors.push({ type: 'node', message: 'INIT node name must be INIT', nodeId: node.id });
+    }
+
+    // INIT must have businessStatus INIT
+    if (isInit && node.data?.businessStatus !== 'INIT') {
+      errors.push({ type: 'node', message: 'INIT node business status must be INIT', nodeId: node.id });
+    }
+  }
+
+  // Check for duplicate node names
+  const nodeNames = stateNodes.map(n => n.data?.name).filter(Boolean);
+  const duplicates = nodeNames.filter((name, idx) => nodeNames.indexOf(name) !== idx);
+  if (duplicates.length > 0) {
+    errors.push({ type: 'general', message: `Duplicate Node Names: ${[...new Set(duplicates)].join(', ')}` });
+  }
+
+  // Check each edge
+  for (const edge of edges) {
+    const sourceNode = stateNodes.find(n => n.id === edge.source);
+    const targetNode = stateNodes.find(n => n.id === edge.target);
+
+    // From/To nodes must exist
+    if (!sourceNode) {
+      errors.push({ type: 'edge', message: 'Edge source node not found', edgeId: edge.id });
+    }
+    if (!targetNode) {
+      errors.push({ type: 'edge', message: 'Edge target node not found', edgeId: edge.id });
+    }
+
+    // No INIT -> INIT
+    if (sourceNode?.data?.name === 'INIT' && targetNode?.data?.name === 'INIT') {
+      errors.push({ type: 'edge', message: 'INIT -> INIT edge is not allowed', edgeId: edge.id });
+    }
+
+    // No self-loop for SUCCESS/FAIL nodes
+    const sourceIsEndNode = sourceNode?.data?.businessStatus === 'SUCCESS' || sourceNode?.data?.businessStatus === 'FAIL';
+    if (sourceIsEndNode && edge.source === edge.target) {
+      errors.push({ type: 'edge', message: 'SUCCESS/FAIL node cannot have self-loop', edgeId: edge.id });
+    }
+  }
+
+  // Check for duplicate edges
+  const edgeKeys = edges.map(e => `${e.source}-${e.target}`);
+  const duplicateEdges = edgeKeys.filter((key, idx) => edgeKeys.indexOf(key) !== idx);
+  if (duplicateEdges.length > 0) {
+    errors.push({ type: 'general', message: 'Duplicate edges are not allowed' });
+  }
+
+  // INIT cannot have incoming edges
+  for (const edge of edges) {
+    const target = stateNodes.find(n => n.id === edge.target);
+    if (target?.data?.name === 'INIT' && target?.data?.nodeType === 'init') {
+      errors.push({ type: 'edge', message: 'INIT node cannot have incoming edges', edgeId: edge.id });
+    }
+  }
+
+  // Each node should have at least one incoming or outgoing arc (if more than 1 node)
+  if (stateNodes.length > 1) {
+    for (const node of stateNodes) {
+      const hasIncoming = edges.some(e => e.target === node.id);
+      const hasOutgoing = edges.some(e => e.source === node.id);
+      if (!hasIncoming && !hasOutgoing) {
+        errors.push({ type: 'node', message: `Node ${node.data?.name || node.id} has no connections`, nodeId: node.id });
+      }
+    }
+  }
+
+  return errors;
+}
+
+// ─────────────────────────────────────────────────
 // Canvas Content Component
 // ─────────────────────────────────────────────────
-function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: string }) {
+function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string; sm: string; mode: string }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<AnyEdge>(initialEdges);
   const [selectedNode, setSelectedNode] = useState<AnyNode | null>(null);
@@ -133,6 +254,32 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
       const toNode = nodes.find(n => n.id === connection.target);
       if (!fromNode || !toNode) return;
 
+      // Check for duplicate edge
+      const duplicate = edges.find(e => e.source === connection.source && e.target === connection.target);
+      if (duplicate) {
+        Modal.error({ title: 'Error', content: 'Duplicate edge not allowed', okText: 'OK' });
+        return;
+      }
+
+      // Check INIT -> INIT
+      if (fromNode.data?.name === 'INIT' && toNode.data?.name === 'INIT') {
+        Modal.error({ title: 'Error', content: 'INIT -> INIT edge is not allowed', okText: 'OK' });
+        return;
+      }
+
+      // Check: Cannot point TO INIT node
+      if (toNode.data?.name === 'INIT' || toNode.data?.nodeType === 'init') {
+        Modal.error({ title: 'Error', content: 'Initial node INIT, cannot be entered from other states', okText: 'OK' });
+        return;
+      }
+
+      // Check: Terminal node (SUCCESS/FAIL) cannot have outgoing edges
+      const sourceIsEndNode = fromNode.data?.businessStatus === 'SUCCESS' || fromNode.data?.businessStatus === 'FAIL';
+      if (sourceIsEndNode) {
+        Modal.error({ title: 'Error', content: 'Terminal node, unable to transition to next state', okText: 'OK' });
+        return;
+      }
+
       // Auto-detect line type: dashed only for State → State
       const isDashed = fromNode.type === 'stateNode' && toNode.type === 'stateNode';
 
@@ -153,7 +300,7 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
       setEdges(eds => addEdge(newEdge as Edge, eds) as AnyEdge[]);
       message.success('Connection created');
     },
-    [nodes, setEdges],
+    [nodes, edges, setEdges],
   );
 
   const onNodesDelete: OnNodesDelete = useCallback(
@@ -220,14 +367,18 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
       });
 
       const id = `${type}_${Date.now()}`;
-      const name = type === 'state' ? `State_${id}` : `State_${id}`;
-      const nodeType = 'stateNode';
+      const isInit = type === 'init_state';
 
       const newNode: AnyNode = {
         id,
-        type: nodeType,
+        type: 'stateNode',
         position,
-        data: { name, description: '' },
+        data: {
+          name: isInit ? 'INIT' : '',
+          description: '',
+          businessStatus: isInit ? 'INIT' : '',
+          nodeType: isInit ? 'init' : 'state',
+        },
       };
 
       setNodes(nds => nds.concat(newNode));
@@ -366,11 +517,13 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
 
   const handleDeleteNode = useCallback(
     (id: string) => {
+      // Also delete related edges
+      setEdges(eds => eds.filter(e => e.source !== id && e.target !== id));
       setNodes(nds => nds.filter(n => n.id !== id));
       setSelectedNode(null);
       message.info('Node deleted');
     },
-    [setNodes],
+    [setNodes, setEdges],
   );
 
   const handleDeleteEdge = useCallback(
@@ -394,7 +547,7 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
   // localStorage key for state machine statuses
   const STORAGE_KEY = 'stateMachineStatuses';
 
-  const saveStatusToStorage = (name: string, status: 'draft' | 'submitted') => {
+  const saveStatusToStorage = (name: string, status: 'DRAFT' | 'SUBMITTED') => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       const statuses = stored ? JSON.parse(stored) : {};
@@ -434,13 +587,45 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
 
     console.log('Draft saved:', JSON.stringify(saveData, null, 2));
     if (sm) {
-      saveStatusToStorage(sm, 'draft');
+      saveStatusToStorage(sm, 'DRAFT');
     }
     message.success('Draft saved successfully', 2);
     setTimeout(() => {
       window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
     }, 500);
   }, [bt, ability, nodes, edges, canSave, sm]);
+
+  // Get current status from storage
+  const getCurrentStatus = (): 'DRAFT' | 'SUBMITTED' => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const statuses = JSON.parse(stored);
+        return statuses[sm] || 'DRAFT';
+      }
+    } catch {}
+    return 'DRAFT';
+  };
+
+  const currentStatus = getCurrentStatus();
+
+  // Submit button enabled when in edit mode and has nodes
+  const canSubmit = mode === 'edit' && nodes.length > 0;
+
+  const handleSubmit = useCallback(() => {
+    const errors = validateStateMachine(nodes, edges);
+    if (errors.length > 0) {
+      errors.forEach(err => message.error(err.message));
+      return;
+    }
+    if (sm) {
+      saveStatusToStorage(sm, 'SUBMITTED');
+    }
+    message.success('Submitted successfully', 2);
+    setTimeout(() => {
+      window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
+    }, 500);
+  }, [nodes, edges, sm, bt, ability]);
 
   return (
     <>
@@ -458,44 +643,39 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to={`/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`}>
+          <Link to={bt && ability ? `/basic-info/capability?bt=${bt}&ability=${ability}` : '/basic-info/capability/stateMachine'}>
             <Button type="text" icon={<LeftOutlined />}>
-              Back to stateMachine
+              Back
             </Button>
           </Link>
           <span style={{ color: '#ccc' }}>|</span>
           <span style={{ fontSize: 14 }}>
-            <span style={{ color: '#999' }}>Basic Info / Capability / </span>
-            <span style={{ fontWeight: 500 }}>stateMachine</span>
+            <span style={{ color: '#999' }}>Basic Info / State Machine / </span>
+            <span style={{ fontWeight: 500, color: mode === 'view' ? '#1890ff' : '#333' }}>
+              {mode === 'view' ? 'Detail' : 'Modify'}
+            </span>
           </span>
         </div>
-        <Space>
-          <Button
-            onClick={handleSaveDraft}
-            disabled={!canSave}
-            title={!canSave ? 'At least 1 State node required to save' : undefined}
-          >
-            Save Draft
-          </Button>
-          <Button
-            type="primary"
-            onClick={() => {
-              if (sm) {
-                saveStatusToStorage(sm, 'submitted');
-              }
-              message.success('Submitted successfully', 2);
-              setTimeout(() => {
-                window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
-              }, 500);
-            }}
-            disabled={!canSave}
-          >
-            Submit
-          </Button>
-        </Space>
+        {mode === 'edit' && (
+          <Space>
+            <Button
+              onClick={handleSaveDraft}
+              disabled={!canSave}
+            >
+              Save Draft
+            </Button>
+            <Button
+              type="primary"
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+            >
+              Submit
+            </Button>
+          </Space>
+        )}
       </div>
 
-      {/* Context Bar */}
+      {/* Basic Info Bar */}
       <div
         style={{
           background: '#fafafa',
@@ -508,16 +688,19 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
         }}
       >
         <span>
-          <Text strong style={{ color: '#333' }}>Business Type:</Text> {bt}
+          <Text strong style={{ color: '#333' }}>State Machine Name:</Text> {sm || '-'}
         </span>
         <span>
-          <Text strong style={{ color: '#333' }}>Ability:</Text> {ability}
+          <Text strong style={{ color: '#333' }}>Status:</Text>{' '}
+          <Tag color={currentStatus === 'SUBMITTED' ? 'success' : 'default'}>
+            {currentStatus}
+          </Tag>
         </span>
       </div>
 
       {/* Main Content */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <ComponentPanel />
+        {mode === 'edit' && <ComponentPanel />}
 
         <div
           ref={reactFlowWrapper}
@@ -532,19 +715,21 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodesDelete={onNodesDelete}
-            onEdgesDelete={onEdgesDelete}
+            onConnect={mode === 'edit' ? onConnect : undefined}
+            onNodesDelete={mode === 'edit' ? onNodesDelete : undefined}
+            onEdgesDelete={mode === 'edit' ? onEdgesDelete : undefined}
             onNodeClick={onNodeClick}
             onEdgeClick={onEdgeClick}
             onPaneClick={onPaneClick}
-            onNodeDoubleClick={onNodeDoubleClick}
+            onNodeDoubleClick={mode === 'edit' ? onNodeDoubleClick : undefined}
             onSelectionChange={onSelectionChange}
             nodeTypes={nodeTypes}
             fitView
             minZoom={0.25}
             maxZoom={2}
             selectNodesOnDrag
+            nodesDraggable={mode === 'edit'}
+            nodesConnectable={mode === 'edit'}
             defaultEdgeOptions={{
               type: 'smoothstep',
               markerEnd: { type: MarkerType.ArrowClosed, color: '#333' },
@@ -557,23 +742,25 @@ function CanvasContent({ bt, ability, sm }: { bt: string; ability: string; sm: s
               nodeColor={node => (node.type === 'stateNode' ? '#22c55e' : '#fff')}
               maskColor="rgba(0,0,0,0.1)"
             />
-            <Panel position="top-left">
-              <div
-                style={{
-                  fontSize: 12,
-                  color: '#999',
-                  background: 'rgba(255,255,255,0.8)',
-                  padding: '4px 8px',
-                  borderRadius: 4,
-                }}
-              >
-                Drag components from left panel to canvas
-              </div>
-            </Panel>
+            {mode === 'edit' && (
+              <Panel position="top-left">
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: '#999',
+                    background: 'rgba(255,255,255,0.8)',
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                  }}
+                >
+                  Drag components from left panel to canvas
+                </div>
+              </Panel>
+            )}
           </ReactFlow>
         </div>
 
-        {(selectedNode || selectedEdge) && (
+        {mode === 'edit' && (selectedNode || selectedEdge) && (
           <PropertyPanel
             selectedNode={selectedNode}
             selectedEdge={selectedEdge}
@@ -667,11 +854,12 @@ export default function StateMachineCanvas() {
   const bt = searchParams.get('bt') || '';
   const ability = searchParams.get('ability') || '';
   const sm = searchParams.get('sm') || '';
+  const mode = searchParams.get('mode') || 'edit';
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <ReactFlowProvider>
-        <CanvasContent bt={bt} ability={ability} sm={sm} />
+        <CanvasContent bt={bt} ability={ability} sm={sm} mode={mode} />
       </ReactFlowProvider>
     </div>
   );
