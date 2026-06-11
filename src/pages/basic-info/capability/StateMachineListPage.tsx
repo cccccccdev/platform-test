@@ -352,6 +352,21 @@ export default function StateMachineListPage() {
                       <Table.Column title="Ability" dataIndex="ability" render={(ability) => <Tag color="purple">{ability}</Tag>} />
                       <Table.Column title="Operator" dataIndex="operator" />
                       <Table.Column title="Operation Time" dataIndex="operationTime" />
+                      <Table.Column
+                        title="Operation"
+                        width={100}
+                        render={(_, r) => (
+                          <Button
+                            type="link"
+                            size="small"
+                            onClick={() => {
+                              window.location.href = `/basic-info/capability/link-state-machine?bt=${r.bt}&ability=${r.ability}`;
+                            }}
+                          >
+                            Preview
+                          </Button>
+                        )}
+                      />
                     </Table>
                   )}
                 </div>

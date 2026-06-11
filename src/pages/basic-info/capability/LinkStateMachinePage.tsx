@@ -70,20 +70,29 @@ export default function LinkStateMachinePage() {
 
   const linkedRecords = getLinkedSM().filter(r => r.bt === bt && r.ability === ability);
 
-  // Mock function to get channel codes referencing this state machine
+  // Mock function to get channel info referencing this state machine
   // In real implementation, this would query backend API or localStorage
-  const getReferencingChannels = (smName: string): string[] => {
+  interface ChannelRef {
+    channelCode: string;
+    version: string;
+  }
+  const getReferencingChannels = (smName: string): ChannelRef[] => {
     // Mock data - return some sample channels for any state machine
     // In production, this would check actual channel integration data
     const allChannels = ['GTB_NG', 'ECBANK', 'PAYPAL', 'STRIPE', 'ALIPAY', 'ABC_PAY', 'WECHAT_PAY', 'UNION_PAY'];
+    const versions = ['v1.0', 'v2.0', 'v1.2', 'v3.0', 'v1.5'];
     // Generate deterministic mock channels based on smName
     const hash = smName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const count = (hash % 4) + 1; // 1-5 channels
-    const channels: string[] = [];
+    const channels: ChannelRef[] = [];
     for (let i = 0; i < count; i++) {
       const idx = (hash + i) % allChannels.length;
-      if (!channels.includes(allChannels[idx])) {
-        channels.push(allChannels[idx]);
+      const ch = allChannels[idx];
+      if (!channels.some(c => c.channelCode === ch)) {
+        channels.push({
+          channelCode: ch,
+          version: versions[(hash + i) % versions.length],
+        });
       }
     }
     return channels;
@@ -231,11 +240,32 @@ export default function LinkStateMachinePage() {
                   const channels = getReferencingChannels(record.smName);
                   return (
                     <div style={{ padding: '8px 16px', background: '#fafafa', borderRadius: 6, marginLeft: 40 }}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Referenced by Channels:</Text>
                       {channels.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                          {channels.map(ch => <Tag key={ch} color="green">{ch}</Tag>)}
-                        </div>
+                        <Table
+                          dataSource={channels}
+                          rowKey={(r) => r.channelCode}
+                          pagination={false}
+                          size="small"
+                          bordered={false}
+                        >
+                          <Table.Column title="Channel Code" dataIndex="channelCode" render={(code) => <Tag color="green">{code}</Tag>} />
+                          <Table.Column title="Version" dataIndex="version" />
+                          <Table.Column
+                            title="Operation"
+                            width={100}
+                            render={(_, r) => (
+                              <Button
+                                type="link"
+                                size="small"
+                                onClick={() => {
+                                  window.location.href = `/channel-integration/${r.channelCode}/integration/config/${bt}/${ability}`;
+                                }}
+                              >
+                                Preview
+                              </Button>
+                            )}
+                          />
+                        </Table>
                       ) : (
                         <Text type="secondary">No channel references</Text>
                       )}
