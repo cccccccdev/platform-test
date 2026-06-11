@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Table, Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate } from 'react-router-dom';
-import { PlusOutlined, CaretRightOutlined, CaretDownOutlined, MinusCircleOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, CaretRightOutlined, CaretDownOutlined, MinusCircleOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -124,7 +124,6 @@ export default function CapabilityPage() {
   const [linkSmModalOpen, setLinkSmModalOpen] = useState(false);
   const [linkSmAbility, setLinkSmAbility] = useState<{ bt: string; ability: string } | null>(null);
   const [linkSmForm] = Form.useForm();
-  const [previewSmListOpen, setPreviewSmListOpen] = useState(false);
   const [linkSmList, setLinkSmList] = useState<LinkedSMRecord[]>([]);
 
   // LocalStorage key for linked state machines
@@ -192,12 +191,6 @@ export default function CapabilityPage() {
     setLinkSmList(existing);
     setLinkSmModalOpen(true);
   }, [linkSmForm, getLinkedSM]);
-
-  const openPreviewSmListModal = useCallback((bt: string, ability: string) => {
-    const records = getLinkedSM().filter(r => r.bt === bt && r.ability === ability);
-    setLinkSmList(records);
-    setPreviewSmListOpen(true);
-  }, [getLinkedSM]);
 
   const SM_LIST_KEY = 'stateMachineList';
   const STORAGE_KEY = 'stateMachineStatuses';
@@ -531,18 +524,10 @@ export default function CapabilityPage() {
                     <Button
                       type="link"
                       style={{ color: '#22c55e', borderColor: '#22c55e', borderRadius: 6, padding: '4px 12px' }}
-                      onClick={() => openLinkSmModal(bt.name, ab.name)}
+                      onClick={() => navigate(`/basic-info/capability/link-state-machine?bt=${bt.name}&ability=${ab.name}`)}
                     >
                       linkStateMachine
                     </Button>
-                    {getLinkedSMForAbility(bt.name, ab.name) && (
-                      <Button
-                        type="link"
-                        size="small"
-                        icon={<EyeOutlined />}
-                        onClick={() => openPreviewSmListModal(bt.name, ab.name)}
-                      />
-                    )}
                   </Space>
                 </div>
 
@@ -734,45 +719,6 @@ export default function CapabilityPage() {
               }}>Add</Button>
             </Form>
          </div>
-        </div>
-      </Modal>
-
-      {/* Preview StateMachine List Modal */}
-      <Modal
-        title="Linked StateMachines"
-        open={previewSmListOpen}
-        onCancel={() => { setPreviewSmListOpen(false); setLinkSmList([]); }}
-        footer={[
-          <Button key="close" onClick={() => { setPreviewSmListOpen(false); setLinkSmList([]); }}>
-            Close
-          </Button>,
-        ]}
-        width={500}
-      >
-        <div style={{ padding: '16px 0' }}>
-          {linkSmList.length === 0 ? (
-            <Text type="secondary">No StateMachine linked</Text>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {linkSmList.map((record, idx) => (
-                <div key={`${record.smName}-${idx}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f5f5f5', borderRadius: 6 }}>
-                  <Tag color="blue">{record.smName}</Tag>
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => {
-                      const queryParams = new URLSearchParams();
-                      queryParams.set('sm', record.smName);
-                      queryParams.set('mode', 'view');
-                      window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
-                    }}
-                  >
-                    Preview
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </Modal>
     </div>

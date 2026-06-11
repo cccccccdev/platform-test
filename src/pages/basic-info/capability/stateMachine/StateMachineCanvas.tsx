@@ -643,7 +643,7 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to={bt && ability ? `/basic-info/capability?bt=${bt}&ability=${ability}` : '/basic-info/capability/stateMachine'}>
+          <Link to={bt && ability ? `/basic-info/capability/link-state-machine?bt=${bt}&ability=${ability}` : '/basic-info/capability/stateMachine'}>
             <Button type="text" icon={<LeftOutlined />}>
               Back
             </Button>

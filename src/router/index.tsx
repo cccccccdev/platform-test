@@ -41,6 +41,7 @@ import ProductPage from '../pages/basic-info/ProductPage';
 import MerchantPage from '../pages/basic-info/MerchantPage';
 import CapabilityPage from '../pages/basic-info/CapabilityPage';
 import StateMachineListPage from '../pages/basic-info/capability/StateMachineListPage';
+import LinkStateMachinePage from '../pages/basic-info/capability/LinkStateMachinePage';
 import StateMachineCanvas from '../pages/basic-info/capability/stateMachine/StateMachineCanvas';
 
 const router = createBrowserRouter([
@@ -116,6 +117,7 @@ const router = createBrowserRouter([
           { path: 'merchant', element: <MerchantPage /> },
           { path: 'capability', element: <CapabilityPage /> },
           { path: 'capability/stateMachine', element: <StateMachineListPage /> },
+          { path: 'capability/link-state-machine', element: <LinkStateMachinePage /> },
           { path: 'stateMachine', element: <StateMachineListPage /> },
         ],
       },

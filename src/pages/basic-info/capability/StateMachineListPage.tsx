@@ -217,9 +217,7 @@ export default function StateMachineListPage() {
             >
               {isExpanded ? <DownOutlined /> : <RightOutlined />}
             </span>
-            <Button type="link" onClick={() => openModify(record)}>
-              {name}
-            </Button>
+            <Text>{name}</Text>
           </Space>
         );
       },
