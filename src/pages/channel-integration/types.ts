@@ -28,14 +28,14 @@ export interface Ability {
 
 export interface MatchRule {
   id: string;
-  field1: string;
-  field2: string;
+  fieldValues: Record<string, string>;
   bt: string;
   ability: string;
   action: string;
 }
 
 export interface InboundEndpoint {
+  id: string;
   name: string;
   url: string;
   fields: string[];
@@ -43,6 +43,8 @@ export interface InboundEndpoint {
   singleNoField: string;
   matchFields: string[];
   rules: MatchRule[];
+  version: string;
+  configStatus: 'draft' | 'submitted';
 }
 
 export interface StepConfig {

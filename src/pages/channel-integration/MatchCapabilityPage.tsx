@@ -1,240 +1,341 @@
-import { useState, useEffect } from 'react';
-import { Table, Button, Select, Input, Radio, Collapse, Breadcrumb, message, Tooltip } from 'antd';
-import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
-import { mockInboundEndpoints, abilityOptions, actionOptions } from '../../mock/data';
+import { useState } from 'react';
+import {
+  Breadcrumb,
+  Button,
+  Collapse,
+  Form,
+  Input,
+  message,
+  Modal,
+  Radio,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+} from 'antd';
+import { DeleteOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons';
+import { useNavigate, useParams } from 'react-router-dom';
+import { abilityOptions, actionOptions } from '../../mock/data';
+import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { InboundEndpoint, MatchRule } from './types';
 
+interface NewEndpointForm {
+  name: string;
+  url: string;
+  fields: string;
+  matchType: 'A' | 'B';
+}
+
+const createId = (prefix: string) =>
+  `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
 export default function MatchCapabilityPage() {
-  const { channelCode } = useParams<{ channelCode: string }>();
+  const { channelCode = '' } = useParams<{ channelCode: string }>();
   const navigate = useNavigate();
-  const [endpoints, setEndpoints] = useState<InboundEndpoint[]>([]);
+  const [form] = Form.useForm<NewEndpointForm>();
+  const [showNewEndpointModal, setShowNewEndpointModal] = useState(false);
 
-  // 初始化加载 Mock 数据
-  useEffect(() => {
-    const data = mockInboundEndpoints.map((ep) => ({ ...ep }));
-    setEndpoints(data);
-  }, [channelCode]);
+  const endpoints = useMatchCapabilityStore(
+    (state) => state.endpointsByChannel[channelCode] ?? []
+  );
+  const isDirty = useMatchCapabilityStore(
+    (state) => state.dirtyByChannel[channelCode] ?? false
+  );
+  const addEndpointToStore = useMatchCapabilityStore((state) => state.addEndpoint);
+  const updateEndpointInStore = useMatchCapabilityStore((state) => state.updateEndpoint);
+  const saveChannel = useMatchCapabilityStore((state) => state.saveChannel);
+  const submitChannel = useMatchCapabilityStore((state) => state.submitChannel);
 
-  // 获取所有 Ability 选项
-  const getAbilitiesByBT = (bt: string) => {
-    return abilityOptions[bt] || [];
+  const updateEndpoint = (endpoint: InboundEndpoint, updates: Partial<InboundEndpoint>) => {
+    updateEndpointInStore(channelCode, endpoint.id, updates);
   };
 
-  // 更新单个 endpoint
-  const updateEndpoint = (index: number, updates: Partial<InboundEndpoint>) => {
-    setEndpoints((prev) =>
-      prev.map((ep, i) => (i === index ? { ...ep, ...updates } : ep))
+  const updateRule = (
+    endpoint: InboundEndpoint,
+    ruleId: string,
+    updates: Partial<MatchRule>
+  ) => {
+    updateEndpoint(endpoint, {
+      rules: endpoint.rules.map((rule) =>
+        rule.id === ruleId ? { ...rule, ...updates } : rule
+      ),
+    });
+  };
+
+  const updateRuleFieldValue = (
+    endpoint: InboundEndpoint,
+    rule: MatchRule,
+    fieldName: string,
+    value: string
+  ) => {
+    updateRule(endpoint, rule.id, {
+      fieldValues: { ...rule.fieldValues, [fieldName]: value },
+    });
+  };
+
+  const deleteRule = (endpoint: InboundEndpoint, ruleId: string) => {
+    updateEndpoint(endpoint, {
+      rules: endpoint.rules.filter((rule) => rule.id !== ruleId),
+    });
+  };
+
+  const addRule = (endpoint: InboundEndpoint) => {
+    const fieldValues = Object.fromEntries(
+      endpoint.matchFields.map((field) => [field, ''])
     );
+    const newRule: MatchRule = {
+      id: createId('rule'),
+      fieldValues,
+      bt: '',
+      ability: '',
+      action: '',
+    };
+    updateEndpoint(endpoint, { rules: [...endpoint.rules, newRule] });
   };
 
-  // 更新规则
-  const updateRule = (epIndex: number, ruleId: string, field: keyof MatchRule, value: string) => {
-    setEndpoints((prev) =>
-      prev.map((ep, i) => {
-        if (i !== epIndex) return ep;
-        const newRules = ep.rules.map((rule) =>
-          rule.id === ruleId ? { ...rule, [field]: value } : rule
-        );
-        return { ...ep, rules: newRules };
-      })
-    );
+  const checkRuleConflict = (endpoint: InboundEndpoint, ruleId: string) => {
+    const rule = endpoint.rules.find((item) => item.id === ruleId);
+    if (!rule || endpoint.matchFields.length === 0) return false;
+
+    return endpoint.rules.some((other) => {
+      if (other.id === ruleId) return false;
+      const values = endpoint.matchFields.map((field) => rule.fieldValues[field] ?? '');
+      const otherValues = endpoint.matchFields.map((field) => other.fieldValues[field] ?? '');
+      if (values.some((value) => !value || value === '*')) return false;
+      if (otherValues.some((value) => !value || value === '*')) return false;
+      return values.every((value, index) => value === otherValues[index]);
+    });
   };
 
-  // 删除规则
-  const deleteRule = (epIndex: number, ruleId: string) => {
-    setEndpoints((prev) =>
-      prev.map((ep, i) => {
-        if (i !== epIndex) return ep;
-        return { ...ep, rules: ep.rules.filter((rule) => rule.id !== ruleId) };
-      })
-    );
-  };
-
-  // 新增规则
-  const addRule = (epIndex: number) => {
-    setEndpoints((prev) =>
-      prev.map((ep, i) => {
-        if (i !== epIndex) return ep;
-        const newRule: MatchRule = {
-          id: `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          field1: '',
-          field2: '',
-          bt: 'COLLECTION',
-          ability: 'CARD_PAY',
-          action: 'TRANSACTION',
-        };
-        return { ...ep, rules: [...ep.rules, newRule] };
-      })
-    );
-  };
-
-  // 检查规则冲突
-  const checkRuleConflict = (ep: InboundEndpoint, ruleId: string): { conflict: boolean; conflictWith?: string } => {
-    const rule = ep.rules.find((r) => r.id === ruleId);
-    if (!rule) return { conflict: false };
-
-    for (const other of ep.rules) {
-      if (other.id === ruleId) continue;
-      const matchFieldCount = ep.matchFields.length;
-
-      let isConflict = true;
-      if (matchFieldCount >= 1) {
-        if (rule.field1 !== '*' && other.field1 !== '*' && rule.field1 !== other.field1) isConflict = false;
-        if (matchFieldCount >= 2) {
-          if (rule.field2 !== '*' && other.field2 !== '*' && rule.field2 !== other.field2) isConflict = false;
+  const validateEndpoint = (endpoint: InboundEndpoint): string | null => {
+    if (!endpoint.name.trim() || !endpoint.url.trim()) {
+      return `${endpoint.name || 'Unnamed endpoint'}: Endpoint Name and URI are required`;
+    }
+    if (endpoint.matchType === 'A' && !endpoint.singleNoField) {
+      return `${endpoint.name}: Please select an order number field`;
+    }
+    if (endpoint.matchType === 'B') {
+      if (endpoint.matchFields.length === 0) {
+        return `${endpoint.name}: Please select at least one match field`;
+      }
+      if (endpoint.rules.length === 0) {
+        return `${endpoint.name}: Please add at least one match rule`;
+      }
+      for (const rule of endpoint.rules) {
+        if (endpoint.matchFields.some((field) => !rule.fieldValues[field]?.trim())) {
+          return `${endpoint.name}: Every rule must provide a value for every match field`;
+        }
+        if (!rule.bt || !rule.ability || !rule.action) {
+          return `${endpoint.name}: Every rule must select BT, Ability and Action`;
+        }
+        if (!(abilityOptions[rule.bt] ?? []).includes(rule.ability)) {
+          return `${endpoint.name}: Rule contains an invalid BT and Ability combination`;
+        }
+        if (checkRuleConflict(endpoint, rule.id)) {
+          return `${endpoint.name}: Duplicate non-wildcard rule detected`;
         }
       }
-
-      if (isConflict) return { conflict: true, conflictWith: other.id };
     }
-    return { conflict: false };
+    return null;
   };
 
-  // 保存
   const handleSave = () => {
-    message.success('Saved successfully', 2);
+    saveChannel(channelCode);
+    message.success('Draft saved in the current runtime');
   };
 
-  // 提交
   const handleSubmit = () => {
-    message.success('Submitted, version v1.2.0 generated');
+    const duplicateUri = endpoints.find(
+      (endpoint, index) => endpoints.findIndex((item) => item.url === endpoint.url) !== index
+    );
+    if (duplicateUri) {
+      message.error(`Duplicate URI: ${duplicateUri.url}`);
+      return;
+    }
+    for (const endpoint of endpoints) {
+      const error = validateEndpoint(endpoint);
+      if (error) {
+        message.error(error);
+        return;
+      }
+    }
+    submitChannel(channelCode);
+    message.success('Submitted successfully; draft endpoint versions were advanced');
+  };
+
+  const handleCreateEndpoint = async () => {
+    const values = await form.validateFields();
+    if (endpoints.some((endpoint) => endpoint.name === values.name)) {
+      form.setFields([{ name: 'name', errors: ['Endpoint Name already exists'] }]);
+      return;
+    }
+    if (endpoints.some((endpoint) => endpoint.url === values.url)) {
+      form.setFields([{ name: 'url', errors: ['URI already exists'] }]);
+      return;
+    }
+
+    const fields = values.fields
+      .split(',')
+      .map((field) => field.trim())
+      .filter(Boolean);
+    const endpoint: InboundEndpoint = {
+      id: createId('endpoint'),
+      name: values.name.trim(),
+      url: values.url.trim(),
+      fields,
+      matchType: values.matchType,
+      singleNoField: '',
+      matchFields: [],
+      rules: [],
+      version: 'v0.0.1',
+      configStatus: 'draft',
+    };
+    addEndpointToStore(channelCode, endpoint);
+    form.resetFields();
+    setShowNewEndpointModal(false);
+    message.success('Endpoint added to the current runtime');
   };
 
   return (
     <div style={{ padding: 24 }}>
-      {/* 面包屑 */}
       <Breadcrumb
         style={{ marginBottom: 16 }}
         items={[
           { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
           { title: channelCode },
-          { title: 'Integration', onClick: () => navigate(`/channel-integration/${channelCode}/integration/match-capability`) },
-          { title: 'matchCapability' },
+          { title: 'Integration' },
+          { title: 'Match Capability' },
         ]}
       />
 
-      {/* 页面标题和按钮 */}
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <Button onClick={handleSave}>Save</Button>
-        <Button type="primary" onClick={handleSubmit}>Submit</Button>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between' }}>
+        <Space>
+          <strong>Channel: {channelCode}</strong>
+          {isDirty && <Tag color="orange">Unsaved runtime changes</Tag>}
+        </Space>
+        <Space>
+          <Button icon={<PlusOutlined />} onClick={() => setShowNewEndpointModal(true)}>
+            Add Endpoint
+          </Button>
+          <Button onClick={handleSave}>Save Draft</Button>
+          <Button type="primary" onClick={handleSubmit}>Submit</Button>
+        </Space>
       </div>
 
-      {/* 按 inboundEndpoint 分组的 Collapse */}
       <Collapse
         accordion
-        items={endpoints.map((ep, epIndex) => ({
-          key: ep.name,
-          label: <span style={{ fontWeight: 600 }}>{ep.name}</span>,
+        items={endpoints.map((endpoint) => ({
+          key: endpoint.id,
+          label: (
+            <Space>
+              <span style={{ fontWeight: 600 }}>{endpoint.name}</span>
+              <span style={{ color: '#888' }}>{endpoint.url}</span>
+              <Tag>{endpoint.version}</Tag>
+              <Tag color={endpoint.configStatus === 'submitted' ? 'green' : 'orange'}>
+                {endpoint.configStatus === 'submitted' ? 'Submitted' : 'Draft'}
+              </Tag>
+            </Space>
+          ),
           children: (
             <div>
-              {/* Match 类型切换 */}
               <div style={{ marginBottom: 16 }}>
                 <Radio.Group
-                  value={ep.matchType}
-                  onChange={(e) => updateEndpoint(epIndex, { matchType: e.target.value as 'A' | 'B' })}
+                  value={endpoint.matchType}
+                  onChange={(event) => updateEndpoint(endpoint, {
+                    matchType: event.target.value as 'A' | 'B',
+                  })}
                 >
                   <Radio value="A">基于单号匹配</Radio>
                   <Radio value="B">基于字段组合匹配 Ability</Radio>
                 </Radio.Group>
               </div>
 
-              {/* 类型 A：基于单号匹配 */}
-              {ep.matchType === 'A' && (
+              {endpoint.matchType === 'A' && (
                 <div style={{ marginBottom: 16 }}>
                   <span style={{ marginRight: 8 }}>单号字段：</span>
                   <Select
                     style={{ width: 300 }}
                     placeholder="请选择携带平台单号的字段"
-                    value={ep.singleNoField || undefined}
-                    onChange={(val) => updateEndpoint(epIndex, { singleNoField: val })}
-                    options={ep.fields.map((f) => ({ label: f, value: f }))}
+                    value={endpoint.singleNoField || undefined}
+                    onChange={(value) => updateEndpoint(endpoint, { singleNoField: value })}
+                    options={endpoint.fields.map((field) => ({ label: field, value: field }))}
                   />
                 </div>
               )}
 
-              {/* 类型 B：基于字段组合匹配 */}
-              {ep.matchType === 'B' && (
+              {endpoint.matchType === 'B' && (
                 <>
-                  {/* 参与匹配的字段 */}
                   <div style={{ marginBottom: 16 }}>
                     <span style={{ marginRight: 8 }}>参与匹配的字段：</span>
                     <Select
                       mode="multiple"
-                      style={{ width: 400 }}
+                      style={{ width: 520 }}
                       placeholder="选择参与匹配的字段"
-                      value={ep.matchFields}
-                      onChange={(val) => updateEndpoint(epIndex, { matchFields: val })}
-                      options={ep.fields.map((f) => ({ label: f, value: f }))}
+                      value={endpoint.matchFields}
+                      onChange={(value) => updateEndpoint(endpoint, { matchFields: value })}
+                      options={endpoint.fields.map((field) => ({ label: field, value: field }))}
                     />
                   </div>
 
-                  {/* 规则表格 */}
-                  {ep.matchFields.length > 0 && (
-                    <Table
-                      dataSource={ep.rules}
+                  {endpoint.matchFields.length > 0 && (
+                    <Table<MatchRule>
+                      dataSource={endpoint.rules}
                       rowKey="id"
                       pagination={false}
                       size="small"
-                      rowClassName={(record) => (checkRuleConflict(ep, record.id).conflict ? 'ant-table-row-error' : '')}
                       footer={() => (
                         <Button
                           type="dashed"
                           block
                           icon={<PlusOutlined />}
-                          onClick={() => addRule(epIndex)}
+                          onClick={() => addRule(endpoint)}
                         >
-                          + Add Rule
+                          Add Rule
                         </Button>
                       )}
                       columns={[
                         {
                           title: '',
                           width: 40,
-                          render: () => <HolderOutlined style={{ color: '#999', cursor: 'grab' }} />,
+                          render: () => <HolderOutlined style={{ color: '#bbb' }} />,
                         },
-                        {
-                          title: ep.matchFields[0] || '字段1值',
-                          width: 150,
-                          render: (_: any, record: MatchRule) => {
-                            const conflict = checkRuleConflict(ep, record.id).conflict;
+                        ...endpoint.matchFields.map((fieldName) => ({
+                          title: fieldName,
+                          width: 170,
+                          render: (_value: unknown, rule: MatchRule) => {
+                            const conflict = checkRuleConflict(endpoint, rule.id);
                             return (
-                              <Tooltip title={conflict ? '规则冲突' : ''}>
+                              <Tooltip title={conflict ? 'Duplicate non-wildcard rule' : ''}>
                                 <Input
+                                  status={conflict ? 'error' : undefined}
                                   placeholder="值或 *"
-                                  value={record.field1 || ''}
-                                  onChange={(e) => updateRule(epIndex, record.id, 'field1', e.target.value)}
-                                  style={{ background: conflict ? '#fff2f0' : undefined }}
+                                  value={rule.fieldValues[fieldName] ?? ''}
+                                  onChange={(event) => updateRuleFieldValue(
+                                    endpoint,
+                                    rule,
+                                    fieldName,
+                                    event.target.value
+                                  )}
                                 />
                               </Tooltip>
                             );
                           },
-                        },
-                        ...(ep.matchFields.length >= 2
-                          ? [{
-                              title: ep.matchFields[1] || '字段2值',
-                              width: 150,
-                              render: (_: any, record: MatchRule) => (
-                                <Input
-                                  placeholder="值或 *"
-                                  value={record.field2 || ''}
-                                  onChange={(e) => updateRule(epIndex, record.id, 'field2', e.target.value)}
-                                />
-                              ),
-                            }]
-                          : []),
-                        {
-                          title: '',
-                          width: 40,
-                          render: () => <span style={{ color: '#999' }}>→</span>,
-                        },
+                        })),
+                        { title: '', width: 40, render: () => <span style={{ color: '#999' }}>→</span> },
                         {
                           title: 'BT',
                           width: 150,
-                          render: (_: any, record: MatchRule) => (
+                          render: (_value: unknown, rule: MatchRule) => (
                             <Select
-                              value={record.bt}
-                              onChange={(val) => updateRule(epIndex, record.id, 'bt', val)}
+                              style={{ width: '100%' }}
+                              placeholder="Select BT"
+                              value={rule.bt || undefined}
+                              onChange={(value) => updateRule(endpoint, rule.id, {
+                                bt: value,
+                                ability: '',
+                                action: '',
+                              })}
                               options={Object.keys(abilityOptions).map((bt) => ({ label: bt, value: bt }))}
                             />
                           ),
@@ -242,39 +343,52 @@ export default function MatchCapabilityPage() {
                         {
                           title: 'Ability',
                           width: 150,
-                          render: (_: any, record: MatchRule) => (
+                          render: (_value: unknown, rule: MatchRule) => (
                             <Select
-                              value={record.ability}
-                              onChange={(val) => updateRule(epIndex, record.id, 'ability', val)}
-                              options={getAbilitiesByBT(record.bt).map((a) => ({ label: a, value: a }))}
+                              style={{ width: '100%' }}
+                              placeholder="Select Ability"
+                              value={rule.ability || undefined}
+                              disabled={!rule.bt}
+                              onChange={(value) => updateRule(endpoint, rule.id, {
+                                ability: value,
+                                action: '',
+                              })}
+                              options={(abilityOptions[rule.bt] ?? []).map((ability) => ({
+                                label: ability,
+                                value: ability,
+                              }))}
                             />
                           ),
                         },
                         {
                           title: 'Action',
-                          width: 120,
-                          render: (_: any, record: MatchRule) => (
+                          width: 150,
+                          render: (_value: unknown, rule: MatchRule) => (
                             <Select
-                              value={record.action}
-                              onChange={(val) => updateRule(epIndex, record.id, 'action', val)}
-                              options={actionOptions.map((a) => ({ label: a, value: a }))}
+                              style={{ width: '100%' }}
+                              placeholder="Select Action"
+                              value={rule.action || undefined}
+                              disabled={!rule.ability}
+                              onChange={(value) => updateRule(endpoint, rule.id, { action: value })}
+                              options={actionOptions.map((action) => ({ label: action, value: action }))}
                             />
                           ),
                         },
                         {
                           title: '操作',
                           width: 60,
-                          render: (_: any, record: MatchRule) => (
+                          render: (_value: unknown, rule: MatchRule) => (
                             <Button
                               type="text"
                               size="small"
                               danger
                               icon={<DeleteOutlined />}
-                              onClick={() => deleteRule(epIndex, record.id)}
+                              onClick={() => deleteRule(endpoint, rule.id)}
                             />
                           ),
                         },
                       ]}
+                      scroll={{ x: 'max-content' }}
                     />
                   )}
                 </>
@@ -283,6 +397,44 @@ export default function MatchCapabilityPage() {
           ),
         }))}
       />
+
+      <Modal
+        title="Add Endpoint"
+        open={showNewEndpointModal}
+        onOk={() => void handleCreateEndpoint()}
+        onCancel={() => {
+          form.resetFields();
+          setShowNewEndpointModal(false);
+        }}
+        okText="Add"
+      >
+        <Form<NewEndpointForm>
+          form={form}
+          layout="vertical"
+          initialValues={{ matchType: 'A' }}
+        >
+          <Form.Item name="name" label="Endpoint Name" rules={[{ required: true }]}>
+            <Input placeholder="e.g. callback_endpoint" />
+          </Form.Item>
+          <Form.Item name="url" label="URI" rules={[{ required: true }]}>
+            <Input placeholder="e.g. /inbound/channel/callback" />
+          </Form.Item>
+          <Form.Item
+            name="fields"
+            label="Available Fields"
+            rules={[{ required: true, message: 'Enter at least one field' }]}
+            extra="Comma-separated; runtime-only demo input"
+          >
+            <Input placeholder="body.reference, body.status, header.x-event-type" />
+          </Form.Item>
+          <Form.Item name="matchType" label="Match Type" rules={[{ required: true }]}>
+            <Radio.Group>
+              <Radio value="A">基于单号匹配</Radio>
+              <Radio value="B">基于字段组合匹配</Radio>
+            </Radio.Group>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

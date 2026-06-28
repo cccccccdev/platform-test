@@ -76,30 +76,66 @@ export const mockEndpointFields: Record<string, string[]> = {
   refund_endpoint: ['merchantId', 'orderId', 'amount', 'sign'],
 }
 
-// inboundEndpoints
-export const mockInboundEndpoints = [
-  {
-    name: 'callback_endpoint',
-    url: '/inbound/gtb/callback',
-    fields: ['body.orderId', 'body.transType', 'body.channel', 'body.status'],
-    matchType: 'A' as const,
-    singleNoField: 'body.orderId',
-    matchFields: [],
-    rules: [],
-  },
-  {
-    name: 'notify_endpoint',
-    url: '/inbound/gtb/notify',
-    fields: ['body.txnRef', 'body.type', 'body.currency'],
-    matchType: 'B' as const,
-    singleNoField: '',
-    matchFields: ['body.type', 'body.currency'],
-    rules: [
-      { id: '1', field1: 'purchase', field2: 'NGN', bt: 'COLLECTION', ability: 'CARD_PAY', action: 'TRANSACTION' },
-      { id: '2', field1: 'transfer', field2: '*', bt: 'DISBURSEMENT', ability: 'BANK_TRF', action: 'TRANSACTION' },
-    ],
-  },
-]
+// Match Capability 的内置样例数据。
+// 运行期新增和修改只保存在内存中；刷新页面或重启项目后会恢复为这里的样例。
+export const mockInboundEndpointsByChannel = {
+  GTB_NG: [
+    {
+      id: 'gtb_callback_endpoint',
+      name: 'callback_endpoint',
+      url: '/inbound/gtb/callback',
+      fields: ['body.orderId', 'body.transType', 'body.channel', 'body.status'],
+      matchType: 'A' as const,
+      singleNoField: 'body.orderId',
+      matchFields: [],
+      rules: [],
+      version: 'v1.0.0',
+      configStatus: 'submitted' as const,
+    },
+    {
+      id: 'gtb_notify_endpoint',
+      name: 'notify_endpoint',
+      url: '/inbound/gtb/notify',
+      fields: ['body.txnRef', 'body.type', 'body.currency', 'header.x-event-source'],
+      matchType: 'B' as const,
+      singleNoField: '',
+      matchFields: ['body.type', 'body.currency', 'header.x-event-source'],
+      rules: [
+        {
+          id: 'gtb_rule_purchase',
+          fieldValues: { 'body.type': 'purchase', 'body.currency': 'NGN', 'header.x-event-source': 'card' },
+          bt: 'COLLECTION',
+          ability: 'CARD_PAY',
+          action: 'TRANSACTION',
+        },
+        {
+          id: 'gtb_rule_transfer',
+          fieldValues: { 'body.type': 'transfer', 'body.currency': '*', 'header.x-event-source': 'bank' },
+          bt: 'DISBURSEMENT',
+          ability: 'BANK_TRF',
+          action: 'TRANSACTION',
+        },
+      ],
+      version: 'v1.1.0',
+      configStatus: 'draft' as const,
+    },
+  ],
+  ZENITH_NG: [
+    {
+      id: 'zenith_callback_endpoint',
+      name: 'callback_endpoint',
+      url: '/inbound/zenith/callback',
+      fields: ['body.reference', 'body.status'],
+      matchType: 'A' as const,
+      singleNoField: 'body.reference',
+      matchFields: [],
+      rules: [],
+      version: 'v1.0.0',
+      configStatus: 'draft' as const,
+    },
+  ],
+  PAYSTACK_NG: [],
+}
 
 // 事件枚举
 export const mockEvents = [
