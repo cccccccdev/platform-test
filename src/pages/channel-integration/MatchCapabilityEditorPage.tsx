@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Button, Divider, Input, message, Select, Space, Switch, Table, Tag } from 'antd';
+import { Alert, Button, Divider, Drawer, Input, message, Select, Space, Switch, Table, Tag } from 'antd';
 import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
@@ -59,6 +59,7 @@ export default function MatchCapabilityEditorPage() {
   const submitEndpoint = useMatchCapabilityStore((state) => state.submitEndpoint);
   const abilities = useConfigIntegrationStore((state) => state.abilitiesByChannel[channelCode] ?? []);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(endpoint?.rules[0]?.id ?? null);
+  const [activeDrawer, setActiveDrawer] = useState<'uri' | 'match' | 'dispatch' | null>(null);
   const readOnly = searchParams.get('mode') === 'detail' || endpoint?.uriType === 'legacy';
 
   const coverageRows = useMemo<CoverageRow[]>(() => {
@@ -165,63 +166,79 @@ export default function MatchCapabilityEditorPage() {
 
       {endpoint.uriType === 'legacy' && <Alert type="info" showIcon message="Legacy URI is readonly" description="The imported 1.0 inbound Flow is displayed as-is. Create a New URI to redesign or publish it with the 2.0 model." style={{ margin: '0 16px 12px' }} />}
 
-      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '270px minmax(430px, 1fr) 470px', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '272px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
         <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
-          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>URI Configuration</div>
+          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Context</div>
           <div style={{ padding: 14 }}>
-            <div style={{ fontWeight: 600, marginBottom: 10 }}>Request Definition</div>
-            <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Content Type</div>
-            <Select disabled={readOnly} value="application/json" style={{ width: '100%', marginBottom: 12 }} options={[{ value: 'application/json' }, { value: 'application/xml' }, { value: 'text/plain' }]} />
-            <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Available Request Fields</div>
-            <Select mode="tags" disabled={readOnly} value={endpoint.fields} style={{ width: '100%' }} onChange={(fields) => update({ fields })} tokenSeparators={[',']} placeholder="query.*, header.*, body.*" />
+            <strong>Inbound Request</strong>
+            <div style={{ marginTop: 10 }}>{endpoint.fields.map((field) => <div key={field} style={{ padding: '5px 7px', marginBottom: 4, background: '#f5f5f5', borderRadius: 4, fontSize: 11 }}>{field}</div>)}</div>
             <Divider />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>Pre-processing</strong><Switch disabled={readOnly} checked={endpoint.decryptEnabled} onChange={(decryptEnabled) => update({ decryptEnabled })} /></div>
-            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 6 }}>{endpoint.decryptEnabled ? 'Decryption runs before capability matching.' : 'No decryption configured.'}</div>
+            <strong>Pre-processing Output</strong>
+            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{endpoint.decryptEnabled ? 'decryptedRequest · object' : 'No output configured'}</div>
             <Divider />
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Fallback Behavior</div>
-            <Select disabled={readOnly} value={endpoint.fallbackBehavior} style={{ width: '100%' }} onChange={(fallbackBehavior) => update({ fallbackBehavior })} options={[
-              { value: 'reject', label: 'Reject request' }, { value: 'alert_and_reject', label: 'Alert and reject' }, { value: 'manual_review', label: 'Manual review queue' },
-            ]} />
+            <strong>Capability Results</strong>
+            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{endpoint.rules.length} result(s) available to downstream Flow</div>
+            <Button block style={{ marginTop: 16 }} onClick={() => setActiveDrawer('uri')}>{readOnly ? 'View URI Configuration' : 'Configure URI & Request'}</Button>
+          </div>
+        </div>
+
+        <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
+          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Component Library</div>
+          <div style={{ padding: 12 }}>
+            <Input.Search size="small" placeholder="Search components..." disabled />
+            <div onClick={() => setActiveDrawer('match')} style={{ marginTop: 14, padding: 12, border: '1px solid #d9d9d9', borderRadius: 7, background: '#fafafa', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>matchCapability</strong><Tag>Single Use</Tag></div>
+              <div style={{ color: '#8c8c8c', fontSize: 11 }}>Identify Capability Result</div>
+            </div>
+            <div style={{ marginTop: 10, padding: 12, border: '1px solid #e8e8e8', borderRadius: 7, background: '#f5f5f5', color: '#8c8c8c' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Dispatch Target</strong><Tag>Generated</Tag></div>
+              <div style={{ fontSize: 11 }}>Created automatically from Capability Results</div>
+            </div>
+            <Alert type="info" showIcon message="URI canvas components are system-managed" style={{ marginTop: 14 }} />
           </div>
         </div>
 
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>Match Capability Canvas</div>
-          <div style={{ flex: 1, minHeight: 330, overflow: 'auto', padding: 28, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
-            <div style={{ width: 280, margin: '0 auto', padding: 16, border: '2px solid #1677ff', borderRadius: 10, background: '#e6f4ff', boxShadow: '0 4px 12px rgba(22,119,255,.12)' }}>
-              <Tag color="blue">CORE</Tag><strong>matchCapability</strong>
+          <div style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>Canvas</div>
+          <div style={{ flex: 1, overflow: 'auto', padding: 36, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+            <button onClick={() => setActiveDrawer('match')} style={{ display: 'block', width: 300, margin: '0 auto', padding: 16, textAlign: 'left', border: '2px solid #1677ff', borderRadius: 10, background: '#e6f4ff', boxShadow: '0 4px 12px rgba(22,119,255,.12)', cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span><Tag color="blue">CORE</Tag><strong>matchCapability</strong></span><Tag color={endpoint.rules.length ? 'green' : 'orange'}>{endpoint.rules.length ? 'Configured' : 'Not Started'}</Tag></div>
               <div style={{ color: '#595959', fontSize: 11, marginTop: 6 }}>{matchingTypeOptions.find((item) => item.value === endpoint.matchType)?.label}</div>
-            </div>
-            <div style={{ textAlign: 'center', fontSize: 26, lineHeight: '42px' }}>↓</div>
-            <div style={{ display: 'grid', gridTemplateColumns: endpoint.rules.length > 1 ? 'repeat(2, minmax(220px, 1fr))' : 'minmax(240px, 360px)', justifyContent: 'center', gap: 12 }}>
-              {endpoint.rules.length === 0 ? <div style={{ textAlign: 'center', color: '#8c8c8c', padding: 30, border: '1px dashed #d9d9d9', background: '#fff' }}>Configure a Capability Result to generate Dispatch Target</div> : endpoint.rules.map((rule) => {
+            </button>
+            <div style={{ textAlign: 'center', fontSize: 26, lineHeight: '48px' }}>↓</div>
+            <div style={{ display: 'grid', gridTemplateColumns: endpoint.rules.length > 1 ? 'repeat(2, minmax(220px, 320px))' : 'minmax(240px, 360px)', justifyContent: 'center', gap: 14 }}>
+              {endpoint.rules.length === 0 ? <button onClick={() => setActiveDrawer('match')} style={{ padding: 30, border: '1px dashed #d9d9d9', background: '#fff', color: '#8c8c8c', cursor: 'pointer' }}>Configure matchCapability to generate Dispatch Target</button> : endpoint.rules.map((rule) => {
                 const status = targetStatus(rule);
-                return <button key={rule.id} onClick={() => setSelectedRuleId(rule.id)} style={{ textAlign: 'left', padding: 14, border: selectedRuleId === rule.id ? '2px solid #722ed1' : '1px solid #d9d9d9', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>
+                return <button key={rule.id} onClick={() => { setSelectedRuleId(rule.id); setActiveDrawer('dispatch'); }} style={{ textAlign: 'left', padding: 14, border: '1px solid #d9d9d9', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Dispatch Target</strong><Tag color={statusColor[status]}>{status}</Tag></div>
                   <div style={{ marginTop: 8 }}>{rule.bt || '-'} / {rule.ability || '-'} / {rule.action || '-'}</div>
-                  <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 5 }}>{rule.requestType}</div>
+                  <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 5 }}>{rule.requestType} · Click to view coverage</div>
                 </button>;
               })}
             </div>
-            {endpoint.uriType === 'legacy' && <><div style={{ textAlign: 'center', fontSize: 26, lineHeight: '42px' }}>↓</div>{['parseServletRequest', 'loadCredential', 'loadGlobalVariable', 'callbackRequest'].map((code) => <div key={code} style={{ width: 280, margin: '8px auto', padding: 12, border: '1px solid #bfbfbf', borderRadius: 8, background: '#fafafa', color: '#595959' }}><Tag>Readonly</Tag>{code}</div>)}</>}
-          </div>
-
-          <div style={{ borderTop: '1px solid #f0f0f0', padding: 14, maxHeight: 260, overflow: 'auto' }}>
-            <div style={{ fontWeight: 600, marginBottom: 10 }}>Target Distribution · Version Coverage</div>
-            <Table<CoverageRow> size="small" pagination={false} rowKey="key" dataSource={coverageRows} columns={[
-              { title: 'Capability Result', render: (_, row) => `${row.rule.bt} / ${row.rule.ability} / ${row.rule.action}` },
-              { title: 'Request Type', render: (_, row) => row.rule.requestType },
-              { title: 'Flow Version', dataIndex: 'version' },
-              { title: 'Weight', dataIndex: 'weight' },
-              { title: 'Matching Flow', render: (_, row) => row.flow ? <Button type="link" size="small" onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/${row.rule.bt}/${row.rule.ability}/versions/${row.versionId}/flows/${row.flow!.id}?mode=detail`)}>{row.flow.name}</Button> : '-' },
-              { title: 'Coverage', dataIndex: 'status', render: (status) => <Tag color={statusColor[status]}>{status}</Tag> },
-            ]} />
+            {endpoint.uriType === 'legacy' && <><div style={{ textAlign: 'center', fontSize: 26, lineHeight: '42px' }}>↓</div>{['parseServletRequest', 'loadCredential', 'loadGlobalVariable', 'callbackRequest'].map((code) => <div key={code} style={{ width: 300, margin: '8px auto', padding: 12, border: '1px solid #bfbfbf', borderRadius: 8, background: '#fafafa', color: '#595959' }}><Tag>Readonly</Tag>{code}</div>)}</>}
           </div>
         </div>
+      </div>
 
-        <div style={{ borderLeft: '1px solid #f0f0f0', overflow: 'auto' }}>
-          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>matchCapability Properties</div>
-          <div style={{ padding: 16 }}>
+      <Drawer title="URI & Request Configuration" width={520} open={activeDrawer === 'uri'} onClose={() => setActiveDrawer(null)}>
+        <div style={{ fontWeight: 600, marginBottom: 10 }}>Request Definition</div>
+        <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Content Type</div>
+        <Select disabled={readOnly} value="application/json" style={{ width: '100%', marginBottom: 12 }} options={[{ value: 'application/json' }, { value: 'application/xml' }, { value: 'text/plain' }]} />
+        <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Available Request Fields</div>
+        <Select mode="tags" disabled={readOnly} value={endpoint.fields} style={{ width: '100%' }} onChange={(fields) => update({ fields })} tokenSeparators={[',']} placeholder="query.*, header.*, body.*" />
+        <Divider />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>Pre-processing · Decryption</strong><Switch disabled={readOnly} checked={endpoint.decryptEnabled} onChange={(decryptEnabled) => update({ decryptEnabled })} /></div>
+        <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 6 }}>{endpoint.decryptEnabled ? 'Decryption runs before capability matching.' : 'No decryption configured.'}</div>
+        <Divider />
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Fallback Behavior</div>
+        <Select disabled={readOnly} value={endpoint.fallbackBehavior} style={{ width: '100%' }} onChange={(fallbackBehavior) => update({ fallbackBehavior })} options={[
+          { value: 'reject', label: 'Reject request' }, { value: 'alert_and_reject', label: 'Alert and reject' }, { value: 'manual_review', label: 'Manual review queue' },
+        ]} />
+      </Drawer>
+
+      <Drawer title="matchCapability Configuration" width={720} open={activeDrawer === 'match'} onClose={() => setActiveDrawer(null)}>
+        <div style={{ paddingBottom: 24 }}>
             <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Matching Type</div>
             <Select disabled={readOnly} value={endpoint.matchType} style={{ width: '100%' }} options={matchingTypeOptions} onChange={(matchType) => update({ matchType, matchFields: [], singleNoField: '', referenceField: undefined, rules: matchType === 'single' ? [endpoint.rules[0] ?? createRule()] : endpoint.rules })} />
 
@@ -255,9 +272,20 @@ export default function MatchCapabilityEditorPage() {
               </div>
             </div>)}
             {endpoint.rules.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: '#8c8c8c' }}>No Capability Result configured</div>}
-          </div>
         </div>
-      </div>
+      </Drawer>
+
+      <Drawer title="Dispatch Target · Version Coverage" width={900} open={activeDrawer === 'dispatch'} onClose={() => setActiveDrawer(null)}>
+        {selectedRule && <Alert type="info" showIcon message={`${selectedRule.bt} / ${selectedRule.ability} / ${selectedRule.action}`} description={`${selectedRule.requestType} · Route Key uses URI ID + Request Type + Action`} style={{ marginBottom: 16 }} />}
+        <Table<CoverageRow> size="small" pagination={false} rowKey="key" dataSource={coverageRows.filter((row) => !selectedRuleId || row.rule.id === selectedRuleId)} columns={[
+          { title: 'Capability Result', render: (_, row) => `${row.rule.bt} / ${row.rule.ability} / ${row.rule.action}` },
+          { title: 'Request Type', render: (_, row) => row.rule.requestType },
+          { title: 'Flow Version', dataIndex: 'version' },
+          { title: 'Weight', dataIndex: 'weight' },
+          { title: 'Matching Flow', render: (_, row) => row.flow ? <Button type="link" size="small" onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/${row.rule.bt}/${row.rule.ability}/versions/${row.versionId}/flows/${row.flow!.id}?mode=detail`)}>{row.flow.name}</Button> : '-' },
+          { title: 'Coverage', dataIndex: 'status', render: (status) => <Tag color={statusColor[status]}>{status}</Tag> },
+        ]} />
+      </Drawer>
     </div>
   );
 }
