@@ -8,25 +8,44 @@ const nextPatchVersion = (version: string) => {
   return `v${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
 };
 
-const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisionVersion => ({
-  id: `${endpoint.id}_version_1`,
-  version: endpoint.version,
-  configStatus: endpoint.configStatus,
-  description: endpoint.description,
-  fields: endpoint.fields,
-  matchType: endpoint.matchType,
-  matchFieldSource: endpoint.matchFieldSource,
-  singleNoField: endpoint.singleNoField,
-  referenceField: endpoint.referenceField,
-  matchFields: endpoint.matchFields,
-  rules: endpoint.rules,
-  customScript: endpoint.customScript,
-  fallbackBehavior: endpoint.fallbackBehavior,
-  decryptEnabled: endpoint.decryptEnabled,
-  badges: endpoint.badges,
-  updatedTime: endpoint.updatedTime,
-  operator: endpoint.operator,
-});
+const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisionVersion => {
+  const parsedFields = endpoint.fields.map((field, index) => {
+    const [source, ...nameParts] = field.split('.');
+    return {
+      id: `${endpoint.id}_field_${index}`,
+      source: (['query', 'header', 'body'].includes(source) ? source : 'body') as 'query' | 'header' | 'body',
+      name: nameParts.join('.') || field,
+      type: 'String' as const,
+      moc: 'yes' as const,
+      description: '',
+    };
+  });
+  const requestFields = endpoint.matchType === 'single'
+    ? []
+    : endpoint.matchType === 'order_no'
+      ? parsedFields.filter((field) => `${field.source}.${field.name}` === endpoint.singleNoField).slice(0, 1)
+      : parsedFields;
+  return {
+    id: `${endpoint.id}_version_1`,
+    version: endpoint.version,
+    configStatus: endpoint.configStatus,
+    description: endpoint.description,
+    fields: requestFields.map((field) => `${field.source}.${field.name}`),
+    requestFields,
+    matchType: endpoint.matchType,
+    matchFieldSource: endpoint.matchFieldSource,
+    singleNoField: endpoint.singleNoField,
+    referenceField: endpoint.referenceField,
+    matchFields: endpoint.matchFields,
+    rules: endpoint.rules,
+    customScript: endpoint.customScript,
+    fallbackBehavior: endpoint.fallbackBehavior,
+    decryptEnabled: endpoint.decryptEnabled,
+    badges: endpoint.badges,
+    updatedTime: endpoint.updatedTime,
+    operator: endpoint.operator,
+  };
+};
 
 const cloneSeedData = (): Record<string, InboundEndpoint[]> => {
   const raw = structuredClone(mockInboundEndpointsByChannel) as unknown as Record<string, InboundEndpoint[]>;

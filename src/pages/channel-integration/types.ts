@@ -38,12 +38,22 @@ export interface MatchRule {
 export type MatchingType = 'single' | 'order_no' | 'type_field' | 'custom';
 export type UriConfigStatus = 'draft' | 'submitted' | 'published' | 'deprecated' | 'legacy_readonly' | 'error';
 
+export interface InboundRequestField {
+  id: string;
+  source: 'query' | 'header' | 'body';
+  name: string;
+  type: 'String' | 'Number' | 'Boolean' | 'Object';
+  moc: 'yes' | 'no';
+  description: string;
+}
+
 export interface CapabilityDecisionVersion {
   id: string;
   version: string;
   configStatus: UriConfigStatus;
   description: string;
   fields: string[];
+  requestFields: InboundRequestField[];
   matchType: MatchingType;
   matchFieldSource?: 'query' | 'header' | 'body';
   singleNoField: string;

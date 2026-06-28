@@ -5,7 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
-import type { FlowConfig, MatchRule, MatchingType } from './types';
+import type { FlowConfig, InboundRequestField, MatchRule, MatchingType } from './types';
 
 interface CoverageRow {
   key: string;
@@ -36,6 +36,15 @@ const createRule = (): MatchRule => ({
   ability: '',
   action: '',
   requestType: 'CALLBACK',
+});
+
+const createRequestField = (source: InboundRequestField['source']): InboundRequestField => ({
+  id: `field_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+  source,
+  name: '',
+  type: 'String',
+  moc: 'yes',
+  description: '',
 });
 
 const statusColor: Record<string, string> = {
@@ -85,6 +94,35 @@ export default function MatchCapabilityEditorPage() {
   }
 
   const update = (updates: Partial<typeof configuration>) => updateDecisionVersion(channelCode, endpoint.id, configuration.id, updates);
+  const fieldPath = (field: InboundRequestField) => `${field.source}.${field.name}`;
+  const syncRequestFields = (requestFields: InboundRequestField[]) => {
+    const validFields = requestFields.filter((field) => field.name.trim());
+    const paths = validFields.map(fieldPath);
+    const rules = configuration.matchType === 'type_field'
+      ? configuration.rules.map((rule) => ({
+          ...rule,
+          fieldValues: Object.fromEntries(validFields.map((field) => {
+            const previous = configuration.requestFields.find((item) => item.id === field.id);
+            return [fieldPath(field), rule.fieldValues[fieldPath(field)] ?? (previous ? rule.fieldValues[fieldPath(previous)] : '') ?? ''];
+          })),
+        }))
+      : configuration.rules;
+    update({
+      requestFields,
+      fields: paths,
+      matchFields: configuration.matchType === 'type_field' ? paths : configuration.matchFields,
+      singleNoField: configuration.matchType === 'order_no' && validFields[0] ? fieldPath(validFields[0]) : configuration.singleNoField,
+      rules,
+    });
+  };
+  const addRequestField = (source: InboundRequestField['source']) => syncRequestFields([
+    ...configuration.requestFields,
+    createRequestField(source),
+  ]);
+  const updateRequestField = (fieldId: string, updates: Partial<InboundRequestField>) => syncRequestFields(
+    configuration.requestFields.map((field) => field.id === fieldId ? { ...field, ...updates } : field)
+  );
+  const deleteRequestField = (fieldId: string) => syncRequestFields(configuration.requestFields.filter((field) => field.id !== fieldId));
   const updateRule = (ruleId: string, updates: Partial<MatchRule>) => update({
     rules: configuration.rules.map((rule) => rule.id === ruleId ? { ...rule, ...updates } : rule),
   });
@@ -103,10 +141,11 @@ export default function MatchCapabilityEditorPage() {
 
   const validate = (): string | null => {
     if (!endpoint.url || !endpoint.method) return 'URI Basic Info is incomplete';
-    if (configuration.fields.length === 0) return 'Request Definition must contain at least one field';
+    if (configuration.matchType !== 'single' && configuration.requestFields.length === 0) return 'Common Request must contain at least one field';
+    if (configuration.requestFields.some((field) => !field.name.trim())) return 'Every Common Request field requires a Field Name';
     if (configuration.matchType === 'single' && configuration.rules.length !== 1) return 'Single Type requires exactly one Capability Result';
     if ((configuration.matchType === 'order_no' || configuration.matchType === 'custom') && configuration.rules.length === 0) return 'Declare at least one candidate Capability Result';
-    if (configuration.matchType === 'order_no' && (!configuration.singleNoField || !configuration.referenceField)) return 'Order No requires one match field and a reference type';
+    if (configuration.matchType === 'order_no' && (configuration.requestFields.length !== 1 || !configuration.singleNoField || !configuration.referenceField)) return 'Order No requires exactly one match field and a reference type';
     if (configuration.matchType === 'type_field' && configuration.matchFields.length === 0) return 'Type Field requires at least one input field';
     if (configuration.matchType === 'custom' && !configuration.customScript?.trim()) return 'Custom Script is required';
     for (const rule of configuration.rules) {
@@ -145,6 +184,24 @@ export default function MatchCapabilityEditorPage() {
 
   const btOptions = endpoint.businessTypes.map((value) => ({ value }));
   const selectedRule = configuration.rules.find((rule) => rule.id === selectedRuleId);
+  const renderRequestField = (field: InboundRequestField) => (
+    <div key={field.id} style={{ display: 'grid', gridTemplateColumns: '1.2fr .8fr .65fr 1.3fr 34px', gap: 6, marginTop: 8, alignItems: 'center' }}>
+      <Input disabled={readOnly} placeholder="Field Name" value={field.name} onChange={(event) => updateRequestField(field.id, { name: event.target.value })} />
+      <Select disabled={readOnly} value={field.type} options={['String', 'Number', 'Boolean', 'Object'].map((value) => ({ value }))} onChange={(type) => updateRequestField(field.id, { type })} />
+      <Select disabled={readOnly} value={field.moc} options={[{ value: 'yes', label: 'MOC: yes' }, { value: 'no', label: 'MOC: no' }]} onChange={(moc) => updateRequestField(field.id, { moc })} />
+      <Input disabled={readOnly} placeholder="Description" value={field.description} onChange={(event) => updateRequestField(field.id, { description: event.target.value })} />
+      {!readOnly && <Button type="text" danger icon={<DeleteOutlined />} onClick={() => deleteRequestField(field.id)} />}
+    </div>
+  );
+  const renderFieldSection = (source: InboundRequestField['source'], title: string) => {
+    const fields = configuration.requestFields.filter((field) => field.source === source);
+    return (
+      <div style={{ marginTop: 14, padding: 12, background: '#fafafa', borderRadius: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>{title}</strong>{!readOnly && <Button size="small" type="text" icon={<PlusOutlined />} onClick={() => addRequestField(source)}>Add Field</Button>}</div>
+        {fields.length ? fields.map(renderRequestField) : <div style={{ color: '#8c8c8c', fontSize: 11, padding: '10px 0 2px' }}>No field configured</div>}
+      </div>
+    );
+  };
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f7fa' }}>
@@ -179,7 +236,7 @@ export default function MatchCapabilityEditorPage() {
             <Divider />
             <strong>Capability Results</strong>
             <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{configuration.rules.length} result(s) available to downstream Flow</div>
-            <Button block style={{ marginTop: 16 }} onClick={() => setActiveDrawer('uri')}>{readOnly ? 'View URI Configuration' : 'Configure URI & Request'}</Button>
+            <Button block style={{ marginTop: 16 }} onClick={() => setActiveDrawer('uri')}>{readOnly ? 'View Pre-processing' : 'Configure Pre-processing'}</Button>
           </div>
         </div>
 
@@ -222,13 +279,7 @@ export default function MatchCapabilityEditorPage() {
         </div>
       </div>
 
-      <Drawer title="URI & Request Configuration" width={520} open={activeDrawer === 'uri'} onClose={() => setActiveDrawer(null)}>
-        <div style={{ fontWeight: 600, marginBottom: 10 }}>Request Definition</div>
-        <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Content Type</div>
-        <Select disabled={readOnly} value="application/json" style={{ width: '100%', marginBottom: 12 }} options={[{ value: 'application/json' }, { value: 'application/xml' }, { value: 'text/plain' }]} />
-        <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Available Request Fields</div>
-        <Select mode="tags" disabled={readOnly} value={configuration.fields} style={{ width: '100%' }} onChange={(fields) => update({ fields })} tokenSeparators={[',']} placeholder="query.*, header.*, body.*" />
-        <Divider />
+      <Drawer title="Inbound Pre-processing" width={520} open={activeDrawer === 'uri'} onClose={() => setActiveDrawer(null)}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>Pre-processing · Decryption</strong><Switch disabled={readOnly} checked={configuration.decryptEnabled} onChange={(decryptEnabled) => update({ decryptEnabled })} /></div>
         <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 6 }}>{configuration.decryptEnabled ? 'Decryption runs before capability matching.' : 'No decryption configured.'}</div>
         <Divider />
@@ -241,18 +292,37 @@ export default function MatchCapabilityEditorPage() {
       <Drawer title="matchCapability Configuration" width={720} open={activeDrawer === 'match'} onClose={() => setActiveDrawer(null)}>
         <div style={{ paddingBottom: 24 }}>
             <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Matching Type</div>
-            <Select disabled={readOnly} value={configuration.matchType} style={{ width: '100%' }} options={matchingTypeOptions} onChange={(matchType) => update({ matchType, matchFields: [], singleNoField: '', referenceField: undefined, rules: matchType === 'single' ? [configuration.rules[0] ?? createRule()] : configuration.rules })} />
+            <Select disabled={readOnly} value={configuration.matchType} style={{ width: '100%' }} options={matchingTypeOptions} onChange={(matchType) => update({
+              matchType,
+              requestFields: [],
+              fields: [],
+              matchFieldSource: undefined,
+              matchFields: [],
+              singleNoField: '',
+              referenceField: undefined,
+              rules: (matchType === 'single' ? [configuration.rules[0] ?? createRule()] : configuration.rules).map((rule) => ({ ...rule, fieldValues: {} })),
+            })} />
 
-            {configuration.matchType === 'order_no' && <div style={{ marginTop: 16, padding: 12, background: '#fafafa', borderRadius: 8 }}>
-              <strong>Unique Order Match Field</strong>
-              <Select disabled={readOnly} value={configuration.matchFieldSource} placeholder="Field source" style={{ width: '100%', marginTop: 10 }} options={[{ value: 'query', label: 'Query Parameters' }, { value: 'header', label: 'Request Header' }, { value: 'body', label: 'Request Body' }]} onChange={(matchFieldSource) => update({ matchFieldSource, singleNoField: '' })} />
-              <Select disabled={readOnly || !configuration.matchFieldSource} value={configuration.singleNoField || undefined} placeholder="Select one field" style={{ width: '100%', marginTop: 8 }} options={configuration.fields.filter((field) => field.startsWith(`${configuration.matchFieldSource}.`)).map((value) => ({ value }))} onChange={(singleNoField) => update({ singleNoField })} />
-              <Select disabled={readOnly} value={configuration.referenceField} placeholder="Match to" style={{ width: '100%', marginTop: 8 }} options={[{ value: 'requestReference' }, { value: 'responseReference' }]} onChange={(referenceField) => update({ referenceField })} />
+            <Divider>Common Request</Divider>
+            {configuration.matchType === 'single' && <Alert type="info" showIcon message="Single Type does not require additional request discriminator fields." />}
+
+            {configuration.matchType === 'order_no' && <div style={{ marginTop: 12, padding: 12, background: '#fafafa', borderRadius: 8 }}>
+              <strong>Unique Order Match Parameter</strong>
+              <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 4 }}>Only one parameter can be defined in Query Parameters, Request Header, or Request Body.</div>
+              <Select disabled={readOnly} value={configuration.matchFieldSource} placeholder="Select parameter source" style={{ width: '100%', marginTop: 10 }} options={[{ value: 'query', label: 'Query Parameters' }, { value: 'header', label: 'Request Header' }, { value: 'body', label: 'Request Body' }]} onChange={(source: InboundRequestField['source']) => {
+                const current = configuration.requestFields[0];
+                const next = current ? { ...current, source } : createRequestField(source);
+                update({ matchFieldSource: source });
+                syncRequestFields([next]);
+              }} />
+              {configuration.requestFields[0] && renderRequestField(configuration.requestFields[0])}
+              <Select disabled={readOnly} value={configuration.referenceField} placeholder="Match to order reference" style={{ width: '100%', marginTop: 10 }} options={[{ value: 'requestReference' }, { value: 'responseReference' }]} onChange={(referenceField) => update({ referenceField })} />
             </div>}
 
-            {configuration.matchType === 'type_field' && <div style={{ marginTop: 16 }}>
-              <strong>Common Input Fields</strong>
-              <Select mode="multiple" disabled={readOnly} value={configuration.matchFields} style={{ width: '100%', marginTop: 8 }} options={configuration.fields.map((value) => ({ value }))} onChange={(matchFields) => update({ matchFields, rules: configuration.rules.map((rule) => ({ ...rule, fieldValues: Object.fromEntries(matchFields.map((field) => [field, rule.fieldValues[field] ?? ''])) })) })} />
+            {(configuration.matchType === 'type_field' || configuration.matchType === 'custom') && <div>
+              {renderFieldSection('query', 'Query Parameters')}
+              {renderFieldSection('header', 'Request Header')}
+              {renderFieldSection('body', 'Request Body')}
             </div>}
 
             {configuration.matchType === 'custom' && <div style={{ marginTop: 16 }}>

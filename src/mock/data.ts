@@ -111,7 +111,7 @@ export const mockInboundEndpointsByChannel = {
       method: 'POST' as const,
       uriType: 'new' as const,
       description: 'Shared inbound notification entry',
-      fields: ['body.txnRef', 'body.type', 'body.currency', 'header.x-event-source'],
+      fields: ['body.type', 'body.currency', 'header.x-event-source'],
       matchType: 'type_field' as const,
       singleNoField: '',
       matchFields: ['body.type', 'body.currency', 'header.x-event-source'],
