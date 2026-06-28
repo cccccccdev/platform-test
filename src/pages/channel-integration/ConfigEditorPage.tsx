@@ -146,7 +146,14 @@ export default function ConfigEditorPage() {
               : <span style={{ color: '#999' }}>-</span>,
           },
           {
-            title: 'Direction',
+            title: 'Triggered By',
+            width: 150,
+            render: (_value, flow) => (
+              <span>{flow.triggerEvents?.[0] ?? flow.contextActions?.[0] ?? '-'}</span>
+            ),
+          },
+          {
+            title: 'Flow Type',
             dataIndex: 'flowType',
             width: 110,
             render: (flowType: string) => <Tag color={flowType === 'inbound' ? 'purple' : 'blue'}>{flowType}</Tag>,
@@ -156,7 +163,7 @@ export default function ConfigEditorPage() {
             width: 110,
             render: (_value, flow) => (
               <Tag color={flow.isConfigured ? 'success' : 'default'}>
-                {flow.isConfigured ? 'Configured' : 'Draft'}
+                {flow.isConfigured ? 'Submitted' : 'Draft'}
               </Tag>
             ),
           },

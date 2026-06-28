@@ -4,44 +4,46 @@ import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Moda
 import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined } from '@ant-design/icons';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
 import type { Node, Edge, Connection } from '@xyflow/react';
+import type { FlowCanvasEdge, FlowCanvasNode } from './types';
 import '@xyflow/react/dist/style.css';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 
 const { Text, Title } = Typography;
 
-// 组件库 - 根据 action 和 flowType 预置不同组件
-const COMPONENT_LIBRARY = [
-  // Forward flow components
-  { code: 'generateReference', name: 'Generate Reference', type: 'Component' },
-  { code: 'network', name: 'Network', type: 'Component' },
-  { code: 'condition', name: 'Condition', type: 'Component' },
-  // Backward flow components
-  { code: 'inboundRequest', name: 'InboundRequest', type: 'Component' },
-  { code: 'inboundResponse', name: 'InboundResponse', type: 'Component' },
-  { code: 'sendCompleteMQ', name: 'SendCompleteMQ', type: 'Component' },
-  { code: 'sendRequeryMQ', name: 'SendRequeryMQ', type: 'Component' },
-  { code: 'messageNotification', name: 'MessageNotification', type: 'Component' },
-  { code: 'requestBusinessAccessLayer', name: 'RequestBusinessAccessLayer', type: 'Component' },
-  { code: 'queryOrder', name: 'QueryOrder', type: 'Component' },
-];
+type LibraryComponent = { code: string; name: string; group: string; usage: 'single' | 'multiple' };
 
-// 根据 flowType 获取预置组件
-const getPresetComponents = (flowType: string): string[] => {
-  if (flowType === 'outbound') {
-    return ['generateReference', 'network', 'condition'];
-  }
-  if (flowType === 'inbound') {
-    return ['inboundRequest', 'inboundResponse', 'sendCompleteMQ'];
-  }
-  return [];
-};
+// Phase 3 component library. eventListener and legacy network are intentionally unavailable.
+const COMPONENT_LIBRARY = [
+  { code: 'initOutboundOrder', name: 'Initialize Outbound Order', group: 'Outbound', usage: 'single' },
+  { code: 'updateOutboundOrder', name: 'Update Outbound Order', group: 'Outbound', usage: 'multiple' },
+  { code: 'generateRequestReference', name: 'Generate Request Reference', group: 'Outbound', usage: 'multiple' },
+  { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple' },
+  { code: 'sendCompleteMQ', name: 'Send Complete MQ', group: 'Outbound', usage: 'multiple' },
+  { code: 'condition', name: 'Condition Check', group: 'Common', usage: 'multiple' },
+  { code: 'asyncExecuteFlow', name: 'Async Execute Flow', group: 'Common', usage: 'multiple' },
+  { code: 'inboundRequest', name: 'Inbound Request', group: 'Inbound', usage: 'single' },
+  { code: 'inboundResponse', name: 'Inbound Response', group: 'Inbound', usage: 'single' },
+  { code: 'initInboundOrder', name: 'Initialize Inbound Order', group: 'Inbound', usage: 'single' },
+  { code: 'updateInboundOrder', name: 'Update Inbound Order', group: 'Inbound', usage: 'multiple' },
+  { code: 'queryInboundOrder', name: 'Query Inbound Order', group: 'Query', usage: 'multiple' },
+  { code: 'queryOutboundOrder', name: 'Query Outbound Order', group: 'Query', usage: 'multiple' },
+  { code: 'requestBusinessAccessLayer', name: 'Request Business Access Layer', group: 'Integration', usage: 'multiple' },
+  { code: 'responseCodeInner2Outer', name: 'Response Code Inner to Outer', group: 'Response Code', usage: 'multiple' },
+  { code: 'responseCodeOuter2Inner', name: 'Response Code Outer to Inner', group: 'Response Code', usage: 'multiple' },
+  { code: 'sendReQueryMQ', name: 'Send ReQuery MQ', group: 'Requery', usage: 'multiple' },
+  // Runtime prerequisites are visible for seeded sample flows but cannot be added manually.
+  { code: 'loadCredential', name: 'Load Credential', group: 'System', usage: 'single' },
+  { code: 'loadGlobalVariable', name: 'Load Global Variable', group: 'System', usage: 'single' },
+] satisfies LibraryComponent[];
+
+const ADDABLE_COMPONENTS = COMPONENT_LIBRARY.filter((item) => item.group !== 'System');
 
 // 组件面板
 function ComponentLibraryPanel({
   components,
   onAddComponent,
 }: {
-  components: { code: string; name: string; type: string }[];
+  components: LibraryComponent[];
   onAddComponent: (code: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -52,7 +54,10 @@ function ComponentLibraryPanel({
     c.code.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  const componentComposites = filteredComposites.filter(c => c.type === 'Component');
+  const groupedComponents = filteredComposites.reduce<Record<string, LibraryComponent[]>>((groups, component) => {
+    (groups[component.group] ??= []).push(component);
+    return groups;
+  }, {});
 
   const handleDragStart = (e: React.DragEvent, code: string) => {
     e.dataTransfer.setData('application/reactflow', code);
@@ -88,7 +93,7 @@ function ComponentLibraryPanel({
 
   return (
     <div style={{
-      width: 280,
+      width: 304,
       height: '100%',
       background: '#fff',
       borderRight: '1px solid #f0f0f0',
@@ -115,10 +120,10 @@ function ComponentLibraryPanel({
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
-        {componentComposites.length > 0 && (
-          <div>
-            <div style={{ fontSize: 11, color: '#999', marginBottom: 8, fontWeight: 500 }}>Component</div>
-            {componentComposites.map(c => (
+        {Object.entries(groupedComponents).map(([group, groupComponents]) => (
+          <div key={group} style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: '#777', margin: '4px 0 8px', fontWeight: 600 }}>{group}</div>
+            {groupComponents.map(c => (
               <div
                 key={c.code}
                 draggable
@@ -143,12 +148,19 @@ function ComponentLibraryPanel({
                   e.currentTarget.style.background = '#fff';
                 }}
               >
-                <div style={{ fontWeight: 500 }}>{c.name}</div>
-                <div style={{ color: '#888', fontSize: 10 }}>{c.code}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{c.code}</div>
+                    <div style={{ color: '#888', fontSize: 10 }}>{c.name}</div>
+                  </div>
+                  <Tag color={c.usage === 'single' ? 'default' : 'green'} style={{ fontSize: 9, margin: 0, height: 20 }}>
+                    {c.usage === 'single' ? 'Single Use' : 'Multiple'}
+                  </Tag>
+                </div>
               </div>
             ))}
           </div>
-        )}
+        ))}
 
         {filteredComposites.length === 0 && (
           <Text type="secondary" style={{ fontSize: 12 }}>无匹配组件</Text>
@@ -175,12 +187,11 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
   return (
     <div
       style={{
-        border: `3px solid ${isConfigured ? '#52c41a' : '#d9d9d9'}`,
-        borderLeft: `4px solid ${isConfigured ? '#52c41a' : '#fa8c16'}`,
-        borderRadius: 12,
+        border: `1.5px solid ${isConfigured ? '#52c41a' : '#d9d9d9'}`,
+        borderRadius: 8,
         background: isConfigured ? '#fafff0' : '#fafafa',
-        padding: 12,
-        minWidth: 180,
+        padding: '10px 14px',
+        minWidth: 220,
         position: 'relative',
       }}
       onMouseEnter={() => setIsHovered(true)}
@@ -189,7 +200,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
       onClick={() => { console.log('Node clicked, code:', data.code, 'onConfig:', data.onConfig); data.onConfig?.(); }}
     >
       <Handle type="target" position={Position.Top} style={{ background: '#1890ff' }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 12, color: isConfigured ? '#52c41a' : '#999' }}>{isConfigured ? '●' : '○'}</span>
         <span style={{ flex: 1, fontWeight: 600, fontSize: 12 }}>{nodeName}</span>
         {isConfigured && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 12 }} />}
@@ -211,6 +222,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
           </div>
         )}
       </div>
+      {data.description && <div style={{ color: '#8c8c8c', fontSize: 10, margin: '3px 0 0 20px' }}>{data.description}</div>}
       <Handle type="source" position={Position.Bottom} style={{ background: '#1890ff' }} />
 
       {showContextMenu && (
@@ -570,14 +582,38 @@ function ContextPanel({
     },
   ];
 
+  const phaseThreeContextItems = [
+    ...collapseItems.filter((item) => !['generatedFields', 'endpoint'].includes(item.key)),
+    {
+      key: 'orderVariable',
+      label: <Space><span>📦</span><span>Order Variable</span></Space>,
+      children: renderEmptyState('No Order Variable', 'Available order fields will appear here'),
+    },
+    {
+      key: 'authentication',
+      label: <Space><span>🛡️</span><span>Authentication</span></Space>,
+      children: renderEmptyState('No Authentication output', 'Configure authentication in the HTTP Call component'),
+    },
+    {
+      key: 'componentOutput',
+      label: <Space><span>🧩</span><span>Component Output</span></Space>,
+      children: renderEmptyState('No Component Output', 'Outputs become available after a component is configured'),
+    },
+    {
+      key: 'matchCapabilityInput',
+      label: <Space><span>🎯</span><span>Match Capability Input</span></Space>,
+      children: renderEmptyState('No Match Capability Input', 'Available to inbound Match Capability flows'),
+    },
+  ];
+
   return (
-    <div style={{ width: 320, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: 272, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 14 }}>
         Context
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
         {mappingActiveBanner}
-        <Collapse defaultActiveKey={['spi', 'endpoint', 'generatedFields', 'globalVar']} ghost items={collapseItems} />
+        <Collapse defaultActiveKey={['spi', 'globalVar']} ghost items={phaseThreeContextItems} />
       </div>
 
       <Modal
@@ -1863,17 +1899,16 @@ export default function FlowEditorPage() {
     }
   }, [nodes]);
 
-  const storedFlow = useConfigIntegrationStore((state) => {
-    const ability = (state.abilitiesByChannel[params.channelCode ?? ''] ?? []).find(
+  const storedAbility = useConfigIntegrationStore((state) =>
+    (state.abilitiesByChannel[params.channelCode ?? ''] ?? []).find(
       (item) => item.bt === params.bt && item.ability === params.ability
-    );
-    return ability?.versions
-      .find((version) => version.id === params.versionId)
-      ?.flows.find((flow) => flow.id === params.flowId);
-  });
+    )
+  );
+  const storedVersion = storedAbility?.versions.find((item) => item.id === params.versionId);
+  const storedFlow = storedVersion?.flows.find((item) => item.id === params.flowId);
   const updateStoredFlow = useConfigIntegrationStore((state) => state.updateFlow);
-  const flowType = searchParams.get('flowType') ?? storedFlow?.flowType ?? 'outbound';
   const readOnly = searchParams.get('mode') === 'detail';
+  const actionName = storedFlow?.triggerEvents?.[0] ?? storedFlow?.contextActions?.[0] ?? '—';
 
   const mockEndpoints = [
     {
@@ -1970,63 +2005,68 @@ export default function FlowEditorPage() {
     { name: 'rrn', generationType: 'sequence' },
   ]);
 
+  const openComponentConfig = useCallback((code: string) => {
+    if (code === 'httpCall') setShowNetworkDrawer(true);
+  }, []);
+
+  const toRuntimeNode = useCallback((item: FlowCanvasNode): Node => {
+    const info = COMPONENT_LIBRARY.find((component) => component.code === item.componentCode);
+    return {
+      id: item.id,
+      type: 'flowNode',
+      position: { x: item.x, y: item.y },
+      data: {
+        name: item.componentCode,
+        description: info?.name ?? item.componentCode,
+        code: item.componentCode,
+        status: item.status,
+        isConfigured: item.status === 'complete' || item.status === 'readonly',
+        onConfig: () => openComponentConfig(item.componentCode),
+        onDelete: () => {
+          setNodes((current) => current.filter((node) => node.id !== item.id));
+          setEdges((current) => current.filter((edge) => edge.source !== item.id && edge.target !== item.id));
+        },
+        isDraggable: item.status !== 'readonly',
+      },
+    };
+  }, [openComponentConfig]);
+
+  const toRuntimeEdge = useCallback((item: FlowCanvasEdge): Edge => ({
+    ...item,
+    type: 'smoothstep',
+    markerEnd: { type: MarkerType.ArrowClosed },
+    style: { stroke: '#333', strokeWidth: 1.5 },
+  }), []);
+
+  const initializedFlowRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!storedFlow || initializedFlowRef.current === storedFlow.id) return;
+    setNodes((storedFlow.canvasNodes ?? []).map(toRuntimeNode));
+    setEdges((storedFlow.canvasEdges ?? []).map(toRuntimeEdge));
+    initializedFlowRef.current = storedFlow.id;
+    const action = storedFlow.triggerEvents?.[0] ?? storedFlow.contextActions?.[0] ?? 'TRANSACTION';
+    setSpiData({ businessType: params.bt ?? '', ability: params.ability ?? '', action });
+  }, [params.ability, params.bt, storedFlow, toRuntimeEdge, toRuntimeNode]);
+
   const handleAddComponent = useCallback((code: string) => {
     const info = COMPONENT_LIBRARY.find(c => c.code === code);
     if (!info) return;
 
-    const newNode: Node = {
-      id: `node_${Date.now()}`,
-      type: 'flowNode',
-      position: { x: 250 + Math.random() * 100, y: nodes.length * 120 + 50 },
-      data: {
-        name: info.name,
-        code: code,
-        isConfigured: false,
-        onConfig: () => {
-          if (code === 'network') {
-            setShowNetworkDrawer(true);
-          }
-          // Condition node config is done via edge click
-        },
-        onDelete: () => setNodes(nds => nds.filter(n => n.id !== newNode.id)),
-      },
-    };
-    setNodes((nds) => [...nds, newNode]);
-  }, [nodes.length, setNodes]);
-
-  // 根据 action 和 flowType 获取预置组件并初始化画布
-  const getInitialNodes = useCallback((): Node[] => {
-    const presetCodes = getPresetComponents(flowType || 'outbound');
-    return presetCodes.map((code, idx) => {
-      const info = COMPONENT_LIBRARY.find(c => c.code === code);
-      return {
-        id: `node_${idx}`,
-        type: 'flowNode',
-        position: { x: 250, y: idx * 120 + 50 },
-        data: {
-          name: info?.name || code,
-          code: code,
-          isConfigured: true,
-          onConfig: () => {
-            if (code === 'network') {
-              setShowNetworkDrawer(true);
-            }
-            // Condition node config is done via edge click
-          },
-          onDelete: () => {},
-          isDraggable: false,
-        },
-      };
-    });
-  }, [flowType]);
-
-  // 初始化预置节点
-  useEffect(() => {
-    const initialNodes = getInitialNodes();
-    if (initialNodes.length > 0 && nodes.length === 0) {
-      setNodes(initialNodes);
+    if (info.usage === 'single' && nodes.some((node) => node.data.code === code)) {
+      message.warning(`${code} can only be added once`);
+      return;
     }
-  }, [getInitialNodes, nodes.length]);
+
+    const id = `node_${Date.now()}`;
+    const canvasNode: FlowCanvasNode = {
+      id,
+      componentCode: code,
+      x: 320,
+      y: nodes.length * 110 + 50,
+      status: 'not_started',
+    };
+    setNodes((current) => [...current, toRuntimeNode(canvasNode)]);
+  }, [nodes, toRuntimeNode]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -2041,6 +2081,17 @@ export default function FlowEditorPage() {
     e.dataTransfer.dropEffect = 'move';
   }, []);
 
+  const serializeNodes = (): FlowCanvasNode[] => nodes.map((node) => ({
+    id: node.id,
+    componentCode: String(node.data.code),
+    x: node.position.x,
+    y: node.position.y,
+    status: (node.data.status as FlowCanvasNode['status']) ?? (node.data.isConfigured ? 'complete' : 'not_started'),
+  }));
+  const serializeEdges = (): FlowCanvasEdge[] => edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target }));
+
+  const parentPath = `/channel-integration/${params.channelCode}/integration/config/${params.bt}/${params.ability}/versions/${params.versionId}`;
+
   const handleSave = () => {
     if (params.channelCode && params.bt && params.ability && params.versionId && params.flowId) {
       updateStoredFlow(
@@ -2049,15 +2100,21 @@ export default function FlowEditorPage() {
         params.ability,
         params.versionId,
         params.flowId,
-        { isConfigured: false }
+        { isConfigured: false, canvasNodes: serializeNodes(), canvasEdges: serializeEdges() }
       );
     }
-    message.success('Flow saved successfully', 2);
+    message.success('Flow saved as Draft');
+    navigate(parentPath);
   };
 
   const handleSubmit = () => {
     if (nodes.length === 0) {
       message.error('Flow must contain at least one component');
+      return;
+    }
+    const incompleteNodes = nodes.filter((node) => !node.data.isConfigured);
+    if (incompleteNodes.length > 0) {
+      message.error(`${incompleteNodes.length} component(s) still require configuration`);
       return;
     }
     if (params.channelCode && params.bt && params.ability && params.versionId && params.flowId) {
@@ -2067,10 +2124,11 @@ export default function FlowEditorPage() {
         params.ability,
         params.versionId,
         params.flowId,
-        { isConfigured: true }
+        { isConfigured: true, canvasNodes: serializeNodes(), canvasEdges: serializeEdges() }
       );
     }
-    message.success('Submitted successfully', 2);
+    message.success('Flow submitted');
+    navigate(parentPath);
   };
 
   const performNavigation = () => {
@@ -2098,15 +2156,35 @@ export default function FlowEditorPage() {
         </Button>
         <Divider type="vertical" style={{ height: 24 }} />
         <Title level={5} style={{ margin: 0 }}>
-          {params.ability} - Flow {params.flowId} - {flowType}
+          {params.bt} / {params.ability} / {actionName}
         </Title>
         <div style={{ flex: 1 }} />
         {!readOnly && (
           <Space>
-            <Button icon={<SaveOutlined />} onClick={handleSave}>Save as draft</Button>
+            <Button icon={<SaveOutlined />} onClick={handleSave}>Save Draft</Button>
             <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>Submit</Button>
           </Space>
         )}
+      </div>
+
+      <div style={{ padding: '12px 16px', background: '#f5f7fa' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(110px, 1fr))', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: '12px 16px' }}>
+          {[
+            ['Channel', params.channelCode],
+            ['Business Type', params.bt],
+            ['Ability', params.ability],
+            ['Action', actionName],
+            ['Flow Version', storedVersion?.version],
+            ['Flow ID', params.flowId],
+            ['Flow Name', storedFlow?.name],
+            ['Trigger Type', storedFlow?.triggerType],
+          ].map(([label, value]) => (
+            <div key={label} style={{ minWidth: 0, padding: '0 14px', borderRight: label === 'Trigger Type' ? 'none' : '1px solid #f0f0f0' }}>
+              <div style={{ color: '#8c8c8c', fontSize: 10, marginBottom: 4 }}>{label}</div>
+              <div title={value} style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value ?? '—'}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 内容区域 */}
@@ -2132,7 +2210,7 @@ export default function FlowEditorPage() {
 
         {/* 组件面板 */}
         <ComponentLibraryPanel
-          components={readOnly ? [] : COMPONENT_LIBRARY}
+          components={readOnly ? [] : ADDABLE_COMPONENTS}
           onAddComponent={readOnly ? () => undefined : handleAddComponent}
         />
 
@@ -2142,6 +2220,9 @@ export default function FlowEditorPage() {
           onDrop={handleDrop}
           onDragOver={handleDragOver}
         >
+          <div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>
+            Canvas
+          </div>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -2188,8 +2269,8 @@ export default function FlowEditorPage() {
       {/* Network 配置抽屉 */}
       <NetworkConfigDrawer
         visible={showNetworkDrawer}
-        code="network"
-        name="Network"
+        code="httpCall"
+        name="HTTP Call"
         endpoints={mockEndpoints}
         generatedFields={mockGeneratedFields}
         isMappingActive={isMappingActive}
@@ -2206,8 +2287,8 @@ export default function FlowEditorPage() {
           console.log('Network config saved:', config);
           // 更新节点状态
           setNodes(nds => nds.map(n => {
-            if (n.data.code === 'network') {
-              return { ...n, data: { ...n.data, isConfigured: true } };
+            if (n.data.code === 'httpCall') {
+              return { ...n, data: { ...n.data, status: 'complete', isConfigured: true } };
             }
             return n;
           }));
@@ -2286,10 +2367,10 @@ export default function FlowEditorPage() {
           <Button key="cancel" onClick={() => performNavigation()}>
             Cancel
           </Button>,
-          <Button key="saveDraft" onClick={() => { handleSave(); performNavigation(); }}>
+          <Button key="saveDraft" onClick={handleSave}>
             Save as draft
           </Button>,
-          <Button key="submit" type="primary" onClick={() => { handleSubmit(); performNavigation(); }}>
+          <Button key="submit" type="primary" onClick={handleSubmit}>
             Submit
           </Button>,
         ]}

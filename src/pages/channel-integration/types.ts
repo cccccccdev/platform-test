@@ -106,6 +106,20 @@ export interface OutputEvent {
   conditions?: EventCondition[];
 }
 
+export interface FlowCanvasNode {
+  id: string;
+  componentCode: string;
+  x: number;
+  y: number;
+  status: 'not_started' | 'editing' | 'complete' | 'error' | 'need_review' | 'readonly';
+}
+
+export interface FlowCanvasEdge {
+  id: string;
+  source: string;
+  target: string;
+}
+
 export interface FlowConfig {
   id: string;
   name: string;
@@ -128,6 +142,9 @@ export interface FlowConfig {
   stateConditions?: EventCondition[];
   // Whether this flow is configured
   isConfigured?: boolean;
+  // Canvas data lives with the Flow during the current demo session.
+  canvasNodes?: FlowCanvasNode[];
+  canvasEdges?: FlowCanvasEdge[];
 }
 
 export interface StateFlowData {
