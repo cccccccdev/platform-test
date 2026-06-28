@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
@@ -74,8 +74,10 @@ export default function FlowConfigModal({
 }: FlowConfigModalProps) {
   const [form] = Form.useForm();
   const { channelCode = '' } = useParams<{ channelCode: string }>();
-  const inboundUris = useMatchCapabilityStore((state) =>
-    (state.endpointsByChannel[channelCode] ?? []).filter((endpoint) => endpoint.uriType === 'new')
+  const endpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
+  const inboundUris = useMemo(
+    () => (endpointsByChannel[channelCode] ?? []).filter((endpoint) => endpoint.uriType === 'new'),
+    [channelCode, endpointsByChannel]
   );
   const [triggerType, setTriggerType] = useState<string>('UPSTREAM_TRIGGERED');
   const [hasChanges, setHasChanges] = useState(false);
