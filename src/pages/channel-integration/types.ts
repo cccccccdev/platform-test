@@ -42,7 +42,8 @@ export interface InboundEndpoint {
   id: string;
   name: string;
   url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH';
+  businessType: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   uriType: 'new' | 'legacy';
   description: string;
   fields: string[];

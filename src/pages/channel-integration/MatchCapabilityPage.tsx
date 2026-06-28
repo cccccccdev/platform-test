@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Breadcrumb, Button, Form, Input, message, Modal, Popconfirm, Select, Space, Table, Tag } from 'antd';
-import { CopyOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Breadcrumb, Button, Form, Input, message, Modal, Select, Space, Table, Tag } from 'antd';
+import { CopyOutlined, DeleteOutlined, DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
+import { mockBusinessTypes } from '../../mock/data';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { InboundEndpoint, UriConfigStatus } from './types';
 
-interface NewUriForm {
-  uri: string;
+interface NewInboundEndpointForm {
+  businessType: string;
+  path: string;
   method: InboundEndpoint['method'];
-  description?: string;
 }
 
 const statusMeta: Record<UriConfigStatus, { label: string; color: string }> = {
@@ -25,23 +26,29 @@ const createId = () => `uri_${Date.now()}_${Math.random().toString(36).slice(2, 
 export default function MatchCapabilityPage() {
   const { channelCode = '' } = useParams<{ channelCode: string }>();
   const navigate = useNavigate();
-  const [form] = Form.useForm<NewUriForm>();
-  const [showNewUri, setShowNewUri] = useState(false);
+  const [form] = Form.useForm<NewInboundEndpointForm>();
+  const [showNewEndpoint, setShowNewEndpoint] = useState(false);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [inspect, setInspect] = useState<{ type: 'status' | 'log'; endpoint: InboundEndpoint } | null>(null);
-  const [filters, setFilters] = useState({ keyword: '', method: '', uriType: '', status: '' });
-  const endpoints = useMatchCapabilityStore((state) => state.endpointsByChannel[channelCode] ?? []);
+  const [filters, setFilters] = useState({ keyword: '', businessType: '', method: '', status: '' });
+  const endpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
+  const endpoints = useMemo(() => endpointsByChannel[channelCode] ?? [], [channelCode, endpointsByChannel]);
   const addEndpoint = useMatchCapabilityStore((state) => state.addEndpoint);
   const createVersion = useMatchCapabilityStore((state) => state.createVersion);
   const cloneEndpoint = useMatchCapabilityStore((state) => state.cloneEndpoint);
   const deployEndpoint = useMatchCapabilityStore((state) => state.deployEndpoint);
   const deleteEndpoint = useMatchCapabilityStore((state) => state.deleteEndpoint);
 
+  const pathPrefix = `/callback/${channelCode.toLowerCase()}/`;
+  const configBusinessTypes = (mockBusinessTypes[channelCode] ?? [])
+    .filter((item) => item.mode === 'Config Integration')
+    .map((item) => item.bt);
+
   const visibleEndpoints = useMemo(() => endpoints.filter((endpoint) => {
     const keyword = filters.keyword.trim().toLowerCase();
-    return (!keyword || endpoint.url.toLowerCase().includes(keyword) || endpoint.rules.some((rule) =>
-      `${rule.bt} ${rule.ability} ${rule.action}`.toLowerCase().includes(keyword)
-    )) && (!filters.method || endpoint.method === filters.method)
-      && (!filters.uriType || endpoint.uriType === filters.uriType)
+    return (!keyword || endpoint.url.toLowerCase().includes(keyword))
+      && (!filters.businessType || endpoint.businessType === filters.businessType)
+      && (!filters.method || endpoint.method === filters.method)
       && (!filters.status || endpoint.configStatus === filters.status);
   }), [endpoints, filters]);
 
@@ -49,36 +56,34 @@ export default function MatchCapabilityPage() {
     navigate(`/channel-integration/${channelCode}/integration/match-capability/${endpoint.id}?mode=${mode}`);
   };
 
+  const toggleExpand = (endpointId: string) => setExpandedRows((previous) => {
+    const next = new Set(previous);
+    if (next.has(endpointId)) next.delete(endpointId);
+    else next.add(endpointId);
+    return next;
+  });
+
   const handleCreate = async () => {
     const values = await form.validateFields();
-    const uri = values.uri.trim();
-    if (!uri.startsWith('/')) {
-      form.setFields([{ name: 'uri', errors: ['URI must start with /'] }]);
-      return;
-    }
+    const suffix = values.path.trim().replace(/^\/+|\/+$/g, '');
+    const uri = `${pathPrefix}${suffix}`;
     if (endpoints.some((endpoint) => endpoint.url === uri && endpoint.method === values.method)) {
-      form.setFields([{ name: 'uri', errors: ['URI + Request Method already exists'] }]);
+      form.setFields([{ name: 'path', errors: ['Path + Method already exists in this Channel'] }]);
       return;
     }
     const endpoint: InboundEndpoint = {
       id: createId(),
-      name: uri.split('/').filter(Boolean).join('_') || 'root',
+      name: suffix.replaceAll('/', '_'),
       url: uri,
+      businessType: values.businessType,
       method: values.method,
       uriType: 'new',
-      description: values.description?.trim() ?? '',
+      description: '',
       fields: ['query.reference', 'header.x-event-type', 'body.reference', 'body.type', 'body.status'],
       matchType: 'single',
       singleNoField: '',
       matchFields: [],
-      rules: [{
-        id: `result_${Date.now()}`,
-        fieldValues: {},
-        bt: '',
-        ability: '',
-        action: '',
-        requestType: 'CALLBACK',
-      }],
+      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: values.businessType, ability: '', action: '', requestType: 'CALLBACK' }],
       customScript: 'def execute(request) {\n  return null\n}',
       fallbackBehavior: 'alert_and_reject',
       decryptEnabled: false,
@@ -90,86 +95,105 @@ export default function MatchCapabilityPage() {
       operator: 'admin',
     };
     addEndpoint(channelCode, endpoint);
-    setShowNewUri(false);
+    setShowNewEndpoint(false);
     form.resetFields();
     openEditor(endpoint, 'config');
   };
 
+  const renderStatus = (endpoint: InboundEndpoint) => {
+    if (endpoint.configStatus === 'published' && endpoint.badges?.length) {
+      return <Space wrap>{endpoint.badges.map((badge) => <Tag key={`${badge.cloud}-${badge.env}`} color="blue">{badge.cloud} - {badge.env}</Tag>)}</Space>;
+    }
+    const meta = statusMeta[endpoint.configStatus];
+    return <Tag color={meta.color}>{meta.label}</Tag>;
+  };
+
+  const handleNewVersion = (endpoint: InboundEndpoint) => {
+    createVersion(channelCode, endpoint.id);
+    openEditor(endpoint, 'config');
+  };
+
+  const confirmDelete = (endpoint: InboundEndpoint) => Modal.confirm({
+    title: 'Delete Inbound Endpoint?',
+    content: endpoint.referenceCount ? 'This Endpoint is referenced and cannot be deleted.' : endpoint.url,
+    okButtonProps: { danger: true, disabled: Boolean(endpoint.referenceCount) },
+    onOk: () => deleteEndpoint(channelCode, endpoint.id),
+  });
+
+  const renderOperations = (endpoint: InboundEndpoint) => {
+    if (endpoint.uriType === 'legacy') return <Button type="link" onClick={() => openEditor(endpoint, 'detail')}>Detail</Button>;
+    if (endpoint.configStatus === 'draft') return <Space><Button type="link" onClick={() => openEditor(endpoint, 'config')}>Config</Button><Button type="link" danger icon={<DeleteOutlined />} disabled={Boolean(endpoint.referenceCount)} onClick={() => confirmDelete(endpoint)}>Delete</Button></Space>;
+    if (endpoint.configStatus === 'submitted') return <Space><Button type="link" onClick={() => openEditor(endpoint, 'detail')}>Detail</Button><Button type="link" onClick={() => { deployEndpoint(channelCode, endpoint.id); message.success('Deployed to BD - DAILY'); }}>Deploy</Button><Button type="link" icon={<CopyOutlined />} onClick={() => { const clone = cloneEndpoint(channelCode, endpoint.id); if (clone) message.success(`Cloned as ${clone.url}`); }}>Clone</Button><Button type="link" onClick={() => setInspect({ type: 'status', endpoint })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint })}>Log</Button></Space>;
+    return <Space><Button type="link" onClick={() => openEditor(endpoint, 'detail')}>Detail</Button><Button type="link" icon={<CopyOutlined />} onClick={() => cloneEndpoint(channelCode, endpoint.id)}>Clone</Button><Button type="link" onClick={() => setInspect({ type: 'status', endpoint })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint })}>Log</Button></Space>;
+  };
+
+  const expandedRowRender = (endpoint: InboundEndpoint) => (
+    <Table<InboundEndpoint>
+      rowKey="id"
+      dataSource={[endpoint]}
+      pagination={false}
+      size="small"
+      columns={[
+        { title: 'Endpoint Version', dataIndex: 'version', width: 150 },
+        { title: 'Status', width: 220, render: () => renderStatus(endpoint) },
+        { title: 'Description', dataIndex: 'description', render: (value) => value || '-' },
+        { title: 'Operator', dataIndex: 'operator', width: 110 },
+        { title: 'Operation Time', dataIndex: 'updatedTime', width: 190 },
+        { title: 'Operation', width: 360, render: () => renderOperations(endpoint) },
+      ]}
+    />
+  );
+
   return (
     <div style={{ padding: 24 }}>
-      <Breadcrumb style={{ marginBottom: 16 }} items={[
-        { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
-        { title: channelCode },
-        { title: 'Integration' },
-        { title: 'Match Capability' },
-      ]} />
-
+      <Breadcrumb style={{ marginBottom: 16 }} items={[{ title: 'Channel Integration' }, { title: channelCode }, { title: 'Integration' }, { title: 'Match Capability' }]} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Match Capability</h2>
-          <div style={{ color: '#8c8c8c', marginTop: 4 }}>Channel-level inbound URI recognition and automatic Flow dispatch</div>
-        </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowNewUri(true)}>New URI</Button>
+        <div><h2 style={{ margin: 0 }}>Match Capability</h2><div style={{ color: '#8c8c8c', marginTop: 4 }}>Inbound Endpoint and capability matching configuration</div></div>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowNewEndpoint(true)}>New Inbound Endpoint</Button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(3, 1fr)', gap: 12, marginBottom: 16, padding: 16, background: '#fafafa', borderRadius: 8 }}>
-        <Input.Search placeholder="Search URI or Target Ability" allowClear onSearch={(keyword) => setFilters((current) => ({ ...current, keyword }))} />
-        <Select allowClear placeholder="Request Method" options={['GET', 'POST', 'PUT', 'PATCH'].map((value) => ({ value }))} onChange={(method) => setFilters((current) => ({ ...current, method: method ?? '' }))} />
-        <Select allowClear placeholder="URI Type" options={[{ value: 'new', label: 'New' }, { value: 'legacy', label: 'Legacy' }]} onChange={(uriType) => setFilters((current) => ({ ...current, uriType: uriType ?? '' }))} />
-        <Select allowClear placeholder="Config Status" options={Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }))} onChange={(status) => setFilters((current) => ({ ...current, status: status ?? '' }))} />
+        <Input.Search placeholder="Search URI" allowClear onSearch={(keyword) => setFilters((current) => ({ ...current, keyword }))} />
+        <Select allowClear placeholder="Business Type" options={configBusinessTypes.map((value) => ({ value }))} onChange={(businessType) => setFilters((current) => ({ ...current, businessType: businessType ?? '' }))} />
+        <Select allowClear placeholder="Method" options={['POST', 'GET', 'PUT', 'DELETE'].map((value) => ({ value }))} onChange={(method) => setFilters((current) => ({ ...current, method: method ?? '' }))} />
+        <Select allowClear placeholder="Status" options={Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }))} onChange={(status) => setFilters((current) => ({ ...current, status: status ?? '' }))} />
       </div>
 
       <Table<InboundEndpoint>
         rowKey="id"
         dataSource={visibleEndpoints}
         pagination={false}
-        scroll={{ x: 1450 }}
+        expandable={{ expandedRowRender, expandedRowKeys: Array.from(expandedRows), showExpandColumn: false }}
         columns={[
-          { title: 'URI', dataIndex: 'url', width: 230, fixed: 'left', render: (uri, endpoint) => <div><strong>{uri}</strong><div style={{ color: '#8c8c8c', fontSize: 11 }}>{endpoint.description || '-'}</div></div> },
-          { title: 'Request Method', dataIndex: 'method', width: 120, render: (method) => <Tag color="blue">{method}</Tag> },
-          { title: 'URI Type', dataIndex: 'uriType', width: 100, render: (type) => <Tag color={type === 'legacy' ? 'purple' : 'cyan'}>{type === 'legacy' ? 'Legacy' : 'New'}</Tag> },
-          { title: 'Version', dataIndex: 'version', width: 110 },
-          { title: 'Target Summary', width: 220, render: (_, endpoint) => {
-            const callbackCount = endpoint.rules.filter((rule) => rule.requestType === 'CALLBACK').length;
-            const inboundCount = endpoint.rules.filter((rule) => rule.requestType === 'EXTERNAL_INBOUND').length;
-            return <div>{endpoint.rules.length} Capability Result(s)<div style={{ color: '#8c8c8c', fontSize: 11 }}>CALLBACK {callbackCount} · EXTERNAL_INBOUND {inboundCount}</div></div>;
-          } },
-          { title: 'Config Status', dataIndex: 'configStatus', width: 150, render: (status: UriConfigStatus, endpoint) => <Space direction="vertical" size={2}><Tag color={statusMeta[status].color}>{statusMeta[status].label}</Tag>{endpoint.badges?.map((badge) => <Tag key={`${badge.cloud}-${badge.env}`} color="green">{badge.cloud} - {badge.env}</Tag>)}</Space> },
-          { title: 'Reference', dataIndex: 'referenceCount', width: 120, render: (count = 0) => `${count} Flow Version(s)` },
-          { title: 'Updated Time', dataIndex: 'updatedTime', width: 170 },
-          { title: 'Operator', dataIndex: 'operator', width: 100 },
-          { title: 'Operation', width: 380, fixed: 'right', render: (_, endpoint) => endpoint.uriType === 'legacy'
-            ? <Button type="link" onClick={() => openEditor(endpoint, 'detail')}>Detail</Button>
-            : <Space size={0} wrap>
-              {endpoint.configStatus === 'draft'
-                ? <Button type="link" onClick={() => openEditor(endpoint, 'config')}>Config</Button>
-                : <Button type="link" onClick={() => { createVersion(channelCode, endpoint.id); openEditor(endpoint, 'config'); }}>New Version</Button>}
-              <Button type="link" onClick={() => openEditor(endpoint, 'detail')}>Detail</Button>
-              <Button type="link" icon={<CopyOutlined />} onClick={() => { const clone = cloneEndpoint(channelCode, endpoint.id); if (clone) message.success(`Cloned as ${clone.url}`); }}>Clone</Button>
-              {endpoint.configStatus === 'submitted' && <Button type="link" onClick={() => { deployEndpoint(channelCode, endpoint.id); message.success('Deployed to BD - DAILY'); }}>Deploy</Button>}
-              <Button type="link" onClick={() => setInspect({ type: 'status', endpoint })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint })}>Log</Button>
-              <Popconfirm title="Delete this URI?" disabled={(endpoint.referenceCount ?? 0) > 0 || endpoint.configStatus === 'published'} onConfirm={() => deleteEndpoint(channelCode, endpoint.id)}>
-                <Button type="link" danger disabled={(endpoint.referenceCount ?? 0) > 0 || endpoint.configStatus === 'published'} icon={<DeleteOutlined />}>Delete</Button>
-              </Popconfirm>
-            </Space> },
+          { title: '', width: 50, render: (_, endpoint) => <Button type="text" icon={expandedRows.has(endpoint.id) ? <DownOutlined /> : <RightOutlined />} onClick={() => toggleExpand(endpoint.id)} /> },
+          { title: 'URI', dataIndex: 'url', render: (uri) => <strong>{uri}</strong> },
+          { title: 'Business Type', dataIndex: 'businessType', width: 180, render: (bt) => <Tag>{bt}</Tag> },
+          { title: 'Method', dataIndex: 'method', width: 120, render: (method) => <Tag color="blue">{method}</Tag> },
+          { title: 'Latest Version', dataIndex: 'version', width: 150 },
+          { title: 'Status', width: 220, render: (_, endpoint) => renderStatus(endpoint) },
+          { title: 'Operation', width: 210, render: (_, endpoint) => endpoint.uriType === 'legacy' ? null : <Button type="primary" size="small" disabled={endpoint.configStatus === 'draft'} onClick={() => handleNewVersion(endpoint)}>New Endpoint Version</Button> },
         ]}
       />
 
-      <Modal title="New URI" open={showNewUri} onOk={() => void handleCreate()} okText="Create and Configure" onCancel={() => { setShowNewUri(false); form.resetFields(); }}>
+      <Modal title="New Inbound Endpoint" open={showNewEndpoint} okText="Create and Configure" onOk={() => void handleCreate()} onCancel={() => { setShowNewEndpoint(false); form.resetFields(); }}>
         <Form form={form} layout="vertical" initialValues={{ method: 'POST' }}>
-          <Form.Item name="uri" label="URI" rules={[{ required: true, message: 'Enter URI' }]}><Input placeholder="/callback/channel/payment" /></Form.Item>
-          <Form.Item name="method" label="Request Method" rules={[{ required: true }]}><Select options={['GET', 'POST', 'PUT', 'PATCH'].map((value) => ({ value }))} /></Form.Item>
-          <Form.Item name="description" label="Description"><Input.TextArea rows={3} /></Form.Item>
+          <Form.Item name="businessType" label="Business Type" rules={[{ required: true, message: 'Select Business Type' }]}>
+            <Select placeholder="Select Config Integration Business Type" options={configBusinessTypes.map((value) => ({ value }))} />
+          </Form.Item>
+          <Form.Item name="path" label="Path" rules={[{ required: true, message: 'Enter Path' }, { pattern: /^[A-Za-z0-9_/-]+$/, message: 'Use letters, numbers, _, - or /' }]}>
+            <Input addonBefore={pathPrefix} placeholder="payment_callback" />
+          </Form.Item>
+          <Form.Item name="method" label="Method" rules={[{ required: true }]}>
+            <Select options={['POST', 'GET', 'PUT', 'DELETE'].map((value) => ({ value }))} />
+          </Form.Item>
         </Form>
       </Modal>
+
       <Modal title={inspect?.type === 'status' ? 'Deployment Status' : 'Operation Log'} open={Boolean(inspect)} footer={null} onCancel={() => setInspect(null)}>
-        {inspect ? (inspect.type === 'status' ? (
-          inspect.endpoint.badges?.length
-            ? inspect.endpoint.badges.map((badge) => <div key={`${badge.cloud}-${badge.env}`} style={{ padding: 12, marginBottom: 8, background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6 }}><strong>{badge.cloud} - {badge.env}</strong><Tag color="green" style={{ marginLeft: 12 }}>Running</Tag><div style={{ color: '#8c8c8c', marginTop: 4 }}>Effective Version: {inspect.endpoint.version}</div></div>)
-            : <div style={{ color: '#8c8c8c' }}>This URI Version has not been deployed.</div>
-        ) : (
-          <div><div style={{ padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}><strong>{inspect.endpoint.updatedTime}</strong> · {inspect.endpoint.operator}<div>Updated URI Configuration {inspect.endpoint.version}</div></div><div style={{ padding: '10px 0' }}><strong>2026-06-28 09:00:00</strong> · admin<div>Created URI master record</div></div></div>
-        )) : null}
+        {inspect ? inspect.type === 'status'
+          ? (inspect.endpoint.badges?.length ? inspect.endpoint.badges.map((badge) => <div key={`${badge.cloud}-${badge.env}`} style={{ padding: 12, marginBottom: 8, background: '#f6ffed', borderRadius: 6 }}><strong>{badge.cloud} - {badge.env}</strong><Tag color="green" style={{ marginLeft: 12 }}>Running</Tag></div>) : <div>No deployment record.</div>)
+          : <div><strong>{inspect.endpoint.updatedTime}</strong> · {inspect.endpoint.operator}<div>Updated Endpoint Version {inspect.endpoint.version}</div></div>
+          : null}
       </Modal>
     </div>
   );

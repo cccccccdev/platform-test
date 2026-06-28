@@ -83,7 +83,8 @@ export const mockInboundEndpointsByChannel = {
     {
       id: 'gtb_callback_endpoint',
       name: 'callback_endpoint',
-      url: '/inbound/gtb/callback',
+      url: '/callback/gtb_ng/payment_callback',
+      businessType: 'COLLECTION',
       method: 'POST' as const,
       uriType: 'new' as const,
       description: 'Card payment callback entry',
@@ -105,7 +106,8 @@ export const mockInboundEndpointsByChannel = {
     {
       id: 'gtb_notify_endpoint',
       name: 'notify_endpoint',
-      url: '/inbound/gtb/notify',
+      url: '/callback/gtb_ng/notify',
+      businessType: 'COLLECTION',
       method: 'POST' as const,
       uriType: 'new' as const,
       description: 'Shared inbound notification entry',
@@ -143,6 +145,7 @@ export const mockInboundEndpointsByChannel = {
       id: 'gtb_legacy_callback',
       name: 'legacy_transfer_callback',
       url: '/callback/gtb/transfer',
+      businessType: 'DISBURSEMENT',
       method: 'POST' as const,
       uriType: 'legacy' as const,
       description: 'Imported 1.0 inbound flow; readonly',
@@ -164,7 +167,8 @@ export const mockInboundEndpointsByChannel = {
     {
       id: 'zenith_callback_endpoint',
       name: 'callback_endpoint',
-      url: '/inbound/zenith/callback',
+      url: '/callback/zenith_ng/payment_callback',
+      businessType: 'COLLECTION',
       method: 'POST' as const,
       uriType: 'new' as const,
       description: 'Zenith callback entry',

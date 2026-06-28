@@ -158,7 +158,7 @@ export default function MatchCapabilityEditorPage() {
       <div style={{ padding: '12px 16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
           {[
-            ['URI', endpoint.url], ['Method', endpoint.method], ['URI Type', endpoint.uriType === 'legacy' ? 'Legacy' : 'New'],
+            ['URI', endpoint.url], ['Business Type', endpoint.businessType], ['Method', endpoint.method],
             ['Version', endpoint.version], ['Config Status', endpoint.configStatus], ['URI ID', endpoint.id],
           ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'URI ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
         </div>
