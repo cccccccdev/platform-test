@@ -87,7 +87,7 @@ const router = createBrowserRouter([
         element: <FlowEditorPage />,
       },
       {
-        path: 'channel-integration/:channelCode/integration/match-capability/:uriId',
+        path: 'channel-integration/:channelCode/integration/match-capability/:uriId/versions/:decisionVersionId',
         element: <MatchCapabilityEditorPage />,
       },
 

@@ -38,11 +38,32 @@ export interface MatchRule {
 export type MatchingType = 'single' | 'order_no' | 'type_field' | 'custom';
 export type UriConfigStatus = 'draft' | 'submitted' | 'published' | 'deprecated' | 'legacy_readonly' | 'error';
 
+export interface CapabilityDecisionVersion {
+  id: string;
+  version: string;
+  configStatus: UriConfigStatus;
+  description: string;
+  fields: string[];
+  matchType: MatchingType;
+  matchFieldSource?: 'query' | 'header' | 'body';
+  singleNoField: string;
+  referenceField?: 'requestReference' | 'responseReference';
+  matchFields: string[];
+  rules: MatchRule[];
+  customScript?: string;
+  fallbackBehavior?: 'reject' | 'alert_and_reject' | 'manual_review';
+  decryptEnabled?: boolean;
+  badges?: Array<{ cloud: string; env: string }>;
+  updatedTime?: string;
+  operator?: string;
+}
+
 export interface InboundEndpoint {
   id: string;
   name: string;
   url: string;
   businessType: string;
+  businessTypes: string[];
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   uriType: 'new' | 'legacy';
   description: string;
@@ -62,6 +83,7 @@ export interface InboundEndpoint {
   referenceCount?: number;
   updatedTime?: string;
   operator?: string;
+  versions: CapabilityDecisionVersion[];
 }
 
 export interface StepConfig {

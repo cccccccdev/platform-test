@@ -5,7 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
-import type { FlowConfig, InboundEndpoint, MatchRule, MatchingType } from './types';
+import type { FlowConfig, MatchRule, MatchingType } from './types';
 
 interface CoverageRow {
   key: string;
@@ -48,23 +48,24 @@ const statusColor: Record<string, string> = {
 };
 
 export default function MatchCapabilityEditorPage() {
-  const { channelCode = '', uriId = '' } = useParams<{ channelCode: string; uriId: string }>();
+  const { channelCode = '', uriId = '', decisionVersionId = '' } = useParams<{ channelCode: string; uriId: string; decisionVersionId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const endpoint = useMatchCapabilityStore((state) =>
     (state.endpointsByChannel[channelCode] ?? []).find((item) => item.id === uriId)
   );
-  const updateEndpoint = useMatchCapabilityStore((state) => state.updateEndpoint);
+  const updateDecisionVersion = useMatchCapabilityStore((state) => state.updateDecisionVersion);
   const saveChannel = useMatchCapabilityStore((state) => state.saveChannel);
-  const submitEndpoint = useMatchCapabilityStore((state) => state.submitEndpoint);
+  const submitVersion = useMatchCapabilityStore((state) => state.submitVersion);
   const abilities = useConfigIntegrationStore((state) => state.abilitiesByChannel[channelCode] ?? []);
-  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(endpoint?.rules[0]?.id ?? null);
+  const configuration = endpoint?.versions.find((version) => version.id === decisionVersionId);
+  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(configuration?.rules[0]?.id ?? null);
   const [activeDrawer, setActiveDrawer] = useState<'uri' | 'match' | 'dispatch' | null>(null);
   const readOnly = searchParams.get('mode') === 'detail' || endpoint?.uriType === 'legacy';
 
   const coverageRows = useMemo<CoverageRow[]>(() => {
-    if (!endpoint) return [];
-    return endpoint.rules.flatMap<CoverageRow>((rule): CoverageRow[] => {
+    if (!endpoint || !configuration) return [];
+    return configuration.rules.flatMap<CoverageRow>((rule): CoverageRow[] => {
       const ability = abilities.find((item) => item.bt === rule.bt && item.ability === rule.ability);
       if (!ability) return [{ key: `${rule.id}-missing`, rule, version: '-', weight: '-', flow: null, status: 'Ability Missing' }];
       if (ability.versions.length === 0) return [{ key: `${rule.id}-flow-missing`, rule, version: '-', weight: '-', flow: null, status: 'Flow Missing' }];
@@ -77,44 +78,44 @@ export default function MatchCapabilityEditorPage() {
         return { key: `${rule.id}-${version.id}`, rule, version: version.version, versionId: version.id, weight: versionIndex === 0 ? '100%' : '0%', flow: flows[0] ?? null, status };
       });
     });
-  }, [abilities, endpoint]);
+  }, [abilities, configuration, endpoint]);
 
-  if (!endpoint) {
-    return <div style={{ padding: 24 }}><h3>URI not found</h3><Button onClick={() => navigate(-1)}>Back</Button></div>;
+  if (!endpoint || !configuration) {
+    return <div style={{ padding: 24 }}><h3>Capability Decision Version not found</h3><Button onClick={() => navigate(-1)}>Back</Button></div>;
   }
 
-  const update = (updates: Partial<InboundEndpoint>) => updateEndpoint(channelCode, endpoint.id, updates);
+  const update = (updates: Partial<typeof configuration>) => updateDecisionVersion(channelCode, endpoint.id, configuration.id, updates);
   const updateRule = (ruleId: string, updates: Partial<MatchRule>) => update({
-    rules: endpoint.rules.map((rule) => rule.id === ruleId ? { ...rule, ...updates } : rule),
+    rules: configuration.rules.map((rule) => rule.id === ruleId ? { ...rule, ...updates } : rule),
   });
   const addResult = () => {
     const rule = createRule();
-    if (endpoint.matchType === 'type_field') {
-      rule.fieldValues = Object.fromEntries(endpoint.matchFields.map((field) => [field, '']));
+    if (configuration.matchType === 'type_field') {
+      rule.fieldValues = Object.fromEntries(configuration.matchFields.map((field) => [field, '']));
     }
-    update({ rules: [...endpoint.rules, rule] });
+    update({ rules: [...configuration.rules, rule] });
     setSelectedRuleId(rule.id);
   };
   const deleteResult = (ruleId: string) => {
-    update({ rules: endpoint.rules.filter((rule) => rule.id !== ruleId) });
+    update({ rules: configuration.rules.filter((rule) => rule.id !== ruleId) });
     if (selectedRuleId === ruleId) setSelectedRuleId(null);
   };
 
   const validate = (): string | null => {
     if (!endpoint.url || !endpoint.method) return 'URI Basic Info is incomplete';
-    if (endpoint.fields.length === 0) return 'Request Definition must contain at least one field';
-    if (endpoint.matchType === 'single' && endpoint.rules.length !== 1) return 'Single Type requires exactly one Capability Result';
-    if ((endpoint.matchType === 'order_no' || endpoint.matchType === 'custom') && endpoint.rules.length === 0) return 'Declare at least one candidate Capability Result';
-    if (endpoint.matchType === 'order_no' && (!endpoint.singleNoField || !endpoint.referenceField)) return 'Order No requires one match field and a reference type';
-    if (endpoint.matchType === 'type_field' && endpoint.matchFields.length === 0) return 'Type Field requires at least one input field';
-    if (endpoint.matchType === 'custom' && !endpoint.customScript?.trim()) return 'Custom Script is required';
-    for (const rule of endpoint.rules) {
+    if (configuration.fields.length === 0) return 'Request Definition must contain at least one field';
+    if (configuration.matchType === 'single' && configuration.rules.length !== 1) return 'Single Type requires exactly one Capability Result';
+    if ((configuration.matchType === 'order_no' || configuration.matchType === 'custom') && configuration.rules.length === 0) return 'Declare at least one candidate Capability Result';
+    if (configuration.matchType === 'order_no' && (!configuration.singleNoField || !configuration.referenceField)) return 'Order No requires one match field and a reference type';
+    if (configuration.matchType === 'type_field' && configuration.matchFields.length === 0) return 'Type Field requires at least one input field';
+    if (configuration.matchType === 'custom' && !configuration.customScript?.trim()) return 'Custom Script is required';
+    for (const rule of configuration.rules) {
       if (!rule.bt || !rule.ability || !rule.action || !rule.requestType) return 'Every Capability Result must include BT, Ability, Action and Request Type';
       if (!abilities.some((item) => item.bt === rule.bt && item.ability === rule.ability)) return `Ability ${rule.bt} / ${rule.ability} does not exist in ${channelCode}`;
-      if (endpoint.matchType === 'type_field' && endpoint.matchFields.some((field) => rule.fieldValues[field] === undefined || rule.fieldValues[field] === '')) return 'Every Type Value combination must provide all field values; use EMPTY_STR for an empty string';
+      if (configuration.matchType === 'type_field' && configuration.matchFields.some((field) => rule.fieldValues[field] === undefined || rule.fieldValues[field] === '')) return 'Every Type Value combination must provide all field values; use EMPTY_STR for an empty string';
     }
-    if (endpoint.matchType === 'type_field') {
-      const combinations = endpoint.rules.map((rule) => endpoint.matchFields.map((field) => rule.fieldValues[field]).join('\u0001'));
+    if (configuration.matchType === 'type_field') {
+      const combinations = configuration.rules.map((rule) => configuration.matchFields.map((field) => rule.fieldValues[field]).join('\u0001'));
       if (new Set(combinations).size !== combinations.length) return 'Duplicate Type Value combination detected';
     }
     return null;
@@ -128,7 +129,7 @@ export default function MatchCapabilityEditorPage() {
   const handleSubmit = () => {
     const error = validate();
     if (error) return void message.error(error);
-    submitEndpoint(channelCode, endpoint.id);
+    submitVersion(channelCode, endpoint.id, configuration.id);
     const missing = coverageRows.filter((row) => ['Missing', 'Flow Missing', 'Not Published'].includes(row.status)).length;
     message.success(missing ? `Submitted with ${missing} Version Coverage warning(s)` : 'URI Configuration submitted');
     navigate(`/channel-integration/${channelCode}/integration/match-capability`);
@@ -142,8 +143,8 @@ export default function MatchCapabilityEditorPage() {
     return 'Flow Missing';
   };
 
-  const btOptions = [...new Set(abilities.map((item) => item.bt))].map((value) => ({ value }));
-  const selectedRule = endpoint.rules.find((rule) => rule.id === selectedRuleId);
+  const btOptions = endpoint.businessTypes.map((value) => ({ value }));
+  const selectedRule = configuration.rules.find((rule) => rule.id === selectedRuleId);
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f7fa' }}>
@@ -158,8 +159,8 @@ export default function MatchCapabilityEditorPage() {
       <div style={{ padding: '12px 16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
           {[
-            ['URI', endpoint.url], ['Business Type', endpoint.businessType], ['Method', endpoint.method],
-            ['Version', endpoint.version], ['Config Status', endpoint.configStatus], ['URI ID', endpoint.id],
+            ['URI', endpoint.url], ['Business Type', endpoint.businessTypes.join(', ')], ['Method', endpoint.method],
+            ['Version', configuration.version], ['Status', configuration.configStatus], ['URI ID', endpoint.id],
           ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'URI ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
         </div>
       </div>
@@ -171,13 +172,13 @@ export default function MatchCapabilityEditorPage() {
           <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Context</div>
           <div style={{ padding: 14 }}>
             <strong>Inbound Request</strong>
-            <div style={{ marginTop: 10 }}>{endpoint.fields.map((field) => <div key={field} style={{ padding: '5px 7px', marginBottom: 4, background: '#f5f5f5', borderRadius: 4, fontSize: 11 }}>{field}</div>)}</div>
+            <div style={{ marginTop: 10 }}>{configuration.fields.map((field) => <div key={field} style={{ padding: '5px 7px', marginBottom: 4, background: '#f5f5f5', borderRadius: 4, fontSize: 11 }}>{field}</div>)}</div>
             <Divider />
             <strong>Pre-processing Output</strong>
-            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{endpoint.decryptEnabled ? 'decryptedRequest · object' : 'No output configured'}</div>
+            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{configuration.decryptEnabled ? 'decryptedRequest · object' : 'No output configured'}</div>
             <Divider />
             <strong>Capability Results</strong>
-            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{endpoint.rules.length} result(s) available to downstream Flow</div>
+            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{configuration.rules.length} result(s) available to downstream Flow</div>
             <Button block style={{ marginTop: 16 }} onClick={() => setActiveDrawer('uri')}>{readOnly ? 'View URI Configuration' : 'Configure URI & Request'}</Button>
           </div>
         </div>
@@ -202,12 +203,12 @@ export default function MatchCapabilityEditorPage() {
           <div style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>Canvas</div>
           <div style={{ flex: 1, overflow: 'auto', padding: 36, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
             <button onClick={() => setActiveDrawer('match')} style={{ display: 'block', width: 300, margin: '0 auto', padding: 16, textAlign: 'left', border: '2px solid #1677ff', borderRadius: 10, background: '#e6f4ff', boxShadow: '0 4px 12px rgba(22,119,255,.12)', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span><Tag color="blue">CORE</Tag><strong>matchCapability</strong></span><Tag color={endpoint.rules.length ? 'green' : 'orange'}>{endpoint.rules.length ? 'Configured' : 'Not Started'}</Tag></div>
-              <div style={{ color: '#595959', fontSize: 11, marginTop: 6 }}>{matchingTypeOptions.find((item) => item.value === endpoint.matchType)?.label}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span><Tag color="blue">CORE</Tag><strong>matchCapability</strong></span><Tag color={configuration.rules.length ? 'green' : 'orange'}>{configuration.rules.length ? 'Configured' : 'Not Started'}</Tag></div>
+              <div style={{ color: '#595959', fontSize: 11, marginTop: 6 }}>{matchingTypeOptions.find((item) => item.value === configuration.matchType)?.label}</div>
             </button>
             <div style={{ textAlign: 'center', fontSize: 26, lineHeight: '48px' }}>↓</div>
-            <div style={{ display: 'grid', gridTemplateColumns: endpoint.rules.length > 1 ? 'repeat(2, minmax(220px, 320px))' : 'minmax(240px, 360px)', justifyContent: 'center', gap: 14 }}>
-              {endpoint.rules.length === 0 ? <button onClick={() => setActiveDrawer('match')} style={{ padding: 30, border: '1px dashed #d9d9d9', background: '#fff', color: '#8c8c8c', cursor: 'pointer' }}>Configure matchCapability to generate Dispatch Target</button> : endpoint.rules.map((rule) => {
+            <div style={{ display: 'grid', gridTemplateColumns: configuration.rules.length > 1 ? 'repeat(2, minmax(220px, 320px))' : 'minmax(240px, 360px)', justifyContent: 'center', gap: 14 }}>
+              {configuration.rules.length === 0 ? <button onClick={() => setActiveDrawer('match')} style={{ padding: 30, border: '1px dashed #d9d9d9', background: '#fff', color: '#8c8c8c', cursor: 'pointer' }}>Configure matchCapability to generate Dispatch Target</button> : configuration.rules.map((rule) => {
                 const status = targetStatus(rule);
                 return <button key={rule.id} onClick={() => { setSelectedRuleId(rule.id); setActiveDrawer('dispatch'); }} style={{ textAlign: 'left', padding: 14, border: '1px solid #d9d9d9', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Dispatch Target</strong><Tag color={statusColor[status]}>{status}</Tag></div>
@@ -226,13 +227,13 @@ export default function MatchCapabilityEditorPage() {
         <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Content Type</div>
         <Select disabled={readOnly} value="application/json" style={{ width: '100%', marginBottom: 12 }} options={[{ value: 'application/json' }, { value: 'application/xml' }, { value: 'text/plain' }]} />
         <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Available Request Fields</div>
-        <Select mode="tags" disabled={readOnly} value={endpoint.fields} style={{ width: '100%' }} onChange={(fields) => update({ fields })} tokenSeparators={[',']} placeholder="query.*, header.*, body.*" />
+        <Select mode="tags" disabled={readOnly} value={configuration.fields} style={{ width: '100%' }} onChange={(fields) => update({ fields })} tokenSeparators={[',']} placeholder="query.*, header.*, body.*" />
         <Divider />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>Pre-processing · Decryption</strong><Switch disabled={readOnly} checked={endpoint.decryptEnabled} onChange={(decryptEnabled) => update({ decryptEnabled })} /></div>
-        <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 6 }}>{endpoint.decryptEnabled ? 'Decryption runs before capability matching.' : 'No decryption configured.'}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>Pre-processing · Decryption</strong><Switch disabled={readOnly} checked={configuration.decryptEnabled} onChange={(decryptEnabled) => update({ decryptEnabled })} /></div>
+        <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 6 }}>{configuration.decryptEnabled ? 'Decryption runs before capability matching.' : 'No decryption configured.'}</div>
         <Divider />
         <div style={{ fontWeight: 600, marginBottom: 8 }}>Fallback Behavior</div>
-        <Select disabled={readOnly} value={endpoint.fallbackBehavior} style={{ width: '100%' }} onChange={(fallbackBehavior) => update({ fallbackBehavior })} options={[
+        <Select disabled={readOnly} value={configuration.fallbackBehavior} style={{ width: '100%' }} onChange={(fallbackBehavior) => update({ fallbackBehavior })} options={[
           { value: 'reject', label: 'Reject request' }, { value: 'alert_and_reject', label: 'Alert and reject' }, { value: 'manual_review', label: 'Manual review queue' },
         ]} />
       </Drawer>
@@ -240,30 +241,30 @@ export default function MatchCapabilityEditorPage() {
       <Drawer title="matchCapability Configuration" width={720} open={activeDrawer === 'match'} onClose={() => setActiveDrawer(null)}>
         <div style={{ paddingBottom: 24 }}>
             <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Matching Type</div>
-            <Select disabled={readOnly} value={endpoint.matchType} style={{ width: '100%' }} options={matchingTypeOptions} onChange={(matchType) => update({ matchType, matchFields: [], singleNoField: '', referenceField: undefined, rules: matchType === 'single' ? [endpoint.rules[0] ?? createRule()] : endpoint.rules })} />
+            <Select disabled={readOnly} value={configuration.matchType} style={{ width: '100%' }} options={matchingTypeOptions} onChange={(matchType) => update({ matchType, matchFields: [], singleNoField: '', referenceField: undefined, rules: matchType === 'single' ? [configuration.rules[0] ?? createRule()] : configuration.rules })} />
 
-            {endpoint.matchType === 'order_no' && <div style={{ marginTop: 16, padding: 12, background: '#fafafa', borderRadius: 8 }}>
+            {configuration.matchType === 'order_no' && <div style={{ marginTop: 16, padding: 12, background: '#fafafa', borderRadius: 8 }}>
               <strong>Unique Order Match Field</strong>
-              <Select disabled={readOnly} value={endpoint.matchFieldSource} placeholder="Field source" style={{ width: '100%', marginTop: 10 }} options={[{ value: 'query', label: 'Query Parameters' }, { value: 'header', label: 'Request Header' }, { value: 'body', label: 'Request Body' }]} onChange={(matchFieldSource) => update({ matchFieldSource, singleNoField: '' })} />
-              <Select disabled={readOnly || !endpoint.matchFieldSource} value={endpoint.singleNoField || undefined} placeholder="Select one field" style={{ width: '100%', marginTop: 8 }} options={endpoint.fields.filter((field) => field.startsWith(`${endpoint.matchFieldSource}.`)).map((value) => ({ value }))} onChange={(singleNoField) => update({ singleNoField })} />
-              <Select disabled={readOnly} value={endpoint.referenceField} placeholder="Match to" style={{ width: '100%', marginTop: 8 }} options={[{ value: 'requestReference' }, { value: 'responseReference' }]} onChange={(referenceField) => update({ referenceField })} />
+              <Select disabled={readOnly} value={configuration.matchFieldSource} placeholder="Field source" style={{ width: '100%', marginTop: 10 }} options={[{ value: 'query', label: 'Query Parameters' }, { value: 'header', label: 'Request Header' }, { value: 'body', label: 'Request Body' }]} onChange={(matchFieldSource) => update({ matchFieldSource, singleNoField: '' })} />
+              <Select disabled={readOnly || !configuration.matchFieldSource} value={configuration.singleNoField || undefined} placeholder="Select one field" style={{ width: '100%', marginTop: 8 }} options={configuration.fields.filter((field) => field.startsWith(`${configuration.matchFieldSource}.`)).map((value) => ({ value }))} onChange={(singleNoField) => update({ singleNoField })} />
+              <Select disabled={readOnly} value={configuration.referenceField} placeholder="Match to" style={{ width: '100%', marginTop: 8 }} options={[{ value: 'requestReference' }, { value: 'responseReference' }]} onChange={(referenceField) => update({ referenceField })} />
             </div>}
 
-            {endpoint.matchType === 'type_field' && <div style={{ marginTop: 16 }}>
+            {configuration.matchType === 'type_field' && <div style={{ marginTop: 16 }}>
               <strong>Common Input Fields</strong>
-              <Select mode="multiple" disabled={readOnly} value={endpoint.matchFields} style={{ width: '100%', marginTop: 8 }} options={endpoint.fields.map((value) => ({ value }))} onChange={(matchFields) => update({ matchFields, rules: endpoint.rules.map((rule) => ({ ...rule, fieldValues: Object.fromEntries(matchFields.map((field) => [field, rule.fieldValues[field] ?? ''])) })) })} />
+              <Select mode="multiple" disabled={readOnly} value={configuration.matchFields} style={{ width: '100%', marginTop: 8 }} options={configuration.fields.map((value) => ({ value }))} onChange={(matchFields) => update({ matchFields, rules: configuration.rules.map((rule) => ({ ...rule, fieldValues: Object.fromEntries(matchFields.map((field) => [field, rule.fieldValues[field] ?? ''])) })) })} />
             </div>}
 
-            {endpoint.matchType === 'custom' && <div style={{ marginTop: 16 }}>
+            {configuration.matchType === 'custom' && <div style={{ marginTop: 16 }}>
               <strong>Groovy Script</strong>
-              <Input.TextArea disabled={readOnly} value={endpoint.customScript} onChange={(event) => update({ customScript: event.target.value })} rows={9} style={{ marginTop: 8, fontFamily: 'monospace', background: '#1f1f1f', color: '#f5f5f5' }} />
+              <Input.TextArea disabled={readOnly} value={configuration.customScript} onChange={(event) => update({ customScript: event.target.value })} rows={9} style={{ marginTop: 8, fontFamily: 'monospace', background: '#1f1f1f', color: '#f5f5f5' }} />
             </div>}
 
             <Divider />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>{endpoint.matchType === 'type_field' ? 'Type Value Combinations' : 'Capability Results'}</strong>{!readOnly && endpoint.matchType !== 'single' && <Button type="text" icon={<PlusOutlined />} onClick={addResult}>Add</Button>}</div>
-            {endpoint.rules.map((rule, index) => <div key={rule.id} onClick={() => setSelectedRuleId(rule.id)} style={{ marginTop: 10, padding: 12, border: selectedRule?.id === rule.id ? '1px solid #722ed1' : '1px solid #e8e8e8', borderRadius: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span>Result {index + 1}</span>{!readOnly && endpoint.matchType !== 'single' && <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={(event) => { event.stopPropagation(); deleteResult(rule.id); }} />}</div>
-              {endpoint.matchType === 'type_field' && endpoint.matchFields.map((field) => <Input key={field} disabled={readOnly} addonBefore={field} placeholder="Value or EMPTY_STR" value={rule.fieldValues[field]} onChange={(event) => updateRule(rule.id, { fieldValues: { ...rule.fieldValues, [field]: event.target.value } })} style={{ marginBottom: 6 }} />)}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>{configuration.matchType === 'type_field' ? 'Type Value Combinations' : 'Capability Results'}</strong>{!readOnly && configuration.matchType !== 'single' && <Button type="text" icon={<PlusOutlined />} onClick={addResult}>Add</Button>}</div>
+            {configuration.rules.map((rule, index) => <div key={rule.id} onClick={() => setSelectedRuleId(rule.id)} style={{ marginTop: 10, padding: 12, border: selectedRule?.id === rule.id ? '1px solid #722ed1' : '1px solid #e8e8e8', borderRadius: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span>Result {index + 1}</span>{!readOnly && configuration.matchType !== 'single' && <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={(event) => { event.stopPropagation(); deleteResult(rule.id); }} />}</div>
+              {configuration.matchType === 'type_field' && configuration.matchFields.map((field) => <Input key={field} disabled={readOnly} addonBefore={field} placeholder="Value or EMPTY_STR" value={rule.fieldValues[field]} onChange={(event) => updateRule(rule.id, { fieldValues: { ...rule.fieldValues, [field]: event.target.value } })} style={{ marginBottom: 6 }} />)}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                 <Select disabled={readOnly} placeholder="Business Type" value={rule.bt || undefined} options={btOptions} onChange={(bt) => updateRule(rule.id, { bt, ability: '', action: '' })} />
                 <Select disabled={readOnly || !rule.bt} placeholder="Ability" value={rule.ability || undefined} options={abilities.filter((item) => item.bt === rule.bt).map((item) => ({ value: item.ability }))} onChange={(ability) => updateRule(rule.id, { ability, action: '' })} />
@@ -271,7 +272,7 @@ export default function MatchCapabilityEditorPage() {
                 <Select disabled={readOnly} value={rule.requestType} options={requestTypeOptions} onChange={(requestType) => updateRule(rule.id, { requestType })} />
               </div>
             </div>)}
-            {endpoint.rules.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: '#8c8c8c' }}>No Capability Result configured</div>}
+            {configuration.rules.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: '#8c8c8c' }}>No Capability Result configured</div>}
         </div>
       </Drawer>
 

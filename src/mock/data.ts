@@ -127,9 +127,9 @@ export const mockInboundEndpointsByChannel = {
         {
           id: 'gtb_rule_transfer',
           fieldValues: { 'body.type': 'transfer', 'body.currency': '*', 'header.x-event-source': 'bank' },
-          bt: 'DISBURSEMENT',
-          ability: 'BANK_TRF',
-          action: 'TRANSACTION',
+          bt: 'COLLECTION',
+          ability: 'CARD_PAY',
+          action: 'QUERY',
           requestType: 'EXTERNAL_INBOUND' as const,
         },
       ],

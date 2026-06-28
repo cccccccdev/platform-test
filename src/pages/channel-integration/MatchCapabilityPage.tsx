@@ -4,7 +4,7 @@ import { CopyOutlined, DeleteOutlined, DownOutlined, PlusOutlined, RightOutlined
 import { useNavigate, useParams } from 'react-router-dom';
 import { mockBusinessTypes } from '../../mock/data';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
-import type { InboundEndpoint, UriConfigStatus } from './types';
+import type { CapabilityDecisionVersion, InboundEndpoint, UriConfigStatus } from './types';
 
 interface NewInboundEndpointForm {
   businessType: string;
@@ -28,16 +28,18 @@ export default function MatchCapabilityPage() {
   const navigate = useNavigate();
   const [form] = Form.useForm<NewInboundEndpointForm>();
   const [showNewEndpoint, setShowNewEndpoint] = useState(false);
+  const [managingEndpoint, setManagingEndpoint] = useState<InboundEndpoint | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [inspect, setInspect] = useState<{ type: 'status' | 'log'; endpoint: InboundEndpoint } | null>(null);
+  const [inspect, setInspect] = useState<{ type: 'status' | 'log'; endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
   const [filters, setFilters] = useState({ keyword: '', businessType: '', method: '', status: '' });
   const endpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
   const endpoints = useMemo(() => endpointsByChannel[channelCode] ?? [], [channelCode, endpointsByChannel]);
   const addEndpoint = useMatchCapabilityStore((state) => state.addEndpoint);
+  const updateEndpoint = useMatchCapabilityStore((state) => state.updateEndpoint);
   const createVersion = useMatchCapabilityStore((state) => state.createVersion);
-  const cloneEndpoint = useMatchCapabilityStore((state) => state.cloneEndpoint);
-  const deployEndpoint = useMatchCapabilityStore((state) => state.deployEndpoint);
-  const deleteEndpoint = useMatchCapabilityStore((state) => state.deleteEndpoint);
+  const cloneVersion = useMatchCapabilityStore((state) => state.cloneVersion);
+  const deployVersion = useMatchCapabilityStore((state) => state.deployVersion);
+  const deleteVersion = useMatchCapabilityStore((state) => state.deleteVersion);
 
   const pathPrefix = `/callback/${channelCode.toLowerCase()}/`;
   const configBusinessTypes = (mockBusinessTypes[channelCode] ?? [])
@@ -47,13 +49,13 @@ export default function MatchCapabilityPage() {
   const visibleEndpoints = useMemo(() => endpoints.filter((endpoint) => {
     const keyword = filters.keyword.trim().toLowerCase();
     return (!keyword || endpoint.url.toLowerCase().includes(keyword))
-      && (!filters.businessType || endpoint.businessType === filters.businessType)
+      && (!filters.businessType || endpoint.businessTypes.includes(filters.businessType))
       && (!filters.method || endpoint.method === filters.method)
-      && (!filters.status || endpoint.configStatus === filters.status);
+      && (!filters.status || endpoint.versions.some((version) => version.configStatus === filters.status));
   }), [endpoints, filters]);
 
-  const openEditor = (endpoint: InboundEndpoint, mode: 'config' | 'detail') => {
-    navigate(`/channel-integration/${channelCode}/integration/match-capability/${endpoint.id}?mode=${mode}`);
+  const openEditor = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion, mode: 'config' | 'detail') => {
+    navigate(`/channel-integration/${channelCode}/integration/match-capability/${endpoint.id}/versions/${version.id}?mode=${mode}`);
   };
 
   const toggleExpand = (endpointId: string) => setExpandedRows((previous) => {
@@ -71,11 +73,29 @@ export default function MatchCapabilityPage() {
       form.setFields([{ name: 'path', errors: ['Path + Method already exists in this Channel'] }]);
       return;
     }
+    const decisionVersion: CapabilityDecisionVersion = {
+      id: `decision_${Date.now()}`,
+      version: 'v0.0.1',
+      configStatus: 'draft',
+      description: '',
+      fields: ['query.reference', 'header.x-event-type', 'body.reference', 'body.type', 'body.status'],
+      matchType: 'single',
+      singleNoField: '',
+      matchFields: [],
+      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: values.businessType, ability: '', action: '', requestType: 'CALLBACK' }],
+      customScript: 'def execute(request) {\n  return null\n}',
+      fallbackBehavior: 'alert_and_reject',
+      decryptEnabled: false,
+      badges: [],
+      updatedTime: new Date().toLocaleString(),
+      operator: 'admin',
+    };
     const endpoint: InboundEndpoint = {
       id: createId(),
       name: suffix.replaceAll('/', '_'),
       url: uri,
       businessType: values.businessType,
+      businessTypes: [values.businessType],
       method: values.method,
       uriType: 'new',
       description: '',
@@ -93,53 +113,48 @@ export default function MatchCapabilityPage() {
       referenceCount: 0,
       updatedTime: new Date().toLocaleString(),
       operator: 'admin',
+      versions: [decisionVersion],
     };
     addEndpoint(channelCode, endpoint);
     setShowNewEndpoint(false);
     form.resetFields();
-    openEditor(endpoint, 'config');
+    openEditor(endpoint, decisionVersion, 'config');
   };
 
-  const renderStatus = (endpoint: InboundEndpoint) => {
-    if (endpoint.configStatus === 'published' && endpoint.badges?.length) {
-      return <Space wrap>{endpoint.badges.map((badge) => <Tag key={`${badge.cloud}-${badge.env}`} color="blue">{badge.cloud} - {badge.env}</Tag>)}</Space>;
+  const renderStatus = (version: CapabilityDecisionVersion) => {
+    if (version.configStatus === 'published' && version.badges?.length) {
+      return <Space wrap>{version.badges.map((badge) => <Tag key={`${badge.cloud}-${badge.env}`} color="blue">{badge.cloud} - {badge.env}</Tag>)}</Space>;
     }
-    const meta = statusMeta[endpoint.configStatus];
+    const meta = statusMeta[version.configStatus];
     return <Tag color={meta.color}>{meta.label}</Tag>;
   };
 
   const handleNewVersion = (endpoint: InboundEndpoint) => {
-    createVersion(channelCode, endpoint.id);
-    openEditor(endpoint, 'config');
+    const version = createVersion(channelCode, endpoint.id);
+    if (!version) return void message.warning('A Draft Capability Decision Version already exists.');
+    openEditor(endpoint, version, 'config');
   };
 
-  const confirmDelete = (endpoint: InboundEndpoint) => Modal.confirm({
-    title: 'Delete Inbound Endpoint?',
-    content: endpoint.referenceCount ? 'This Endpoint is referenced and cannot be deleted.' : endpoint.url,
-    okButtonProps: { danger: true, disabled: Boolean(endpoint.referenceCount) },
-    onOk: () => deleteEndpoint(channelCode, endpoint.id),
-  });
-
-  const renderOperations = (endpoint: InboundEndpoint) => {
-    if (endpoint.uriType === 'legacy') return <Button type="link" onClick={() => openEditor(endpoint, 'detail')}>Detail</Button>;
-    if (endpoint.configStatus === 'draft') return <Space><Button type="link" onClick={() => openEditor(endpoint, 'config')}>Config</Button><Button type="link" danger icon={<DeleteOutlined />} disabled={Boolean(endpoint.referenceCount)} onClick={() => confirmDelete(endpoint)}>Delete</Button></Space>;
-    if (endpoint.configStatus === 'submitted') return <Space><Button type="link" onClick={() => openEditor(endpoint, 'detail')}>Detail</Button><Button type="link" onClick={() => { deployEndpoint(channelCode, endpoint.id); message.success('Deployed to BD - DAILY'); }}>Deploy</Button><Button type="link" icon={<CopyOutlined />} onClick={() => { const clone = cloneEndpoint(channelCode, endpoint.id); if (clone) message.success(`Cloned as ${clone.url}`); }}>Clone</Button><Button type="link" onClick={() => setInspect({ type: 'status', endpoint })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint })}>Log</Button></Space>;
-    return <Space><Button type="link" onClick={() => openEditor(endpoint, 'detail')}>Detail</Button><Button type="link" icon={<CopyOutlined />} onClick={() => cloneEndpoint(channelCode, endpoint.id)}>Clone</Button><Button type="link" onClick={() => setInspect({ type: 'status', endpoint })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint })}>Log</Button></Space>;
+  const renderOperations = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion) => {
+    if (endpoint.uriType === 'legacy') return <Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button>;
+    if (version.configStatus === 'draft') return <Space><Button type="link" onClick={() => openEditor(endpoint, version, 'config')}>Config</Button><Button type="link" danger icon={<DeleteOutlined />} onClick={() => deleteVersion(channelCode, endpoint.id, version.id)}>Delete</Button></Space>;
+    if (version.configStatus === 'submitted') return <Space><Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button><Button type="link" onClick={() => { deployVersion(channelCode, endpoint.id, version.id); message.success('Deployed to BD - DAILY'); }}>Deploy</Button><Button type="link" icon={<CopyOutlined />} onClick={() => { const clone = cloneVersion(channelCode, endpoint.id, version.id); if (clone) openEditor(endpoint, clone, 'config'); else message.warning('Resolve the existing Draft first.'); }}>Clone</Button><Button type="link" onClick={() => setInspect({ type: 'status', endpoint, version })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint, version })}>Log</Button></Space>;
+    return <Space><Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button><Button type="link" icon={<CopyOutlined />} onClick={() => { const clone = cloneVersion(channelCode, endpoint.id, version.id); if (clone) openEditor(endpoint, clone, 'config'); }}>Clone</Button><Button type="link" onClick={() => setInspect({ type: 'status', endpoint, version })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint, version })}>Log</Button></Space>;
   };
 
   const expandedRowRender = (endpoint: InboundEndpoint) => (
-    <Table<InboundEndpoint>
+    <Table<CapabilityDecisionVersion>
       rowKey="id"
-      dataSource={[endpoint]}
+      dataSource={endpoint.versions}
       pagination={false}
       size="small"
       columns={[
-        { title: 'Endpoint Version', dataIndex: 'version', width: 150 },
-        { title: 'Status', width: 220, render: () => renderStatus(endpoint) },
+        { title: 'Capability Decision Version', dataIndex: 'version', width: 210 },
+        { title: 'Status', width: 220, render: (_, version) => renderStatus(version) },
         { title: 'Description', dataIndex: 'description', render: (value) => value || '-' },
         { title: 'Operator', dataIndex: 'operator', width: 110 },
         { title: 'Operation Time', dataIndex: 'updatedTime', width: 190 },
-        { title: 'Operation', width: 360, render: () => renderOperations(endpoint) },
+        { title: 'Operation', width: 440, render: (_, version) => renderOperations(endpoint, version) },
       ]}
     />
   );
@@ -166,12 +181,10 @@ export default function MatchCapabilityPage() {
         expandable={{ expandedRowRender, expandedRowKeys: Array.from(expandedRows), showExpandColumn: false }}
         columns={[
           { title: '', width: 50, render: (_, endpoint) => <Button type="text" icon={expandedRows.has(endpoint.id) ? <DownOutlined /> : <RightOutlined />} onClick={() => toggleExpand(endpoint.id)} /> },
-          { title: 'URI', dataIndex: 'url', render: (uri) => <strong>{uri}</strong> },
-          { title: 'Business Type', dataIndex: 'businessType', width: 180, render: (bt) => <Tag>{bt}</Tag> },
+          { title: 'URI', dataIndex: 'url', render: (uri) => <strong>{uri.startsWith(pathPrefix) ? uri.slice(pathPrefix.length) : uri}</strong> },
+          { title: 'Business Type', dataIndex: 'businessTypes', width: 260, render: (businessTypes: string[]) => <Space wrap>{businessTypes.map((bt) => <Tag key={bt}>{bt}</Tag>)}</Space> },
           { title: 'Method', dataIndex: 'method', width: 120, render: (method) => <Tag color="blue">{method}</Tag> },
-          { title: 'Latest Version', dataIndex: 'version', width: 150 },
-          { title: 'Status', width: 220, render: (_, endpoint) => renderStatus(endpoint) },
-          { title: 'Operation', width: 210, render: (_, endpoint) => endpoint.uriType === 'legacy' ? null : <Button type="primary" size="small" disabled={endpoint.configStatus === 'draft'} onClick={() => handleNewVersion(endpoint)}>New Endpoint Version</Button> },
+          { title: 'Operation', width: 360, render: (_, endpoint) => endpoint.uriType === 'legacy' ? null : <Space><Button size="small" onClick={() => setManagingEndpoint(endpoint)}>Manage Business Type</Button><Button type="primary" size="small" disabled={endpoint.versions.some((version) => version.configStatus === 'draft')} onClick={() => handleNewVersion(endpoint)}>New Decision Version</Button></Space> },
         ]}
       />
 
@@ -189,10 +202,30 @@ export default function MatchCapabilityPage() {
         </Form>
       </Modal>
 
+      <Modal title="Manage Business Type" open={Boolean(managingEndpoint)} footer={null} onCancel={() => setManagingEndpoint(null)}>
+        {managingEndpoint && <>
+          <div style={{ color: '#8c8c8c', marginBottom: 12 }}>Add Config Integration Business Types. A Business Type used by any Capability Decision Version cannot be removed.</div>
+          <Select
+            mode="multiple"
+            style={{ width: '100%' }}
+            value={managingEndpoint.businessTypes}
+            options={configBusinessTypes.map((value) => ({ value }))}
+            onChange={(businessTypes) => {
+              const usedBusinessTypes = new Set(managingEndpoint.versions.flatMap((version) => version.rules.map((rule) => rule.bt)).filter(Boolean));
+              const blocked = [...usedBusinessTypes].find((bt) => !businessTypes.includes(bt));
+              if (blocked) return void message.error(`${blocked} is used by a Capability Decision Version and cannot be removed.`);
+              updateEndpoint(channelCode, managingEndpoint.id, { businessTypes, businessType: businessTypes[0] ?? '' });
+              setManagingEndpoint({ ...managingEndpoint, businessTypes, businessType: businessTypes[0] ?? '' });
+            }}
+          />
+          <div style={{ marginTop: 12 }}>{[...new Set(managingEndpoint.versions.flatMap((version) => version.rules.map((rule) => rule.bt)).filter(Boolean))].map((bt) => <Tag key={bt} color="orange">{bt} · In Use</Tag>)}</div>
+        </>}
+      </Modal>
+
       <Modal title={inspect?.type === 'status' ? 'Deployment Status' : 'Operation Log'} open={Boolean(inspect)} footer={null} onCancel={() => setInspect(null)}>
         {inspect ? inspect.type === 'status'
-          ? (inspect.endpoint.badges?.length ? inspect.endpoint.badges.map((badge) => <div key={`${badge.cloud}-${badge.env}`} style={{ padding: 12, marginBottom: 8, background: '#f6ffed', borderRadius: 6 }}><strong>{badge.cloud} - {badge.env}</strong><Tag color="green" style={{ marginLeft: 12 }}>Running</Tag></div>) : <div>No deployment record.</div>)
-          : <div><strong>{inspect.endpoint.updatedTime}</strong> · {inspect.endpoint.operator}<div>Updated Endpoint Version {inspect.endpoint.version}</div></div>
+          ? (inspect.version.badges?.length ? inspect.version.badges.map((badge) => <div key={`${badge.cloud}-${badge.env}`} style={{ padding: 12, marginBottom: 8, background: '#f6ffed', borderRadius: 6 }}><strong>{badge.cloud} - {badge.env}</strong><Tag color="green" style={{ marginLeft: 12 }}>Running</Tag></div>) : <div>No deployment record.</div>)
+          : <div><strong>{inspect.version.updatedTime}</strong> · {inspect.version.operator}<div>Updated Capability Decision Version {inspect.version.version}</div></div>
           : null}
       </Modal>
     </div>
