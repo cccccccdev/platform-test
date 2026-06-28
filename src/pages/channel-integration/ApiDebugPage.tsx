@@ -577,7 +577,7 @@ pm.variables.set("timestamp", Date.now().toString());
   const syntaxHighlightJson = (json: string): React.ReactNode => {
     const lines = json.split('\n');
     return lines.map((line, idx) => {
-      let highlighted = line
+      const highlighted = line
         .replace(/"([^"]+)":/g, '<span style="color:#92278f;font-weight:500">"$1"</span>:')
         .replace(/: "([^"]*)"/g, ': <span style="color:#3eb549">"$1"</span>')
         .replace(/: (-?\d+\.?\d*)/g, ': <span style="color:#45aae6">$1</span>')
@@ -1387,7 +1387,7 @@ pm.variables.set("timestamp", Date.now().toString());
       }
 
       // Generate name from URL path
-      const pathMatch = result.url.match(/https?:\/\/[^\/]+\/(.+)/);
+      const pathMatch = result.url.match(/https?:\/\/[^/]+\/(.+)/);
       if (pathMatch) {
         result.name = pathMatch[1].split('?')[0].split('/').filter(Boolean).pop() || 'Imported Request';
       } else {
@@ -1435,7 +1435,7 @@ pm.variables.set("timestamp", Date.now().toString());
     value: string,
     setValue: (v: string) => void
   ) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const handleSourceChange = (e: any) => {
       setSource(e.target.value as 'manual' | 'debugCredential' | 'sceneVariable');
       setHasUnsavedChanges(true);
@@ -2975,7 +2975,7 @@ pm.variables.set("timestamp", Date.now().toString());
                 })
                 .map(session => {
                 const isSuccess = session.status >= 200 && session.status < 300;
-                const pathMatch = session.url.match(/https?:\/\/[^\/]+(\/[^\?]*)/);
+                const pathMatch = session.url.match(/https?:\/\/[^/]+(\/[^?]*)/);
                 const path = pathMatch ? pathMatch[1] : session.url;
                 const isActive = session.id === activeHistoryId;
                 return (

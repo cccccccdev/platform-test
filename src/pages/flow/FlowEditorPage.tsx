@@ -631,7 +631,7 @@ export default function FlowEditorPage() {
         status: 'SUCCESS',
         input: { ...node.config },
         output: getMockOutput(node),
-        duration: Math.floor(Math.random() * 500) + 100,
+        duration: 100 + ((i + 1) * 137) % 500,
       });
     }
 

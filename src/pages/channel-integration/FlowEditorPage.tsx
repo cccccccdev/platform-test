@@ -2186,7 +2186,6 @@ export default function FlowEditorPage() {
       />
 
       {/* Network 配置抽屉 */}
-      {/* @ts-ignore */}
       <NetworkConfigDrawer
         visible={showNetworkDrawer}
         code="network"

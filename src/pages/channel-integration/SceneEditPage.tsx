@@ -329,7 +329,7 @@ function L3FlowNode({ data }: { id: string; data: any }) {
         <span style={{ fontSize: 12, color: isConfigured ? '#52c41a' : '#999' }}>{isConfigured ? '●' : '○'}</span>
         <span style={{ flex: 1, fontWeight: 600, fontSize: 12 }}>{l3Name}</span>
         {isConfigured && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 12 }} />}
-        {(isHovered || true) && (
+        {isHovered && (
           <div
             onClick={(e) => { e.stopPropagation(); data.onDelete?.(); }}
             style={{
@@ -604,10 +604,11 @@ function ContextPanel({
                       switch (genType) {
                         case 'timestamp':
                           return config?.timestampFormat || 'Unix秒';
-                        case 'uuid':
+                        case 'uuid': {
                           const caseText = config?.lowercase ? '小写' : '大写';
                           const hyphenText = config?.noHyphen ? '无连字符' : '有连字符';
                           return `${caseText} ${hyphenText}`;
+                        }
                         case 'date':
                           return config?.dateFormat || 'YYYYMMDD';
                         case 'hash':
@@ -2271,7 +2272,7 @@ function RequestBuilderDrawer({
             </div>
           ) : (
             getImportableSessions().map((session: any) => {
-              const urlMatch = session.url.match(/https?:\/\/[^\/]+\/(.*)/);
+              const urlMatch = session.url.match(/https?:\/\/[^/]+\/(.*)/);
               const path = urlMatch ? '/' + urlMatch[1] : session.url;
               const isSuccess = session.status >= 200 && session.status < 300;
               let requestFieldCount = 0;
