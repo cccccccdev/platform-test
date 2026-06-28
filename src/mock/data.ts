@@ -266,3 +266,13 @@ export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRA
 
 // Action 枚举
 export const actionOptions = ['TRANSACTION', 'QUERY', 'VERIFY', 'CANCEL', 'REVERSAL', 'INBOUND_TRANSACTION', 'INBOUND_QUERY']
+
+// Demo capability-to-action relationship used by linked selectors.
+export const capabilityActionOptions: Record<string, string[]> = {
+  'COLLECTION:CARD_PAY': ['TRANSACTION', 'QUERY', 'VERIFY', 'INBOUND_TRANSACTION'],
+  'COLLECTION:USSD_PAY': ['TRANSACTION', 'QUERY', 'VERIFY'],
+  'COLLECTION:WALLET_PAY': ['TRANSACTION', 'QUERY', 'INBOUND_TRANSACTION', 'INBOUND_QUERY'],
+  'DISBURSEMENT:BANK_TRF': ['TRANSACTION', 'QUERY', 'CANCEL', 'REVERSAL'],
+  'REFUND:REFUND_PAY': ['TRANSACTION', 'QUERY'],
+  'TRANSFER:WALLET_TRF': ['TRANSACTION', 'QUERY', 'REVERSAL'],
+}

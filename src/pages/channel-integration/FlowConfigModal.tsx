@@ -50,17 +50,6 @@ const triggerActionOptions = [
   { value: 'INBOUND_QUERY', label: 'INBOUND_QUERY' },
 ];
 
-// State Machine states for Trigger Sub-state
-const stateMachineStates = [
-  { value: 'INIT', label: 'INIT' },
-  { value: 'WAITING_OTP', label: 'WAITING_OTP' },
-  { value: 'VERIFYING_OTP', label: 'VERIFYING_OTP' },
-  { value: 'AUTHENTICATING', label: 'AUTHENTICATING' },
-  { value: 'PROGRESSING', label: 'PROGRESSING' },
-  { value: 'SUCCESS', label: 'SUCCESS' },
-  { value: 'FAILED', label: 'FAILED' },
-];
-
 interface FlowConfigModalProps {
   visible: boolean;
   stateName: string;
@@ -151,13 +140,15 @@ export default function FlowConfigModal({
         id: `flow_${Date.now()}`,
         name: values.flowName,
         executionType: 'single',
-        flowType: 'outbound',
+        flowType:
+          triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || triggerType === 'CALLBACK_TRIGGERED'
+            ? 'inbound'
+            : 'outbound',
         endType: 'wait_external',
         triggerType: triggerType as TriggerType,
         // Ensure triggerEvents is always an array
         triggerEvents: Array.isArray(values.triggerAction) ? values.triggerAction : values.triggerAction ? [values.triggerAction] : Array.isArray(values.originalRequestAction) ? values.originalRequestAction : values.originalRequestAction ? [values.originalRequestAction] : [],
-        outputEvents: values.referenceActions?.map((action: string) => ({ eventName: action })) || [],
-        stateConditions: values.triggerSubState ? [{ id: '1', field: 'state', operator: '==', value: values.triggerSubState }] : [],
+        contextActions: values.referenceActions || [],
         isConfigured: false,
       };
 
@@ -194,19 +185,11 @@ export default function FlowConfigModal({
             rules={[{ required: true, message: 'Please select Original Request Action' }]}
           >
             <Select placeholder="Select action">
-              {originalRequestActionOptions.length > 0 ? (
-                originalRequestActionOptions.map(opt => (
+              {originalRequestActionOptions.map(opt => (
                   <Select.Option key={opt.value} value={opt.value}>
                     {opt.label}
                   </Select.Option>
-                ))
-              ) : (
-                triggerActionOptions.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))
-              )}
+                ))}
             </Select>
           </Form.Item>
         );
@@ -219,61 +202,30 @@ export default function FlowConfigModal({
             rules={[{ required: true, message: 'Please select Reference Action' }]}
           >
             <Select mode="multiple" placeholder="Select action(s)">
-              {referenceActionOptions.length > 0 ? (
-                referenceActionOptions.map(opt => (
+              {referenceActionOptions.map(opt => (
                   <Select.Option key={opt.value} value={opt.value}>
                     {opt.label}
                   </Select.Option>
-                ))
-              ) : (
-                triggerActionOptions.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))
-              )}
+                ))}
             </Select>
           </Form.Item>
         );
 
       case 'SCHEDULED_TRIGGERED':
         return (
-          <>
-            <Form.Item
-              name="triggerSubState"
-              label="Trigger Sub-state"
-              rules={[{ required: true, message: 'Please select Trigger Sub-state' }]}
-            >
-              <Select placeholder="Select sub-state">
-                {stateMachineStates.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-            <Form.Item
-              name="referenceActions"
-              label="Reference Action"
-              rules={[{ required: true, message: 'Please select Reference Action' }]}
-            >
-              <Select mode="multiple" placeholder="Select action(s)">
-                {referenceActionOptions.length > 0 ? (
-                  referenceActionOptions.map(opt => (
-                    <Select.Option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </Select.Option>
-                  ))
-                ) : (
-                  triggerActionOptions.map(opt => (
-                    <Select.Option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </Select.Option>
-                  ))
-                )}
-              </Select>
-            </Form.Item>
-          </>
+          <Form.Item
+            name="referenceActions"
+            label="Context Action"
+            rules={[{ required: true, message: 'Please select Context Action' }]}
+          >
+            <Select mode="multiple" placeholder="Select action(s)">
+              {referenceActionOptions.map(opt => (
+                <Select.Option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
         );
 
       default:

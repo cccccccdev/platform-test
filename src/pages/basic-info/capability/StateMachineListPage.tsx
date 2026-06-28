@@ -79,7 +79,7 @@ function isStateMachineLinked(smName: string): boolean {
   return linkedList.some(r => r.smName === smName);
 }
 
-function isStateMachineReferenced(smName: string): boolean {
+function isStateMachineReferenced(_smName: string): boolean {
   // Placeholder: In real implementation, this would check Channel Integration references
   // For now, return false to allow modify/delete
   return false;

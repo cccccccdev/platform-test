@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Breadcrumb,
   Button,
@@ -15,8 +15,8 @@ import {
   Tooltip,
 } from 'antd';
 import { DeleteOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons';
-import { useNavigate, useParams } from 'react-router-dom';
-import { abilityOptions, actionOptions } from '../../mock/data';
+import { useBlocker, useNavigate, useParams } from 'react-router-dom';
+import { abilityOptions, capabilityActionOptions } from '../../mock/data';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { InboundEndpoint, MatchRule } from './types';
 
@@ -35,6 +35,10 @@ export default function MatchCapabilityPage() {
   const navigate = useNavigate();
   const [form] = Form.useForm<NewEndpointForm>();
   const [showNewEndpointModal, setShowNewEndpointModal] = useState(false);
+  const [draggingRule, setDraggingRule] = useState<{
+    endpointId: string;
+    ruleId: string;
+  } | null>(null);
 
   const endpoints = useMatchCapabilityStore(
     (state) => state.endpointsByChannel[channelCode] ?? []
@@ -45,7 +49,21 @@ export default function MatchCapabilityPage() {
   const addEndpointToStore = useMatchCapabilityStore((state) => state.addEndpoint);
   const updateEndpointInStore = useMatchCapabilityStore((state) => state.updateEndpoint);
   const saveChannel = useMatchCapabilityStore((state) => state.saveChannel);
+  const discardChannel = useMatchCapabilityStore((state) => state.discardChannel);
   const submitChannel = useMatchCapabilityStore((state) => state.submitChannel);
+
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    isDirty && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  useEffect(() => {
+    const preventUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', preventUnload);
+    return () => window.removeEventListener('beforeunload', preventUnload);
+  }, [isDirty]);
 
   const updateEndpoint = (endpoint: InboundEndpoint, updates: Partial<InboundEndpoint>) => {
     updateEndpointInStore(channelCode, endpoint.id, updates);
@@ -94,6 +112,19 @@ export default function MatchCapabilityPage() {
     updateEndpoint(endpoint, { rules: [...endpoint.rules, newRule] });
   };
 
+  const reorderRule = (endpoint: InboundEndpoint, targetRuleId: string) => {
+    if (!draggingRule || draggingRule.endpointId !== endpoint.id) return;
+    if (draggingRule.ruleId === targetRuleId) return;
+    const sourceIndex = endpoint.rules.findIndex((rule) => rule.id === draggingRule.ruleId);
+    const targetIndex = endpoint.rules.findIndex((rule) => rule.id === targetRuleId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const rules = [...endpoint.rules];
+    const [movedRule] = rules.splice(sourceIndex, 1);
+    rules.splice(targetIndex, 0, movedRule);
+    updateEndpoint(endpoint, { rules });
+    setDraggingRule(null);
+  };
+
   const checkRuleConflict = (endpoint: InboundEndpoint, ruleId: string) => {
     const rule = endpoint.rules.find((item) => item.id === ruleId);
     if (!rule || endpoint.matchFields.length === 0) return false;
@@ -131,6 +162,9 @@ export default function MatchCapabilityPage() {
         }
         if (!(abilityOptions[rule.bt] ?? []).includes(rule.ability)) {
           return `${endpoint.name}: Rule contains an invalid BT and Ability combination`;
+        }
+        if (!(capabilityActionOptions[`${rule.bt}:${rule.ability}`] ?? []).includes(rule.action)) {
+          return `${endpoint.name}: Rule contains an Action not supported by the selected Capability`;
         }
         if (checkRuleConflict(endpoint, rule.id)) {
           return `${endpoint.name}: Duplicate non-wildcard rule detected`;
@@ -294,11 +328,25 @@ export default function MatchCapabilityPage() {
                           Add Rule
                         </Button>
                       )}
+                      onRow={(rule) => ({
+                        draggable: true,
+                        onDragStart: () => setDraggingRule({
+                          endpointId: endpoint.id,
+                          ruleId: rule.id,
+                        }),
+                        onDragOver: (event) => event.preventDefault(),
+                        onDrop: () => reorderRule(endpoint, rule.id),
+                        onDragEnd: () => setDraggingRule(null),
+                        style: {
+                          opacity: draggingRule?.ruleId === rule.id ? 0.55 : 1,
+                          cursor: 'grab',
+                        },
+                      })}
                       columns={[
                         {
                           title: '',
                           width: 40,
-                          render: () => <HolderOutlined style={{ color: '#bbb' }} />,
+                          render: () => <HolderOutlined style={{ color: '#999', cursor: 'grab' }} />,
                         },
                         ...endpoint.matchFields.map((fieldName) => ({
                           title: fieldName,
@@ -370,7 +418,9 @@ export default function MatchCapabilityPage() {
                               value={rule.action || undefined}
                               disabled={!rule.ability}
                               onChange={(value) => updateRule(endpoint, rule.id, { action: value })}
-                              options={actionOptions.map((action) => ({ label: action, value: action }))}
+                              options={(capabilityActionOptions[`${rule.bt}:${rule.ability}`] ?? []).map(
+                                (action) => ({ label: action, value: action })
+                              )}
                             />
                           ),
                         },
@@ -434,6 +484,21 @@ export default function MatchCapabilityPage() {
             </Radio.Group>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="Discard unsaved changes?"
+        open={blocker.state === 'blocked'}
+        okText="Discard and leave"
+        cancelText="Stay"
+        okButtonProps={{ danger: true }}
+        onOk={() => {
+          discardChannel(channelCode);
+          blocker.proceed?.();
+        }}
+        onCancel={() => blocker.reset?.()}
+      >
+        Current runtime changes have not been saved.
       </Modal>
     </div>
   );

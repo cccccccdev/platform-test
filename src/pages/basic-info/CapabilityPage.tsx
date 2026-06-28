@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Table, Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate } from 'react-router-dom';
@@ -135,6 +135,7 @@ export default function CapabilityPage() {
     smName: string;
     operator: string;
     operationTime: string;
+    isNew?: boolean;
   }
 
   const getLinkedSM = useCallback((): LinkedSMRecord[] => {
@@ -149,48 +150,6 @@ export default function CapabilityPage() {
   const saveLinkedSM = useCallback((records: LinkedSMRecord[]) => {
     localStorage.setItem(LINKED_SM_KEY, JSON.stringify(records));
   }, []);
-
-  const getLinkedSMForAbility = useCallback((bt: string, ability: string): string => {
-    const records = getLinkedSM();
-    const record = records.find(r => r.bt === bt && r.ability === ability);
-    return record?.smName || '';
-  }, [getLinkedSM]);
-
-  const handleLinkSM = useCallback(async () => {
-    try {
-      const values = await linkSmForm.validateFields();
-      if (!linkSmAbility) return;
-
-      // Check if already linked
-      const records = getLinkedSM();
-      const alreadyLinked = records.some(r => r.bt === linkSmAbility.bt && r.ability === linkSmAbility.ability && r.smName === values.smName);
-      if (alreadyLinked) {
-        message.info('StateMachine is already linked');
-        return;
-      }
-
-      records.push({
-        bt: linkSmAbility.bt,
-        ability: linkSmAbility.ability,
-        smName: values.smName,
-        operator: 'admin',
-        operationTime: new Date().toLocaleString(),
-      });
-      saveLinkedSM(records);
-
-      linkSmForm.resetFields();
-      message.success('StateMachine linked successfully');
-    } catch {}
-  }, [linkSmForm, linkSmAbility, getLinkedSM, saveLinkedSM]);
-
-  const openLinkSmModal = useCallback((bt: string, ability: string) => {
-    setLinkSmAbility({ bt, ability });
-    linkSmForm.resetFields();
-    // Load existing linked state machines for this BT+Ability
-    const existing = getLinkedSM().filter(r => r.bt === bt && r.ability === ability);
-    setLinkSmList(existing);
-    setLinkSmModalOpen(true);
-  }, [linkSmForm, getLinkedSM]);
 
   const SM_LIST_KEY = 'stateMachineList';
   const STORAGE_KEY = 'stateMachineStatuses';
@@ -234,22 +193,6 @@ export default function CapabilityPage() {
       .filter(sm => statuses[sm.name] === 'SUBMITTED' && !linked.includes(sm.name) && !excludeList.includes(sm.name))
       .map(sm => ({ label: sm.name, value: sm.name }));
   }, [getStateMachineList, getStoredStatuses, getLinkedSMListForAbility]);
-
-  const isStateMachineReferenced = useCallback((smName: string): boolean => {
-    // Placeholder: In real implementation, this would check Channel Integration references
-    return false;
-  }, []);
-
-  const handleUnlinkSM = useCallback((bt: string, ability: string, smName: string) => {
-    if (isStateMachineReferenced(smName)) {
-      message.error('Cannot unlink: StateMachine is referenced in Channel Integration');
-      return;
-    }
-    const records = getLinkedSM();
-    const filtered = records.filter(r => !(r.bt === bt && r.ability === ability && r.smName === smName));
-    saveLinkedSM(filtered);
-    message.success('StateMachine unlinked');
-  }, [getLinkedSM, saveLinkedSM, isStateMachineReferenced]);
 
   const filteredData = filteredBt
     ? data.filter(bt => bt.name === filteredBt)
@@ -701,7 +644,7 @@ export default function CapabilityPage() {
                 if (values.smName && Array.isArray(values.smName)) {
                   const toAdd = values.smName.filter((sm: string) => !linkSmList.some(r => r.smName === sm));
                   if (toAdd.length > 0) {
-                    const newRecords = toAdd.map(smName => ({
+                    const newRecords = toAdd.map((smName: string) => ({
                       bt: linkSmAbility?.bt || '',
                       ability: linkSmAbility?.ability || '',
                       smName,

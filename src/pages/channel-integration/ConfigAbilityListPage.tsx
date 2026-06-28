@@ -1,552 +1,270 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Table, Button, Space, Select, Tag, Tooltip, Typography, message, Modal, Form, Pagination } from 'antd';
-import { PlusOutlined, DownOutlined, RightOutlined } from '@ant-design/icons';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import {
+  Button,
+  Form,
+  message,
+  Modal,
+  Pagination,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd';
+import { DownOutlined, EyeOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
+import { useNavigate, useParams } from 'react-router-dom';
+import { abilityOptions } from '../../mock/data';
+import { useConfigIntegrationStore } from './configIntegrationStore';
 import type { ConfigAbility, FlowVersion } from './types';
 
 const { Text } = Typography;
 
-// Mock data for Config Abilities with versions
-const getMockConfigAbilities = (): ConfigAbility[] => [
-  {
-    bt: 'COLLECTION',
-    ability: 'CARD_PAY',
-    versions: [
-      {
-        id: 'v1',
-        version: 'v1.0.0',
-        stateMachine: 'Default_Refund_StateMachine',
-        publishStatus: 'published',
-        badges: [{ cloud: 'BD', env: 'DAILY' }, { cloud: 'ALIYUN', env: 'PROD' }],
-        remark: 'Initial version for card payment collection',
-        operator: 'admin',
-        operationTime: '2026-06-01 10:30:00',
-      },
-      {
-        id: 'v2',
-        version: 'v1.1.0',
-        stateMachine: 'Default_Refund_StateMachine',
-        publishStatus: 'submitted',
-        badges: [],
-        remark: 'Add timeout handling',
-        operator: 'admin',
-        operationTime: '2026-06-05 14:20:00',
-      },
-    ],
-  },
-  {
-    bt: 'COLLECTION',
-    ability: 'USSD_PAY',
-    versions: [
-      {
-        id: 'v3',
-        version: 'v0.0.1',
-        stateMachine: 'BankCard_Debit_StateMachine',
-        publishStatus: 'draft',
-        badges: [],
-        remark: '',
-        operator: 'admin',
-        operationTime: '2026-06-06 09:00:00',
-      },
-    ],
-  },
-  {
-    bt: 'DISBURSEMENT',
-    ability: 'BANK_TRF',
-    versions: [
-      {
-        id: 'v4',
-        version: 'v0.9.0',
-        stateMachine: 'Default_Refund_StateMachine',
-        publishStatus: 'published',
-        badges: [{ cloud: 'ONELOOP', env: 'PROD' }],
-        remark: 'Bank transfer disbursement - beta',
-        operator: 'admin',
-        operationTime: '2026-05-28 16:45:00',
-      },
-    ],
-  },
-];
+const linkedStateMachines: Record<string, string[]> = {
+  'COLLECTION:CARD_PAY': ['Default_Refund_StateMachine', 'BankCard_Debit_StateMachine'],
+  'COLLECTION:USSD_PAY': ['BankCard_Debit_StateMachine'],
+  'COLLECTION:WALLET_PAY': ['Default_Refund_StateMachine'],
+  'DISBURSEMENT:BANK_TRF': ['Default_Refund_StateMachine'],
+};
 
-// Add Ability Modal
 function AddAbilityModal({
-  visible,
-  onOk,
+  open,
+  existingAbilities,
+  onConfirm,
   onCancel,
 }: {
-  visible: boolean;
-  onOk: (bt: string, ability: string) => void;
+  open: boolean;
+  existingAbilities: ConfigAbility[];
+  onConfirm: (bt: string, ability: string, stateMachine: string) => void;
   onCancel: () => void;
 }) {
   const [form] = Form.useForm();
-  const [selectedBT, setSelectedBT] = useState<string>('');
+  const bt = Form.useWatch('bt', form) as string | undefined;
+  const ability = Form.useWatch('ability', form) as string | undefined;
 
-  const abilityOptions = useMemo(() => {
-    const options: Record<string, string[]> = {
-      COLLECTION: ['CARD_PAY', 'USSD_PAY', 'WALLET_PAY'],
-      DISBURSEMENT: ['BANK_TRF'],
-    };
-    return options[selectedBT] || [];
-  }, [selectedBT]);
+  const availableAbilities = (abilityOptions[bt ?? ''] ?? []).filter(
+    (candidate) => !existingAbilities.some((item) => item.bt === bt && item.ability === candidate)
+  );
+  const stateMachines = linkedStateMachines[`${bt}:${ability}`] ?? [];
 
-  const handleOk = () => {
-    form.validateFields().then((values) => {
-      onOk(values.bt, values.ability);
-      form.resetFields();
-      setSelectedBT('');
-    });
+  const resetAndCancel = () => {
+    form.resetFields();
+    onCancel();
   };
 
   return (
     <Modal
       title="Add Ability"
-      open={visible}
-      onOk={handleOk}
-      onCancel={onCancel}
+      open={open}
       okText="Confirm"
-      cancelText="Cancel"
+      onCancel={resetAndCancel}
+      onOk={() => {
+        void form.validateFields().then((values) => {
+          onConfirm(values.bt, values.ability, values.stateMachine);
+          form.resetFields();
+        });
+      }}
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-        <Form.Item
-          name="bt"
-          label="Business Type"
-          rules={[{ required: true, message: 'Please select Business Type' }]}
-        >
+      <Form form={form} layout="vertical">
+        <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}>
           <Select
             placeholder="Select Business Type"
-            onChange={(val) => {
-              form.setFieldsValue({ ability: undefined });
-              setSelectedBT(val);
-            }}
-          >
-            {['COLLECTION', 'DISBURSEMENT'].map((bt) => (
-              <Select.Option key={bt} value={bt}>{bt}</Select.Option>
-            ))}
-          </Select>
+            options={Object.keys(abilityOptions).map((item) => ({ label: item, value: item }))}
+            onChange={() => form.setFieldsValue({ ability: undefined, stateMachine: undefined })}
+          />
         </Form.Item>
-        <Form.Item
-          name="ability"
-          label="Ability"
-          rules={[{ required: true, message: 'Please select Ability' }]}
-        >
-          <Select placeholder="Select Ability">
-            {abilityOptions.map((a) => (
-              <Select.Option key={a} value={a}>{a}</Select.Option>
-            ))}
-          </Select>
+        <Form.Item name="ability" label="Ability" rules={[{ required: true }]}>
+          <Select
+            disabled={!bt}
+            placeholder={availableAbilities.length ? 'Select Ability' : 'No available Ability'}
+            options={availableAbilities.map((item) => ({ label: item, value: item }))}
+            onChange={() => form.setFieldValue('stateMachine', undefined)}
+          />
+        </Form.Item>
+        <Form.Item name="stateMachine" label="State Machine" rules={[{ required: true }]}>
+          <Select
+            disabled={!ability}
+            placeholder={stateMachines.length ? 'Select State Machine' : 'No linked State Machine'}
+            options={stateMachines.map((item) => ({ label: item, value: item }))}
+          />
         </Form.Item>
       </Form>
     </Modal>
   );
 }
 
-// New Flow Version Modal (for creating new version)
-function NewFlowVersionModal({
-  visible,
-  stateMachines,
-  onOk,
-  onCancel,
-}: {
-  visible: boolean;
-  stateMachines: { name: string }[];
-  onOk: (smName: string) => void;
-  onCancel: () => void;
-}) {
-  const [selected, setSelected] = useState<string | null>(null);
-
-  const handleOk = () => {
-    if (selected) {
-      onOk(selected);
-      setSelected(null);
-    }
-  };
-
-  return (
-    <Modal
-      title="New Flow Version"
-      open={visible}
-      onOk={handleOk}
-      onCancel={onCancel}
-      okText="Confirm"
-      cancelText="Cancel"
-      width={500}
-    >
-      <div style={{ padding: '16px 0' }}>
-        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-          Select a state machine for the new flow version
-        </Text>
-        <Select
-          placeholder="Select StateMachine"
-          style={{ width: '100%' }}
-          value={selected}
-          onChange={setSelected}
-          options={stateMachines.map((sm) => ({ label: sm.name, value: sm.name }))}
-        />
-      </div>
-    </Modal>
-  );
-}
-
-// Edit Warning Modal (for non-Draft versions)
-function EditWarningModal({
-  visible,
-  onOk,
-  onCancel,
-}: {
-  visible: boolean;
-  onOk: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <Modal
-      title="Warning"
-      open={visible}
-      onOk={onOk}
-      onCancel={onCancel}
-      okText="Confirm"
-      cancelText="Cancel"
-      width={600}
-    >
-      <div style={{ padding: '8px 0' }}>
-        <p style={{ marginBottom: 16 }}>
-          You are about to edit a version that has already been submitted or published.
-        </p>
-        <p style={{ marginBottom: 16 }}>
-          After you submit changes, all existing deployment records of this version will be cleared, and this version will return to Draft status.
-        </p>
-        <p>
-          If you do not want to affect the current deployment status, use <strong>Clone</strong> to create a new Draft version and edit the cloned version instead.
-        </p>
-      </div>
-    </Modal>
-  );
-}
-
-// Remark tooltip wrapper
 function RemarkCell({ remark }: { remark?: string }) {
   if (!remark) return <span style={{ color: '#999' }}>-</span>;
   if (remark.length <= 50) return <span>{remark}</span>;
-  return (
-    <Tooltip title={remark}>
-      <span>{remark.substring(0, 50)}...</span>
-    </Tooltip>
-  );
+  return <Tooltip title={remark}><span>{remark.slice(0, 50)}...</span></Tooltip>;
 }
 
 export default function ConfigAbilityListPage() {
-  const { channelCode } = useParams<{ channelCode: string }>();
+  const { channelCode = '' } = useParams<{ channelCode: string }>();
   const navigate = useNavigate();
-
-  // Data state
-  const [abilities, setAbilities] = useState<ConfigAbility[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-
-  // Modal states
-  const [showAddAbilityModal, setShowAddAbilityModal] = useState(false);
-  const [showNewFlowVersionModal, setShowNewFlowVersionModal] = useState(false);
-  const [showEditWarningModal, setShowEditWarningModal] = useState(false);
-  const [targetAbility, setTargetAbility] = useState<ConfigAbility | null>(null);
-  const [targetVersion, setTargetVersion] = useState<FlowVersion | null>(null);
-
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [showAddAbility, setShowAddAbility] = useState(false);
+  const [previewStateMachine, setPreviewStateMachine] = useState<string | null>(null);
   const pageSize = 10;
 
-  // Mock state machines
-  const stateMachines = [
-    { name: 'Default_Refund_StateMachine' },
-    { name: 'BankCard_Debit_StateMachine' },
-  ];
+  const abilities = useConfigIntegrationStore(
+    (state) => state.abilitiesByChannel[channelCode] ?? []
+  );
+  const addAbility = useConfigIntegrationStore((state) => state.addAbility);
+  const createVersion = useConfigIntegrationStore((state) => state.createVersion);
+  const cloneVersion = useConfigIntegrationStore((state) => state.cloneVersion);
+  const deleteVersion = useConfigIntegrationStore((state) => state.deleteVersion);
+  const deployVersion = useConfigIntegrationStore((state) => state.deployVersion);
 
-  // Load mock data
-  useEffect(() => {
-    setAbilities(getMockConfigAbilities());
-  }, [channelCode]);
-
-  // Pagination logic
   const paginatedAbilities = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return abilities.slice(start, start + pageSize);
   }, [abilities, currentPage]);
 
-  const totalPages = Math.ceil(abilities.length / pageSize);
-
-  // Toggle row expansion
   const toggleExpand = (key: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(key)) {
-      newExpanded.delete(key);
-    } else {
-      newExpanded.add(key);
+    setExpandedRows((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const versionPath = (ability: ConfigAbility, version: FlowVersion) =>
+    `/channel-integration/${channelCode}/integration/config/${ability.bt}/${ability.ability}/versions/${version.id}`;
+
+  const handleNewVersion = (ability: ConfigAbility) => {
+    const version = createVersion(channelCode, ability.bt, ability.ability);
+    if (!version) {
+      message.warning('A Draft Version already exists. Configure, submit, or delete it first.');
+      return;
     }
-    setExpandedRows(newExpanded);
+    navigate(versionPath(ability, version));
   };
 
-  // Add new Ability
-  const handleAddAbility = (bt: string, ability: string) => {
-    const newAbility: ConfigAbility = {
-      bt,
-      ability,
-      versions: [],
-    };
-    setAbilities((prev) => [newAbility, ...prev]);
-    message.success('Ability added successfully');
-    setShowAddAbilityModal(false);
-    setCurrentPage(1);
-  };
-
-  // New Flow Version
-  const handleNewFlowVersion = (ability: ConfigAbility) => {
-    setTargetAbility(ability);
-    setShowNewFlowVersionModal(true);
-  };
-
-  const handleNewFlowVersionConfirm = (smName: string) => {
-    if (targetAbility) {
-      const newVersion: FlowVersion = {
-        id: `v_${Date.now()}`,
-        version: `v0.0.${targetAbility.versions.length + 1}`,
-        stateMachine: smName,
-        publishStatus: 'draft',
-        badges: [],
-        remark: '',
-        operator: 'admin',
-        operationTime: new Date().toLocaleString(),
-      };
-      setAbilities((prev) =>
-        prev.map((a) =>
-          a.bt === targetAbility.bt && a.ability === targetAbility.ability
-            ? { ...a, versions: [newVersion, ...a.versions] }
-            : a
-        )
-      );
-      message.success('New Flow Version created');
-      setShowNewFlowVersionModal(false);
-      setTargetAbility(null);
-      // Navigate to flow config page with state machine
-      navigate(`/channel-integration/${channelCode}/integration/config/${targetAbility.bt}/${targetAbility.ability}?sm=${encodeURIComponent(smName)}`);
+  const handleClone = (ability: ConfigAbility, version: FlowVersion) => {
+    const clone = cloneVersion(channelCode, ability.bt, ability.ability, version.id);
+    if (!clone) {
+      message.warning('A Draft Version already exists. Resolve it before cloning.');
+      return;
     }
+    message.success('Version cloned into a new runtime Draft');
+    navigate(versionPath(ability, clone));
   };
 
-  // Version operations
-  const handleVersionConfig = (version: FlowVersion, ability: ConfigAbility) => {
-    if (version.publishStatus === 'draft') {
-      navigate(`/channel-integration/${channelCode}/integration/config/${ability.bt}/${ability.ability}`);
-    } else {
-      setTargetVersion(version);
-      setTargetAbility(ability);
-      setShowEditWarningModal(true);
+  const handleDeploy = (ability: ConfigAbility, version: FlowVersion) => {
+    const target = deployVersion(channelCode, ability.bt, ability.ability, version.id);
+    if (!target) {
+      message.error('Only Submitted or Published versions can be deployed');
+      return;
     }
+    message.success(`Version deployed to BD - ${target}`);
   };
 
-  const handleEditWarningConfirm = () => {
-    if (targetVersion && targetAbility) {
-      setShowEditWarningModal(false);
-      navigate(`/channel-integration/${channelCode}/integration/config/${targetAbility.bt}/${targetAbility.ability}`);
-    }
-  };
-
-  const handleVersionDetail = (version: FlowVersion, ability: ConfigAbility) => {
-    navigate(`/channel-integration/${channelCode}/integration/config/${ability.bt}/${ability.ability}/${version.id}`);
-  };
-
-  const handleVersionDeploy = (version: FlowVersion, _ability: ConfigAbility) => {
-    message.info(`Deploying ${version.version}...`);
-  };
-
-  const handleVersionClone = (version: FlowVersion, ability: ConfigAbility) => {
-    const clonedVersion: FlowVersion = {
-      ...version,
-      id: `v_${Date.now()}`,
-      version: `v${parseFloat(version.version.replace('v', '')) + 1}`,
-      publishStatus: 'draft',
-      badges: [],
-      operator: 'admin',
-      operationTime: new Date().toLocaleString(),
-    };
-    setAbilities((prev) =>
-      prev.map((a) =>
-        a.bt === ability.bt && a.ability === ability.ability
-          ? { ...a, versions: [clonedVersion, ...a.versions] }
-          : a
-      )
-    );
-    message.success('Version cloned successfully');
-  };
-
-  const handleVersionDelete = (version: FlowVersion, ability: ConfigAbility) => {
+  const confirmDelete = (ability: ConfigAbility, version: FlowVersion) => {
     Modal.confirm({
       title: 'Confirm Delete',
-      content: `Are you sure you want to delete version ${version.version}? This cannot be undone.`,
-      okText: 'Confirm Delete',
+      content: `Delete ${version.version}?`,
       okButtonProps: { danger: true },
-      cancelText: 'Cancel',
       onOk: () => {
-        setAbilities((prev) =>
-          prev.map((a) =>
-            a.bt === ability.bt && a.ability === ability.ability
-              ? { ...a, versions: a.versions.filter((v) => v.id !== version.id) }
-              : a
-          )
-        );
+        deleteVersion(channelCode, ability.bt, ability.ability, version.id);
         message.success('Version deleted');
       },
     });
   };
 
-  // Render publish status tags
-  const renderPublishStatus = (version: FlowVersion) => {
-    if (version.publishStatus === 'draft') {
-      return <Tag color="default">Draft</Tag>;
-    }
-    if (version.publishStatus === 'submitted') {
-      return <Tag color="orange">Submitted</Tag>;
-    }
-    // published - show badges
-    if (version.badges.length === 0) {
-      return <Tag color="default">Draft</Tag>;
-    }
+  const renderStatus = (version: FlowVersion) => {
+    if (version.publishStatus === 'draft') return <Tag>Draft</Tag>;
+    if (version.publishStatus === 'submitted') return <Tag color="orange">Submitted</Tag>;
     return (
       <Space wrap>
-        {version.badges.map((b) => (
-          <Tag key={`${b.cloud}-${b.env}`} color="blue">{b.cloud} · {b.env}</Tag>
+        {version.badges.map((badge) => (
+          <Tag key={`${badge.cloud}-${badge.env}`} color="blue">
+            {badge.cloud} - {badge.env}
+          </Tag>
         ))}
       </Space>
     );
   };
 
-  // Render version operations based on status
-  const renderVersionOperations = (version: FlowVersion, ability: ConfigAbility) => {
-    const isDraft = version.publishStatus === 'draft';
-    const hasProd = version.badges.some((b) => b.env === 'PROD');
-
-    if (isDraft) {
+  const renderOperations = (ability: ConfigAbility, version: FlowVersion) => {
+    if (version.publishStatus === 'draft') {
       return (
         <Space>
-          <Button type="link" size="small" onClick={() => handleVersionConfig(version, ability)}>Config</Button>
-          <Button type="link" size="small" danger onClick={() => handleVersionDelete(version, ability)}>Delete</Button>
+          <Button type="link" onClick={() => navigate(versionPath(ability, version))}>Config</Button>
+          <Button type="link" danger onClick={() => confirmDelete(ability, version)}>Delete</Button>
         </Space>
       );
     }
-
-    if (hasProd) {
+    if (version.publishStatus === 'submitted') {
       return (
         <Space>
-          <Button type="link" size="small" onClick={() => handleVersionDetail(version, ability)}>Detail</Button>
-          <Button type="link" size="small" onClick={() => handleVersionDeploy(version, ability)}>Deploy</Button>
-          <Button type="link" size="small" onClick={() => handleVersionClone(version, ability)}>Clone</Button>
+          <Button type="link" onClick={() => navigate(versionPath(ability, version))}>Config</Button>
+          <Button type="link" onClick={() => handleDeploy(ability, version)}>Deploy</Button>
+          <Button type="link" onClick={() => handleClone(ability, version)}>Clone</Button>
+          <Button type="link" danger onClick={() => confirmDelete(ability, version)}>Delete</Button>
         </Space>
       );
     }
-
-    // Submitted or published to DAILY/PRE only
     return (
       <Space>
-        <Button type="link" size="small" onClick={() => handleVersionConfig(version, ability)}>Config</Button>
-        <Button type="link" size="small" onClick={() => handleVersionDeploy(version, ability)}>Deploy</Button>
-        <Button type="link" size="small" danger onClick={() => handleVersionDelete(version, ability)}>Delete</Button>
-        <Button type="link" size="small" onClick={() => handleVersionClone(version, ability)}>Clone</Button>
+        <Button type="link" onClick={() => navigate(`${versionPath(ability, version)}?mode=detail`)}>Detail</Button>
+        <Button type="link" onClick={() => handleDeploy(ability, version)}>Deploy</Button>
+        <Button type="link" onClick={() => handleClone(ability, version)}>Clone</Button>
       </Space>
     );
   };
 
-  // Main row expansion renderer
-  const expandedRowRender = (ability: ConfigAbility) => {
-    if (ability.versions.length === 0) {
-      return (
-        <div style={{ padding: '16px', textAlign: 'center', color: '#999' }}>
-          No flow versions yet. Click "New Flow Version" to create one.
-        </div>
-      );
-    }
+  const expandedRowRender = (ability: ConfigAbility) => (
+    <Table<FlowVersion>
+      dataSource={ability.versions}
+      rowKey="id"
+      pagination={false}
+      size="small"
+      locale={{ emptyText: 'No Flow Version yet' }}
+      columns={[
+        { title: 'Version', dataIndex: 'version', width: 110 },
+        { title: 'Publish Status', width: 220, render: (_value, version) => renderStatus(version) },
+        { title: 'Remark', render: (_value, version) => <RemarkCell remark={version.remark} /> },
+        { title: 'Operator', dataIndex: 'operator', width: 110 },
+        { title: 'Operation Time', dataIndex: 'operationTime', width: 180 },
+        { title: 'Operation', width: 320, render: (_value, version) => renderOperations(ability, version) },
+      ]}
+    />
+  );
 
-    return (
-      <Table
-        dataSource={ability.versions}
-        rowKey="id"
-        pagination={false}
-        size="small"
-        style={{ background: '#fafafa' }}
-        columns={[
-          {
-            title: 'Version',
-            dataIndex: 'version',
-            key: 'version',
-            width: 100,
-          },
-          {
-            title: 'State Machine',
-            dataIndex: 'stateMachine',
-            key: 'stateMachine',
-            width: 200,
-          },
-          {
-            title: 'Publish Status',
-            key: 'publishStatus',
-            width: 200,
-            render: (_: any, record: FlowVersion) => renderPublishStatus(record),
-          },
-          {
-            title: 'Remark',
-            key: 'remark',
-            render: (_: any, record: FlowVersion) => <RemarkCell remark={record.remark} />,
-          },
-          {
-            title: 'Operator',
-            dataIndex: 'operator',
-            key: 'operator',
-            width: 100,
-          },
-          {
-            title: 'Operation Time',
-            dataIndex: 'operationTime',
-            key: 'operationTime',
-            width: 160,
-          },
-          {
-            title: 'Operation',
-            key: 'operation',
-            width: 280,
-            render: (_: any, record: FlowVersion) => renderVersionOperations(record, ability),
-          },
-        ]}
-      />
-    );
-  };
-
-  // Main table columns
   const columns = [
     {
       title: '',
-      key: 'expand',
       width: 50,
-      render: (_: any, record: ConfigAbility) => (
-        <Button
-          type="text"
-          size="small"
-          icon={expandedRows.has(`${record.bt}-${record.ability}`) ? <DownOutlined /> : <RightOutlined />}
-          onClick={() => toggleExpand(`${record.bt}-${record.ability}`)}
-        />
+      render: (_value: unknown, ability: ConfigAbility) => {
+        const key = `${ability.bt}-${ability.ability}`;
+        return (
+          <Button
+            type="text"
+            icon={expandedRows.has(key) ? <DownOutlined /> : <RightOutlined />}
+            onClick={() => toggleExpand(key)}
+          />
+        );
+      },
+    },
+    { title: 'Business Type', dataIndex: 'bt' },
+    { title: 'Ability', dataIndex: 'ability' },
+    {
+      title: 'State Machine',
+      dataIndex: 'stateMachine',
+      render: (stateMachine: string) => (
+        <Button type="link" icon={<EyeOutlined />} onClick={() => setPreviewStateMachine(stateMachine)}>
+          {stateMachine}
+        </Button>
       ),
     },
     {
-      title: 'Business Type',
-      dataIndex: 'bt',
-      key: 'bt',
-      render: (bt: string) => <span style={{ fontWeight: 600, fontSize: 14 }}>{bt}</span>,
-    },
-    {
-      title: 'Ability',
-      dataIndex: 'ability',
-      key: 'ability',
-      render: (ability: string) => <span>{ability}</span>,
-    },
-    {
       title: 'Operation',
-      key: 'operation',
       width: 180,
-      render: (_: any, record: ConfigAbility) => (
-        <Button type="primary" size="small" onClick={() => handleNewFlowVersion(record)}>
+      render: (_value: unknown, ability: ConfigAbility) => (
+        <Button type="primary" size="small" onClick={() => handleNewVersion(ability)}>
           New Flow Version
         </Button>
       ),
@@ -555,78 +273,65 @@ export default function ConfigAbilityListPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Page header */}
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ margin: 0 }}>Config Integration</h2>
-          <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>Channel: {channelCode}</Text>
+          <Text type="secondary">Channel: {channelCode}</Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddAbilityModal(true)}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddAbility(true)}>
           Add Ability
         </Button>
       </div>
 
-      {/* Main table with expandable rows */}
-      {abilities.length === 0 ? (
-        <div style={{ padding: 48, textAlign: 'center', background: '#fff', borderRadius: 8 }}>
-          <div style={{ marginBottom: 16, color: '#999' }}>No Ability configured yet</div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddAbilityModal(true)}>
-            Add Ability
-          </Button>
-        </div>
-      ) : (
-        <>
-          <Table
-            dataSource={paginatedAbilities}
-            columns={columns}
-            rowKey={(record) => `${record.bt}-${record.ability}`}
-            pagination={false}
-            expandable={{
-              expandedRowRender,
-              expandedRowKeys: Array.from(expandedRows),
-              showExpandColumn: false,
-            }}
+      <Table<ConfigAbility>
+        dataSource={paginatedAbilities}
+        columns={columns}
+        rowKey={(ability) => `${ability.bt}-${ability.ability}`}
+        pagination={false}
+        expandable={{
+          expandedRowRender,
+          expandedRowKeys: Array.from(expandedRows),
+          showExpandColumn: false,
+        }}
+      />
+      {abilities.length > pageSize && (
+        <div style={{ marginTop: 16, textAlign: 'right' }}>
+          <Pagination
+            current={currentPage}
+            total={abilities.length}
+            pageSize={pageSize}
+            onChange={setCurrentPage}
+            showSizeChanger={false}
           />
-          {totalPages > 1 && (
-            <div style={{ marginTop: 16, textAlign: 'right' }}>
-              <Pagination
-                current={currentPage}
-                total={abilities.length}
-                pageSize={pageSize}
-                onChange={setCurrentPage}
-                showQuickJumper={false}
-              />
-            </div>
-          )}
-        </>
+        </div>
       )}
 
-      {/* Modals */}
       <AddAbilityModal
-        visible={showAddAbilityModal}
-        onOk={handleAddAbility}
-        onCancel={() => setShowAddAbilityModal(false)}
-      />
-
-      <NewFlowVersionModal
-        visible={showNewFlowVersionModal}
-        stateMachines={stateMachines}
-        onOk={handleNewFlowVersionConfirm}
-        onCancel={() => {
-          setShowNewFlowVersionModal(false);
-          setTargetAbility(null);
+        open={showAddAbility}
+        existingAbilities={abilities}
+        onCancel={() => setShowAddAbility(false)}
+        onConfirm={(bt, ability, stateMachine) => {
+          if (abilities.some((item) => item.bt === bt && item.ability === ability)) {
+            message.error('This Ability already exists in the current Channel');
+            return;
+          }
+          addAbility(channelCode, { bt, ability, stateMachine, versions: [] });
+          setShowAddAbility(false);
+          setCurrentPage(1);
+          message.success('Ability added');
         }}
       />
 
-      <EditWarningModal
-        visible={showEditWarningModal}
-        onOk={handleEditWarningConfirm}
-        onCancel={() => {
-          setShowEditWarningModal(false);
-          setTargetVersion(null);
-          setTargetAbility(null);
-        }}
-      />
+      <Modal
+        title={`State Machine: ${previewStateMachine ?? ''}`}
+        open={Boolean(previewStateMachine)}
+        footer={null}
+        onCancel={() => setPreviewStateMachine(null)}
+      >
+        <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
+          Read-only State Machine preview
+        </div>
+      </Modal>
     </div>
   );
 }

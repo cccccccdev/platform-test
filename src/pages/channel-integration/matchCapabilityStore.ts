@@ -13,16 +13,19 @@ const nextPatchVersion = (version: string) => {
 
 interface MatchCapabilityStore {
   endpointsByChannel: Record<string, InboundEndpoint[]>;
+  savedEndpointsByChannel: Record<string, InboundEndpoint[]>;
   dirtyByChannel: Record<string, boolean>;
   getEndpoints: (channelCode: string) => InboundEndpoint[];
   addEndpoint: (channelCode: string, endpoint: InboundEndpoint) => void;
   updateEndpoint: (channelCode: string, endpointId: string, updates: Partial<InboundEndpoint>) => void;
   saveChannel: (channelCode: string) => void;
+  discardChannel: (channelCode: string) => void;
   submitChannel: (channelCode: string) => void;
 }
 
 export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) => ({
   endpointsByChannel: cloneSeedData(),
+  savedEndpointsByChannel: cloneSeedData(),
   dirtyByChannel: {},
 
   getEndpoints: (channelCode) => get().endpointsByChannel[channelCode] ?? [],
@@ -48,18 +51,37 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
   })),
 
   saveChannel: (channelCode) => set((state) => ({
-    dirtyByChannel: { ...state.dirtyByChannel, [channelCode]: false },
-  })),
-
-  submitChannel: (channelCode) => set((state) => ({
-    endpointsByChannel: {
-      ...state.endpointsByChannel,
-      [channelCode]: (state.endpointsByChannel[channelCode] ?? []).map((endpoint) => ({
-        ...endpoint,
-        version: endpoint.configStatus === 'draft' ? nextPatchVersion(endpoint.version) : endpoint.version,
-        configStatus: 'submitted' as const,
-      })),
+    savedEndpointsByChannel: {
+      ...state.savedEndpointsByChannel,
+      [channelCode]: structuredClone(state.endpointsByChannel[channelCode] ?? []),
     },
     dirtyByChannel: { ...state.dirtyByChannel, [channelCode]: false },
   })),
+
+  discardChannel: (channelCode) => set((state) => ({
+    endpointsByChannel: {
+      ...state.endpointsByChannel,
+      [channelCode]: structuredClone(state.savedEndpointsByChannel[channelCode] ?? []),
+    },
+    dirtyByChannel: { ...state.dirtyByChannel, [channelCode]: false },
+  })),
+
+  submitChannel: (channelCode) => set((state) => {
+    const submittedEndpoints = (state.endpointsByChannel[channelCode] ?? []).map((endpoint) => ({
+        ...endpoint,
+        version: endpoint.configStatus === 'draft' ? nextPatchVersion(endpoint.version) : endpoint.version,
+        configStatus: 'submitted' as const,
+      }));
+    return {
+      endpointsByChannel: {
+        ...state.endpointsByChannel,
+        [channelCode]: submittedEndpoints,
+      },
+      savedEndpointsByChannel: {
+        ...state.savedEndpointsByChannel,
+        [channelCode]: structuredClone(submittedEndpoints),
+      },
+      dirtyByChannel: { ...state.dirtyByChannel, [channelCode]: false },
+    };
+  }),
 }));

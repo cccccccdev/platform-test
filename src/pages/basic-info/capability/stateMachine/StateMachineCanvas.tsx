@@ -24,7 +24,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Button, message, Modal, Input, Typography, Space, Tag, Popconfirm } from 'antd';
+import { Button, message, Modal, Input, Typography, Space, Tag } from 'antd';
 import { LeftOutlined } from '@ant-design/icons';
 import StateNode from './StateNode';
 import ComponentPanel from './ComponentPanel';

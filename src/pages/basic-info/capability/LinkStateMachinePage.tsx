@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Table, Button, Space, message, Breadcrumb, Select, Form, Typography, Tag, Card, Empty, Tooltip, Modal } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { LeftOutlined, EyeOutlined, DeleteOutlined, PlusOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
 
@@ -64,7 +63,7 @@ export default function LinkStateMachinePage() {
 
   const [form] = Form.useForm();
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [, setRefreshKey] = useState(0);
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [unLinkModalOpen, setUnLinkModalOpen] = useState(false);
 
@@ -126,7 +125,7 @@ export default function LinkStateMachinePage() {
     // Add existing linked
     linkedRecords.forEach(r => filtered.push(r));
     // Add new ones
-    toAdd.forEach(smName => {
+    toAdd.forEach((smName: string) => {
       filtered.push({
         bt,
         ability,

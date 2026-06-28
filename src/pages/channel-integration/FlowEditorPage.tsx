@@ -5,6 +5,7 @@ import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlin
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
 import type { Node, Edge, Connection } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { useConfigIntegrationStore } from './configIntegrationStore';
 
 const { Text, Title } = Typography;
 
@@ -1763,7 +1764,13 @@ function SpiSelectModal({
 }
 
 export default function FlowEditorPage() {
-  const params = useParams();
+  const params = useParams<{
+    channelCode: string;
+    bt: string;
+    ability: string;
+    versionId: string;
+    flowId: string;
+  }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -1856,7 +1863,17 @@ export default function FlowEditorPage() {
     }
   }, [nodes]);
 
-  const flowType = searchParams.get('flowType');
+  const storedFlow = useConfigIntegrationStore((state) => {
+    const ability = (state.abilitiesByChannel[params.channelCode ?? ''] ?? []).find(
+      (item) => item.bt === params.bt && item.ability === params.ability
+    );
+    return ability?.versions
+      .find((version) => version.id === params.versionId)
+      ?.flows.find((flow) => flow.id === params.flowId);
+  });
+  const updateStoredFlow = useConfigIntegrationStore((state) => state.updateFlow);
+  const flowType = searchParams.get('flowType') ?? storedFlow?.flowType ?? 'outbound';
+  const readOnly = searchParams.get('mode') === 'detail';
 
   const mockEndpoints = [
     {
@@ -2025,10 +2042,34 @@ export default function FlowEditorPage() {
   }, []);
 
   const handleSave = () => {
+    if (params.channelCode && params.bt && params.ability && params.versionId && params.flowId) {
+      updateStoredFlow(
+        params.channelCode,
+        params.bt,
+        params.ability,
+        params.versionId,
+        params.flowId,
+        { isConfigured: false }
+      );
+    }
     message.success('Flow saved successfully', 2);
   };
 
   const handleSubmit = () => {
+    if (nodes.length === 0) {
+      message.error('Flow must contain at least one component');
+      return;
+    }
+    if (params.channelCode && params.bt && params.ability && params.versionId && params.flowId) {
+      updateStoredFlow(
+        params.channelCode,
+        params.bt,
+        params.ability,
+        params.versionId,
+        params.flowId,
+        { isConfigured: true }
+      );
+    }
     message.success('Submitted successfully', 2);
   };
 
@@ -2048,18 +2089,24 @@ export default function FlowEditorPage() {
         padding: '0 24px',
         gap: 16,
       }}>
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => setShowUnsavedModal(true)}>
+        <Button
+          type="text"
+          icon={<ArrowLeftOutlined />}
+          onClick={() => readOnly ? performNavigation() : setShowUnsavedModal(true)}
+        >
           Back
         </Button>
         <Divider type="vertical" style={{ height: 24 }} />
         <Title level={5} style={{ margin: 0 }}>
-          {params.ability} - Step {params.stepIndex} - {flowType}
+          {params.ability} - Flow {params.flowId} - {flowType}
         </Title>
         <div style={{ flex: 1 }} />
-        <Space>
-          <Button icon={<SaveOutlined />} onClick={handleSave}>Save as draft</Button>
-          <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>Submit</Button>
-        </Space>
+        {!readOnly && (
+          <Space>
+            <Button icon={<SaveOutlined />} onClick={handleSave}>Save as draft</Button>
+            <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>Submit</Button>
+          </Space>
+        )}
       </div>
 
       {/* 内容区域 */}
@@ -2084,7 +2131,10 @@ export default function FlowEditorPage() {
         />
 
         {/* 组件面板 */}
-        <ComponentLibraryPanel components={COMPONENT_LIBRARY} onAddComponent={handleAddComponent} />
+        <ComponentLibraryPanel
+          components={readOnly ? [] : COMPONENT_LIBRARY}
+          onAddComponent={readOnly ? () => undefined : handleAddComponent}
+        />
 
         {/* 画布区域 */}
         <div

@@ -104,7 +104,6 @@ export default function PropertyPanel({
   // Edge selected
   if (selectedEdge) {
     const sourceNode = nodes.find(n => n.id === selectedEdge.source);
-    const targetNode = nodes.find(n => n.id === selectedEdge.target);
     const isSourceEndNode = sourceNode?.data?.businessStatus === 'SUCCESS' || sourceNode?.data?.businessStatus === 'FAIL';
     const wouldCreateDuplicate = nodes.some(n =>
       n.id !== selectedEdge.source &&

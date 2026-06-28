@@ -43,6 +43,12 @@ export default function IntegrationLayout() {
     navigate(key);
   };
 
+  const selectedMenuKey = location.pathname.includes('/match-capability')
+    ? `/channel-integration/${channelCode}/integration/match-capability`
+    : location.pathname.includes('/integration/code')
+      ? `/channel-integration/${channelCode}/integration/code`
+      : `/channel-integration/${channelCode}/integration`;
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
@@ -84,7 +90,7 @@ export default function IntegrationLayout() {
         <Menu
           theme="light"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedMenuKey]}
           items={getMenuItems()}
           onClick={handleMenuClick}
           style={{ borderRight: 0 }}
