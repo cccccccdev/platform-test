@@ -10,6 +10,7 @@ import ChannelListPage from '../pages/channel-integration/ChannelListPage';
 import BasicInfoPage from '../pages/channel-integration/BasicInfoPage';
 import BusinessTypePage from '../pages/channel-integration/BusinessTypePage';
 import MatchCapabilityPage from '../pages/channel-integration/MatchCapabilityPage';
+import MatchCapabilityEditorPage from '../pages/channel-integration/MatchCapabilityEditorPage';
 import ConfigAbilityListPage from '../pages/channel-integration/ConfigAbilityListPage';
 import ConfigEditorPage from '../pages/channel-integration/ConfigEditorPage';
 import CodeAbilityListPage from '../pages/channel-integration/CodeAbilityListPage';
@@ -84,6 +85,10 @@ const router = createBrowserRouter([
       {
         path: 'channel-integration/:channelCode/integration/config/:bt/:ability/versions/:versionId/flows/:flowId',
         element: <FlowEditorPage />,
+      },
+      {
+        path: 'channel-integration/:channelCode/integration/match-capability/:uriId',
+        element: <MatchCapabilityEditorPage />,
       },
 
       // Scene pages (existing)

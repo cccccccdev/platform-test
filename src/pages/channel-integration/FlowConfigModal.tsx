@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
+import { useParams } from 'react-router-dom';
+import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { FlowConfig, TriggerType } from './types';
 
 const { Text } = Typography;
@@ -71,6 +73,10 @@ export default function FlowConfigModal({
   onCancel,
 }: FlowConfigModalProps) {
   const [form] = Form.useForm();
+  const { channelCode = '' } = useParams<{ channelCode: string }>();
+  const inboundUris = useMatchCapabilityStore((state) =>
+    (state.endpointsByChannel[channelCode] ?? []).filter((endpoint) => endpoint.uriType === 'new')
+  );
   const [triggerType, setTriggerType] = useState<string>('UPSTREAM_TRIGGERED');
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -107,6 +113,7 @@ export default function FlowConfigModal({
     form.setFieldValue('originalRequestAction', undefined);
     form.setFieldValue('referenceActions', undefined);
     form.setFieldValue('triggerSubState', undefined);
+    form.setFieldValue('inboundUriId', undefined);
   };
 
   const handleValuesChange = () => {
@@ -149,6 +156,7 @@ export default function FlowConfigModal({
         // Ensure triggerEvents is always an array
         triggerEvents: Array.isArray(values.triggerAction) ? values.triggerAction : values.triggerAction ? [values.triggerAction] : Array.isArray(values.originalRequestAction) ? values.originalRequestAction : values.originalRequestAction ? [values.originalRequestAction] : [],
         contextActions: values.referenceActions || [],
+        inboundUriId: values.inboundUriId,
         isConfigured: false,
       };
 
@@ -160,8 +168,17 @@ export default function FlowConfigModal({
   const renderDynamicFields = () => {
     switch (triggerType) {
       case 'UPSTREAM_TRIGGERED':
-      case 'EXTERNAL_INBOUND_TRIGGERED':
         return (
+          <Form.Item name="triggerAction" label="Trigger Action" rules={[{ required: true, message: 'Please select Trigger Action' }]}>
+            <Select placeholder="Select action" options={triggerActionOptions} />
+          </Form.Item>
+        );
+
+      case 'EXTERNAL_INBOUND_TRIGGERED':
+        return (<>
+          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
+            <Select placeholder="Select a stable URI ID" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url}` }))} />
+          </Form.Item>
           <Form.Item
             name="triggerAction"
             label="Trigger Action"
@@ -175,10 +192,13 @@ export default function FlowConfigModal({
               ))}
             </Select>
           </Form.Item>
-        );
+        </>);
 
       case 'CALLBACK_TRIGGERED':
-        return (
+        return (<>
+          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
+            <Select placeholder="Select a stable URI ID" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url}` }))} />
+          </Form.Item>
           <Form.Item
             name="originalRequestAction"
             label="Original Request Action"
@@ -192,7 +212,7 @@ export default function FlowConfigModal({
                 ))}
             </Select>
           </Form.Item>
-        );
+        </>);
 
       case 'ASYNC_TRIGGERED':
         return (

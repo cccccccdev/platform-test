@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import FlowConfigModal from './FlowConfigModal';
 import FlowSettingsModal from './FlowSettingsModal';
 import { useConfigIntegrationStore } from './configIntegrationStore';
+import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { FlowConfig, TriggerType } from './types';
 
 const { Text, Title } = Typography;
@@ -35,6 +36,8 @@ export default function ConfigEditorPage() {
   const [showFlowConfigModal, setShowFlowConfigModal] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowConfig | null>(null);
   const [previewStateMachine, setPreviewStateMachine] = useState(false);
+  const inboundUrisByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
+  const inboundUris = inboundUrisByChannel[channelCode] ?? [];
 
   const ability = useConfigIntegrationStore((state) =>
     (state.abilitiesByChannel[channelCode] ?? []).find(
@@ -157,6 +160,15 @@ export default function ConfigEditorPage() {
             dataIndex: 'flowType',
             width: 110,
             render: (flowType: string) => <Tag color={flowType === 'inbound' ? 'purple' : 'blue'}>{flowType}</Tag>,
+          },
+          {
+            title: 'Inbound URI',
+            width: 210,
+            render: (_value, flow) => {
+              if (!flow.inboundUriId) return <span style={{ color: '#999' }}>-</span>;
+              const uri = inboundUris.find((item) => item.id === flow.inboundUriId);
+              return uri ? <Tag color="cyan">{uri.method} {uri.url}</Tag> : <Tag color="red">URI Missing</Tag>;
+            },
           },
           {
             title: 'Status',

@@ -54,6 +54,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               endType: 'wait_external',
               triggerType: 'CALLBACK_TRIGGERED',
               triggerEvents: ['TRANSACTION'],
+              inboundUriId: 'gtb_notify_endpoint',
               isConfigured: true,
               canvasNodes: [
                 { id: 'in_1', componentCode: 'inboundRequest', x: 320, y: 80, status: 'complete' },
