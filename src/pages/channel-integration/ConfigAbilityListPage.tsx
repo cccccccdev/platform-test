@@ -14,7 +14,7 @@ import {
 } from 'antd';
 import { DownOutlined, EyeOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import { abilityOptions } from '../../mock/data';
+import { abilityOptions, capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import type { ConfigAbility, FlowVersion } from './types';
 
@@ -27,7 +27,7 @@ const linkedStateMachines: Record<string, string[]> = {
   'DISBURSEMENT:BANK_TRF': ['Default_Refund_StateMachine'],
 };
 
-function AddAbilityModal({
+function AddCapabilitiesModal({
   open,
   existingAbilities,
   onConfirm,
@@ -35,7 +35,7 @@ function AddAbilityModal({
 }: {
   open: boolean;
   existingAbilities: ConfigAbility[];
-  onConfirm: (bt: string, ability: string, stateMachine: string) => void;
+  onConfirm: (bt: string, ability: string, actions: string[], stateMachine: string) => void;
   onCancel: () => void;
 }) {
   const [form] = Form.useForm();
@@ -45,6 +45,7 @@ function AddAbilityModal({
   const availableAbilities = (abilityOptions[bt ?? ''] ?? []).filter(
     (candidate) => !existingAbilities.some((item) => item.bt === bt && item.ability === candidate)
   );
+  const availableActions = capabilityActionOptions[`${bt}:${ability}`] ?? [];
   const stateMachines = linkedStateMachines[`${bt}:${ability}`] ?? [];
 
   const resetAndCancel = () => {
@@ -54,13 +55,13 @@ function AddAbilityModal({
 
   return (
     <Modal
-      title="Add Ability"
+      title="Add Capabilities"
       open={open}
       okText="Confirm"
       onCancel={resetAndCancel}
       onOk={() => {
         void form.validateFields().then((values) => {
-          onConfirm(values.bt, values.ability, values.stateMachine);
+          onConfirm(values.bt, values.ability, values.actions, values.stateMachine);
           form.resetFields();
         });
       }}
@@ -70,7 +71,7 @@ function AddAbilityModal({
           <Select
             placeholder="Select Business Type"
             options={Object.keys(abilityOptions).map((item) => ({ label: item, value: item }))}
-            onChange={() => form.setFieldsValue({ ability: undefined, stateMachine: undefined })}
+            onChange={() => form.setFieldsValue({ ability: undefined, actions: undefined, stateMachine: undefined })}
           />
         </Form.Item>
         <Form.Item name="ability" label="Ability" rules={[{ required: true }]}>
@@ -78,7 +79,15 @@ function AddAbilityModal({
             disabled={!bt}
             placeholder={availableAbilities.length ? 'Select Ability' : 'No available Ability'}
             options={availableAbilities.map((item) => ({ label: item, value: item }))}
-            onChange={() => form.setFieldValue('stateMachine', undefined)}
+            onChange={() => form.setFieldsValue({ actions: undefined, stateMachine: undefined })}
+          />
+        </Form.Item>
+        <Form.Item name="actions" label="Actions" rules={[{ required: true, type: 'array', min: 1, message: 'Select at least one Action' }]}>
+          <Select
+            mode="multiple"
+            disabled={!ability}
+            placeholder={availableActions.length ? 'Select Actions' : 'No available Action'}
+            options={availableActions.map((item) => ({ label: item, value: item }))}
           />
         </Form.Item>
         <Form.Item name="stateMachine" label="State Machine" rules={[{ required: true }]}>
@@ -86,6 +95,67 @@ function AddAbilityModal({
             disabled={!ability}
             placeholder={stateMachines.length ? 'Select State Machine' : 'No linked State Machine'}
             options={stateMachines.map((item) => ({ label: item, value: item }))}
+          />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
+
+function ConfigCapabilitiesModal({
+  open,
+  ability,
+  availableActions,
+  onCancel,
+  onSave,
+}: {
+  open: boolean;
+  ability: ConfigAbility;
+  availableActions: string[];
+  onCancel: () => void;
+  onSave: (nextActions: string[]) => void;
+}) {
+  const [form] = Form.useForm();
+
+  return (
+    <Modal
+      title="Config Capabilities"
+      open={open}
+      okText="Save"
+      onCancel={() => {
+        form.resetFields();
+        onCancel();
+      }}
+      onOk={() => {
+        void form.validateFields().then((values) => {
+          onSave(values.actions);
+        });
+      }}
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={{
+          bt: ability.bt,
+          ability: ability.ability,
+          stateMachine: ability.stateMachine,
+          actions: ability.actions,
+        }}
+      >
+        <Form.Item name="bt" label="Business Type">
+          <Select disabled />
+        </Form.Item>
+        <Form.Item name="ability" label="Ability">
+          <Select disabled />
+        </Form.Item>
+        <Form.Item name="stateMachine" label="State Machine">
+          <Select disabled />
+        </Form.Item>
+        <Form.Item name="actions" label="Actions" rules={[{ required: true, type: 'array', min: 1, message: 'At least one Action is required' }]}>
+          <Select
+            mode="multiple"
+            placeholder="Select Actions"
+            options={availableActions.map((item) => ({ label: item, value: item }))}
           />
         </Form.Item>
       </Form>
@@ -104,9 +174,10 @@ export default function ConfigAbilityListPage() {
   const navigate = useNavigate();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [showAddAbility, setShowAddAbility] = useState(false);
+  const [showAddCapabilities, setShowAddCapabilities] = useState(false);
   const [previewStateMachine, setPreviewStateMachine] = useState<string | null>(null);
   const [deployStatus, setDeployStatus] = useState<{ ability: ConfigAbility; version: FlowVersion } | null>(null);
+  const [configAbility, setConfigAbility] = useState<ConfigAbility | null>(null);
   const pageSize = 10;
 
   const abilities = useConfigIntegrationStore(
@@ -117,6 +188,7 @@ export default function ConfigAbilityListPage() {
   const cloneVersion = useConfigIntegrationStore((state) => state.cloneVersion);
   const deleteVersion = useConfigIntegrationStore((state) => state.deleteVersion);
   const deployVersion = useConfigIntegrationStore((state) => state.deployVersion);
+  const updateAbilityActions = useConfigIntegrationStore((state) => state.updateAbilityActions);
 
   const paginatedAbilities = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -243,6 +315,22 @@ export default function ConfigAbilityListPage() {
     />
   );
 
+  const renderActions = (actions: string[]) => {
+    const maxVisible = 3;
+    const visible = actions.slice(0, maxVisible);
+    const rest = actions.slice(maxVisible);
+    return (
+      <Space size={4} wrap>
+        {visible.map((action) => <Tag key={action}>{action}</Tag>)}
+        {rest.length > 0 && (
+          <Tooltip title={rest.join(', ')}>
+            <Tag>+{rest.length}</Tag>
+          </Tooltip>
+        )}
+      </Space>
+    );
+  };
+
   const columns = [
     {
       title: '',
@@ -261,6 +349,11 @@ export default function ConfigAbilityListPage() {
     { title: 'Business Type', dataIndex: 'bt' },
     { title: 'Ability', dataIndex: 'ability' },
     {
+      title: 'Actions',
+      dataIndex: 'actions',
+      render: (actions: string[]) => renderActions(actions ?? []),
+    },
+    {
       title: 'State Machine',
       dataIndex: 'stateMachine',
       render: (stateMachine: string) => (
@@ -271,11 +364,16 @@ export default function ConfigAbilityListPage() {
     },
     {
       title: 'Operation',
-      width: 180,
+      width: 280,
       render: (_value: unknown, ability: ConfigAbility) => (
-        <Button type="primary" size="small" onClick={() => handleNewVersion(ability)}>
-          New Flow Version
-        </Button>
+        <Space>
+          <Button size="small" onClick={() => setConfigAbility(ability)}>
+            Config
+          </Button>
+          <Button type="primary" size="small" onClick={() => handleNewVersion(ability)}>
+            New Flow Version
+          </Button>
+        </Space>
       ),
     },
   ];
@@ -287,8 +385,8 @@ export default function ConfigAbilityListPage() {
           <h2 style={{ margin: 0 }}>Config Integration</h2>
           <Text type="secondary">Channel: {channelCode}</Text>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddAbility(true)}>
-          Add Ability
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddCapabilities(true)}>
+          Add Capabilities
         </Button>
       </div>
 
@@ -315,21 +413,46 @@ export default function ConfigAbilityListPage() {
         </div>
       )}
 
-      <AddAbilityModal
-        open={showAddAbility}
+      <AddCapabilitiesModal
+        open={showAddCapabilities}
         existingAbilities={abilities}
-        onCancel={() => setShowAddAbility(false)}
-        onConfirm={(bt, ability, stateMachine) => {
+        onCancel={() => setShowAddCapabilities(false)}
+        onConfirm={(bt, ability, actions, stateMachine) => {
           if (abilities.some((item) => item.bt === bt && item.ability === ability)) {
             message.error('This Ability already exists in the current Channel');
             return;
           }
-          addAbility(channelCode, { bt, ability, stateMachine, versions: [] });
-          setShowAddAbility(false);
+          addAbility(channelCode, { bt, ability, actions, stateMachine, versions: [] });
+          setShowAddCapabilities(false);
           setCurrentPage(1);
-          message.success('Ability added');
+          message.success('Capabilities added');
         }}
       />
+
+      {configAbility && (
+        <ConfigCapabilitiesModal
+          open
+          ability={configAbility}
+          availableActions={capabilityActionOptions[`${configAbility.bt}:${configAbility.ability}`] ?? configAbility.actions}
+          onCancel={() => setConfigAbility(null)}
+          onSave={(nextActions) => {
+            const result = updateAbilityActions(channelCode, configAbility.bt, configAbility.ability, nextActions);
+            if (!result.success && result.errors) {
+              Modal.error({
+                title: 'Cannot save Actions',
+                content: (
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {result.errors.map((err, i) => <li key={i}>{err}</li>)}
+                  </ul>
+                ),
+              });
+              return;
+            }
+            setConfigAbility(null);
+            message.success('Actions updated');
+          }}
+        />
+      )}
 
       <Modal
         title={`State Machine: ${previewStateMachine ?? ''}`}

@@ -4,12 +4,6 @@ export interface Channel {
   country: string[];
   party: string[];
   status: 'Active' | 'Inactive';
-  productOwner: string;
-  developmentOwner: string;
-  operationOwner: string;
-  productApprover: string;
-  developmentApprover: string;
-  operationApprover: string;
   operator: string;
   operationTime: string;
 }
@@ -240,6 +234,7 @@ export interface FlowVersion {
 export interface ConfigAbility {
   bt: string;
   ability: string;
+  actions: string[];
   stateMachine: string;
   versions: FlowVersion[];
 }

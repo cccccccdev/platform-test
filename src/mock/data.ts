@@ -3,9 +3,9 @@
 
 // 渠道列表
 export const mockChannels = [
-  { code: 'GTB_NG', country: ['Nigeria'], party: ['PalmPay NG'], status: 'Active', productOwner: 'zhangsan', developmentOwner: 'lisi', operationOwner: 'wangwu', productApprover: 'zhaoliu', developmentApprover: 'sunqi', operationApprover: 'zhouba', operator: 'admin', operationTime: '2026-05-20 10:00:00' },
-  { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: ['PalmPay NG'], status: 'Inactive', productOwner: 'zhangsan', developmentOwner: 'lisi', operationOwner: 'wangwu', productApprover: 'zhaoliu', developmentApprover: 'sunqi', operationApprover: 'zhouba', operator: 'admin', operationTime: '2026-05-20 11:00:00' },
-  { code: 'PAYSTACK_NG', country: ['Nigeria'], party: ['PalmPay GH'], status: 'Active', productOwner: 'zhangsan', developmentOwner: 'lisi', operationOwner: 'wangwu', productApprover: 'zhaoliu', developmentApprover: 'sunqi', operationApprover: 'zhouba', operator: 'admin', operationTime: '2026-05-20 12:00:00' },
+  { code: 'GTB_NG', country: ['Nigeria'], party: ['PalmPay NG'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 10:00:00' },
+  { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: ['PalmPay NG'], status: 'Inactive', operator: 'admin', operationTime: '2026-05-20 11:00:00' },
+  { code: 'PAYSTACK_NG', country: ['Nigeria'], party: ['PalmPay GH'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 12:00:00' },
 ]
 
 // Credential 列表（按 channelCode 索引）

@@ -227,6 +227,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
         stateName={stateName}
         existingFlows={flows}
         availableEvents={availableEvents}
+        availableActions={[]}
         editingFlow={editingFlow}
         onSave={handleSaveFlow}
         onNext={handleNextFromConfig}

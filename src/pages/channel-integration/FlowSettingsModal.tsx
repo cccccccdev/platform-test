@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
+import { message, Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import type { FlowConfig, TriggerType } from './types';
 
@@ -39,17 +39,6 @@ const triggerTypeOptions = [
   },
 ];
 
-// All available actions for Trigger Action / Original Request Action
-const triggerActionOptions = [
-  { value: 'TRANSACTION', label: 'TRANSACTION' },
-  { value: 'QUERY', label: 'QUERY' },
-  { value: 'VERIFY', label: 'VERIFY' },
-  { value: 'CANCEL', label: 'CANCEL' },
-  { value: 'REVERSAL', label: 'REVERSAL' },
-  { value: 'INBOUND_TRANSACTION', label: 'INBOUND_TRANSACTION' },
-  { value: 'INBOUND_QUERY', label: 'INBOUND_QUERY' },
-];
-
 // State Machine states for Trigger Sub-state
 const stateMachineStates = [
   { value: 'INIT', label: 'INIT' },
@@ -64,7 +53,7 @@ const stateMachineStates = [
 interface FlowSettingsModalProps {
   visible: boolean;
   flow: FlowConfig | null;
-  existingFlows: FlowConfig[];
+  availableActions: string[];
   onSave: (config: FlowConfig) => void;
   onCancel: () => void;
 }
@@ -72,7 +61,7 @@ interface FlowSettingsModalProps {
 export default function FlowSettingsModal({
   visible,
   flow,
-  existingFlows,
+  availableActions,
   onSave,
   onCancel,
 }: FlowSettingsModalProps) {
@@ -82,19 +71,7 @@ export default function FlowSettingsModal({
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [pendingTriggerType, setPendingTriggerType] = useState<string | null>(null);
 
-  // Get Reference Action options from existing flows
-  const referenceActionOptions = existingFlows
-    .filter(f => f.triggerType === 'UPSTREAM_TRIGGERED' || f.triggerType === 'EXTERNAL_INBOUND_TRIGGERED')
-    .flatMap(f => f.triggerEvents || [])
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .map(v => ({ value: v, label: v }));
-
-  // Get Original Request Action options from existing flows
-  const originalRequestActionOptions = existingFlows
-    .filter(f => f.triggerType === 'UPSTREAM_TRIGGERED')
-    .flatMap(f => f.triggerEvents || [])
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .map(v => ({ value: v, label: v }));
+  const actionSelectOptions = availableActions.map((a) => ({ value: a, label: a }));
 
   useEffect(() => {
     if (visible && flow) {
@@ -168,6 +145,23 @@ export default function FlowSettingsModal({
     form.validateFields().then((values) => {
       if (!flow) return;
 
+      const selectedActions: string[] = [];
+      if (values.triggerAction) {
+        selectedActions.push(...(Array.isArray(values.triggerAction) ? values.triggerAction : [values.triggerAction]));
+      }
+      if (values.originalRequestAction) {
+        selectedActions.push(...(Array.isArray(values.originalRequestAction) ? values.originalRequestAction : [values.originalRequestAction]));
+      }
+      if (values.referenceActions) {
+        selectedActions.push(...values.referenceActions);
+      }
+
+      const invalid = selectedActions.filter((a) => !availableActions.includes(a));
+      if (invalid.length > 0) {
+        message.error(`Action(s) ${invalid.join(', ')} are not in the available Actions for this Ability. Please add them via Config Integration first.`);
+        return;
+      }
+
       const updatedConfig: FlowConfig = {
         ...flow,
         name: values.flowName,
@@ -186,6 +180,9 @@ export default function FlowSettingsModal({
   };
 
   const renderDynamicFields = () => {
+    const emptyActions = availableActions.length === 0;
+    const placeholderText = emptyActions ? 'No Actions available' : 'Select action';
+
     switch (triggerType) {
       case 'UPSTREAM_TRIGGERED':
       case 'EXTERNAL_INBOUND_TRIGGERED':
@@ -196,15 +193,11 @@ export default function FlowSettingsModal({
             rules={[{ required: true, message: 'Please select Trigger Action' }]}
           >
             <Select
-              placeholder="Select action"
+              placeholder={placeholderText}
+              disabled={emptyActions}
+              options={actionSelectOptions}
               onChange={() => handleActionChange('triggerAction', '', false)}
-            >
-              {triggerActionOptions.map(opt => (
-                <Select.Option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </Select.Option>
-              ))}
-            </Select>
+            />
           </Form.Item>
         );
 
@@ -216,23 +209,11 @@ export default function FlowSettingsModal({
             rules={[{ required: true, message: 'Please select Original Request Action' }]}
           >
             <Select
-              placeholder="Select action"
+              placeholder={placeholderText}
+              disabled={emptyActions}
+              options={actionSelectOptions}
               onChange={() => handleActionChange('originalRequestAction', '', false)}
-            >
-              {originalRequestActionOptions.length > 0 ? (
-                originalRequestActionOptions.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))
-              ) : (
-                triggerActionOptions.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))
-              )}
-            </Select>
+            />
           </Form.Item>
         );
 
@@ -245,7 +226,9 @@ export default function FlowSettingsModal({
           >
             <Select
               mode="multiple"
-              placeholder="Select action(s)"
+              placeholder={placeholderText}
+              disabled={emptyActions}
+              options={actionSelectOptions}
               onChange={(values) => {
                 const currentValues = form.getFieldValue('referenceActions') || [];
                 const isRemoving = values.length < currentValues.length;
@@ -255,21 +238,7 @@ export default function FlowSettingsModal({
                   setHasChanges(true);
                 }
               }}
-            >
-              {referenceActionOptions.length > 0 ? (
-                referenceActionOptions.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))
-              ) : (
-                triggerActionOptions.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))
-              )}
-            </Select>
+            />
           </Form.Item>
         );
 
@@ -299,7 +268,9 @@ export default function FlowSettingsModal({
             >
               <Select
                 mode="multiple"
-                placeholder="Select action(s)"
+                placeholder={placeholderText}
+                disabled={emptyActions}
+                options={actionSelectOptions}
                 onChange={(values) => {
                   const currentValues = form.getFieldValue('referenceActions') || [];
                   const isRemoving = values.length < currentValues.length;
@@ -309,21 +280,7 @@ export default function FlowSettingsModal({
                     setHasChanges(true);
                   }
                 }}
-              >
-                {referenceActionOptions.length > 0 ? (
-                  referenceActionOptions.map(opt => (
-                    <Select.Option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </Select.Option>
-                  ))
-                ) : (
-                  triggerActionOptions.map(opt => (
-                    <Select.Option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </Select.Option>
-                  ))
-                )}
-              </Select>
+              />
             </Form.Item>
           </>
         );

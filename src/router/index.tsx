@@ -7,7 +7,6 @@ import HomePage from '../pages/home/HomePage';
 
 // Channel Integration pages (no sidebar)
 import ChannelListPage from '../pages/channel-integration/ChannelListPage';
-import BasicInfoPage from '../pages/channel-integration/BasicInfoPage';
 import BusinessTypePage from '../pages/channel-integration/BusinessTypePage';
 import MatchCapabilityPage from '../pages/channel-integration/MatchCapabilityPage';
 import MatchCapabilityEditorPage from '../pages/channel-integration/MatchCapabilityEditorPage';
@@ -15,14 +14,12 @@ import ConfigAbilityListPage from '../pages/channel-integration/ConfigAbilityLis
 import ConfigEditorPage from '../pages/channel-integration/ConfigEditorPage';
 import CodeAbilityListPage from '../pages/channel-integration/CodeAbilityListPage';
 import CodeGuidePage from '../pages/channel-integration/CodeGuidePage';
-import AuthenticationPage from '../pages/channel-integration/AuthenticationPage';
-import CredentialPage from '../pages/channel-integration/CredentialPage';
+
 
 // Scene pages (existing)
 import SceneListPage from '../pages/channel-integration/SceneListPage';
 import SceneEditPage from '../pages/channel-integration/SceneEditPage';
 import SceneDetailPage from '../pages/channel-integration/SceneDetailPage';
-import ApiDebugPage from '../pages/channel-integration/ApiDebugPage';
 import FlowEditorPage from '../pages/channel-integration/FlowEditorPage';
 import TestPage from '../pages/channel-integration/TestPage';
 
@@ -59,11 +56,10 @@ const router = createBrowserRouter(
 
       // Channel sub-pages
       { path: 'channel-integration/:channelCode/business-type', element: <BusinessTypePage /> },
-      { path: 'channel-integration/:channelCode/credential', element: <CredentialPage /> },
       { path: 'channel-integration/:channelCode/party', element: <div style={{ padding: 24 }}>Party Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
-      { path: 'channel-integration/:channelCode/authentication', element: <AuthenticationPage /> },
-      { path: 'channel-integration/:channelCode/basic-info', element: <BasicInfoPage /> },
+      { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
+
 
       // Integration pages (with left sidebar navigation)
       {
@@ -96,9 +92,9 @@ const router = createBrowserRouter(
       { path: 'channel-integration/:channelCode/scenes', element: <SceneListPage /> },
       { path: 'channel-integration/:channelCode/scenes/:sceneId/modify', element: <SceneEditPage /> },
       { path: 'channel-integration/:channelCode/scenes/:sceneId/detail/:version', element: <SceneDetailPage /> },
-      { path: 'channel-integration/:channelCode/scenes/:sceneId/api-debug', element: <ApiDebugPage /> },
-      // Channel-level API Debug (no scene)
-      { path: 'channel-integration/:channelCode/api-debug', element: <ApiDebugPage /> },
+      { path: 'channel-integration/:channelCode/scenes/:sceneId/api-debug', element: <div style={{ padding: 24 }}>AI Debug Page - 待实现</div> },
+      // Channel-level AI Debug (no scene)
+      { path: 'channel-integration/:channelCode/api-debug', element: <div style={{ padding: 24 }}>AI Debug Page - 待实现</div> },
     ],
   },
 

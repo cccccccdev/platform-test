@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
+import { message, Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
@@ -41,22 +41,12 @@ const triggerTypeOptions = [
   },
 ];
 
-// All available actions for Trigger Action / Original Request Action
-const triggerActionOptions = [
-  { value: 'TRANSACTION', label: 'TRANSACTION' },
-  { value: 'QUERY', label: 'QUERY' },
-  { value: 'VERIFY', label: 'VERIFY' },
-  { value: 'CANCEL', label: 'CANCEL' },
-  { value: 'REVERSAL', label: 'REVERSAL' },
-  { value: 'INBOUND_TRANSACTION', label: 'INBOUND_TRANSACTION' },
-  { value: 'INBOUND_QUERY', label: 'INBOUND_QUERY' },
-];
-
 interface FlowConfigModalProps {
   visible: boolean;
   stateName: string;
   existingFlows: FlowConfig[];
   availableEvents: string[];
+  availableActions: string[];
   editingFlow?: FlowConfig | null;
   onSave: (config: FlowConfig) => void;
   onNext?: () => void;
@@ -68,6 +58,7 @@ export default function FlowConfigModal({
   stateName: _stateName,
   existingFlows,
   availableEvents: _availableEvents,
+  availableActions,
   editingFlow: _editingFlow,
   onSave,
   onCancel,
@@ -82,19 +73,7 @@ export default function FlowConfigModal({
   const [triggerType, setTriggerType] = useState<string>('UPSTREAM_TRIGGERED');
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Get Reference Action options from existing flows
-  const referenceActionOptions = existingFlows
-    .filter(f => f.triggerType === 'UPSTREAM_TRIGGERED' || f.triggerType === 'EXTERNAL_INBOUND_TRIGGERED')
-    .flatMap(f => f.triggerEvents || [])
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .map(v => ({ value: v, label: v }));
-
-  // Get Original Request Action options from existing flows
-  const originalRequestActionOptions = existingFlows
-    .filter(f => f.triggerType === 'UPSTREAM_TRIGGERED')
-    .flatMap(f => f.triggerEvents || [])
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .map(v => ({ value: v, label: v }));
+  const actionSelectOptions = availableActions.map((a) => ({ value: a, label: a }));
 
   useEffect(() => {
     if (visible) {
@@ -136,12 +115,37 @@ export default function FlowConfigModal({
     }
   };
 
+  const validateActionsInAvailable = (actions: string[]): string | null => {
+    const invalid = actions.filter((a) => !availableActions.includes(a));
+    if (invalid.length > 0) {
+      return `Action(s) ${invalid.join(', ')} are not in the available Actions for this Ability. Please add them via Config Integration first.`;
+    }
+    return null;
+  };
+
   const handleAdd = () => {
     form.validateFields().then((values) => {
       if (!isFlowNameUnique(values.flowName)) {
         form.setFields([
           { name: 'flowName', errors: ['Flow Name already exists in this version'] },
         ]);
+        return;
+      }
+
+      const selectedActions: string[] = [];
+      if (values.triggerAction) {
+        selectedActions.push(...(Array.isArray(values.triggerAction) ? values.triggerAction : [values.triggerAction]));
+      }
+      if (values.originalRequestAction) {
+        selectedActions.push(...(Array.isArray(values.originalRequestAction) ? values.originalRequestAction : [values.originalRequestAction]));
+      }
+      if (values.referenceActions) {
+        selectedActions.push(...values.referenceActions);
+      }
+
+      const validationError = validateActionsInAvailable(selectedActions);
+      if (validationError) {
+        message.error(validationError);
         return;
       }
 
@@ -167,12 +171,15 @@ export default function FlowConfigModal({
     });
   };
 
+  const emptyActions = availableActions.length === 0;
+  const placeholderText = emptyActions ? 'No Actions available – add Actions via Config Integration' : 'Select action';
+
   const renderDynamicFields = () => {
     switch (triggerType) {
       case 'UPSTREAM_TRIGGERED':
         return (
           <Form.Item name="triggerAction" label="Trigger Action" rules={[{ required: true, message: 'Please select Trigger Action' }]}>
-            <Select placeholder="Select action" options={triggerActionOptions} />
+            <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
           </Form.Item>
         );
 
@@ -186,13 +193,7 @@ export default function FlowConfigModal({
             label="Trigger Action"
             rules={[{ required: true, message: 'Please select Trigger Action' }]}
           >
-            <Select placeholder="Select action">
-              {triggerActionOptions.map(opt => (
-                <Select.Option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </Select.Option>
-              ))}
-            </Select>
+            <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
           </Form.Item>
         </>);
 
@@ -206,13 +207,7 @@ export default function FlowConfigModal({
             label="Original Request Action"
             rules={[{ required: true, message: 'Please select Original Request Action' }]}
           >
-            <Select placeholder="Select action">
-              {originalRequestActionOptions.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))}
-            </Select>
+            <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
           </Form.Item>
         </>);
 
@@ -223,13 +218,7 @@ export default function FlowConfigModal({
             label="Reference Action"
             rules={[{ required: true, message: 'Please select Reference Action' }]}
           >
-            <Select mode="multiple" placeholder="Select action(s)">
-              {referenceActionOptions.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))}
-            </Select>
+            <Select mode="multiple" placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
           </Form.Item>
         );
 
@@ -240,13 +229,7 @@ export default function FlowConfigModal({
             label="Context Action"
             rules={[{ required: true, message: 'Please select Context Action' }]}
           >
-            <Select mode="multiple" placeholder="Select action(s)">
-              {referenceActionOptions.map(opt => (
-                <Select.Option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </Select.Option>
-              ))}
-            </Select>
+            <Select mode="multiple" placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
           </Form.Item>
         );
 

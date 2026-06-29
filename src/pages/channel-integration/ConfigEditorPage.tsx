@@ -198,6 +198,7 @@ export default function ConfigEditorPage() {
         stateName=""
         existingFlows={flows}
         availableEvents={[]}
+        availableActions={ability.actions ?? []}
         onSave={handleFlowSave}
         onCancel={() => setShowFlowConfigModal(false)}
       />
@@ -205,7 +206,7 @@ export default function ConfigEditorPage() {
       <FlowSettingsModal
         visible={Boolean(editingFlow)}
         flow={editingFlow}
-        existingFlows={flows}
+        availableActions={ability.actions ?? []}
         onSave={handleSettingsSave}
         onCancel={() => setEditingFlow(null)}
       />

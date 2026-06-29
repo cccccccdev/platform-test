@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Button, Divider, Drawer, Input, message, Select, Space, Switch, Table, Tag } from 'antd';
 import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, LockOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
+import { useChannelScopeStore } from './channelScopeStore';
+import type { CredentialItem } from './channelScopeStore';
 import type { CapabilityDecisionVersion, FlowConfig, InboundEndpoint, InboundRequestField, LegacyInboundComponent, MatchRule, MatchingType } from './types';
+import CredentialDrawer from './sharedCredentialDrawer';
 
 interface CoverageRow {
   key: string;
@@ -71,28 +74,18 @@ export default function MatchCapabilityEditorPage() {
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(configuration?.rules[0]?.id ?? null);
   const [activeDrawer, setActiveDrawer] = useState<'uri' | 'match' | 'dispatch' | null>(null);
   const readOnly = searchParams.get('mode') === 'detail';
-  const [contextReferences, setContextReferences] = useState({
+  const channelScopeCredentials = useChannelScopeStore((s) => s.credentialsByChannel[channelCode] ?? []);
+  const [editingCredential, setEditingCredential] = useState<CredentialItem | null>(null);
+  const [showCredentialDrawer, setShowCredentialDrawer] = useState(false);
+
+  const contextReferences = {
     globalVariable: { name: 'channelCode', value: channelCode, version: '20260628110000', latestVersion: '20260628110000' },
     orderVariable: { name: 'requestReference', value: '{{order.requestReference}}', version: '20260628110500', latestVersion: '20260628110500' },
-    credential: { name: 'Primary Credential', value: '••••••••', version: '20260628111000', latestVersion: '20260629101500' },
-  });
-  const contextAutoRefreshRef = useRef(false);
-
-  const refreshContext = (automatic = false) => {
-    const changed = Object.values(contextReferences).filter((item) => item.version !== item.latestVersion);
-    if (changed.length) {
-      setContextReferences((current) => Object.fromEntries(Object.entries(current).map(([key, item]) => [key, { ...item, version: item.latestVersion }])) as typeof current);
-      message.info(`${changed.map((item) => `${item.name} (${item.latestVersion})`).join(', ')} ${automatic ? 'was automatically updated' : 'was updated'}.`);
-    } else if (!automatic) {
-      message.success('Context references are up to date');
-    }
   };
 
-  useEffect(() => {
-    if (configuration?.sourceType !== 'v2' || contextAutoRefreshRef.current) return;
-    contextAutoRefreshRef.current = true;
-    refreshContext(true);
-  });
+  const refreshContext = (automatic = false) => {
+    if (!automatic) message.success('Context references are up to date');
+  };
 
   const coverageRows = useMemo<CoverageRow[]>(() => {
     if (!endpoint || !configuration) return [];
@@ -255,19 +248,41 @@ export default function MatchCapabilityEditorPage() {
             <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Context" onClick={() => refreshContext(false)} />
           </div>
           <div style={{ padding: 14 }}>
-            {([
-              ['Global Variable', contextReferences.globalVariable, 'gold'],
-              ['Order Variable', contextReferences.orderVariable, 'cyan'],
-              ['Credential', contextReferences.credential, 'purple'],
-            ] as const).map(([title, item, color], index) => <div key={title}>
-              {index > 0 && <Divider />}
-              <strong>{title}</strong>
+            <div>
+              <strong>Global Variable</strong>
               <div style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11 }}>
-                <Tag color={color}>{item.name}</Tag>
-                <div style={{ marginTop: 5, color: '#595959' }}>{item.value}</div>
-                <div style={{ marginTop: 3, color: '#8c8c8c' }}>Version {item.version}</div>
+                <Tag color="gold">{contextReferences.globalVariable.name}</Tag>
+                <div style={{ marginTop: 5, color: '#595959' }}>{contextReferences.globalVariable.value}</div>
+                <div style={{ marginTop: 3, color: '#8c8c8c' }}>Version {contextReferences.globalVariable.version}</div>
               </div>
-            </div>)}
+            </div>
+            <Divider />
+            <div>
+              <strong>Order Variable</strong>
+              <div style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11 }}>
+                <Tag color="cyan">{contextReferences.orderVariable.name}</Tag>
+                <div style={{ marginTop: 5, color: '#595959' }}>{contextReferences.orderVariable.value}</div>
+                <div style={{ marginTop: 3, color: '#8c8c8c' }}>Version {contextReferences.orderVariable.version}</div>
+              </div>
+            </div>
+            <Divider />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong>Credential</strong>
+              <Button type="text" size="small" icon={<PlusOutlined />} onClick={() => { setEditingCredential(null); setShowCredentialDrawer(true); }} style={{ padding: '0 4px', height: 20 }} />
+            </div>
+            {channelScopeCredentials.length === 0 ? (
+              <div style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11, color: '#999' }}>
+                No Credential — use + to create one
+              </div>
+            ) : (
+              channelScopeCredentials.map((c) => (
+                <div key={c.id} style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
+                  onClick={() => { setEditingCredential(c); setShowCredentialDrawer(true); }}>
+                  <Tag color="purple">{c.key}</Tag>
+                  <div style={{ marginTop: 3, color: '#595959' }}>{c.description || ''}</div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -387,6 +402,17 @@ export default function MatchCapabilityEditorPage() {
           { title: 'Coverage', dataIndex: 'status', render: (status) => <Tag color={statusColor[status]}>{status}</Tag> },
         ]} />
       </Drawer>
+
+      <CredentialDrawer
+        visible={showCredentialDrawer}
+        channelCode={channelCode}
+        credential={editingCredential}
+        onSave={() => {}}
+        onClose={() => {
+          setShowCredentialDrawer(false);
+          setEditingCredential(null);
+        }}
+      />
     </div>
   );
 }

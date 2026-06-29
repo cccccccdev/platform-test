@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { ConfigAbility, EnvType, FlowConfig, FlowVersion } from './types';
+import { capabilityActionOptions } from '../../mock/data';
 
 const now = () => new Date().toLocaleString();
 const timestampVersion = () => {
@@ -13,6 +14,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
     {
       bt: 'COLLECTION',
       ability: 'CARD_PAY',
+      actions: capabilityActionOptions['COLLECTION:CARD_PAY'] ?? [],
       stateMachine: 'Default_Refund_StateMachine',
       versions: [
         {
@@ -90,6 +92,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
     {
       bt: 'COLLECTION',
       ability: 'USSD_PAY',
+      actions: capabilityActionOptions['COLLECTION:USSD_PAY'] ?? [],
       stateMachine: 'BankCard_Debit_StateMachine',
       versions: [
         {
@@ -107,6 +110,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
     {
       bt: 'DISBURSEMENT',
       ability: 'BANK_TRF',
+      actions: capabilityActionOptions['DISBURSEMENT:BANK_TRF'] ?? [],
       stateMachine: 'Default_Refund_StateMachine',
       versions: [
         {
@@ -151,6 +155,12 @@ interface ConfigIntegrationStore {
     flowId: string,
     updates: Partial<FlowConfig>
   ) => void;
+  updateAbilityActions: (
+    channelCode: string,
+    bt: string,
+    ability: string,
+    nextActions: string[]
+  ) => { success: boolean; errors?: string[] };
 }
 
 export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, get) => ({
@@ -295,5 +305,58 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       hasUnsubmittedDraft: version.publishStatus === 'draft' ? false : true,
       flows: version.flows.map((flow) => flow.id === flowId ? { ...flow, ...updates } : flow),
     });
+  },
+
+  updateAbilityActions: (channelCode, bt, abilityCode, nextActions) => {
+    const abilities = get().abilitiesByChannel[channelCode] ?? [];
+    const abilityRecord = abilities.find(
+      (item) => item.bt === bt && item.ability === abilityCode
+    );
+    if (!abilityRecord) return { success: false, errors: ['Ability not found'] };
+
+    const currentActions = abilityRecord.actions;
+    const removedActions = currentActions.filter((a) => !nextActions.includes(a));
+    const allowedOptions = capabilityActionOptions[`${bt}:${abilityCode}`] ?? [];
+
+    const errors: string[] = [];
+    for (const removedAction of removedActions) {
+      for (const version of abilityRecord.versions) {
+        for (const flow of version.flows) {
+          const refs = [
+            ...(flow.triggerEvents || []),
+            ...(flow.contextActions || []),
+          ];
+          if (refs.includes(removedAction)) {
+            errors.push(
+              `Action ${removedAction} cannot be removed because it is referenced by Flow ${flow.name} in Version ${version.version}.`
+            );
+          }
+        }
+      }
+    }
+
+    if (errors.length > 0) return { success: false, errors };
+
+    const addedActions = nextActions.filter((a) => !currentActions.includes(a));
+    for (const addedAction of addedActions) {
+      if (!allowedOptions.includes(addedAction)) {
+        return {
+          success: false,
+          errors: [`Action ${addedAction} is not available for ${bt}:${abilityCode}.`],
+        };
+      }
+    }
+
+    set((state) => ({
+      abilitiesByChannel: {
+        ...state.abilitiesByChannel,
+        [channelCode]: (state.abilitiesByChannel[channelCode] ?? []).map((item) =>
+          item.bt === bt && item.ability === abilityCode
+            ? { ...item, actions: nextActions }
+            : item
+        ),
+      },
+    }));
+    return { success: true };
   },
 }));

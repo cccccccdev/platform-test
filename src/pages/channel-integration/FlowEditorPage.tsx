@@ -7,8 +7,26 @@ import type { Node, Edge, Connection } from '@xyflow/react';
 import type { FlowCanvasEdge, FlowCanvasNode } from './types';
 import '@xyflow/react/dist/style.css';
 import { useConfigIntegrationStore } from './configIntegrationStore';
+import { useChannelScopeStore } from './channelScopeStore';
+import type { AuthType, AuthConfig, CredentialItem } from './channelScopeStore';
+import CredentialDrawer from './sharedCredentialDrawer';
+import AuthenticationDrawer from './sharedAuthenticationDrawer';
 
 const { Text, Title } = Typography;
+
+const authTypeLabels: Record<AuthType, string> = {
+  basic: 'Basic Auth',
+  bearer: 'Bearer Token',
+  custom: 'Custom Auth',
+  oauth2: 'OAuth 2',
+};
+
+const authTypeColors: Record<AuthType, string> = {
+  basic: 'blue',
+  bearer: 'green',
+  custom: 'purple',
+  oauth2: 'orange',
+};
 
 type LibraryComponent = { code: string; name: string; group: string; usage: 'single' | 'multiple' };
 
@@ -269,12 +287,16 @@ function ContextPanel({
   globalVariables,
   orderVariables,
   generatedFields,
+  authentications,
   onFieldSelect,
   isMappingActive,
   onAddGeneratedField,
   onAddGlobalVar,
   onAddOrderVar,
   onAddCredential,
+  onAddAuthentication,
+  onEditCredential,
+  onEditAuthentication,
   onRefresh,
 }: {
   spiData?: { businessType: string; ability: string; action: string };
@@ -283,12 +305,16 @@ function ContextPanel({
   globalVariables: any[];
   orderVariables: any[];
   generatedFields: any[];
+  authentications: any[];
   onFieldSelect?: (fieldPath: string) => void;
   isMappingActive?: boolean;
   onAddGeneratedField?: () => void;
   onAddGlobalVar?: () => void;
   onAddOrderVar?: () => void;
   onAddCredential?: () => void;
+  onAddAuthentication?: () => void;
+  onEditCredential?: (cred: CredentialItem) => void;
+  onEditAuthentication?: (auth: AuthConfig) => void;
   onRefresh?: () => void;
 }) {
   const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
@@ -570,10 +596,26 @@ function ContextPanel({
       children: credentials.length === 0 ? (
         renderEmptyState('No Credential', 'Use + to create one')
       ) : (
-        credentials.map((c: any, idx: number) => (
-          <div key={idx} style={{ padding: '2px 0', fontSize: 11 }}>
-            <div style={{ fontWeight: 500 }}>{c.name}</div>
-            <div style={{ color: '#888' }}>{c.type} ••••••••</div>
+        credentials.map((c: CredentialItem, idx: number) => (
+          <div key={idx} style={{ padding: '2px 0', fontSize: 11, cursor: 'pointer' }}
+            onClick={() => onEditCredential?.(c)}>
+            <Tag color="blue">{c.key}</Tag>
+            <span style={{ color: '#666' }}>{c.description || ''}</span>
+          </div>
+        ))
+      ),
+    },
+    {
+      key: 'authentication',
+      label: <Space><span>🛡️</span><span>Authentication</span><Button type="text" size="small" icon={<PlusOutlined />} onClick={(event) => { event.stopPropagation(); onAddAuthentication?.(); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
+      children: authentications.length === 0 ? (
+        renderEmptyState('No Authentication', 'Use + to create one')
+      ) : (
+        authentications.map((a: AuthConfig, idx: number) => (
+          <div key={idx} style={{ padding: '2px 0', fontSize: 11, cursor: 'pointer' }}
+            onClick={() => onEditAuthentication?.(a)}>
+            <Tag color={authTypeColors[a.type]}>{a.name}</Tag>
+            <span style={{ color: '#666' }}>{authTypeLabels[a.type]} v{a.version}</span>
           </div>
         ))
       ),
@@ -589,6 +631,7 @@ function ContextPanel({
       children: orderVariables.length === 0 ? renderEmptyState('No Order Variable', 'Use + to create one') : orderVariables.map((item: any) => <div key={item.name} style={{ padding: '2px 0', fontSize: 11 }}><Tag color="cyan">{item.name}</Tag><span style={{ color: '#666' }}>= {item.value}</span></div>),
     },
     collapseItems.find((item) => item.key === 'credential'),
+    collapseItems.find((item) => item.key === 'authentication'),
   ].filter(Boolean) as typeof collapseItems;
 
   return (
@@ -713,6 +756,7 @@ function NetworkConfigDrawer({
   name,
   endpoints: _externalEndpoints,
   generatedFields,
+  channelCode,
   isMappingActive,
   onMappingActiveChange,
   onMappingContextChange,
@@ -727,18 +771,18 @@ function NetworkConfigDrawer({
   name: string;
   endpoints: any[];
   generatedFields: any[];
+  channelCode?: string;
   isMappingActive?: boolean;
   onMappingActiveChange?: (active: boolean) => void;
   onMappingContextChange?: (context: { section: string; rowIndex: number } | null) => void;
   activeMappingContext?: { section: string; rowIndex: number } | null;
-  // Selected field from Context panel - passed from parent when user selects a field
   selectedContextField?: string | null;
-  // Callback for when user selects a field from Context panel
   onFieldSelect?: (fieldPath: string) => void;
   onClose: () => void;
   onSave: (config: any) => void;
 }) {
   const [activeTab, setActiveTab] = useState('endpointBasicInfo');
+  const networkAuthOptions = useChannelScopeStore((s) => channelCode ? (s.authenticationsByChannel[channelCode] ?? []) : []);
   const [localMappingContext, setLocalMappingContext] = useState<{ section: string; rowIndex: number } | null>(null);
   // Use prop if provided, otherwise use local state
   const effectiveMappingContext = activeMappingContext !== undefined ? activeMappingContext : localMappingContext;
@@ -753,7 +797,7 @@ function NetworkConfigDrawer({
     method: 'POST',
     protocol: 'HTTPS',
     // Security
-    authId: null as string | null, // Reference to auth from Authentication page
+    authId: null as string | null,
     signature: { enabled: false, algorithm: '', fields: [], secretSource: '', writeTo: 'header', headerName: '' },
     encrypt: '',
     decrypt: '',
@@ -879,12 +923,11 @@ function NetworkConfigDrawer({
     </div>
   );
 
-  // Security Tab - Auth from Authentication page, plus Signature, Encrypt, Decrypt, Verify
+  // Security Tab - Auth, Signature, Encrypt, Decrypt, Verify
   const renderSecurityTab = () => (
     <div style={{ maxHeight: 500, overflow: 'auto' }}>
       <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Security</Text>
 
-      {/* Auth - Reference to Authentication page configured Auth */}
       <div style={{ marginBottom: 16 }}>
         <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Authentication</Text>
         <Select
@@ -895,14 +938,22 @@ function NetworkConfigDrawer({
           onChange={(val: any) => updateConfig({ authId: val })}
           allowClear
         >
-          {/* Mock auth options - in real app would come from Authentication page */}
-          <Select.Option value="auth_paystack_bearer">Paystack Bearer Token</Select.Option>
-          <Select.Option value="auth_paystack_apikey">Paystack API Key</Select.Option>
-          <Select.Option value="auth_stripe">Stripe API Key</Select.Option>
+          {networkAuthOptions.length === 0 && (
+            <Select.Option value="" disabled>
+              No Authentication configured — add one from Context
+            </Select.Option>
+          )}
+          {networkAuthOptions.map((a) => (
+            <Select.Option key={a.id} value={a.id}>
+              {a.name} ({authTypeLabels[a.type]})
+            </Select.Option>
+          ))}
         </Select>
-        <div style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
-          Select an Authentication configuration from the current Channel.
-        </div>
+        {networkAuthOptions.length === 0 && (
+          <div style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
+            No Authentication configured. Use the + button in Context to create one.
+          </div>
+        )}
       </div>
 
       {/* Signature - 加签 */}
@@ -1985,9 +2036,9 @@ export default function FlowEditorPage() {
 }`,
     },
   ];
-  const [mockCredentials, setMockCredentials] = useState<any[]>([
-    { id: 'cred1', name: 'Paystack API Key', value: '••••••••', type: 'API Key', version: '20260628093000', latestVersion: '20260629093000' },
-  ]);
+  const channelScopeCredentials = useChannelScopeStore((s) => s.credentialsByChannel[params.channelCode ?? ''] ?? []);
+  const channelScopeAuthentications = useChannelScopeStore((s) => s.authenticationsByChannel[params.channelCode ?? ''] ?? []);
+
   const [mockGlobalVars, setMockGlobalVars] = useState<any[]>([
     { name: 'channelCode', value: 'PAYSTACK' },
   ]);
@@ -1998,23 +2049,13 @@ export default function FlowEditorPage() {
     { name: 'rrn', generationType: 'sequence' },
   ]);
 
-  const contextAutoRefreshRef = useRef(false);
-  const refreshContext = useCallback((automatic = false) => {
-    const changed = mockCredentials.filter((item) => item.latestVersion && item.version !== item.latestVersion);
-    if (changed.length) {
-      setMockCredentials((items) => items.map((item) => item.latestVersion ? { ...item, version: item.latestVersion } : item));
-      const names = changed.map((item) => `${item.name} (${item.latestVersion})`).join(', ');
-      message.info(`${names} ${automatic ? 'was automatically updated' : 'was updated'}.`);
-      return;
-    }
-    if (!automatic) message.success('Context references are up to date');
-  }, [mockCredentials]);
+  const [editingCredential, setEditingCredential] = useState<CredentialItem | null>(null);
+  const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
+  const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
 
-  useEffect(() => {
-    if (contextAutoRefreshRef.current) return;
-    contextAutoRefreshRef.current = true;
-    refreshContext(true);
-  }, [refreshContext]);
+  const refreshContext = useCallback((automatic = false) => {
+    if (!automatic) message.success('Context references are up to date');
+  }, []);
 
   const openComponentConfig = useCallback((code: string) => {
     if (code === 'httpCall') setShowNetworkDrawer(true);
@@ -2202,7 +2243,8 @@ export default function FlowEditorPage() {
         <ContextPanel
           spiData={spiData}
           endpoints={mockEndpoints}
-          credentials={mockCredentials}
+          credentials={channelScopeCredentials}
+          authentications={channelScopeAuthentications}
           globalVariables={mockGlobalVars}
           orderVariables={mockOrderVars}
           generatedFields={mockGeneratedFields}
@@ -2217,7 +2259,22 @@ export default function FlowEditorPage() {
             setShowGlobalVarDrawer(true);
           }}
           onAddOrderVar={() => setShowOrderVarDrawer(true)}
-          onAddCredential={() => setShowCredentialDrawer(true)}
+          onAddCredential={() => {
+            setEditingCredential(null);
+            setShowCredentialDrawer(true);
+          }}
+          onAddAuthentication={() => {
+            setEditingAuthentication(null);
+            setShowAuthenticationDrawer(true);
+          }}
+          onEditCredential={(cred) => {
+            setEditingCredential(cred);
+            setShowCredentialDrawer(true);
+          }}
+          onEditAuthentication={(auth) => {
+            setEditingAuthentication(auth);
+            setShowAuthenticationDrawer(true);
+          }}
           onRefresh={() => refreshContext(false)}
         />
 
@@ -2286,6 +2343,7 @@ export default function FlowEditorPage() {
         name="HTTP Call"
         endpoints={mockEndpoints}
         generatedFields={mockGeneratedFields}
+        channelCode={params.channelCode}
         isMappingActive={isMappingActive}
         onMappingActiveChange={setIsMappingActive}
         activeMappingContext={activeMappingContext}
@@ -2383,15 +2441,25 @@ export default function FlowEditorPage() {
         }}
       />
 
-      <GlobalVarDrawer
+      <CredentialDrawer
         visible={showCredentialDrawer}
-        variable={null}
-        title="Credential"
-        onClose={() => setShowCredentialDrawer(false)}
-        onSave={(variable) => {
-          setMockCredentials((items) => [...items, { ...variable, id: `credential_${Date.now()}`, type: 'Custom', version: new Date().toISOString().replace(/\D/g, '').slice(0, 14) }]);
+        channelCode={params.channelCode ?? ''}
+        credential={editingCredential}
+        onSave={() => {}}
+        onClose={() => {
           setShowCredentialDrawer(false);
-          message.success('Credential saved');
+          setEditingCredential(null);
+        }}
+      />
+
+      <AuthenticationDrawer
+        visible={showAuthenticationDrawer}
+        channelCode={params.channelCode ?? ''}
+        auth={editingAuthentication}
+        onSave={() => {}}
+        onClose={() => {
+          setShowAuthenticationDrawer(false);
+          setEditingAuthentication(null);
         }}
       />
 
