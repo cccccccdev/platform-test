@@ -45,7 +45,8 @@ import StateMachineListPage from '../pages/basic-info/capability/StateMachineLis
 import LinkStateMachinePage from '../pages/basic-info/capability/LinkStateMachinePage';
 import StateMachineCanvas from '../pages/basic-info/capability/stateMachine/StateMachineCanvas';
 
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+[
   { index: true, element: <Navigate to="/home" replace /> },
   { path: '/home', element: <HomePage /> },
 
@@ -136,7 +137,9 @@ const router = createBrowserRouter([
   },
   // Standalone stateMachine canvas (no sidebar, outside AppShell)
   { path: 'basic-info/capability/stateMachine/canvas', element: <StateMachineCanvas /> },
-]);
+],
+  { basename: import.meta.env.BASE_URL.replace(/\/$/, '') },
+);
 
 export default function Router() {
   return <RouterProvider router={router} />;
