@@ -106,6 +106,7 @@ export default function ConfigAbilityListPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showAddAbility, setShowAddAbility] = useState(false);
   const [previewStateMachine, setPreviewStateMachine] = useState<string | null>(null);
+  const [deployStatus, setDeployStatus] = useState<{ ability: ConfigAbility; version: FlowVersion } | null>(null);
   const pageSize = 10;
 
   const abilities = useConfigIntegrationStore(
@@ -154,12 +155,24 @@ export default function ConfigAbilityListPage() {
   };
 
   const handleDeploy = (ability: ConfigAbility, version: FlowVersion) => {
-    const target = deployVersion(channelCode, ability.bt, ability.ability, version.id);
-    if (!target) {
-      message.error('Only Submitted or Published versions can be deployed');
+    const deploy = () => {
+      const target = deployVersion(channelCode, ability.bt, ability.ability, version.id);
+      if (!target) {
+        message.error('Only Submitted or Deployed versions can be deployed');
+        return;
+      }
+      message.success(`Version deployed to BD - ${target}`);
+    };
+    if (version.hasUnsubmittedDraft) {
+      Modal.confirm({
+        title: 'Unsubmitted Draft detected',
+        content: 'The Draft changes will not be included in this deployment. Continue with the last submitted content?',
+        okText: 'Continue Deploying',
+        onOk: deploy,
+      });
       return;
     }
-    message.success(`Version deployed to BD - ${target}`);
+    deploy();
   };
 
   const confirmDelete = (ability: ConfigAbility, version: FlowVersion) => {
@@ -177,43 +190,39 @@ export default function ConfigAbilityListPage() {
   const renderStatus = (version: FlowVersion) => {
     if (version.publishStatus === 'draft') return <Tag>Draft</Tag>;
     if (version.publishStatus === 'submitted') return <Tag color="orange">Submitted</Tag>;
-    return (
-      <Space wrap>
-        {version.badges.map((badge) => (
-          <Tag key={`${badge.cloud}-${badge.env}`} color="blue">
-            {badge.cloud} - {badge.env}
-          </Tag>
-        ))}
-      </Space>
-    );
+    return <Tag color="green">Deployed</Tag>;
   };
 
   const renderOperations = (ability: ConfigAbility, version: FlowVersion) => {
-    if (version.publishStatus === 'draft') {
-      return (
-        <Space>
-          <Button type="link" onClick={() => navigate(versionPath(ability, version))}>Config</Button>
-          <Button type="link" danger onClick={() => confirmDelete(ability, version)}>Delete</Button>
-        </Space>
-      );
-    }
-    if (version.publishStatus === 'submitted') {
-      return (
-        <Space>
-          <Button type="link" onClick={() => navigate(versionPath(ability, version))}>Config</Button>
-          <Button type="link" onClick={() => handleDeploy(ability, version)}>Deploy</Button>
-          <Button type="link" onClick={() => handleClone(ability, version)}>Clone</Button>
-          <Button type="link" danger onClick={() => confirmDelete(ability, version)}>Delete</Button>
-        </Space>
-      );
-    }
-    return (
-      <Space>
-        <Button type="link" onClick={() => navigate(`${versionPath(ability, version)}?mode=detail`)}>Detail</Button>
-        <Button type="link" onClick={() => handleDeploy(ability, version)}>Deploy</Button>
-        <Button type="link" onClick={() => handleClone(ability, version)}>Clone</Button>
-      </Space>
-    );
+    const hasProd = version.badges.some((badge) => badge.env === 'PROD');
+    const openEditor = () => navigate(versionPath(ability, version));
+    const openConfig = () => {
+      if (version.hasUnsubmittedDraft) {
+        Modal.confirm({
+          title: 'Unsubmitted Draft detected',
+          content: 'Load the saved Draft? Choosing Start Fresh discards the Draft and reloads the last submitted content.',
+          okText: 'Load Draft',
+          cancelText: 'Start Fresh',
+          onOk: openEditor,
+          onCancel: openEditor,
+        });
+        return;
+      }
+      if (version.publishStatus === 'deployed') {
+        Modal.confirm({ title: 'This Version has deployment records', content: 'Submitting changes returns it to Submitted and removes existing deployment records.', okText: 'Continue Editing', onOk: openEditor });
+        return;
+      }
+      openEditor();
+    };
+    return <Space wrap>
+      {version.publishStatus === 'deployed' && hasProd && <Button type="link" onClick={() => handleClone(ability, version)}>Clone</Button>}
+      {version.publishStatus === 'deployed' && hasProd && <Button type="link" onClick={() => navigate(`${versionPath(ability, version)}?mode=detail`)}>Detail</Button>}
+      {(version.publishStatus === 'draft' || version.publishStatus === 'submitted' || (version.publishStatus === 'deployed' && !hasProd)) && <Button type="link" onClick={openConfig}>Config</Button>}
+      {(version.publishStatus === 'submitted' || version.publishStatus === 'deployed') && <Button type="link" onClick={() => handleDeploy(ability, version)}>Deploy</Button>}
+      {version.publishStatus === 'deployed' && <Button type="link" onClick={() => setDeployStatus({ ability, version })}>Deploy Status</Button>}
+      {(version.publishStatus === 'draft' || version.publishStatus === 'submitted' || (version.publishStatus === 'deployed' && !hasProd)) && <Button type="link" danger onClick={() => confirmDelete(ability, version)}>Delete</Button>}
+      <Button type="link" onClick={() => message.info(`Operation log for ${version.version}`)}>Log</Button>
+    </Space>;
   };
 
   const expandedRowRender = (ability: ConfigAbility) => (
@@ -225,7 +234,7 @@ export default function ConfigAbilityListPage() {
       locale={{ emptyText: 'No Flow Version yet' }}
       columns={[
         { title: 'Version', dataIndex: 'version', width: 110 },
-        { title: 'Publish Status', width: 220, render: (_value, version) => renderStatus(version) },
+        { title: 'Status', width: 140, render: (_value, version) => renderStatus(version) },
         { title: 'Remark', render: (_value, version) => <RemarkCell remark={version.remark} /> },
         { title: 'Operator', dataIndex: 'operator', width: 110 },
         { title: 'Operation Time', dataIndex: 'operationTime', width: 180 },
@@ -331,6 +340,25 @@ export default function ConfigAbilityListPage() {
         <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
           Read-only State Machine preview
         </div>
+      </Modal>
+
+      <Modal title="Deploy Status" open={Boolean(deployStatus)} footer={null} width={820} onCancel={() => setDeployStatus(null)}>
+        {deployStatus && <>
+          <Space size={24} wrap style={{ marginBottom: 20 }}>
+            <span><strong>Channel:</strong> {channelCode}</span>
+            <span><strong>Version:</strong> <Tag color="green">{deployStatus.version.version}</Tag></span>
+            <span><strong>Ability:</strong> {deployStatus.ability.bt} / {deployStatus.ability.ability}</span>
+          </Space>
+          <Table
+            rowKey="cloud"
+            pagination={false}
+            dataSource={[...new Set(deployStatus.version.badges.map((badge) => badge.cloud))].map((cloud) => ({ cloud }))}
+            columns={[
+              { title: 'Cloud', dataIndex: 'cloud', width: 220 },
+              { title: 'Environment', render: (_value, row) => <Space>{(['DAILY', 'PRE', 'PROD'] as const).map((env) => <Tag key={env} color={deployStatus.version.badges.some((badge) => badge.cloud === row.cloud && badge.env === env) ? 'green' : 'default'}>{env}</Tag>)}</Space> },
+            ]}
+          />
+        </>}
       </Modal>
     </div>
   );

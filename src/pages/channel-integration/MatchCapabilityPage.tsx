@@ -15,10 +15,19 @@ interface NewInboundEndpointForm {
 const statusMeta: Record<UriConfigStatus, { label: string; color: string }> = {
   draft: { label: 'Draft', color: 'default' },
   submitted: { label: 'Submitted', color: 'orange' },
-  published: { label: 'Published', color: 'green' },
+  deployed: { label: 'Deployed', color: 'green' },
   deprecated: { label: 'Deprecated', color: 'default' },
   legacy_readonly: { label: 'Legacy Readonly', color: 'purple' },
   error: { label: 'Error', color: 'red' },
+};
+
+const cloudOptions = ['MFB', 'BD', 'PK', 'ALIYUN', 'ALIYUN_FRANKFURT', 'ONELOOP'].map((value) => ({ value }));
+const environmentOrder = ['DAILY', 'PRE', 'PROD'];
+
+const timestampVersion = () => {
+  const date = new Date();
+  const parts = [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()];
+  return parts.map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0')).join('');
 };
 
 const createId = () => `uri_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -27,10 +36,14 @@ export default function MatchCapabilityPage() {
   const { channelCode = '' } = useParams<{ channelCode: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm<NewInboundEndpointForm>();
+  const [versionForm] = Form.useForm<{ name: string }>();
   const [showNewEndpoint, setShowNewEndpoint] = useState(false);
+  const [newVersionEndpoint, setNewVersionEndpoint] = useState<InboundEndpoint | null>(null);
   const [managingEndpoint, setManagingEndpoint] = useState<InboundEndpoint | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [inspect, setInspect] = useState<{ type: 'status' | 'log'; endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
+  const [deploying, setDeploying] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
+  const [deployCloud, setDeployCloud] = useState<string>();
   const [filters, setFilters] = useState({ keyword: '', businessType: '', method: '', status: '' });
   const endpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
   const endpoints = useMemo(() => endpointsByChannel[channelCode] ?? [], [channelCode, endpointsByChannel]);
@@ -40,6 +53,7 @@ export default function MatchCapabilityPage() {
   const cloneVersion = useMatchCapabilityStore((state) => state.cloneVersion);
   const deployVersion = useMatchCapabilityStore((state) => state.deployVersion);
   const deleteVersion = useMatchCapabilityStore((state) => state.deleteVersion);
+  const discardVersionDraft = useMatchCapabilityStore((state) => state.discardVersionDraft);
 
   const pathPrefix = `/callback/${channelCode.toLowerCase()}/`;
   const configBusinessTypes = (mockBusinessTypes[channelCode] ?? [])
@@ -75,9 +89,10 @@ export default function MatchCapabilityPage() {
     }
     const decisionVersion: CapabilityDecisionVersion = {
       id: `decision_${Date.now()}`,
-      version: 'v0.0.1',
+      version: timestampVersion(),
+      name: `${suffix.replaceAll('/', ' ')} Matching`.slice(0, 32),
+      sourceType: 'v2',
       configStatus: 'draft',
-      description: '',
       fields: [],
       requestFields: [],
       matchType: 'single',
@@ -108,7 +123,7 @@ export default function MatchCapabilityPage() {
       customScript: 'def execute(request) {\n  return null\n}',
       fallbackBehavior: 'alert_and_reject',
       decryptEnabled: false,
-      version: 'v0.0.1',
+      version: decisionVersion.version,
       configStatus: 'draft',
       badges: [],
       referenceCount: 0,
@@ -123,24 +138,84 @@ export default function MatchCapabilityPage() {
   };
 
   const renderStatus = (version: CapabilityDecisionVersion) => {
-    if (version.configStatus === 'published' && version.badges?.length) {
-      return <Space wrap>{version.badges.map((badge) => <Tag key={`${badge.cloud}-${badge.env}`} color="blue">{badge.cloud} - {badge.env}</Tag>)}</Space>;
-    }
     const meta = statusMeta[version.configStatus];
     return <Tag color={meta.color}>{meta.label}</Tag>;
   };
 
-  const handleNewVersion = (endpoint: InboundEndpoint) => {
-    const version = createVersion(channelCode, endpoint.id);
-    if (!version) return void message.warning('A Draft Capability Decision Version already exists.');
+  const handleNewVersion = async () => {
+    if (!newVersionEndpoint) return;
+    const { name } = await versionForm.validateFields();
+    const configBusinessType = newVersionEndpoint.businessTypes.find((bt) => configBusinessTypes.includes(bt));
+    if (!configBusinessType) return void message.warning('Add at least one Config Integration Business Type before creating a 2.0 Matching Version.');
+    const version = createVersion(channelCode, newVersionEndpoint.id, name, configBusinessType);
+    if (!version) return void message.warning('A Draft Capability Matching Version already exists.');
+    setNewVersionEndpoint(null);
+    versionForm.resetFields();
+    openEditor(newVersionEndpoint, version, 'config');
+  };
+
+  const openConfig = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion) => {
+    if (version.hasUnsubmittedDraft) {
+      Modal.confirm({
+        title: 'Unsubmitted draft found',
+        content: 'Load the saved draft? Choosing “Discard and Edit” abandons the previous draft and starts from the last submitted configuration.',
+        okText: 'Load Draft',
+        cancelText: 'Discard and Edit',
+        onOk: () => openEditor(endpoint, version, 'config'),
+        onCancel: () => {
+          discardVersionDraft(channelCode, endpoint.id, version.id);
+          const restored = useMatchCapabilityStore.getState().getEndpoints(channelCode).find((item) => item.id === endpoint.id)?.versions.find((item) => item.id === version.id);
+          if (restored) openEditor(endpoint, restored, 'config');
+        },
+      });
+      return;
+    }
+    if (version.configStatus === 'deployed') {
+      Modal.confirm({
+        title: 'This version has deployment records',
+        content: 'If changes are submitted, the version returns to Submitted and its existing deployment records are removed.',
+        okText: 'Continue Editing',
+        onOk: () => openEditor(endpoint, version, 'config'),
+      });
+      return;
+    }
     openEditor(endpoint, version, 'config');
   };
 
+  const openDeploy = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion) => {
+    const show = () => { setDeployCloud(undefined); setDeploying({ endpoint, version }); };
+    if (!version.hasUnsubmittedDraft) return show();
+    Modal.confirm({
+      title: 'Unsubmitted draft will not be deployed',
+      content: 'Only the latest submitted configuration will be deployed. Continue?',
+      okText: 'Continue Deploy',
+      onOk: show,
+    });
+  };
+
+  const currentDeployStatus = deployCloud && deploying
+    ? environmentOrder.filter((env) => deploying.version.badges?.some((badge) => badge.cloud === deployCloud && badge.env === env)).at(-1) ?? 'DRAFT'
+    : '-';
+  const nextDeployEnvironment = currentDeployStatus === 'DRAFT' ? 'DAILY' : currentDeployStatus === 'DAILY' ? 'PRE' : currentDeployStatus === 'PRE' ? 'PROD' : undefined;
+  const deployStatusRows = inspect?.type === 'status'
+    ? [...new Set((inspect.version.badges ?? []).map((badge) => badge.cloud))].map((cloud) => ({
+        cloud,
+        environments: new Set((inspect.version.badges ?? []).filter((badge) => badge.cloud === cloud).map((badge) => badge.env)),
+      }))
+    : [];
+
   const renderOperations = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion) => {
-    if (endpoint.uriType === 'legacy') return <Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button>;
-    if (version.configStatus === 'draft') return <Space><Button type="link" onClick={() => openEditor(endpoint, version, 'config')}>Config</Button><Button type="link" danger icon={<DeleteOutlined />} onClick={() => deleteVersion(channelCode, endpoint.id, version.id)}>Delete</Button></Space>;
-    if (version.configStatus === 'submitted') return <Space><Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button><Button type="link" onClick={() => { deployVersion(channelCode, endpoint.id, version.id); message.success('Deployed to BD - DAILY'); }}>Deploy</Button><Button type="link" icon={<CopyOutlined />} onClick={() => { const clone = cloneVersion(channelCode, endpoint.id, version.id); if (clone) openEditor(endpoint, clone, 'config'); else message.warning('Resolve the existing Draft first.'); }}>Clone</Button><Button type="link" onClick={() => setInspect({ type: 'status', endpoint, version })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint, version })}>Log</Button></Space>;
-    return <Space><Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button><Button type="link" icon={<CopyOutlined />} onClick={() => { const clone = cloneVersion(channelCode, endpoint.id, version.id); if (clone) openEditor(endpoint, clone, 'config'); }}>Clone</Button><Button type="link" onClick={() => setInspect({ type: 'status', endpoint, version })}>Status</Button><Button type="link" onClick={() => setInspect({ type: 'log', endpoint, version })}>Log</Button></Space>;
+    const hasProd = version.badges?.some((badge) => badge.env === 'PROD');
+    const clone = () => { const cloned = cloneVersion(channelCode, endpoint.id, version.id); if (cloned) openEditor(endpoint, cloned, 'config'); else message.warning('Resolve the existing Draft first.'); };
+    return <Space wrap>
+      {version.sourceType === 'v2' && version.configStatus === 'deployed' && hasProd && <Button type="link" icon={<CopyOutlined />} onClick={clone}>Clone</Button>}
+      {version.configStatus === 'deployed' && hasProd && <Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button>}
+      {(version.configStatus === 'draft' || version.configStatus === 'submitted' || (version.configStatus === 'deployed' && !hasProd)) && <Button type="link" onClick={() => openConfig(endpoint, version)}>Config</Button>}
+      {(version.configStatus === 'submitted' || version.configStatus === 'deployed') && <Button type="link" onClick={() => openDeploy(endpoint, version)}>Deploy</Button>}
+      {version.configStatus === 'deployed' && <Button type="link" onClick={() => setInspect({ type: 'status', endpoint, version })}>Deploy Status</Button>}
+      {(version.configStatus === 'draft' || version.configStatus === 'submitted' || (version.configStatus === 'deployed' && !hasProd)) && <Button type="link" danger icon={<DeleteOutlined />} onClick={() => deleteVersion(channelCode, endpoint.id, version.id)}>Delete</Button>}
+      <Button type="link" onClick={() => setInspect({ type: 'log', endpoint, version })}>Log</Button>
+    </Space>;
   };
 
   const expandedRowRender = (endpoint: InboundEndpoint) => (
@@ -150,9 +225,9 @@ export default function MatchCapabilityPage() {
       pagination={false}
       size="small"
       columns={[
-        { title: 'Capability Decision Version', dataIndex: 'version', width: 210 },
+        { title: 'Version', dataIndex: 'version', width: 120 },
+        { title: 'Name', dataIndex: 'name', width: 260, render: (name, version) => <Space>{version.sourceType === 'legacy' && <Tag color="purple">Legacy 1.0</Tag>}<span>{name}</span></Space> },
         { title: 'Status', width: 220, render: (_, version) => renderStatus(version) },
-        { title: 'Description', dataIndex: 'description', render: (value) => value || '-' },
         { title: 'Operator', dataIndex: 'operator', width: 110 },
         { title: 'Operation Time', dataIndex: 'updatedTime', width: 190 },
         { title: 'Operation', width: 440, render: (_, version) => renderOperations(endpoint, version) },
@@ -182,10 +257,10 @@ export default function MatchCapabilityPage() {
         expandable={{ expandedRowRender, expandedRowKeys: Array.from(expandedRows), showExpandColumn: false }}
         columns={[
           { title: '', width: 50, render: (_, endpoint) => <Button type="text" icon={expandedRows.has(endpoint.id) ? <DownOutlined /> : <RightOutlined />} onClick={() => toggleExpand(endpoint.id)} /> },
-          { title: 'URI', dataIndex: 'url', render: (uri) => <strong>{uri.startsWith(pathPrefix) ? uri.slice(pathPrefix.length) : uri}</strong> },
+          { title: 'URI', dataIndex: 'url', render: (uri, endpoint) => <Space><strong>{uri.startsWith(pathPrefix) ? uri.slice(pathPrefix.length) : uri}</strong>{endpoint.uriType === 'legacy' && <Tag color="purple">Legacy</Tag>}</Space> },
           { title: 'Business Type', dataIndex: 'businessTypes', width: 260, render: (businessTypes: string[]) => <Space wrap>{businessTypes.map((bt) => <Tag key={bt}>{bt}</Tag>)}</Space> },
           { title: 'Method', dataIndex: 'method', width: 120, render: (method) => <Tag color="blue">{method}</Tag> },
-          { title: 'Operation', width: 360, render: (_, endpoint) => endpoint.uriType === 'legacy' ? null : <Space><Button size="small" onClick={() => setManagingEndpoint(endpoint)}>Manage Business Type</Button><Button type="primary" size="small" disabled={endpoint.versions.some((version) => version.configStatus === 'draft')} onClick={() => handleNewVersion(endpoint)}>New Decision Version</Button></Space> },
+          { title: 'Operation', width: 360, render: (_, endpoint) => <Space><Button size="small" onClick={() => setManagingEndpoint(endpoint)}>Manage Business Type</Button><Button type="primary" size="small" disabled={endpoint.versions.some((version) => version.configStatus === 'draft')} onClick={() => { setNewVersionEndpoint(endpoint); versionForm.resetFields(); }}>New Matching Version</Button></Space> },
         ]}
       />
 
@@ -203,9 +278,41 @@ export default function MatchCapabilityPage() {
         </Form>
       </Modal>
 
+      <Modal title="New Matching Version" open={Boolean(newVersionEndpoint)} okText="Create and Configure" onOk={() => void handleNewVersion()} onCancel={() => { setNewVersionEndpoint(null); versionForm.resetFields(); }}>
+        <Form form={versionForm} layout="vertical">
+          <Form.Item name="name" label="Name" rules={[{ required: true, whitespace: true, message: 'Enter a name' }, { max: 32, message: 'Name cannot exceed 32 characters' }]}>
+            <Input showCount maxLength={32} placeholder="e.g. Payment Callback Matching" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Deploy Capability Matching"
+        open={Boolean(deploying)}
+        okText="Deploy"
+        okButtonProps={{ disabled: !deployCloud || !nextDeployEnvironment }}
+        onCancel={() => { setDeploying(null); setDeployCloud(undefined); }}
+        onOk={() => {
+          if (!deploying || !deployCloud || !nextDeployEnvironment) return;
+          deployVersion(channelCode, deploying.endpoint.id, deploying.version.id, deployCloud, nextDeployEnvironment);
+          message.success(`Deployed to ${deployCloud} - ${nextDeployEnvironment}`);
+          setDeploying(null);
+          setDeployCloud(undefined);
+        }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: '22px 12px', alignItems: 'center', padding: '16px 4px' }}>
+          <div><span style={{ color: '#ff4d4f' }}>* </span>Cloud</div>
+          <Select value={deployCloud} placeholder="Select Cloud" options={cloudOptions} onChange={setDeployCloud} />
+          <div><span style={{ color: '#ff4d4f' }}>* </span>Current Status</div>
+          <strong>{currentDeployStatus}</strong>
+          <div><span style={{ color: '#ff4d4f' }}>* </span>Deploy to</div>
+          <Select disabled value={nextDeployEnvironment} placeholder={currentDeployStatus === 'PROD' ? 'All environments deployed' : 'Select a Cloud first'} options={environmentOrder.map((value) => ({ value }))} />
+        </div>
+      </Modal>
+
       <Modal title="Manage Business Type" open={Boolean(managingEndpoint)} footer={null} onCancel={() => setManagingEndpoint(null)}>
         {managingEndpoint && <>
-          <div style={{ color: '#8c8c8c', marginBottom: 12 }}>Add Config Integration Business Types. A Business Type used by any Capability Decision Version cannot be removed.</div>
+          <div style={{ color: '#8c8c8c', marginBottom: 12 }}>Add Config Integration Business Types. A Business Type used by any Capability Matching Version cannot be removed.</div>
           <Select
             mode="multiple"
             style={{ width: '100%' }}
@@ -214,7 +321,7 @@ export default function MatchCapabilityPage() {
             onChange={(businessTypes) => {
               const usedBusinessTypes = new Set(managingEndpoint.versions.flatMap((version) => version.rules.map((rule) => rule.bt)).filter(Boolean));
               const blocked = [...usedBusinessTypes].find((bt) => !businessTypes.includes(bt));
-              if (blocked) return void message.error(`${blocked} is used by a Capability Decision Version and cannot be removed.`);
+              if (blocked) return void message.error(`${blocked} is used by a Capability Matching Version and cannot be removed.`);
               updateEndpoint(channelCode, managingEndpoint.id, { businessTypes, businessType: businessTypes[0] ?? '' });
               setManagingEndpoint({ ...managingEndpoint, businessTypes, businessType: businessTypes[0] ?? '' });
             }}
@@ -223,10 +330,27 @@ export default function MatchCapabilityPage() {
         </>}
       </Modal>
 
-      <Modal title={inspect?.type === 'status' ? 'Deployment Status' : 'Operation Log'} open={Boolean(inspect)} footer={null} onCancel={() => setInspect(null)}>
+      <Modal title={inspect?.type === 'status' ? 'Deploy Status' : 'Operation Log'} width={inspect?.type === 'status' ? 900 : 520} open={Boolean(inspect)} footer={null} onCancel={() => setInspect(null)}>
         {inspect ? inspect.type === 'status'
-          ? (inspect.version.badges?.length ? inspect.version.badges.map((badge) => <div key={`${badge.cloud}-${badge.env}`} style={{ padding: 12, marginBottom: 8, background: '#f6ffed', borderRadius: 6 }}><strong>{badge.cloud} - {badge.env}</strong><Tag color="green" style={{ marginLeft: 12 }}>Running</Tag></div>) : <div>No deployment record.</div>)
-          : <div><strong>{inspect.version.updatedTime}</strong> · {inspect.version.operator}<div>Updated Capability Decision Version {inspect.version.version}</div></div>
+          ? <div>
+              <div style={{ marginBottom: 24 }}><strong>channel:</strong><span style={{ marginLeft: 12 }}>{channelCode}</span></div>
+              <Space size={28} wrap style={{ marginBottom: 24 }}>
+                <span><strong>version:</strong><Tag color="green" style={{ marginLeft: 10 }}>{inspect.version.version}</Tag></span>
+                <span><strong>endpointId:</strong><span style={{ marginLeft: 10 }}>{inspect.endpoint.id}</span></span>
+                <span><strong>name:</strong><span style={{ marginLeft: 10 }}>{inspect.version.name}</span></span>
+              </Space>
+              <Table
+                rowKey="cloud"
+                pagination={false}
+                dataSource={deployStatusRows}
+                columns={[
+                  { title: 'Cloud', dataIndex: 'cloud', width: 260 },
+                  { title: 'Environment', render: (_, row) => <Space>{environmentOrder.map((env) => <Tag key={env} color={row.environments.has(env) ? 'green' : 'default'}>{env}</Tag>)}</Space> },
+                ]}
+                locale={{ emptyText: 'No deployment record.' }}
+              />
+            </div>
+          : <div><strong>{inspect.version.updatedTime}</strong> · {inspect.version.operator}<div>Updated Capability Matching Version {inspect.version.version}</div></div>
           : null}
       </Modal>
     </div>

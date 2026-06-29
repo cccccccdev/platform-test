@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Button, Divider, Drawer, Input, message, Select, Space, Switch, Table, Tag } from 'antd';
-import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, LockOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
-import type { FlowConfig, InboundRequestField, MatchRule, MatchingType } from './types';
+import type { CapabilityDecisionVersion, FlowConfig, InboundEndpoint, InboundRequestField, LegacyInboundComponent, MatchRule, MatchingType } from './types';
 
 interface CoverageRow {
   key: string;
@@ -70,7 +70,29 @@ export default function MatchCapabilityEditorPage() {
   const configuration = endpoint?.versions.find((version) => version.id === decisionVersionId);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(configuration?.rules[0]?.id ?? null);
   const [activeDrawer, setActiveDrawer] = useState<'uri' | 'match' | 'dispatch' | null>(null);
-  const readOnly = searchParams.get('mode') === 'detail' || endpoint?.uriType === 'legacy';
+  const readOnly = searchParams.get('mode') === 'detail';
+  const [contextReferences, setContextReferences] = useState({
+    globalVariable: { name: 'channelCode', value: channelCode, version: '20260628110000', latestVersion: '20260628110000' },
+    orderVariable: { name: 'requestReference', value: '{{order.requestReference}}', version: '20260628110500', latestVersion: '20260628110500' },
+    credential: { name: 'Primary Credential', value: '••••••••', version: '20260628111000', latestVersion: '20260629101500' },
+  });
+  const contextAutoRefreshRef = useRef(false);
+
+  const refreshContext = (automatic = false) => {
+    const changed = Object.values(contextReferences).filter((item) => item.version !== item.latestVersion);
+    if (changed.length) {
+      setContextReferences((current) => Object.fromEntries(Object.entries(current).map(([key, item]) => [key, { ...item, version: item.latestVersion }])) as typeof current);
+      message.info(`${changed.map((item) => `${item.name} (${item.latestVersion})`).join(', ')} ${automatic ? 'was automatically updated' : 'was updated'}.`);
+    } else if (!automatic) {
+      message.success('Context references are up to date');
+    }
+  };
+
+  useEffect(() => {
+    if (configuration?.sourceType !== 'v2' || contextAutoRefreshRef.current) return;
+    contextAutoRefreshRef.current = true;
+    refreshContext(true);
+  });
 
   const coverageRows = useMemo<CoverageRow[]>(() => {
     if (!endpoint || !configuration) return [];
@@ -83,14 +105,18 @@ export default function MatchCapabilityEditorPage() {
         const flows = version.flows.filter((flow) => flow.inboundUriId === endpoint.id && flow.triggerType === triggerType &&
           (flow.triggerEvents?.includes(rule.action) || flow.contextActions?.includes(rule.action))
         );
-        const status = flows.length > 1 ? 'Conflict' : flows.length === 0 ? 'Missing' : version.publishStatus === 'published' ? 'Ready' : 'Not Published';
+        const status = flows.length > 1 ? 'Conflict' : flows.length === 0 ? 'Missing' : version.publishStatus === 'deployed' ? 'Ready' : 'Not Published';
         return { key: `${rule.id}-${version.id}`, rule, version: version.version, versionId: version.id, weight: versionIndex === 0 ? '100%' : '0%', flow: flows[0] ?? null, status };
       });
     });
   }, [abilities, configuration, endpoint]);
 
   if (!endpoint || !configuration) {
-    return <div style={{ padding: 24 }}><h3>Capability Decision Version not found</h3><Button onClick={() => navigate(-1)}>Back</Button></div>;
+    return <div style={{ padding: 24 }}><h3>Capability Matching Version not found</h3><Button onClick={() => navigate(-1)}>Back</Button></div>;
+  }
+
+  if (configuration.sourceType === 'legacy') {
+    return <LegacyInboundFlowEditor channelCode={channelCode} endpoint={endpoint} configuration={configuration} readOnly={readOnly} />;
   }
 
   const update = (updates: Partial<typeof configuration>) => updateDecisionVersion(channelCode, endpoint.id, configuration.id, updates);
@@ -208,7 +234,7 @@ export default function MatchCapabilityEditorPage() {
       <div style={{ height: 58, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
         <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(`/channel-integration/${channelCode}/integration/match-capability`)}>Back</Button>
         <Divider type="vertical" />
-        <strong>{readOnly ? 'Match Capability Detail' : 'Config Match Capability'}</strong>
+        <strong>{readOnly ? 'Capability Matching Detail' : 'Configure Capability Matching'}</strong>
         <div style={{ flex: 1 }} />
         {!readOnly && <Space><Button icon={<SaveOutlined />} onClick={handleSave}>Save Draft</Button><Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>Submit</Button></Space>}
       </div>
@@ -222,21 +248,26 @@ export default function MatchCapabilityEditorPage() {
         </div>
       </div>
 
-      {endpoint.uriType === 'legacy' && <Alert type="info" showIcon message="Legacy URI is readonly" description="The imported 1.0 inbound Flow is displayed as-is. Create a New URI to redesign or publish it with the 2.0 model." style={{ margin: '0 16px 12px' }} />}
-
       <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '272px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
         <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
-          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Context</div>
+          <div style={{ padding: '9px 14px', fontWeight: 600, borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Context</span>
+            <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Context" onClick={() => refreshContext(false)} />
+          </div>
           <div style={{ padding: 14 }}>
-            <strong>Inbound Request</strong>
-            <div style={{ marginTop: 10 }}>{configuration.fields.map((field) => <div key={field} style={{ padding: '5px 7px', marginBottom: 4, background: '#f5f5f5', borderRadius: 4, fontSize: 11 }}>{field}</div>)}</div>
-            <Divider />
-            <strong>Pre-processing Output</strong>
-            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{configuration.decryptEnabled ? 'decryptedRequest · object' : 'No output configured'}</div>
-            <Divider />
-            <strong>Capability Results</strong>
-            <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 8 }}>{configuration.rules.length} result(s) available to downstream Flow</div>
-            <Button block style={{ marginTop: 16 }} onClick={() => setActiveDrawer('uri')}>{readOnly ? 'View Pre-processing' : 'Configure Pre-processing'}</Button>
+            {([
+              ['Global Variable', contextReferences.globalVariable, 'gold'],
+              ['Order Variable', contextReferences.orderVariable, 'cyan'],
+              ['Credential', contextReferences.credential, 'purple'],
+            ] as const).map(([title, item, color], index) => <div key={title}>
+              {index > 0 && <Divider />}
+              <strong>{title}</strong>
+              <div style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11 }}>
+                <Tag color={color}>{item.name}</Tag>
+                <div style={{ marginTop: 5, color: '#595959' }}>{item.value}</div>
+                <div style={{ marginTop: 3, color: '#8c8c8c' }}>Version {item.version}</div>
+              </div>
+            </div>)}
           </div>
         </div>
 
@@ -274,7 +305,6 @@ export default function MatchCapabilityEditorPage() {
                 </button>;
               })}
             </div>
-            {endpoint.uriType === 'legacy' && <><div style={{ textAlign: 'center', fontSize: 26, lineHeight: '42px' }}>↓</div>{['parseServletRequest', 'loadCredential', 'loadGlobalVariable', 'callbackRequest'].map((code) => <div key={code} style={{ width: 300, margin: '8px auto', padding: 12, border: '1px solid #bfbfbf', borderRadius: 8, background: '#fafafa', color: '#595959' }}><Tag>Readonly</Tag>{code}</div>)}</>}
           </div>
         </div>
       </div>
@@ -356,6 +386,115 @@ export default function MatchCapabilityEditorPage() {
           { title: 'Matching Flow', render: (_, row) => row.flow ? <Button type="link" size="small" onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/${row.rule.bt}/${row.rule.ability}/versions/${row.versionId}/flows/${row.flow!.id}?mode=detail`)}>{row.flow.name}</Button> : '-' },
           { title: 'Coverage', dataIndex: 'status', render: (status) => <Tag color={statusColor[status]}>{status}</Tag> },
         ]} />
+      </Drawer>
+    </div>
+  );
+}
+
+function LegacyInboundFlowEditor({
+  channelCode,
+  endpoint,
+  configuration,
+  readOnly,
+}: {
+  channelCode: string;
+  endpoint: InboundEndpoint;
+  configuration: CapabilityDecisionVersion;
+  readOnly: boolean;
+}) {
+  const navigate = useNavigate();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const updateDecisionVersion = useMatchCapabilityStore((state) => state.updateDecisionVersion);
+  const saveChannel = useMatchCapabilityStore((state) => state.saveChannel);
+  const submitVersion = useMatchCapabilityStore((state) => state.submitVersion);
+  const components = configuration.legacyComponents ?? [];
+  const selected = components.find((component) => component.id === selectedId);
+
+  const updateComponent = (component: LegacyInboundComponent, key: string, value: string | boolean) => {
+    updateDecisionVersion(channelCode, endpoint.id, configuration.id, {
+      legacyComponents: components.map((item) => item.id === component.id ? { ...item, config: { ...item.config, [key]: value } } : item),
+    });
+  };
+
+  return (
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f7fa' }}>
+      <div style={{ height: 58, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(`/channel-integration/${channelCode}/integration/match-capability`)}>Back</Button>
+        <Divider type="vertical" />
+        <Space><Tag color="purple">Legacy 1.0</Tag><strong>{readOnly ? 'Inbound Flow Detail' : 'Configure Legacy Inbound Flow'}</strong></Space>
+        <div style={{ flex: 1 }} />
+        {!readOnly && <Space>
+          <Button icon={<SaveOutlined />} onClick={() => { saveChannel(channelCode); message.success('Legacy Inbound Flow draft saved'); }}>Save Draft</Button>
+          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => { submitVersion(channelCode, endpoint.id, configuration.id); message.success('Legacy Inbound Flow submitted'); navigate(`/channel-integration/${channelCode}/integration/match-capability`); }}>Submit</Button>
+        </Space>}
+      </div>
+
+      <div style={{ padding: '12px 16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
+          {[
+            ['URI', endpoint.url], ['Flow Name', configuration.name], ['Version', configuration.version], ['Status', configuration.configStatus], ['Endpoint ID', endpoint.id],
+          ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'Endpoint ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
+        </div>
+      </div>
+
+      <Alert
+        type="info"
+        showIcon
+        message="Legacy Inbound Flow compatibility mode"
+        description="The original component set and order are fixed. Components cannot be added, removed, or reordered; supported forms remain configurable."
+        style={{ margin: '0 16px 12px' }}
+      />
+
+      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '272px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
+          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Context</div>
+          <div style={{ padding: 14 }}>
+            <strong>Legacy Request Context</strong>
+            {['request.query', 'request.headers', 'request.body', 'credential', 'globalVariable', 'orderVariable'].map((item) => <div key={item} style={{ marginTop: 8, padding: 7, background: '#f5f5f5', borderRadius: 4, fontSize: 11 }}>{item}</div>)}
+          </div>
+        </div>
+
+        <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
+          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Component Library</div>
+          <div style={{ padding: 12 }}>
+            {components.map((component) => <div key={component.id} style={{ marginBottom: 9, padding: 11, border: '1px solid #e8e8e8', borderRadius: 7, background: '#fafafa' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>{component.code}</strong><Tag icon={<LockOutlined />}>Fixed</Tag></div>
+              <div style={{ color: '#8c8c8c', fontSize: 11 }}>{component.name}</div>
+            </div>)}
+          </div>
+        </div>
+
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>Legacy Inbound Flow Canvas</div>
+          <div style={{ flex: 1, overflow: 'auto', padding: 30, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+            {components.map((component, index) => <div key={component.id}>
+              <button onClick={() => setSelectedId(component.id)} style={{ display: 'block', width: 330, margin: '0 auto', padding: 14, textAlign: 'left', border: '1px solid #9254de', borderRadius: 8, background: '#f9f0ff', cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span><Tag color="purple">Legacy</Tag><strong>{component.code}</strong></span><Tag color="green">Configured</Tag></div>
+                <div style={{ color: '#595959', fontSize: 11, marginTop: 5 }}>Click to {readOnly ? 'view' : 'configure'} · position locked</div>
+              </button>
+              {index < components.length - 1 && <div style={{ textAlign: 'center', fontSize: 24, lineHeight: '38px' }}>↓</div>}
+            </div>)}
+          </div>
+        </div>
+      </div>
+
+      <Drawer title={selected ? `${selected.code} Configuration` : 'Legacy Component Configuration'} width={560} open={Boolean(selected)} onClose={() => setSelectedId(null)}>
+        {selected && <div>
+          <Alert type="info" showIcon message="Component position and type are inherited from the 1.0 Flow." style={{ marginBottom: 18 }} />
+          {selected.code === 'asyncExecuteFlow' && <Alert
+            type="warning"
+            showIcon
+            message="Legacy forward Flow ID reference"
+            description="This 1.0 component currently points to Flow ID 371. Its mapping to the 2.0 stable Flow identity and Version scope must be verified during migration."
+            style={{ marginBottom: 18 }}
+          />}
+          {Object.entries(selected.config).map(([key, value]) => <div key={key} style={{ marginBottom: 16 }}>
+            <div style={{ color: '#595959', marginBottom: 6 }}>{key}</div>
+            {typeof value === 'boolean'
+              ? <Switch disabled={readOnly} checked={value} onChange={(checked) => updateComponent(selected, key, checked)} />
+              : <Input disabled={readOnly} value={String(value)} onChange={(event) => updateComponent(selected, key, event.target.value)} />}
+          </div>)}
+        </div>}
       </Drawer>
     </div>
   );

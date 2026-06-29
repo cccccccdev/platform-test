@@ -5,7 +5,6 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import FlowConfigModal from './FlowConfigModal';
 import FlowSettingsModal from './FlowSettingsModal';
 import { useConfigIntegrationStore } from './configIntegrationStore';
-import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { FlowConfig, TriggerType } from './types';
 
 const { Text, Title } = Typography;
@@ -36,8 +35,6 @@ export default function ConfigEditorPage() {
   const [showFlowConfigModal, setShowFlowConfigModal] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowConfig | null>(null);
   const [previewStateMachine, setPreviewStateMachine] = useState(false);
-  const inboundUrisByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
-  const inboundUris = inboundUrisByChannel[channelCode] ?? [];
 
   const ability = useConfigIntegrationStore((state) =>
     (state.abilitiesByChannel[channelCode] ?? []).find(
@@ -73,8 +70,8 @@ export default function ConfigEditorPage() {
 
   const handleSaveDraft = () => {
     updateVersion(channelCode, bt, abilityCode, versionId, {
-      publishStatus: 'draft',
-      badges: [],
+      publishStatus: version.publishStatus,
+      hasUnsubmittedDraft: version.publishStatus === 'draft' ? false : true,
     });
     message.success('Flow Version saved as Draft in the current runtime');
   };
@@ -89,7 +86,11 @@ export default function ConfigEditorPage() {
       message.error(`Flow ${incomplete.name} is not fully configured`);
       return;
     }
-    updateVersion(channelCode, bt, abilityCode, versionId, { publishStatus: 'submitted' });
+    updateVersion(channelCode, bt, abilityCode, versionId, {
+      publishStatus: 'submitted',
+      badges: version.publishStatus === 'deployed' ? [] : version.badges,
+      hasUnsubmittedDraft: false,
+    });
     message.success('Flow Version submitted');
   };
 
@@ -113,7 +114,7 @@ export default function ConfigEditorPage() {
             <Text>BT: <Text strong>{bt}</Text></Text>
             <Text>Ability: <Text strong>{abilityCode}</Text></Text>
             <Text>Version: <Text strong>{version.version}</Text></Text>
-            <Tag color={version.publishStatus === 'submitted' ? 'orange' : version.publishStatus === 'published' ? 'blue' : 'default'}>
+            <Tag color={version.publishStatus === 'submitted' ? 'orange' : version.publishStatus === 'deployed' ? 'green' : 'default'}>
               {version.publishStatus}
             </Tag>
           </Space>
@@ -154,21 +155,6 @@ export default function ConfigEditorPage() {
             render: (_value, flow) => (
               <span>{flow.triggerEvents?.[0] ?? flow.contextActions?.[0] ?? '-'}</span>
             ),
-          },
-          {
-            title: 'Flow Type',
-            dataIndex: 'flowType',
-            width: 110,
-            render: (flowType: string) => <Tag color={flowType === 'inbound' ? 'purple' : 'blue'}>{flowType}</Tag>,
-          },
-          {
-            title: 'Inbound URI',
-            width: 210,
-            render: (_value, flow) => {
-              if (!flow.inboundUriId) return <span style={{ color: '#999' }}>-</span>;
-              const uri = inboundUris.find((item) => item.id === flow.inboundUriId);
-              return uri ? <Tag color="cyan">{uri.method} {uri.url}</Tag> : <Tag color="red">URI Missing</Tag>;
-            },
           },
           {
             title: 'Status',

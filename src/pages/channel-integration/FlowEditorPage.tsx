@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio, Switch } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
 import type { Node, Edge, Connection } from '@xyflow/react';
 import type { FlowCanvasEdge, FlowCanvasNode } from './types';
@@ -54,11 +54,6 @@ function ComponentLibraryPanel({
     c.code.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  const groupedComponents = filteredComposites.reduce<Record<string, LibraryComponent[]>>((groups, component) => {
-    (groups[component.group] ??= []).push(component);
-    return groups;
-  }, {});
-
   const handleDragStart = (e: React.DragEvent, code: string) => {
     e.dataTransfer.setData('application/reactflow', code);
     e.dataTransfer.effectAllowed = 'move';
@@ -102,12 +97,12 @@ function ComponentLibraryPanel({
     }}>
       <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontWeight: 600, fontSize: 13 }}>Component Library</span>
-        <Button type="text" size="small" onClick={() => setIsExpanded(false)}>← 收起</Button>
+        <Button type="text" size="small" onClick={() => setIsExpanded(false)}>← Collapse</Button>
       </div>
 
       <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
         <Input
-          placeholder="搜索组件..."
+          placeholder="Search components..."
           prefix={<span style={{ color: '#999', fontSize: 12 }}>🔍</span>}
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
@@ -116,14 +111,11 @@ function ComponentLibraryPanel({
       </div>
 
       <div style={{ padding: '4px 12px', background: '#e6f7ff', fontSize: 10, color: '#1890ff', textAlign: 'center' }}>
-        拖拽组件到画布中添加
+        Drag or click a component to add it
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
-        {Object.entries(groupedComponents).map(([group, groupComponents]) => (
-          <div key={group} style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, color: '#777', margin: '4px 0 8px', fontWeight: 600 }}>{group}</div>
-            {groupComponents.map(c => (
+        {filteredComposites.map(c => (
               <div
                 key={c.code}
                 draggable
@@ -158,12 +150,10 @@ function ComponentLibraryPanel({
                   </Tag>
                 </div>
               </div>
-            ))}
-          </div>
         ))}
 
         {filteredComposites.length === 0 && (
-          <Text type="secondary" style={{ fontSize: 12 }}>无匹配组件</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>No matching components</Text>
         )}
       </div>
     </div>
@@ -251,7 +241,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
               onMouseEnter={(e) => e.currentTarget.style.background = '#f5f5f5'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
             >
-              <EditOutlined /> 配置此节点
+              <EditOutlined /> Configure node
             </div>
             <div style={{ height: 1, background: '#f0f0f0', margin: '4px 0' }} />
             <div
@@ -260,7 +250,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
               onMouseEnter={(e) => e.currentTarget.style.background = '#fff1f0'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
             >
-              <DeleteOutlined /> 删除节点
+              <DeleteOutlined /> Delete node
             </div>
           </div>
         </>
@@ -277,21 +267,29 @@ function ContextPanel({
   endpoints,
   credentials,
   globalVariables,
+  orderVariables,
   generatedFields,
   onFieldSelect,
   isMappingActive,
   onAddGeneratedField,
   onAddGlobalVar,
+  onAddOrderVar,
+  onAddCredential,
+  onRefresh,
 }: {
   spiData?: { businessType: string; ability: string; action: string };
   endpoints: any[];
   credentials: any[];
   globalVariables: any[];
+  orderVariables: any[];
   generatedFields: any[];
   onFieldSelect?: (fieldPath: string) => void;
   isMappingActive?: boolean;
   onAddGeneratedField?: () => void;
   onAddGlobalVar?: () => void;
+  onAddOrderVar?: () => void;
+  onAddCredential?: () => void;
+  onRefresh?: () => void;
 }) {
   const [isSampleModalOpen, setIsSampleModalOpen] = useState(false);
 
@@ -299,28 +297,28 @@ function ContextPanel({
     title: `${spiData.businessType} × ${spiData.ability} × ${spiData.action}`,
     request: {
       fields: [
-        { name: 'amount', type: 'Number', required: true, example: 10000, description: '交易金额（最小单位，如分）' },
-        { name: 'currency', type: 'String', required: true, example: 'NGN', description: 'ISO 4217 货币代码' },
-        { name: 'reference', type: 'String', required: true, example: 'TXN_20240115_ABC123', description: '商户侧唯一交易参考号' },
-        { name: 'accountNumber', type: 'String', required: true, example: '1234567890', description: '目标账户号码' },
-        { name: 'bankCode', type: 'String', required: true, example: '044', description: '银行代码' },
+        { name: 'amount', type: 'Number', required: true, example: 10000, description: 'Transaction amount in the smallest currency unit' },
+        { name: 'currency', type: 'String', required: true, example: 'NGN', description: 'ISO 4217 currency code' },
+        { name: 'reference', type: 'String', required: true, example: 'TXN_20240115_ABC123', description: 'Unique merchant transaction reference' },
+        { name: 'accountNumber', type: 'String', required: true, example: '1234567890', description: 'Target account number' },
+        { name: 'bankCode', type: 'String', required: true, example: '044', description: 'Bank code' },
       ],
       example: { amount: 10000, currency: 'NGN', reference: 'TXN_20240115_ABC123', accountNumber: '1234567890', bankCode: '044' }
     },
     response: {
       SUCCESS: {
         fields: [
-          { name: 'status', type: 'String', example: 'SUCCESS', description: '交易状态' },
-          { name: 'reference', type: 'String', example: 'TXN_20240115_ABC123', description: '交易参考号' },
-          { name: 'providerReference', type: 'String', example: 'PSK_987654321', description: '渠道侧参考号' },
+          { name: 'status', type: 'String', example: 'SUCCESS', description: 'Transaction status' },
+          { name: 'reference', type: 'String', example: 'TXN_20240115_ABC123', description: 'Transaction reference' },
+          { name: 'providerReference', type: 'String', example: 'PSK_987654321', description: 'Provider reference' },
         ],
         example: { status: 'SUCCESS', reference: 'TXN_20240115_ABC123', providerReference: 'PSK_987654321' }
       },
       FAIL: {
         fields: [
-          { name: 'status', type: 'String', example: 'FAIL', description: '交易状态' },
-          { name: 'errorCode', type: 'String', example: 'INSUFFICIENT_FUNDS', description: '错误码' },
-          { name: 'errorMessage', type: 'String', example: 'Account has insufficient funds', description: '错误描述' },
+          { name: 'status', type: 'String', example: 'FAIL', description: 'Transaction status' },
+          { name: 'errorCode', type: 'String', example: 'INSUFFICIENT_FUNDS', description: 'Error code' },
+          { name: 'errorMessage', type: 'String', example: 'Account has insufficient funds', description: 'Error description' },
         ],
         example: { status: 'FAIL', errorCode: 'INSUFFICIENT_FUNDS', errorMessage: 'Account has insufficient funds' }
       },
@@ -400,7 +398,7 @@ function ContextPanel({
           {depth > 0 && <span style={{ color: '#ddd', marginRight: 2 }}>├─</span>}
           <span style={{ fontWeight: 500, minWidth: 80 }}>{key}</span>
           <Tag style={{ fontSize: 9, margin: 0 }}>{fieldType}</Tag>
-          {isRequired && <Tag color="red" style={{ fontSize: 9, margin: 0 }}>必填</Tag>}
+          {isRequired && <Tag color="red" style={{ fontSize: 9, margin: 0 }}>Required</Tag>}
         </div>
       );
 
@@ -439,7 +437,7 @@ function ContextPanel({
       gap: 8,
     }}>
       <span>📌</span>
-      <span>映射激活模式：点击下方字段完成映射</span>
+      <span>Mapping mode is active. Select a Context field to complete the mapping.</span>
     </div>
   ) : null;
 
@@ -448,13 +446,13 @@ function ContextPanel({
       key: 'spi',
       label: <Space><span>🔵</span><span>SPI</span></Space>,
       children: !spiData ? (
-          <Text type="secondary" style={{ fontSize: 11 }}>暂无内容，点击 + 添加</Text>
+          <Text type="secondary" style={{ fontSize: 11 }}>No SPI fields</Text>
         ) : (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Tag color="blue">{spiData.businessType} × {spiData.ability} × {spiData.action}</Tag>
               <Space size={4}>
-                <Button type="text" size="small" onClick={() => setIsSampleModalOpen(true)}>样例</Button>
+                <Button type="text" size="small" onClick={() => setIsSampleModalOpen(true)}>Sample</Button>
                 <Button type="text" size="small" icon={<DeleteOutlined />} danger />
               </Space>
             </div>
@@ -479,13 +477,13 @@ function ContextPanel({
         </Space>
       ),
       children: generatedFields.length === 0 ? (
-        renderEmptyState('暂无 Generated Fields', '点击上方 + 添加')
+        renderEmptyState('No Generated Fields', 'Use + to create one')
       ) : (
         <table style={{ width: '100%', fontSize: 11 }}>
           <thead>
             <tr style={{ background: '#fafafa' }}>
-              <th style={{ padding: '2px 4px', textAlign: 'left' }}>字段名</th>
-              <th style={{ padding: '2px 4px', textAlign: 'left' }}>生成类型</th>
+              <th style={{ padding: '2px 4px', textAlign: 'left' }}>Field</th>
+              <th style={{ padding: '2px 4px', textAlign: 'left' }}>Generation Type</th>
             </tr>
           </thead>
           <tbody>
@@ -520,7 +518,7 @@ function ContextPanel({
         </Space>
       ),
       children: globalVariables.length === 0 ? (
-        renderEmptyState('暂无 Global Variable', '点击上方 + 添加')
+        renderEmptyState('No Global Variable', 'Use + to create one')
       ) : (
         globalVariables.map((g: any, idx: number) => (
           <div
@@ -544,7 +542,7 @@ function ContextPanel({
       key: 'endpoint',
       label: <Space><span>🌐</span><span>Endpoint</span></Space>,
       children: endpoints.length === 0 ? (
-        renderEmptyState('暂无 Endpoint', '请在 Network 组件中配置')
+        renderEmptyState('No Endpoint', 'Configure one in the HTTP Call component')
       ) : (
         endpoints.map(ep => {
           const requestObj = parseJsonToFields(ep.requestSample);
@@ -568,9 +566,9 @@ function ContextPanel({
     },
     {
       key: 'credential',
-      label: <Space><span>🔐</span><span>Credential</span></Space>,
+      label: <Space><span>🔐</span><span>Credential</span><Button type="text" size="small" icon={<PlusOutlined />} onClick={(event) => { event.stopPropagation(); onAddCredential?.(); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
       children: credentials.length === 0 ? (
-        renderEmptyState('暂无 Credential', '请在配置中添加')
+        renderEmptyState('No Credential', 'Use + to create one')
       ) : (
         credentials.map((c: any, idx: number) => (
           <div key={idx} style={{ padding: '2px 0', fontSize: 11 }}>
@@ -583,33 +581,21 @@ function ContextPanel({
   ];
 
   const phaseThreeContextItems = [
-    ...collapseItems.filter((item) => !['generatedFields', 'endpoint'].includes(item.key)),
+    collapseItems.find((item) => item.key === 'spi'),
+    collapseItems.find((item) => item.key === 'globalVar'),
     {
       key: 'orderVariable',
-      label: <Space><span>📦</span><span>Order Variable</span></Space>,
-      children: renderEmptyState('No Order Variable', 'Available order fields will appear here'),
+      label: <Space><span>📦</span><span>Order Variable</span><Button type="text" size="small" icon={<PlusOutlined />} onClick={(event) => { event.stopPropagation(); onAddOrderVar?.(); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
+      children: orderVariables.length === 0 ? renderEmptyState('No Order Variable', 'Use + to create one') : orderVariables.map((item: any) => <div key={item.name} style={{ padding: '2px 0', fontSize: 11 }}><Tag color="cyan">{item.name}</Tag><span style={{ color: '#666' }}>= {item.value}</span></div>),
     },
-    {
-      key: 'authentication',
-      label: <Space><span>🛡️</span><span>Authentication</span></Space>,
-      children: renderEmptyState('No Authentication output', 'Configure authentication in the HTTP Call component'),
-    },
-    {
-      key: 'componentOutput',
-      label: <Space><span>🧩</span><span>Component Output</span></Space>,
-      children: renderEmptyState('No Component Output', 'Outputs become available after a component is configured'),
-    },
-    {
-      key: 'matchCapabilityInput',
-      label: <Space><span>🎯</span><span>Match Capability Input</span></Space>,
-      children: renderEmptyState('No Match Capability Input', 'Available to inbound Match Capability flows'),
-    },
-  ];
+    collapseItems.find((item) => item.key === 'credential'),
+  ].filter(Boolean) as typeof collapseItems;
 
   return (
     <div style={{ width: 272, borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 14 }}>
-        Context
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>Context</span>
+        <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Context" onClick={onRefresh} />
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
         {mappingActiveBanner}
@@ -617,7 +603,7 @@ function ContextPanel({
       </div>
 
       <Modal
-        title={<Space><span>SPI 报文样例</span><Tag color="blue">{spiSampleData?.title}</Tag></Space>}
+        title={<Space><span>SPI Message Sample</span><Tag color="blue">{spiSampleData?.title}</Tag></Space>}
         open={isSampleModalOpen}
         onCancel={() => setIsSampleModalOpen(false)}
         footer={null}
@@ -629,27 +615,27 @@ function ContextPanel({
             items={[
               {
                 key: 'request',
-                label: 'Request 样例',
+                label: 'Request Sample',
                 children: (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                       <Button size="small" icon={<CopyOutlined />} onClick={() => {
                         navigator.clipboard.writeText(JSON.stringify(spiSampleData.request.example, null, 2));
-                      }}>复制</Button>
+                      }}>Copy</Button>
                     </div>
                     <pre style={{ background: '#fafafa', padding: 16, borderRadius: 8, fontSize: 12, maxHeight: 400, overflow: 'auto' }}>
 {JSON.stringify(spiSampleData.request.example, null, 2)}
                     </pre>
                     <Divider style={{ margin: '16px 0' }} />
-                    <Text type="secondary" style={{ fontSize: 11 }}>字段说明：</Text>
+                    <Text type="secondary" style={{ fontSize: 11 }}>Field Description:</Text>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginTop: 8 }}>
                       <thead>
                         <tr style={{ background: '#fafafa' }}>
-                          <th style={{ padding: '4px 8px', textAlign: 'left' }}>字段名</th>
-                          <th style={{ padding: '4px 8px', textAlign: 'left' }}>类型</th>
-                          <th style={{ padding: '4px 8px', textAlign: 'center' }}>必填</th>
-                          <th style={{ padding: '4px 8px', textAlign: 'left' }}>示例值</th>
-                          <th style={{ padding: '4px 8px', textAlign: 'left' }}>说明</th>
+                          <th style={{ padding: '4px 8px', textAlign: 'left' }}>Field</th>
+                          <th style={{ padding: '4px 8px', textAlign: 'left' }}>Type</th>
+                          <th style={{ padding: '4px 8px', textAlign: 'center' }}>Required</th>
+                          <th style={{ padding: '4px 8px', textAlign: 'left' }}>Example</th>
+                          <th style={{ padding: '4px 8px', textAlign: 'left' }}>Description</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -657,7 +643,7 @@ function ContextPanel({
                           <tr key={idx}>
                             <td style={{ padding: '4px 8px' }}><Text code>{f.name}</Text></td>
                             <td style={{ padding: '4px 8px' }}>{f.type}</td>
-                            <td style={{ padding: '4px 8px', textAlign: 'center' }}>{f.required ? '✓' : '选填'}</td>
+                            <td style={{ padding: '4px 8px', textAlign: 'center' }}>{f.required ? '✓' : 'Optional'}</td>
                             <td style={{ padding: '4px 8px' }}><Text type="secondary">{f.example}</Text></td>
                             <td style={{ padding: '4px 8px' }}>{f.description}</td>
                           </tr>
@@ -669,7 +655,7 @@ function ContextPanel({
               },
               {
                 key: 'response',
-                label: 'Response 样例',
+                label: 'Response Sample',
                 children: (
                   <div>
                     <Tabs
@@ -683,7 +669,7 @@ function ContextPanel({
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                                 <Button size="small" icon={<CopyOutlined />} onClick={() => {
                                   navigator.clipboard.writeText(JSON.stringify(spiSampleData.response.SUCCESS.example, null, 2));
-                                }}>复制</Button>
+                                }}>Copy</Button>
                               </div>
                               <pre style={{ background: '#f6ffed', padding: 16, borderRadius: 8, fontSize: 12, maxHeight: 300, overflow: 'auto' }}>
 {JSON.stringify(spiSampleData.response.SUCCESS.example, null, 2)}
@@ -699,7 +685,7 @@ function ContextPanel({
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                                 <Button size="small" icon={<CopyOutlined />} onClick={() => {
                                   navigator.clipboard.writeText(JSON.stringify(spiSampleData.response.FAIL.example, null, 2));
-                                }}>复制</Button>
+                                }}>Copy</Button>
                               </div>
                               <pre style={{ background: '#fff2f0', padding: 16, borderRadius: 8, fontSize: 12, maxHeight: 300, overflow: 'auto' }}>
 {JSON.stringify(spiSampleData.response.FAIL.example, null, 2)}
@@ -850,7 +836,7 @@ function NetworkConfigDrawer({
   // Endpoint Basic Info Tab - single endpoint per network, path is the name
   const renderEndpointBasicInfoTab = () => (
     <div style={{ maxHeight: 500, overflow: 'auto' }}>
-      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Endpoint 基本信息</Text>
+      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Endpoint Basic Information</Text>
 
       {/* Basic Info - Path is the endpoint name */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
@@ -896,15 +882,15 @@ function NetworkConfigDrawer({
   // Security Tab - Auth from Authentication page, plus Signature, Encrypt, Decrypt, Verify
   const renderSecurityTab = () => (
     <div style={{ maxHeight: 500, overflow: 'auto' }}>
-      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Security 配置</Text>
+      <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>Security</Text>
 
       {/* Auth - Reference to Authentication page configured Auth */}
       <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>认证 (Auth)</Text>
+        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Authentication</Text>
         <Select
           size="small"
           style={{ width: 300 }}
-          placeholder="选择 Auth 配置"
+          placeholder="Select Authentication"
           value={localConfig.authId}
           onChange={(val: any) => updateConfig({ authId: val })}
           allowClear
@@ -915,13 +901,13 @@ function NetworkConfigDrawer({
           <Select.Option value="auth_stripe">Stripe API Key</Select.Option>
         </Select>
         <div style={{ marginTop: 4, fontSize: 10, color: '#999' }}>
-          从 Authentication 页面配置的 Auth 中选择
+          Select an Authentication configuration from the current Channel.
         </div>
       </div>
 
       {/* Signature - 加签 */}
       <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>加签 (Signature)</Text>
+        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Signature</Text>
         <Space>
           <Switch
             size="small"
@@ -962,7 +948,7 @@ function NetworkConfigDrawer({
       {/* Encrypt / Decrypt */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
         <div>
-          <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>加密 (Encrypt)</Text>
+          <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Encryption</Text>
           <Select
             size="small"
             style={{ width: '100%' }}
@@ -976,7 +962,7 @@ function NetworkConfigDrawer({
           </Select>
         </div>
         <div>
-          <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>解密 (Decrypt)</Text>
+          <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Decryption</Text>
           <Select
             size="small"
             style={{ width: '100%' }}
@@ -993,7 +979,7 @@ function NetworkConfigDrawer({
 
       {/* Verify - 验签 */}
       <div>
-        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>验签 (Verify)</Text>
+        <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>Signature Verification</Text>
         <Select
           size="small"
           style={{ width: '100%' }}
@@ -1012,20 +998,20 @@ function NetworkConfigDrawer({
   const renderRequestTab = () => (
     <div style={{ maxHeight: 500, overflow: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Text strong style={{ fontSize: 12 }}>Request 字段映射</Text>
-        <Button type="link" size="small" icon={<PlusOutlined />} onClick={handleAddRequestField}>+ 添加字段</Button>
+        <Text strong style={{ fontSize: 12 }}>Request Field Mapping</Text>
+        <Button type="link" size="small" icon={<PlusOutlined />} onClick={handleAddRequestField}>Add Field</Button>
       </div>
 
       {localConfig.requestFields.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
-          暂无 Request 字段，点击上方添加
+          No Request fields configured
         </div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
           <thead>
             <tr style={{ background: '#fafafa' }}>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '35%' }}>字段名称</th>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '40%' }}>SPI 字段</th>
+              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '35%' }}>Field Name</th>
+              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '40%' }}>SPI Field</th>
               <th style={{ width: 40 }}></th>
             </tr>
           </thead>
@@ -1035,7 +1021,7 @@ function NetworkConfigDrawer({
                 <td style={{ padding: '2px' }}>
                   <Input
                     size="small"
-                    placeholder="字段名"
+                    placeholder="Field name"
                     value={item.fieldName}
                     onChange={e => {
                       const newData = [...localConfig.requestFields];
@@ -1058,7 +1044,7 @@ function NetworkConfigDrawer({
                     }}
                     onClick={() => handleActivateMapping('requestFields', idx)}
                   >
-                    {item.spiField || '点击选择SPI字段'}
+                    {item.spiField || 'Select an SPI field'}
                   </div>
                 </td>
                 <td>
@@ -1078,20 +1064,20 @@ function NetworkConfigDrawer({
   const renderResponseTab = () => (
     <div style={{ maxHeight: 500, overflow: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Text strong style={{ fontSize: 12 }}>Response 字段映射</Text>
-        <Button type="link" size="small" icon={<PlusOutlined />} onClick={handleAddResponseField}>+ 添加字段</Button>
+        <Text strong style={{ fontSize: 12 }}>Response Field Mapping</Text>
+        <Button type="link" size="small" icon={<PlusOutlined />} onClick={handleAddResponseField}>Add Field</Button>
       </div>
 
       {localConfig.responseFields.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
-          暂无 Response 字段，点击上方添加
+          No Response fields configured
         </div>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
           <thead>
             <tr style={{ background: '#fafafa' }}>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '35%' }}>字段名称</th>
-              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '40%' }}>SPI 字段</th>
+              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '35%' }}>Field Name</th>
+              <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0', width: '40%' }}>SPI Field</th>
               <th style={{ width: 40 }}></th>
             </tr>
           </thead>
@@ -1101,7 +1087,7 @@ function NetworkConfigDrawer({
                 <td style={{ padding: '2px' }}>
                   <Input
                     size="small"
-                    placeholder="字段名"
+                    placeholder="Field name"
                     value={item.fieldName}
                     onChange={e => {
                       const newData = [...localConfig.responseFields];
@@ -1124,7 +1110,7 @@ function NetworkConfigDrawer({
                     }}
                     onClick={() => handleActivateMapping('responseFields', idx)}
                   >
-                    {item.spiField || '点击选择SPI字段'}
+                    {item.spiField || 'Select an SPI field'}
                   </div>
                 </td>
                 <td>
@@ -1143,28 +1129,28 @@ function NetworkConfigDrawer({
   // Response Code Tab
   const renderResponseCodeTab = () => (
     <div style={{ maxHeight: 500, overflow: 'auto' }}>
-      <Divider style={{ marginTop: 0 }}>Response Code 构成规则</Divider>
+      <Divider style={{ marginTop: 0 }}>Response Code Composition</Divider>
       <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>
-        选择 Response 中的字段，通过 # 拼接组合成 Response Code
+        Select Response fields and join them with # to compose the Response Code.
       </Text>
 
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text strong style={{ fontSize: 12 }}>Code 字段</Text>
+          <Text strong style={{ fontSize: 12 }}>Code Fields</Text>
           <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
             updateConfig({ responseCodeFields: [...localConfig.responseCodeFields, { field: '', alias: '' }] });
-          }}>+ 添加字段</Button>
+          }}>Add Field</Button>
         </div>
         {localConfig.responseCodeFields.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
-            暂未配置 Code 字段
+            No Code fields configured
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
             <thead>
               <tr style={{ background: '#fafafa' }}>
-                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>字段</th>
-                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>别名</th>
+                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>Field</th>
+                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>Alias</th>
                 <th style={{ width: 40 }}></th>
               </tr>
             </thead>
@@ -1172,7 +1158,7 @@ function NetworkConfigDrawer({
               {localConfig.responseCodeFields.map((item: any, idx: number) => (
                 <tr key={idx}>
                   <td style={{ padding: '4px' }}>
-                    <Select size="small" style={{ width: '100%' }} placeholder="选择字段" value={item.field} onChange={val => {
+                    <Select size="small" style={{ width: '100%' }} placeholder="Select field" value={item.field} onChange={val => {
                       const newFields = [...localConfig.responseCodeFields];
                       newFields[idx] = { ...newFields[idx], field: val };
                       updateConfig({ responseCodeFields: newFields });
@@ -1190,7 +1176,7 @@ function NetworkConfigDrawer({
                     </Select>
                   </td>
                   <td style={{ padding: '4px' }}>
-                    <Input size="small" placeholder="别名" value={item.alias} onChange={e => {
+                    <Input size="small" placeholder="Alias" value={item.alias} onChange={e => {
                       const newFields = [...localConfig.responseCodeFields];
                       newFields[idx] = { ...newFields[idx], alias: e.target.value };
                       updateConfig({ responseCodeFields: newFields });
@@ -1208,33 +1194,33 @@ function NetworkConfigDrawer({
         )}
         {localConfig.responseCodeFields.length > 0 && (
           <div style={{ marginTop: 8, padding: '8px 12px', background: '#e6f7ff', borderRadius: 4, fontFamily: 'monospace', fontSize: 11 }}>
-            预览: {localConfig.responseCodeFields.map((f: any) => f.alias || f.field).join(' # ')}
+            Preview: {localConfig.responseCodeFields.map((f: any) => f.alias || f.field).join(' # ')}
           </div>
         )}
       </div>
 
-      <Divider>Response Message 构成规则</Divider>
+      <Divider>Response Message Composition</Divider>
       <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>
-        选择 Response 中的字段，拼接组合成 Response Message
+        Select Response fields to compose the Response Message.
       </Text>
 
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <Text strong style={{ fontSize: 12 }}>Message 字段</Text>
+          <Text strong style={{ fontSize: 12 }}>Message Fields</Text>
           <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => {
             updateConfig({ responseMessageFields: [...localConfig.responseMessageFields, { field: '', separator: ' ' }] });
-          }}>+ 添加字段</Button>
+          }}>Add Field</Button>
         </div>
         {localConfig.responseMessageFields.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 16, color: '#999', background: '#fafafa', borderRadius: 4 }}>
-            暂未配置 Message 字段
+            No Message fields configured
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
             <thead>
               <tr style={{ background: '#fafafa' }}>
-                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>字段</th>
-                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>分隔符</th>
+                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>Field</th>
+                <th style={{ padding: '4px 8px', textAlign: 'left', borderBottom: '1px solid #f0f0f0' }}>Separator</th>
                 <th style={{ width: 40 }}></th>
               </tr>
             </thead>
@@ -1242,7 +1228,7 @@ function NetworkConfigDrawer({
               {localConfig.responseMessageFields.map((item: any, idx: number) => (
                 <tr key={idx}>
                   <td style={{ padding: '4px' }}>
-                    <Select size="small" style={{ width: '100%' }} placeholder="选择字段" value={item.field} onChange={val => {
+                    <Select size="small" style={{ width: '100%' }} placeholder="Select field" value={item.field} onChange={val => {
                       const newFields = [...localConfig.responseMessageFields];
                       newFields[idx] = { ...newFields[idx], field: val };
                       updateConfig({ responseMessageFields: newFields });
@@ -1255,7 +1241,7 @@ function NetworkConfigDrawer({
                     </Select>
                   </td>
                   <td style={{ padding: '4px' }}>
-                    <Input size="small" placeholder="分隔符" value={item.separator} onChange={e => {
+                    <Input size="small" placeholder="Separator" value={item.separator} onChange={e => {
                       const newFields = [...localConfig.responseMessageFields];
                       newFields[idx] = { ...newFields[idx], separator: e.target.value };
                       updateConfig({ responseMessageFields: newFields });
@@ -1273,7 +1259,7 @@ function NetworkConfigDrawer({
         )}
         {localConfig.responseMessageFields.length > 0 && (
           <div style={{ marginTop: 8, padding: '8px 12px', background: '#e6f7ff', borderRadius: 4, fontFamily: 'monospace', fontSize: 11 }}>
-            预览: {localConfig.responseMessageFields.map((f: any) => f.field.split('.').pop()).join(' + ')}
+            Preview: {localConfig.responseMessageFields.map((f: any) => f.field.split('.').pop()).join(' + ')}
           </div>
         )}
       </div>
@@ -1282,15 +1268,15 @@ function NetworkConfigDrawer({
 
   return (
     <Drawer
-      title={<Space><span>配置 {name}</span><Tag color="blue">{code}</Tag></Space>}
+      title={<Space><span>Configure {name}</span><Tag color="blue">{code}</Tag></Space>}
       placement="right"
       width={650}
       open={visible}
       onClose={onClose}
       extra={
         <Space>
-          <Button onClick={onClose}>取消</Button>
-          <Button type="primary" onClick={handleSave}>保存</Button>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="primary" onClick={handleSave}>Save</Button>
         </Space>
       }
     >
@@ -1397,7 +1383,7 @@ function EdgeConditionDrawer({
   return (
     <Drawer
       title={<Space>
-        <span>配置分支条件</span>
+        <span>Configure Branch Conditions</span>
         <Tag color="orange">Condition → {String(targetNode?.data?.name || 'Unknown')}</Tag>
       </Space>}
       placement="right"
@@ -1406,20 +1392,20 @@ function EdgeConditionDrawer({
       onClose={onClose}
       extra={
         <Space>
-          <Button onClick={onClose}>取消</Button>
-          <Button type="primary" onClick={handleSave}>保存</Button>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="primary" onClick={handleSave}>Save</Button>
         </Space>
       }
     >
       <div style={{ marginBottom: 16 }}>
         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-          当满足以下条件时，走此分支
+          Use this branch when the following conditions are met.
         </Text>
 
         {conditions.map((cond, idx) => (
           <div key={cond.id} style={{ marginBottom: 12, padding: 12, background: '#fafafa', borderRadius: 6, border: '1px solid #e8e8e8' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Text strong style={{ fontSize: 11 }}>条件 {idx + 1}</Text>
+              <Text strong style={{ fontSize: 11 }}>Condition {idx + 1}</Text>
               {idx > 0 && (
                 <Select
                   size="small"
@@ -1427,8 +1413,8 @@ function EdgeConditionDrawer({
                   onChange={(val) => updateCondition(idx, { logic: val })}
                   style={{ width: 70 }}
                 >
-                  <Select.Option value="AND">且</Select.Option>
-                  <Select.Option value="OR">或</Select.Option>
+                  <Select.Option value="AND">AND</Select.Option>
+                  <Select.Option value="OR">OR</Select.Option>
                 </Select>
               )}
               {conditions.length > 1 && (
@@ -1437,7 +1423,7 @@ function EdgeConditionDrawer({
             </div>
             <Space direction="horizontal" size={8}>
               <Select
-                placeholder="字段"
+                placeholder="Field"
                 value={cond.field}
                 onChange={(val) => updateCondition(idx, { field: val })}
                 style={{ width: 160 }}
@@ -1458,7 +1444,7 @@ function EdgeConditionDrawer({
               </Select>
               {!['isEmpty', 'isNotEmpty'].includes(cond.operator) && (
                 <Input
-                  placeholder="值"
+                  placeholder="Value"
                   value={cond.value}
                   onChange={(e) => updateCondition(idx, { value: e.target.value })}
                   style={{ width: 100 }}
@@ -1469,27 +1455,27 @@ function EdgeConditionDrawer({
         ))}
 
         <Button type="link" size="small" icon={<PlusOutlined />} onClick={addCondition}>
-          + 添加条件
+          Add Condition
         </Button>
       </div>
 
       <Divider style={{ margin: '16px 0' }} />
 
       <div>
-        <Text strong style={{ fontSize: 12 }}>默认处理（不满足任何条件时）</Text>
+        <Text strong style={{ fontSize: 12 }}>Default Behavior</Text>
         <Radio.Group
           value={defaultAction}
           onChange={(e) => setDefaultAction(e.target.value)}
           style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}
         >
           <Radio value="skip">
-            <span>跳过此分支，继续下一个</span>
+            <span>Skip this branch and continue</span>
           </Radio>
           <Radio value="fallback">
-            <span>使用默认分支</span>
+            <span>Use the default branch</span>
           </Radio>
           <Radio value="abort">
-            <span>中止流程并报错</span>
+            <span>Stop the Flow with an error</span>
           </Radio>
         </Radio.Group>
       </div>
@@ -1560,29 +1546,29 @@ function GeneratedFieldDrawer({
 
   return (
     <Drawer
-      title={<Space><span>配置生成字段</span><Tag color="green">{fieldName || 'New Field'}</Tag></Space>}
+      title={<Space><span>Configure Generated Field</span><Tag color="green">{fieldName || 'New Field'}</Tag></Space>}
       placement="right"
       width={450}
       open={visible}
       onClose={onClose}
       extra={
         <Space>
-          <Button onClick={onClose}>取消</Button>
-          <Button type="primary" onClick={handleSave}>保存</Button>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="primary" onClick={handleSave}>Save</Button>
         </Space>
       }
     >
       <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>字段名称</Text>
+        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Field Name</Text>
         <Input
-          placeholder="请输入字段名称"
+          placeholder="Enter field name"
           value={fieldName}
           onChange={(e) => setFieldName(e.target.value)}
         />
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>生成类型</Text>
+        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Generation Type</Text>
         <Select
           style={{ width: '100%' }}
           value={generationType}
@@ -1606,7 +1592,7 @@ function GeneratedFieldDrawer({
       {generationType === 'timestamp' && (
         <>
           <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>时区</Text>
+            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Time Zone</Text>
             <Select
               style={{ width: '100%' }}
               value={timezone}
@@ -1619,7 +1605,7 @@ function GeneratedFieldDrawer({
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>时间戳格式</Text>
+            <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Timestamp Format</Text>
             <Select
               style={{ width: '100%' }}
               value={format}
@@ -1640,11 +1626,13 @@ function GeneratedFieldDrawer({
 function GlobalVarDrawer({
   visible,
   variable,
+  title = 'Global Variable',
   onClose,
   onSave,
 }: {
   visible: boolean;
   variable: { name: string; value: string } | null;
+  title?: string;
   onClose: () => void;
   onSave: (variable: any) => void;
 }) {
@@ -1665,31 +1653,31 @@ function GlobalVarDrawer({
 
   return (
     <Drawer
-      title={<Space><span>配置全局变量</span><Tag color="gold">{varName || 'New Variable'}</Tag></Space>}
+      title={<Space><span>Configure {title}</span><Tag color="gold">{varName || `New ${title}`}</Tag></Space>}
       placement="right"
       width={400}
       open={visible}
       onClose={onClose}
       extra={
         <Space>
-          <Button onClick={onClose}>取消</Button>
-          <Button type="primary" onClick={handleSave}>保存</Button>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="primary" onClick={handleSave}>Save</Button>
         </Space>
       }
     >
       <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>变量名称</Text>
+        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Name</Text>
         <Input
-          placeholder="请输入变量名称"
+          placeholder={`Enter ${title.toLowerCase()} name`}
           value={varName}
           onChange={(e) => setVarName(e.target.value)}
         />
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>固定值</Text>
+        <Text strong style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>Value</Text>
         <Input
-          placeholder="请输入固定值"
+          placeholder="Enter value"
           value={varValue}
           onChange={(e) => setVarValue(e.target.value)}
         />
@@ -1756,7 +1744,7 @@ function SpiSelectModal({
         <div>
           <Text type="secondary" style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Business Type</Text>
           <Select
-            placeholder="选择 Business Type"
+            placeholder="Select Business Type"
             style={{ width: '100%' }}
             value={businessType}
             onChange={(val) => { setBusinessType(val); setAbility(null); setAction(null); }}
@@ -1769,7 +1757,7 @@ function SpiSelectModal({
         <div>
           <Text type="secondary" style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Ability</Text>
           <Select
-            placeholder={businessType ? "选择 Ability" : "请先选择 Business Type"}
+            placeholder={businessType ? "Select Ability" : "Select Business Type first"}
             style={{ width: '100%' }}
             value={ability}
             onChange={(val) => { setAbility(val); setAction(null); }}
@@ -1783,7 +1771,7 @@ function SpiSelectModal({
         <div>
           <Text type="secondary" style={{ fontSize: 12, marginBottom: 8, display: 'block' }}>Action</Text>
           <Select
-            placeholder={ability ? "选择 Action" : "请先选择 Ability"}
+            placeholder={ability ? "Select Action" : "Select Ability first"}
             style={{ width: '100%' }}
             value={action}
             onChange={setAction}
@@ -1833,6 +1821,8 @@ export default function FlowEditorPage() {
   // Global variable drawer state
   const [showGlobalVarDrawer, setShowGlobalVarDrawer] = useState(false);
   const [editingGlobalVar, setEditingGlobalVar] = useState<any | null>(null);
+  const [showOrderVarDrawer, setShowOrderVarDrawer] = useState(false);
+  const [showCredentialDrawer, setShowCredentialDrawer] = useState(false);
 
   // Mapping active state - controls whether Context panel fields are clickable for mapping
   const [isMappingActive, setIsMappingActive] = useState(false);
@@ -1995,15 +1985,36 @@ export default function FlowEditorPage() {
 }`,
     },
   ];
-  const mockCredentials = [
-    { id: 'cred1', name: 'Paystack API Key', type: 'API Key' },
-  ];
+  const [mockCredentials, setMockCredentials] = useState<any[]>([
+    { id: 'cred1', name: 'Paystack API Key', value: '••••••••', type: 'API Key', version: '20260628093000', latestVersion: '20260629093000' },
+  ]);
   const [mockGlobalVars, setMockGlobalVars] = useState<any[]>([
     { name: 'channelCode', value: 'PAYSTACK' },
+  ]);
+  const [mockOrderVars, setMockOrderVars] = useState<any[]>([
+    { name: 'requestReference', value: '{{order.requestReference}}' },
   ]);
   const [mockGeneratedFields, setMockGeneratedFields] = useState<any[]>([
     { name: 'rrn', generationType: 'sequence' },
   ]);
+
+  const contextAutoRefreshRef = useRef(false);
+  const refreshContext = useCallback((automatic = false) => {
+    const changed = mockCredentials.filter((item) => item.latestVersion && item.version !== item.latestVersion);
+    if (changed.length) {
+      setMockCredentials((items) => items.map((item) => item.latestVersion ? { ...item, version: item.latestVersion } : item));
+      const names = changed.map((item) => `${item.name} (${item.latestVersion})`).join(', ');
+      message.info(`${names} ${automatic ? 'was automatically updated' : 'was updated'}.`);
+      return;
+    }
+    if (!automatic) message.success('Context references are up to date');
+  }, [mockCredentials]);
+
+  useEffect(() => {
+    if (contextAutoRefreshRef.current) return;
+    contextAutoRefreshRef.current = true;
+    refreshContext(true);
+  }, [refreshContext]);
 
   const openComponentConfig = useCallback((code: string) => {
     if (code === 'httpCall') setShowNetworkDrawer(true);
@@ -2155,9 +2166,7 @@ export default function FlowEditorPage() {
           Back
         </Button>
         <Divider type="vertical" style={{ height: 24 }} />
-        <Title level={5} style={{ margin: 0 }}>
-          {params.bt} / {params.ability} / {actionName}
-        </Title>
+        <Title level={5} style={{ margin: 0 }}>Config Flow</Title>
         <div style={{ flex: 1 }} />
         {!readOnly && (
           <Space>
@@ -2195,6 +2204,7 @@ export default function FlowEditorPage() {
           endpoints={mockEndpoints}
           credentials={mockCredentials}
           globalVariables={mockGlobalVars}
+          orderVariables={mockOrderVars}
           generatedFields={mockGeneratedFields}
           isMappingActive={isMappingActive}
           onFieldSelect={handleContextFieldSelect}
@@ -2206,6 +2216,9 @@ export default function FlowEditorPage() {
             setEditingGlobalVar(null);
             setShowGlobalVarDrawer(true);
           }}
+          onAddOrderVar={() => setShowOrderVarDrawer(true)}
+          onAddCredential={() => setShowCredentialDrawer(true)}
+          onRefresh={() => refreshContext(false)}
         />
 
         {/* 组件面板 */}
@@ -2355,6 +2368,30 @@ export default function FlowEditorPage() {
           setShowGlobalVarDrawer(false);
           setEditingGlobalVar(null);
           message.success('Variable saved');
+        }}
+      />
+
+      <GlobalVarDrawer
+        visible={showOrderVarDrawer}
+        variable={null}
+        title="Order Variable"
+        onClose={() => setShowOrderVarDrawer(false)}
+        onSave={(variable) => {
+          setMockOrderVars((items) => [...items, variable]);
+          setShowOrderVarDrawer(false);
+          message.success('Order Variable saved');
+        }}
+      />
+
+      <GlobalVarDrawer
+        visible={showCredentialDrawer}
+        variable={null}
+        title="Credential"
+        onClose={() => setShowCredentialDrawer(false)}
+        onSave={(variable) => {
+          setMockCredentials((items) => [...items, { ...variable, id: `credential_${Date.now()}`, type: 'Custom', version: new Date().toISOString().replace(/\D/g, '').slice(0, 14) }]);
+          setShowCredentialDrawer(false);
+          message.success('Credential saved');
         }}
       />
 

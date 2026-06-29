@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Layout, Menu } from 'antd';
+import { Button, Layout, Menu } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   SettingOutlined,
   CodeOutlined,
   DatabaseOutlined,
+  HomeOutlined,
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -21,6 +22,11 @@ export default function IntegrationLayout() {
 
   // Update menu items with actual channelCode
   const getMenuItems = () => [
+    {
+      key: '/home',
+      icon: <HomeOutlined />,
+      label: '平台首页',
+    },
     {
       key: `/channel-integration/${channelCode}/integration/match-capability`,
       icon: <DatabaseOutlined />,
@@ -108,7 +114,13 @@ export default function IntegrationLayout() {
             color: '#666',
           }}
         >
-          Omnicore Solution
+          <Button
+            type="link"
+            onClick={() => navigate('/home')}
+            style={{ height: 'auto', padding: 0, color: '#666' }}
+          >
+            Omnicore Solution
+          </Button>
           <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
           Channel Integration
           <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>

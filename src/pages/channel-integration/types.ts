@@ -36,7 +36,7 @@ export interface MatchRule {
 }
 
 export type MatchingType = 'single' | 'order_no' | 'type_field' | 'custom';
-export type UriConfigStatus = 'draft' | 'submitted' | 'published' | 'deprecated' | 'legacy_readonly' | 'error';
+export type UriConfigStatus = 'draft' | 'submitted' | 'deployed' | 'deprecated' | 'legacy_readonly' | 'error';
 
 export interface InboundRequestField {
   id: string;
@@ -47,11 +47,19 @@ export interface InboundRequestField {
   description: string;
 }
 
+export interface LegacyInboundComponent {
+  id: string;
+  code: string;
+  name: string;
+  config: Record<string, string | boolean>;
+}
+
 export interface CapabilityDecisionVersion {
   id: string;
   version: string;
+  name: string;
+  sourceType: 'legacy' | 'v2';
   configStatus: UriConfigStatus;
-  description: string;
   fields: string[];
   requestFields: InboundRequestField[];
   matchType: MatchingType;
@@ -64,6 +72,9 @@ export interface CapabilityDecisionVersion {
   fallbackBehavior?: 'reject' | 'alert_and_reject' | 'manual_review';
   decryptEnabled?: boolean;
   badges?: Array<{ cloud: string; env: string }>;
+  hasUnsubmittedDraft?: boolean;
+  draftBaseline?: string;
+  legacyComponents?: LegacyInboundComponent[];
   updatedTime?: string;
   operator?: string;
 }
@@ -206,11 +217,11 @@ export interface StateFlowData {
 }
 
 // Cloud and environment types for publish status
-export type CloudType = 'BD' | 'PK' | 'ALIYUN' | 'ALIYUN_FRANKFURT' | 'ONELOOP';
+export type CloudType = 'MFB' | 'BD' | 'PK' | 'ALIYUN' | 'ALIYUN_FRANKFURT' | 'ONELOOP';
 export type EnvType = 'DAILY' | 'PRE' | 'PROD';
 
 // Publish status for flow version
-export type PublishStatusType = 'draft' | 'submitted' | 'published';
+export type PublishStatusType = 'draft' | 'submitted' | 'deployed';
 
 // Flow version (sub-record) under a BT + Ability
 export interface FlowVersion {
@@ -218,6 +229,7 @@ export interface FlowVersion {
   version: string;
   publishStatus: PublishStatusType;
   badges: Array<{ cloud: CloudType; env: EnvType }>;
+  hasUnsubmittedDraft?: boolean;
   remark?: string;
   operator: string;
   operationTime: string;

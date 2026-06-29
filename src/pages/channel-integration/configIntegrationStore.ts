@@ -2,6 +2,11 @@ import { create } from 'zustand';
 import type { ConfigAbility, EnvType, FlowConfig, FlowVersion } from './types';
 
 const now = () => new Date().toLocaleString();
+const timestampVersion = () => {
+  const date = new Date();
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate(), date.getHours(), date.getMinutes(), date.getSeconds()]
+    .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0')).join('');
+};
 
 const seedAbilities: Record<string, ConfigAbility[]> = {
   GTB_NG: [
@@ -12,8 +17,8 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
       versions: [
         {
           id: 'gtb_card_v1',
-          version: 'v1.0.0',
-          publishStatus: 'published',
+          version: '20260601103000',
+          publishStatus: 'deployed',
           badges: [{ cloud: 'BD', env: 'DAILY' }, { cloud: 'ALIYUN', env: 'PROD' }],
           remark: 'Initial version for card payment collection',
           operator: 'admin',
@@ -72,7 +77,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
         },
         {
           id: 'gtb_card_v2',
-          version: 'v1.1.0',
+          version: '20260605142000',
           publishStatus: 'submitted',
           badges: [],
           remark: 'Add timeout handling',
@@ -89,7 +94,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
       versions: [
         {
           id: 'gtb_ussd_v1',
-          version: 'v0.0.1',
+          version: '20260606090000',
           publishStatus: 'draft',
           badges: [],
           remark: '',
@@ -106,8 +111,8 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
       versions: [
         {
           id: 'gtb_bank_v1',
-          version: 'v0.9.0',
-          publishStatus: 'published',
+          version: '20260528164500',
+          publishStatus: 'deployed',
           badges: [{ cloud: 'ONELOOP', env: 'PROD' }],
           remark: 'Bank transfer disbursement - beta',
           operator: 'admin',
@@ -122,14 +127,6 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
 };
 
 const cloneSeed = () => structuredClone(seedAbilities);
-
-const nextVersion = (versions: FlowVersion[]) => {
-  const maxPatch = versions.reduce((max, item) => {
-    const match = /^v0\.0\.(\d+)$/.exec(item.version);
-    return match ? Math.max(max, Number(match[1])) : max;
-  }, 0);
-  return `v0.0.${maxPatch + 1}`;
-};
 
 interface ConfigIntegrationStore {
   abilitiesByChannel: Record<string, ConfigAbility[]>;
@@ -173,7 +170,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     if (!ability || ability.versions.some((version) => version.publishStatus === 'draft')) return null;
     const version: FlowVersion = {
       id: `version_${Date.now()}`,
-      version: nextVersion(ability.versions),
+      version: timestampVersion(),
       publishStatus: 'draft',
       badges: [],
       remark: '',
@@ -232,9 +229,10 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     const clone: FlowVersion = {
       ...structuredClone(source),
       id: `version_${Date.now()}`,
-      version: nextVersion(ability.versions),
+      version: timestampVersion(),
       publishStatus: 'draft',
       badges: [],
+      hasUnsubmittedDraft: false,
       operator: 'admin',
       operationTime: now(),
     };
@@ -267,7 +265,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       ? version.badges
       : [...version.badges, { cloud: 'BD' as const, env: target }];
     get().updateVersion(channelCode, bt, abilityCode, versionId, {
-      publishStatus: 'published',
+      publishStatus: 'deployed',
       badges,
     });
     return target;
@@ -280,8 +278,8 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     const version = ability?.versions.find((item) => item.id === versionId);
     if (!version) return;
     get().updateVersion(channelCode, bt, abilityCode, versionId, {
-      publishStatus: 'draft',
-      badges: [],
+      publishStatus: version.publishStatus,
+      hasUnsubmittedDraft: version.publishStatus === 'draft' ? false : true,
       flows: [...version.flows, flow],
     });
   },
@@ -293,8 +291,8 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     const version = ability?.versions.find((item) => item.id === versionId);
     if (!version) return;
     get().updateVersion(channelCode, bt, abilityCode, versionId, {
-      publishStatus: 'draft',
-      badges: [],
+      publishStatus: version.publishStatus,
+      hasUnsubmittedDraft: version.publishStatus === 'draft' ? false : true,
       flows: version.flows.map((flow) => flow.id === flowId ? { ...flow, ...updates } : flow),
     });
   },
