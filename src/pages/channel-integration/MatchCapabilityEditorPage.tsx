@@ -1,24 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Alert, Button, Divider, Drawer, Input, message, Select, Space, Switch, Table, Tag } from 'antd';
-import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, LockOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { useState } from 'react';
+import { Alert, Button, Divider, Drawer, Input, message, Select, Space, Switch, Tag } from 'antd';
+import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, LockOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
-import { useChannelScopeStore } from './channelScopeStore';
-import type { CredentialItem } from './channelScopeStore';
-import type { CapabilityDecisionVersion, FlowConfig, InboundEndpoint, InboundRequestField, LegacyInboundComponent, MatchRule, MatchingType } from './types';
-import CredentialDrawer from './sharedCredentialDrawer';
-
-interface CoverageRow {
-  key: string;
-  rule: MatchRule;
-  version: string;
-  versionId?: string;
-  weight: string;
-  flow: FlowConfig | null;
-  status: string;
-}
+import type { CapabilityDecisionVersion, InboundEndpoint, InboundRequestField, LegacyInboundComponent, MatchRule, MatchingType } from './types';
+import CanvasContextPanel from './CanvasContextPanel';
 
 const matchingTypeOptions: Array<{ value: MatchingType; label: string }> = [
   { value: 'single', label: 'Single Type' },
@@ -27,18 +15,12 @@ const matchingTypeOptions: Array<{ value: MatchingType; label: string }> = [
   { value: 'custom', label: 'Custom' },
 ];
 
-const requestTypeOptions = [
-  { value: 'CALLBACK', label: 'CALLBACK' },
-  { value: 'EXTERNAL_INBOUND', label: 'EXTERNAL_INBOUND' },
-];
-
 const createRule = (): MatchRule => ({
   id: `result_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
   fieldValues: {},
   bt: '',
   ability: '',
   action: '',
-  requestType: 'CALLBACK',
 });
 
 const createRequestField = (source: InboundRequestField['source']): InboundRequestField => ({
@@ -49,15 +31,6 @@ const createRequestField = (source: InboundRequestField['source']): InboundReque
   moc: 'yes',
   description: '',
 });
-
-const statusColor: Record<string, string> = {
-  Ready: 'green',
-  Missing: 'orange',
-  Conflict: 'red',
-  'Not Published': 'default',
-  'Ability Missing': 'red',
-  'Flow Missing': 'orange',
-};
 
 export default function MatchCapabilityEditorPage() {
   const { channelCode = '', uriId = '', decisionVersionId = '' } = useParams<{ channelCode: string; uriId: string; decisionVersionId: string }>();
@@ -72,38 +45,8 @@ export default function MatchCapabilityEditorPage() {
   const abilities = useConfigIntegrationStore((state) => state.abilitiesByChannel[channelCode] ?? []);
   const configuration = endpoint?.versions.find((version) => version.id === decisionVersionId);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(configuration?.rules[0]?.id ?? null);
-  const [activeDrawer, setActiveDrawer] = useState<'uri' | 'match' | 'dispatch' | null>(null);
+  const [activeDrawer, setActiveDrawer] = useState<'uri' | 'match' | null>(null);
   const readOnly = searchParams.get('mode') === 'detail';
-  const channelScopeCredentials = useChannelScopeStore((s) => s.credentialsByChannel[channelCode] ?? []);
-  const [editingCredential, setEditingCredential] = useState<CredentialItem | null>(null);
-  const [showCredentialDrawer, setShowCredentialDrawer] = useState(false);
-
-  const contextReferences = {
-    globalVariable: { name: 'channelCode', value: channelCode, version: '20260628110000', latestVersion: '20260628110000' },
-    orderVariable: { name: 'requestReference', value: '{{order.requestReference}}', version: '20260628110500', latestVersion: '20260628110500' },
-  };
-
-  const refreshContext = (automatic = false) => {
-    if (!automatic) message.success('Context references are up to date');
-  };
-
-  const coverageRows = useMemo<CoverageRow[]>(() => {
-    if (!endpoint || !configuration) return [];
-    return configuration.rules.flatMap<CoverageRow>((rule): CoverageRow[] => {
-      const ability = abilities.find((item) => item.bt === rule.bt && item.ability === rule.ability);
-      if (!ability) return [{ key: `${rule.id}-missing`, rule, version: '-', weight: '-', flow: null, status: 'Ability Missing' }];
-      if (ability.versions.length === 0) return [{ key: `${rule.id}-flow-missing`, rule, version: '-', weight: '-', flow: null, status: 'Flow Missing' }];
-      return ability.versions.map<CoverageRow>((version, versionIndex) => {
-        const triggerType = rule.requestType === 'CALLBACK' ? 'CALLBACK_TRIGGERED' : 'EXTERNAL_INBOUND_TRIGGERED';
-        const flows = version.flows.filter((flow) => flow.inboundUriId === endpoint.id && flow.triggerType === triggerType &&
-          (flow.triggerEvents?.includes(rule.action) || flow.contextActions?.includes(rule.action))
-        );
-        const status = flows.length > 1 ? 'Conflict' : flows.length === 0 ? 'Missing' : version.publishStatus === 'deployed' ? 'Ready' : 'Not Published';
-        return { key: `${rule.id}-${version.id}`, rule, version: version.version, versionId: version.id, weight: versionIndex === 0 ? '100%' : '0%', flow: flows[0] ?? null, status };
-      });
-    });
-  }, [abilities, configuration, endpoint]);
-
   if (!endpoint || !configuration) {
     return <div style={{ padding: 24 }}><h3>Capability Matching Version not found</h3><Button onClick={() => navigate(-1)}>Back</Button></div>;
   }
@@ -168,7 +111,7 @@ export default function MatchCapabilityEditorPage() {
     if (configuration.matchType === 'type_field' && configuration.matchFields.length === 0) return 'Type Field requires at least one input field';
     if (configuration.matchType === 'custom' && !configuration.customScript?.trim()) return 'Custom Script is required';
     for (const rule of configuration.rules) {
-      if (!rule.bt || !rule.ability || !rule.action || !rule.requestType) return 'Every Capability Result must include BT, Ability, Action and Request Type';
+      if (!rule.bt || !rule.ability || !rule.action) return 'Every Capability Result must include BT, Ability and Action';
       if (!abilities.some((item) => item.bt === rule.bt && item.ability === rule.ability)) return `Ability ${rule.bt} / ${rule.ability} does not exist in ${channelCode}`;
       if (configuration.matchType === 'type_field' && configuration.matchFields.some((field) => rule.fieldValues[field] === undefined || rule.fieldValues[field] === '')) return 'Every Type Value combination must provide all field values; use EMPTY_STR for an empty string';
     }
@@ -188,17 +131,8 @@ export default function MatchCapabilityEditorPage() {
     const error = validate();
     if (error) return void message.error(error);
     submitVersion(channelCode, endpoint.id, configuration.id);
-    const missing = coverageRows.filter((row) => ['Missing', 'Flow Missing', 'Not Published'].includes(row.status)).length;
-    message.success(missing ? `Submitted with ${missing} Version Coverage warning(s)` : 'URI Configuration submitted');
+    message.success('Capability Matching submitted. The current Version is ready to deploy.');
     navigate(`/channel-integration/${channelCode}/integration/match-capability`);
-  };
-
-  const targetStatus = (rule: MatchRule) => {
-    const statuses = coverageRows.filter((row) => row.rule.id === rule.id).map((row) => row.status);
-    if (statuses.includes('Ability Missing')) return 'Ability Missing';
-    if (statuses.includes('Conflict')) return 'Conflict';
-    if (statuses.includes('Ready')) return 'Ready';
-    return 'Flow Missing';
   };
 
   const btOptions = endpoint.businessTypes.map((value) => ({ value }));
@@ -233,58 +167,16 @@ export default function MatchCapabilityEditorPage() {
       </div>
 
       <div style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(6, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
           {[
             ['URI', endpoint.url], ['Business Type', endpoint.businessTypes.join(', ')], ['Method', endpoint.method],
-            ['Version', configuration.version], ['Status', configuration.configStatus], ['URI ID', endpoint.id],
+            ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['URI ID', endpoint.id],
           ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'URI ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '272px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
-        <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
-          <div style={{ padding: '9px 14px', fontWeight: 600, borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Context</span>
-            <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Context" onClick={() => refreshContext(false)} />
-          </div>
-          <div style={{ padding: 14 }}>
-            <div>
-              <strong>Global Variable</strong>
-              <div style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11 }}>
-                <Tag color="gold">{contextReferences.globalVariable.name}</Tag>
-                <div style={{ marginTop: 5, color: '#595959' }}>{contextReferences.globalVariable.value}</div>
-                <div style={{ marginTop: 3, color: '#8c8c8c' }}>Version {contextReferences.globalVariable.version}</div>
-              </div>
-            </div>
-            <Divider />
-            <div>
-              <strong>Order Variable</strong>
-              <div style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11 }}>
-                <Tag color="cyan">{contextReferences.orderVariable.name}</Tag>
-                <div style={{ marginTop: 5, color: '#595959' }}>{contextReferences.orderVariable.value}</div>
-                <div style={{ marginTop: 3, color: '#8c8c8c' }}>Version {contextReferences.orderVariable.version}</div>
-              </div>
-            </div>
-            <Divider />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <strong>Credential</strong>
-              <Button type="text" size="small" icon={<PlusOutlined />} onClick={() => { setEditingCredential(null); setShowCredentialDrawer(true); }} style={{ padding: '0 4px', height: 20 }} />
-            </div>
-            {channelScopeCredentials.length === 0 ? (
-              <div style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11, color: '#999' }}>
-                No Credential — use + to create one
-              </div>
-            ) : (
-              channelScopeCredentials.map((c) => (
-                <div key={c.id} style={{ marginTop: 9, padding: 9, background: '#fafafa', borderRadius: 6, fontSize: 11, cursor: 'pointer' }}
-                  onClick={() => { setEditingCredential(c); setShowCredentialDrawer(true); }}>
-                  <Tag color="purple">{c.key}</Tag>
-                  <div style={{ marginTop: 3, color: '#595959' }}>{c.description || ''}</div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '292px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
+        <CanvasContextPanel channelCode={channelCode} mode="matching" readOnly={readOnly} />
 
         <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
           <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Component Library</div>
@@ -294,10 +186,6 @@ export default function MatchCapabilityEditorPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>matchCapability</strong><Tag>Single Use</Tag></div>
               <div style={{ color: '#8c8c8c', fontSize: 11 }}>Identify Capability Result</div>
             </div>
-            <div style={{ marginTop: 10, padding: 12, border: '1px solid #e8e8e8', borderRadius: 7, background: '#f5f5f5', color: '#8c8c8c' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Dispatch Target</strong><Tag>Generated</Tag></div>
-              <div style={{ fontSize: 11 }}>Created automatically from Capability Results</div>
-            </div>
             <Alert type="info" showIcon message="URI canvas components are system-managed" style={{ marginTop: 14 }} />
           </div>
         </div>
@@ -305,21 +193,10 @@ export default function MatchCapabilityEditorPage() {
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>Canvas</div>
           <div style={{ flex: 1, overflow: 'auto', padding: 36, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
-            <button onClick={() => setActiveDrawer('match')} style={{ display: 'block', width: 300, margin: '0 auto', padding: 16, textAlign: 'left', border: '2px solid #1677ff', borderRadius: 10, background: '#e6f4ff', boxShadow: '0 4px 12px rgba(22,119,255,.12)', cursor: 'pointer' }}>
+            <button onClick={() => setActiveDrawer('match')} style={{ display: 'block', width: 300, margin: '80px auto 0', padding: 16, textAlign: 'left', border: '2px solid #1677ff', borderRadius: 10, background: '#e6f4ff', boxShadow: '0 4px 12px rgba(22,119,255,.12)', cursor: 'pointer' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span><Tag color="blue">CORE</Tag><strong>matchCapability</strong></span><Tag color={configuration.rules.length ? 'green' : 'orange'}>{configuration.rules.length ? 'Configured' : 'Not Started'}</Tag></div>
               <div style={{ color: '#595959', fontSize: 11, marginTop: 6 }}>{matchingTypeOptions.find((item) => item.value === configuration.matchType)?.label}</div>
             </button>
-            <div style={{ textAlign: 'center', fontSize: 26, lineHeight: '48px' }}>↓</div>
-            <div style={{ display: 'grid', gridTemplateColumns: configuration.rules.length > 1 ? 'repeat(2, minmax(220px, 320px))' : 'minmax(240px, 360px)', justifyContent: 'center', gap: 14 }}>
-              {configuration.rules.length === 0 ? <button onClick={() => setActiveDrawer('match')} style={{ padding: 30, border: '1px dashed #d9d9d9', background: '#fff', color: '#8c8c8c', cursor: 'pointer' }}>Configure matchCapability to generate Dispatch Target</button> : configuration.rules.map((rule) => {
-                const status = targetStatus(rule);
-                return <button key={rule.id} onClick={() => { setSelectedRuleId(rule.id); setActiveDrawer('dispatch'); }} style={{ textAlign: 'left', padding: 14, border: '1px solid #d9d9d9', borderRadius: 8, background: '#fff', cursor: 'pointer' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Dispatch Target</strong><Tag color={statusColor[status]}>{status}</Tag></div>
-                  <div style={{ marginTop: 8 }}>{rule.bt || '-'} / {rule.ability || '-'} / {rule.action || '-'}</div>
-                  <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 5 }}>{rule.requestType} · Click to view coverage</div>
-                </button>;
-              })}
-            </div>
           </div>
         </div>
       </div>
@@ -380,39 +257,16 @@ export default function MatchCapabilityEditorPage() {
             {configuration.rules.map((rule, index) => <div key={rule.id} onClick={() => setSelectedRuleId(rule.id)} style={{ marginTop: 10, padding: 12, border: selectedRule?.id === rule.id ? '1px solid #722ed1' : '1px solid #e8e8e8', borderRadius: 8 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span>Result {index + 1}</span>{!readOnly && configuration.matchType !== 'single' && <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={(event) => { event.stopPropagation(); deleteResult(rule.id); }} />}</div>
               {configuration.matchType === 'type_field' && configuration.matchFields.map((field) => <Input key={field} disabled={readOnly} addonBefore={field} placeholder="Value or EMPTY_STR" value={rule.fieldValues[field]} onChange={(event) => updateRule(rule.id, { fieldValues: { ...rule.fieldValues, [field]: event.target.value } })} style={{ marginBottom: 6 }} />)}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                 <Select disabled={readOnly} placeholder="Business Type" value={rule.bt || undefined} options={btOptions} onChange={(bt) => updateRule(rule.id, { bt, ability: '', action: '' })} />
                 <Select disabled={readOnly || !rule.bt} placeholder="Ability" value={rule.ability || undefined} options={abilities.filter((item) => item.bt === rule.bt).map((item) => ({ value: item.ability }))} onChange={(ability) => updateRule(rule.id, { ability, action: '' })} />
                 <Select disabled={readOnly || !rule.ability} placeholder="Action" value={rule.action || undefined} options={(capabilityActionOptions[`${rule.bt}:${rule.ability}`] ?? ['TRANSACTION', 'QUERY', 'VERIFY']).map((value) => ({ value }))} onChange={(action) => updateRule(rule.id, { action })} />
-                <Select disabled={readOnly} value={rule.requestType} options={requestTypeOptions} onChange={(requestType) => updateRule(rule.id, { requestType })} />
               </div>
             </div>)}
             {configuration.rules.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: '#8c8c8c' }}>No Capability Result configured</div>}
         </div>
       </Drawer>
 
-      <Drawer title="Dispatch Target · Version Coverage" width={900} open={activeDrawer === 'dispatch'} onClose={() => setActiveDrawer(null)}>
-        {selectedRule && <Alert type="info" showIcon message={`${selectedRule.bt} / ${selectedRule.ability} / ${selectedRule.action}`} description={`${selectedRule.requestType} · Route Key uses URI ID + Request Type + Action`} style={{ marginBottom: 16 }} />}
-        <Table<CoverageRow> size="small" pagination={false} rowKey="key" dataSource={coverageRows.filter((row) => !selectedRuleId || row.rule.id === selectedRuleId)} columns={[
-          { title: 'Capability Result', render: (_, row) => `${row.rule.bt} / ${row.rule.ability} / ${row.rule.action}` },
-          { title: 'Request Type', render: (_, row) => row.rule.requestType },
-          { title: 'Flow Version', dataIndex: 'version' },
-          { title: 'Weight', dataIndex: 'weight' },
-          { title: 'Matching Flow', render: (_, row) => row.flow ? <Button type="link" size="small" onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/${row.rule.bt}/${row.rule.ability}/versions/${row.versionId}/flows/${row.flow!.id}?mode=detail`)}>{row.flow.name}</Button> : '-' },
-          { title: 'Coverage', dataIndex: 'status', render: (status) => <Tag color={statusColor[status]}>{status}</Tag> },
-        ]} />
-      </Drawer>
-
-      <CredentialDrawer
-        visible={showCredentialDrawer}
-        channelCode={channelCode}
-        credential={editingCredential}
-        onSave={() => {}}
-        onClose={() => {
-          setShowCredentialDrawer(false);
-          setEditingCredential(null);
-        }}
-      />
     </div>
   );
 }
@@ -451,14 +305,14 @@ function LegacyInboundFlowEditor({
         <div style={{ flex: 1 }} />
         {!readOnly && <Space>
           <Button icon={<SaveOutlined />} onClick={() => { saveChannel(channelCode); message.success('Legacy Inbound Flow draft saved'); }}>Save Draft</Button>
-          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => { submitVersion(channelCode, endpoint.id, configuration.id); message.success('Legacy Inbound Flow submitted'); navigate(`/channel-integration/${channelCode}/integration/match-capability`); }}>Submit</Button>
+          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => { submitVersion(channelCode, endpoint.id, configuration.id); message.success('Legacy Capability Matching submitted. The current Version is ready to deploy.'); navigate(`/channel-integration/${channelCode}/integration/match-capability`); }}>Submit</Button>
         </Space>}
       </div>
 
       <div style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
           {[
-            ['URI', endpoint.url], ['Flow Name', configuration.name], ['Version', configuration.version], ['Status', configuration.configStatus], ['Endpoint ID', endpoint.id],
+            ['URI', endpoint.url], ['Flow Name', configuration.name], ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['Endpoint ID', endpoint.id],
           ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'Endpoint ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
         </div>
       </div>
@@ -471,14 +325,8 @@ function LegacyInboundFlowEditor({
         style={{ margin: '0 16px 12px' }}
       />
 
-      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '272px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
-        <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
-          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Context</div>
-          <div style={{ padding: 14 }}>
-            <strong>Legacy Request Context</strong>
-            {['request.query', 'request.headers', 'request.body', 'credential', 'globalVariable', 'orderVariable'].map((item) => <div key={item} style={{ marginTop: 8, padding: 7, background: '#f5f5f5', borderRadius: 4, fontSize: 11 }}>{item}</div>)}
-          </div>
-        </div>
+      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '292px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
+        <CanvasContextPanel channelCode={channelCode} mode="matching" readOnly={readOnly} />
 
         <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
           <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Component Library</div>

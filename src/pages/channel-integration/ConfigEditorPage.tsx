@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Breadcrumb, Button, message, Modal, Space, Table, Tag, Typography } from 'antd';
+import { Badge, Breadcrumb, Button, Modal, Space, Table, Tag, Typography } from 'antd';
 import { EditOutlined, EyeOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import FlowConfigModal from './FlowConfigModal';
@@ -14,7 +14,24 @@ const triggerLabels: Record<TriggerType, string> = {
   EXTERNAL_INBOUND_TRIGGERED: 'External Trigger',
   CALLBACK_TRIGGERED: 'Callback Trigger',
   ASYNC_TRIGGERED: 'Async Trigger',
-  SCHEDULED_TRIGGERED: 'Scheduled Trigger',
+  REQUERY_TRIGGERED: 'Requery Trigger',
+};
+
+const stateMachineSubStates: Record<string, string[]> = {
+  Default_Refund_StateMachine: ['INIT', 'PROGRESSING', 'SUCCESS', 'FAILED'],
+  BankCard_Debit_StateMachine: ['INIT', 'WAITING_OTP', 'VERIFYING_OTP', 'AUTHENTICATING', 'PROGRESSING', 'SUCCESS', 'FAILED'],
+};
+
+const flowStatusColors: Record<string, string> = {
+  DRAFT: 'default',
+  SUBMITTED: 'orange',
+};
+
+const statusColors: Record<string, string> = {
+  DRAFT: 'default',
+  DAILY: 'blue',
+  PRE: 'orange',
+  PROD: 'green',
 };
 
 export default function ConfigEditorPage() {
@@ -35,6 +52,7 @@ export default function ConfigEditorPage() {
   const [showFlowConfigModal, setShowFlowConfigModal] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowConfig | null>(null);
   const [previewStateMachine, setPreviewStateMachine] = useState(false);
+  const [draftConfirmFlow, setDraftConfirmFlow] = useState<FlowConfig | null>(null);
 
   const ability = useConfigIntegrationStore((state) =>
     (state.abilitiesByChannel[channelCode] ?? []).find(
@@ -44,7 +62,6 @@ export default function ConfigEditorPage() {
   const version = ability?.versions.find((item) => item.id === versionId);
   const addFlow = useConfigIntegrationStore((state) => state.addFlow);
   const updateFlow = useConfigIntegrationStore((state) => state.updateFlow);
-  const updateVersion = useConfigIntegrationStore((state) => state.updateVersion);
 
   if (!ability || !version) {
     return (
@@ -58,40 +75,30 @@ export default function ConfigEditorPage() {
   }
 
   const flows = version.flows;
+  const groupId = version.groupId;
+  const availableSubStates = stateMachineSubStates[ability.stateMachine] ?? [];
 
   const handleFlowSave = (flow: FlowConfig) => {
-    addFlow(channelCode, bt, abilityCode, versionId, flow);
+    addFlow(channelCode, bt, abilityCode, groupId, flow);
   };
 
   const handleSettingsSave = (flow: FlowConfig) => {
-    updateFlow(channelCode, bt, abilityCode, versionId, flow.id, flow);
+    updateFlow(channelCode, bt, abilityCode, groupId, flow.id, flow);
     setEditingFlow(null);
   };
 
-  const handleSaveDraft = () => {
-    updateVersion(channelCode, bt, abilityCode, versionId, {
-      publishStatus: version.publishStatus,
-      hasUnsubmittedDraft: version.publishStatus === 'draft' ? false : true,
-    });
-    message.success('Flow Version saved as Draft in the current runtime');
+  const handleEditComponents = (flow: FlowConfig) => {
+    if (flow.submittedContent && flow.status === 'SUBMITTED') {
+      setDraftConfirmFlow(flow);
+    } else {
+      navigateToFlowEditor(flow);
+    }
   };
 
-  const handleSubmit = () => {
-    if (flows.length === 0) {
-      message.error('Create at least one Flow before Submit');
-      return;
-    }
-    const incomplete = flows.find((flow) => !flow.isConfigured);
-    if (incomplete) {
-      message.error(`Flow ${incomplete.name} is not fully configured`);
-      return;
-    }
-    updateVersion(channelCode, bt, abilityCode, versionId, {
-      publishStatus: 'submitted',
-      badges: version.publishStatus === 'deployed' ? [] : version.badges,
-      hasUnsubmittedDraft: false,
-    });
-    message.success('Flow Version submitted');
+  const navigateToFlowEditor = (flow: FlowConfig) => {
+    navigate(
+      `/channel-integration/${channelCode}/integration/config/${bt}/${abilityCode}/versions/${versionId}/flows/${flow.id}?flowType=${flow.flowType}${readOnly ? '&mode=detail' : ''}`
+    );
   };
 
   return (
@@ -113,10 +120,10 @@ export default function ConfigEditorPage() {
             <Text>Channel: <Text strong>{channelCode}</Text></Text>
             <Text>BT: <Text strong>{bt}</Text></Text>
             <Text>Ability: <Text strong>{abilityCode}</Text></Text>
+            <Text>Group ID: <Text strong>{version.groupId}</Text></Text>
             <Text>Version: <Text strong>{version.version}</Text></Text>
-            <Tag color={version.publishStatus === 'submitted' ? 'orange' : version.publishStatus === 'deployed' ? 'green' : 'default'}>
-              {version.publishStatus}
-            </Tag>
+            <Tag color={statusColors[version.status] || 'default'}>{version.status}</Tag>
+            {version.remark && <Text type="secondary">({version.remark})</Text>}
           </Space>
         </div>
         <Space>
@@ -124,11 +131,7 @@ export default function ConfigEditorPage() {
             {ability.stateMachine}
           </Button>
           {!readOnly && (
-            <>
-              <Button onClick={handleSaveDraft}>Save Draft</Button>
-              <Button type="primary" onClick={handleSubmit}>Submit</Button>
-              <Button icon={<PlusOutlined />} onClick={() => setShowFlowConfigModal(true)}>New Flow</Button>
-            </>
+            <Button icon={<PlusOutlined />} onClick={() => setShowFlowConfigModal(true)}>New Flow</Button>
           )}
         </Space>
       </div>
@@ -158,11 +161,9 @@ export default function ConfigEditorPage() {
           },
           {
             title: 'Status',
-            width: 110,
+            width: 100,
             render: (_value, flow) => (
-              <Tag color={flow.isConfigured ? 'success' : 'default'}>
-                {flow.isConfigured ? 'Submitted' : 'Draft'}
-              </Tag>
+              <Tag color={flowStatusColors[flow.status ?? 'DRAFT']}>{flow.status ?? 'DRAFT'}</Tag>
             ),
           },
           {
@@ -178,15 +179,15 @@ export default function ConfigEditorPage() {
                 >
                   Settings
                 </Button>
-                <Button
-                  type="text"
-                  icon={<EditOutlined />}
-                  onClick={() => navigate(
-                    `/channel-integration/${channelCode}/integration/config/${bt}/${abilityCode}/versions/${versionId}/flows/${flow.id}?flowType=${flow.flowType}${readOnly ? '&mode=detail' : ''}`
-                  )}
-                >
-                  {readOnly ? 'View Components' : 'Edit Components'}
-                </Button>
+                <Badge dot={flow.status === 'SUBMITTED' && Boolean(flow.submittedContent)}>
+                  <Button
+                    type="text"
+                    icon={<EditOutlined />}
+                    onClick={() => handleEditComponents(flow)}
+                  >
+                    {readOnly ? 'View Components' : 'Edit Components'}
+                  </Button>
+                </Badge>
               </Space>
             ),
           },
@@ -199,6 +200,7 @@ export default function ConfigEditorPage() {
         existingFlows={flows}
         availableEvents={[]}
         availableActions={ability.actions ?? []}
+        availableSubStates={availableSubStates}
         onSave={handleFlowSave}
         onCancel={() => setShowFlowConfigModal(false)}
       />
@@ -207,6 +209,7 @@ export default function ConfigEditorPage() {
         visible={Boolean(editingFlow)}
         flow={editingFlow}
         availableActions={ability.actions ?? []}
+        availableSubStates={availableSubStates}
         onSave={handleSettingsSave}
         onCancel={() => setEditingFlow(null)}
       />
@@ -220,6 +223,39 @@ export default function ConfigEditorPage() {
         <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
           Read-only State Machine preview
         </div>
+      </Modal>
+
+      <Modal
+        title="Unsaved Draft Detected"
+        open={Boolean(draftConfirmFlow)}
+        onCancel={() => setDraftConfirmFlow(null)}
+        footer={[
+          <Button key="cancel" onClick={() => setDraftConfirmFlow(null)}>Cancel</Button>,
+          <Button key="discard" onClick={() => {
+            if (draftConfirmFlow) {
+              updateFlow(channelCode, bt, abilityCode, groupId, draftConfirmFlow.id, {
+                submittedContent: undefined,
+              });
+              navigateToFlowEditor({ ...draftConfirmFlow, submittedContent: undefined });
+              setDraftConfirmFlow(null);
+            }
+          }}>
+            Discard Draft
+          </Button>,
+          <Button key="continue" type="primary" onClick={() => {
+            if (draftConfirmFlow) {
+              navigateToFlowEditor(draftConfirmFlow);
+              setDraftConfirmFlow(null);
+            }
+          }}>
+            Continue Editing Draft
+          </Button>,
+        ]}
+      >
+        <p>
+          This flow has an unsubmitted draft. You can continue editing the draft or discard it and
+          edit the last submitted version.
+        </p>
       </Modal>
     </div>
   );

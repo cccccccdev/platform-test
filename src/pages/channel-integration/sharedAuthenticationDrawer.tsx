@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Drawer, Button, Modal, Form, Input, Select, Space, message } from 'antd';
 import { useChannelScopeStore } from './channelScopeStore';
+import { timestampVersion } from './channelScopeStore';
 import type { AuthConfig, AuthType } from './channelScopeStore';
 
 interface Props {
@@ -95,7 +96,7 @@ export default function AuthenticationDrawer({ visible, channelCode, auth, onSav
         id: `auth_${Date.now()}`,
         name: values.name,
         type: authType,
-        version: 1,
+        version: timestampVersion(),
         credentials: creds,
         operator: 'admin',
         operationTime: now,

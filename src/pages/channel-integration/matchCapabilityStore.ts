@@ -8,6 +8,24 @@ const timestampVersion = () => {
   return parts.map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0')).join('');
 };
 
+const statusFromBadges = (badges: Array<{ cloud: string; env: string }>): CapabilityDecisionVersion['configStatus'] => {
+  if (badges.some((badge) => badge.env === 'PROD')) return 'PROD';
+  if (badges.some((badge) => badge.env === 'PRE')) return 'PRE';
+  if (badges.some((badge) => badge.env === 'DAILY')) return 'DAILY';
+  return 'DRAFT';
+};
+
+export const nextMatchingId = (endpointsByChannel: Record<string, InboundEndpoint[]>): string => {
+  const currentMax = Object.values(endpointsByChannel)
+    .flatMap((endpoints) => endpoints)
+    .flatMap((endpoint) => endpoint.versions ?? [])
+    .reduce((max, version) => {
+      const numericId = Number(version.id);
+      return Number.isInteger(numericId) ? Math.max(max, numericId) : max;
+    }, 24);
+  return String(currentMax + 1);
+};
+
 const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisionVersion => {
   const parsedFields = endpoint.fields.map((field, index) => {
     const [source, ...nameParts] = field.split('.');
@@ -43,6 +61,12 @@ const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisio
     fallbackBehavior: endpoint.fallbackBehavior,
     decryptEnabled: endpoint.decryptEnabled,
     badges: endpoint.badges,
+    deploymentRecords: (endpoint.badges ?? []).map((badge) => ({
+      ...badge,
+      version: endpoint.version,
+      operator: endpoint.operator ?? 'admin',
+      operationTime: endpoint.updatedTime ?? '-',
+    })),
     updatedTime: endpoint.updatedTime,
     operator: endpoint.operator,
     legacyComponents: endpoint.uriType === 'legacy' ? [
@@ -66,14 +90,15 @@ const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisio
 
 const cloneSeedData = (): Record<string, InboundEndpoint[]> => {
   const raw = structuredClone(mockInboundEndpointsByChannel) as unknown as Record<string, InboundEndpoint[]>;
+  let matchingId = 25;
   return Object.fromEntries(Object.entries(raw).map(([channel, endpoints]) => [channel, endpoints.map((endpoint) => {
-    const seedVersion = legacyVersionFromEndpoint(endpoint);
+    const seedVersion = { ...legacyVersionFromEndpoint(endpoint), id: String(matchingId++) };
     const versions = endpoint.versions?.length
       ? endpoint.versions
       : endpoint.uriType === 'legacy'
         ? [
-            { ...seedVersion, id: `${endpoint.id}_version_2`, version: '20260322024417', name: 'Legacy Callback PROD', configStatus: 'deployed' as const, badges: [{ cloud: 'ALIYUN', env: 'DAILY' }, { cloud: 'ALIYUN', env: 'PRE' }, { cloud: 'ALIYUN', env: 'PROD' }] },
-            { ...structuredClone(seedVersion), id: `${endpoint.id}_version_1`, version: '20260122035216', name: 'Legacy Callback Submitted', configStatus: 'submitted' as const, badges: [] },
+            { ...seedVersion, version: '20260322024417', name: 'Legacy Callback PROD', configStatus: 'PROD' as const, badges: [{ cloud: 'ALIYUN', env: 'DAILY' }, { cloud: 'ALIYUN', env: 'PRE' }, { cloud: 'ALIYUN', env: 'PROD' }] },
+            { ...structuredClone(seedVersion), id: String(matchingId++), version: '20260122035216', name: 'Legacy Callback Draft', configStatus: 'DRAFT' as const, badges: [] },
           ]
         : [seedVersion];
     const businessTypes = endpoint.businessTypes ?? [...new Set([endpoint.businessType, ...versions.flatMap((version) => version.rules.map((rule) => rule.bt))].filter(Boolean))];
@@ -127,7 +152,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
         ...endpoint,
         versions: endpoint.versions.map((version) => {
           if (version.id !== versionId) return version;
-          const tracksDraft = version.configStatus === 'submitted' || version.configStatus === 'deployed';
+          const tracksDraft = version.configStatus !== 'DRAFT';
           const baseline = tracksDraft && !version.draftBaseline
             ? JSON.stringify({ ...version, hasUnsubmittedDraft: false, draftBaseline: undefined })
             : version.draftBaseline;
@@ -147,20 +172,21 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
 
   createVersion: (channelCode, endpointId, name, businessType) => {
     const endpoint = get().getEndpoints(channelCode).find((item) => item.id === endpointId);
-    if (!endpoint || endpoint.versions.some((version) => version.configStatus === 'draft')) return null;
+    if (!endpoint) return null;
     const source = endpoint.versions[0];
+    const matchingId = nextMatchingId(get().endpointsByChannel);
     const version: CapabilityDecisionVersion = source.sourceType === 'legacy' ? {
-      id: `decision_${Date.now()}`,
+      id: matchingId,
       version: timestampVersion(),
       name: name.trim().slice(0, 32),
       sourceType: 'v2',
-      configStatus: 'draft',
+      configStatus: 'DRAFT',
       fields: [],
       requestFields: [],
       matchType: 'single',
       singleNoField: '',
       matchFields: [],
-      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: businessType ?? endpoint.businessTypes.find(Boolean) ?? '', ability: '', action: '', requestType: 'CALLBACK' }],
+      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: businessType ?? endpoint.businessTypes.find(Boolean) ?? '', ability: '', action: '' }],
       customScript: 'def execute(request) {\n  return null\n}',
       fallbackBehavior: 'alert_and_reject',
       decryptEnabled: false,
@@ -170,11 +196,11 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       operator: 'admin',
     } : {
       ...structuredClone(source),
-      id: `decision_${Date.now()}`,
+      id: matchingId,
       version: timestampVersion(),
       name: name.trim().slice(0, 32),
       sourceType: 'v2',
-      configStatus: 'draft',
+      configStatus: 'DRAFT',
       badges: [],
       hasUnsubmittedDraft: false,
       draftBaseline: undefined,
@@ -194,13 +220,13 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
   cloneVersion: (channelCode, endpointId, versionId) => {
     const endpoint = get().getEndpoints(channelCode).find((item) => item.id === endpointId);
     const source = endpoint?.versions.find((version) => version.id === versionId);
-    if (!endpoint || !source || source.sourceType === 'legacy' || endpoint.versions.some((version) => version.configStatus === 'draft')) return null;
+    if (!endpoint || !source || source.sourceType === 'legacy') return null;
     const clone: CapabilityDecisionVersion = {
       ...structuredClone(source),
-      id: `decision_${Date.now()}`,
+      id: nextMatchingId(get().endpointsByChannel),
       version: timestampVersion(),
       name: `${source.name} Copy`.slice(0, 32),
-      configStatus: 'draft',
+      configStatus: 'DRAFT',
       badges: [],
       hasUnsubmittedDraft: false,
       draftBaseline: undefined,
@@ -218,14 +244,22 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       ...state.endpointsByChannel,
       [channelCode]: (state.endpointsByChannel[channelCode] ?? []).map((endpoint) => endpoint.id === endpointId ? {
         ...endpoint,
-        versions: endpoint.versions.map((version) => version.id === versionId ? {
-          ...version,
-          configStatus: 'deployed',
-          badges: version.badges?.some((badge) => badge.cloud === cloud && badge.env === env)
+        versions: endpoint.versions.map((version) => {
+          if (version.id !== versionId) return version;
+          const badges = version.badges?.some((badge) => badge.cloud === cloud && badge.env === env)
             ? version.badges
-            : [...(version.badges ?? []), { cloud, env }],
-          updatedTime: new Date().toLocaleString(),
-        } : version),
+            : [...(version.badges ?? []), { cloud, env }];
+          return {
+            ...version,
+            configStatus: statusFromBadges(badges),
+            badges,
+            deploymentRecords: [
+              ...(version.deploymentRecords ?? []),
+              { cloud, env, version: version.version, operator: 'admin', operationTime: new Date().toLocaleString() },
+            ],
+            updatedTime: new Date().toLocaleString(),
+          };
+        }),
       } : endpoint),
     },
   })),
@@ -264,8 +298,9 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       ...endpoint,
       versions: endpoint.versions.map((version) => version.id === versionId ? {
         ...version,
-        configStatus: 'submitted' as const,
-        badges: version.configStatus === 'deployed' ? [] : version.badges,
+        version: version.configStatus === 'DRAFT' ? version.version : timestampVersion(),
+        configStatus: 'DRAFT' as const,
+        badges: version.configStatus === 'DRAFT' ? version.badges : [],
         hasUnsubmittedDraft: false,
         draftBaseline: undefined,
         updatedTime: new Date().toLocaleString(),

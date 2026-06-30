@@ -34,10 +34,10 @@ const triggerTypeOptions = [
     description: '特指由前序 Flow 中的 asyncExecuteFlow 组件异步触发的 Flow。',
   },
   {
-    value: 'SCHEDULED_TRIGGERED',
-    label: 'SCHEDULED_TRIGGERED',
-    labelCn: '定时任务触发',
-    description: '特指由平台定时任务触发的 Flow，主要用于重查询 Flow。',
+    value: 'REQUERY_TRIGGERED',
+    label: 'REQUERY_TRIGGERED',
+    labelCn: '重查触发',
+    description: '订单进入指定 Trigger Sub-State 后，由平台结合重查策略触发的 Flow。',
   },
 ];
 
@@ -47,6 +47,7 @@ interface FlowConfigModalProps {
   existingFlows: FlowConfig[];
   availableEvents: string[];
   availableActions: string[];
+  availableSubStates: string[];
   editingFlow?: FlowConfig | null;
   onSave: (config: FlowConfig) => void;
   onNext?: () => void;
@@ -59,6 +60,7 @@ export default function FlowConfigModal({
   existingFlows,
   availableEvents: _availableEvents,
   availableActions,
+  availableSubStates,
   editingFlow: _editingFlow,
   onSave,
   onCancel,
@@ -162,8 +164,12 @@ export default function FlowConfigModal({
         // Ensure triggerEvents is always an array
         triggerEvents: Array.isArray(values.triggerAction) ? values.triggerAction : values.triggerAction ? [values.triggerAction] : Array.isArray(values.originalRequestAction) ? values.originalRequestAction : values.originalRequestAction ? [values.originalRequestAction] : [],
         contextActions: values.referenceActions || [],
+        stateConditions: values.triggerSubState
+          ? [{ id: 'trigger-sub-state', field: 'subState', operator: '==', value: values.triggerSubState }]
+          : [],
         inboundUriId: values.inboundUriId,
         isConfigured: false,
+        status: 'DRAFT',
       };
 
       onSave(config);
@@ -222,15 +228,35 @@ export default function FlowConfigModal({
           </Form.Item>
         );
 
-      case 'SCHEDULED_TRIGGERED':
+      case 'REQUERY_TRIGGERED':
         return (
-          <Form.Item
-            name="referenceActions"
-            label="Context Action"
-            rules={[{ required: true, message: 'Please select Context Action' }]}
-          >
-            <Select mode="multiple" placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
-          </Form.Item>
+          <>
+            <Form.Item
+              name="triggerSubState"
+              label="Trigger Sub-State"
+              rules={[
+                { required: true, message: 'Please select Trigger Sub-State' },
+                {
+                  validator: (_, value) => !value || availableSubStates.includes(value)
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('Trigger Sub-State is not available in the current State Machine')),
+                },
+              ]}
+            >
+              <Select
+                placeholder={availableSubStates.length ? 'Select Trigger Sub-State' : 'No Sub-State available in the current State Machine'}
+                disabled={availableSubStates.length === 0}
+                options={availableSubStates.map((subState) => ({ label: subState, value: subState }))}
+              />
+            </Form.Item>
+            <Form.Item
+              name="referenceActions"
+              label="Reference Action"
+              rules={[{ required: true, message: 'Please select Reference Action' }]}
+            >
+              <Select mode="multiple" placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
+            </Form.Item>
+          </>
         );
 
       default:

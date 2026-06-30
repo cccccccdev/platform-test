@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Input, Space, Modal, Form, Select, Breadcrumb, Card, message } from 'antd';
+import { Table, Button, Input, Space, Modal, Form, Breadcrumb, Card, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { mockChannels, partyOptions } from '../../mock/data';
+import { mockChannels } from '../../mock/data';
 import type { Channel } from './types';
 
 export default function ChannelListPage() {
@@ -37,16 +37,16 @@ export default function ChannelListPage() {
     try {
       const values = await form.validateFields();
       // Check if Channel Code already exists
-      if (channels.some((c) => c.code === values.code)) {
+      if (channels.some((c) => c.code === values.channel)) {
         form.setFields([
-          { name: 'code', errors: ['Channel Code already exists'] },
+          { name: 'channel', errors: ['Channel already exists'] },
         ]);
         return;
       }
       const newChannel: Channel = {
-        code: values.code,
+        code: values.channel,
         country: [],
-        party: values.party,
+        party: [],
         status: 'Inactive',
         operator: 'admin',
         operationTime: new Date().toLocaleString(),
@@ -165,42 +165,26 @@ export default function ChannelListPage() {
         locale={{ emptyText: 'No Data' }}
       />
 
-      {/* New Channel modal */}
+      {/* Create Channel modal */}
       <Modal
-        title="New Channel"
+        title="Create Channel"
         open={isModalOpen}
         onOk={handleCreate}
         onCancel={() => {
           setIsModalOpen(false);
           form.resetFields();
         }}
-        okText="Create"
+        okText="Submit"
         cancelText="Cancel"
-        width={600}
+        width={480}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
-            name="code"
-            label="Channel Code"
-            rules={[
-              { required: true, message: 'Please enter Channel Code' },
-              { pattern: /^[A-Z0-9_]+$/, message: 'Only uppercase letters, underscore, and numbers allowed' },
-            ]}
-            tooltip="全局唯一；仅允许大写字母、数字和下划线；创建后不可修改"
+            name="channel"
+            label="Channel"
+            rules={[{ required: true, message: 'Please enter Channel name' }]}
           >
-            <Input placeholder="e.g., GTB_NG" />
-          </Form.Item>
-          <Form.Item
-            name="party"
-            label="Party"
-            rules={[{ required: true, message: 'Please select Party' }]}
-            tooltip="多选；候选项取自 Basic Info → Party 维护的 Party 字典"
-          >
-            <Select mode="multiple" placeholder="Select Party">
-              {partyOptions.map((p) => (
-                <Select.Option key={p} value={p}>{p}</Select.Option>
-              ))}
-            </Select>
+            <Input placeholder="Channel name" />
           </Form.Item>
         </Form>
       </Modal>

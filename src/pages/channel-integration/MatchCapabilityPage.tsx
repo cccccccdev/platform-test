@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Breadcrumb, Button, Form, Input, message, Modal, Select, Space, Table, Tag } from 'antd';
+import { Breadcrumb, Button, Form, Input, message, Modal, Select, Space, Table, Tag, Tooltip } from 'antd';
 import { CopyOutlined, DeleteOutlined, DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { mockBusinessTypes } from '../../mock/data';
-import { useMatchCapabilityStore } from './matchCapabilityStore';
+import { nextMatchingId, useMatchCapabilityStore } from './matchCapabilityStore';
 import type { CapabilityDecisionVersion, InboundEndpoint, UriConfigStatus } from './types';
 
 interface NewInboundEndpointForm {
@@ -13,12 +13,10 @@ interface NewInboundEndpointForm {
 }
 
 const statusMeta: Record<UriConfigStatus, { label: string; color: string }> = {
-  draft: { label: 'Draft', color: 'default' },
-  submitted: { label: 'Submitted', color: 'orange' },
-  deployed: { label: 'Deployed', color: 'green' },
-  deprecated: { label: 'Deprecated', color: 'default' },
-  legacy_readonly: { label: 'Legacy Readonly', color: 'purple' },
-  error: { label: 'Error', color: 'red' },
+  DRAFT: { label: 'DRAFT', color: 'default' },
+  DAILY: { label: 'DAILY', color: 'blue' },
+  PRE: { label: 'PRE', color: 'orange' },
+  PROD: { label: 'PROD', color: 'green' },
 };
 
 const cloudOptions = ['MFB', 'BD', 'PK', 'ALIYUN', 'ALIYUN_FRANKFURT', 'ONELOOP'].map((value) => ({ value }));
@@ -41,7 +39,7 @@ export default function MatchCapabilityPage() {
   const [newVersionEndpoint, setNewVersionEndpoint] = useState<InboundEndpoint | null>(null);
   const [managingEndpoint, setManagingEndpoint] = useState<InboundEndpoint | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [inspect, setInspect] = useState<{ type: 'status' | 'log'; endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
+  const [inspect, setInspect] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
   const [deploying, setDeploying] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
   const [deployCloud, setDeployCloud] = useState<string>();
   const [filters, setFilters] = useState({ keyword: '', businessType: '', method: '', status: '' });
@@ -88,17 +86,17 @@ export default function MatchCapabilityPage() {
       return;
     }
     const decisionVersion: CapabilityDecisionVersion = {
-      id: `decision_${Date.now()}`,
+      id: nextMatchingId(endpointsByChannel),
       version: timestampVersion(),
       name: `${suffix.replaceAll('/', ' ')} Matching`.slice(0, 32),
       sourceType: 'v2',
-      configStatus: 'draft',
+      configStatus: 'DRAFT',
       fields: [],
       requestFields: [],
       matchType: 'single',
       singleNoField: '',
       matchFields: [],
-      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: values.businessType, ability: '', action: '', requestType: 'CALLBACK' }],
+      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: values.businessType, ability: '', action: '' }],
       customScript: 'def execute(request) {\n  return null\n}',
       fallbackBehavior: 'alert_and_reject',
       decryptEnabled: false,
@@ -119,12 +117,12 @@ export default function MatchCapabilityPage() {
       matchType: 'single',
       singleNoField: '',
       matchFields: [],
-      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: values.businessType, ability: '', action: '', requestType: 'CALLBACK' }],
+      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: values.businessType, ability: '', action: '' }],
       customScript: 'def execute(request) {\n  return null\n}',
       fallbackBehavior: 'alert_and_reject',
       decryptEnabled: false,
       version: decisionVersion.version,
-      configStatus: 'draft',
+      configStatus: 'DRAFT',
       badges: [],
       referenceCount: 0,
       updatedTime: new Date().toLocaleString(),
@@ -170,15 +168,6 @@ export default function MatchCapabilityPage() {
       });
       return;
     }
-    if (version.configStatus === 'deployed') {
-      Modal.confirm({
-        title: 'This version has deployment records',
-        content: 'If changes are submitted, the version returns to Submitted and its existing deployment records are removed.',
-        okText: 'Continue Editing',
-        onOk: () => openEditor(endpoint, version, 'config'),
-      });
-      return;
-    }
     openEditor(endpoint, version, 'config');
   };
 
@@ -196,8 +185,8 @@ export default function MatchCapabilityPage() {
   const currentDeployStatus = deployCloud && deploying
     ? environmentOrder.filter((env) => deploying.version.badges?.some((badge) => badge.cloud === deployCloud && badge.env === env)).at(-1) ?? 'DRAFT'
     : '-';
-  const nextDeployEnvironment = currentDeployStatus === 'DRAFT' ? 'DAILY' : currentDeployStatus === 'DAILY' ? 'PRE' : currentDeployStatus === 'PRE' ? 'PROD' : undefined;
-  const deployStatusRows = inspect?.type === 'status'
+  const nextDeployEnvironment = currentDeployStatus === 'DRAFT' ? 'DAILY' : currentDeployStatus === 'DAILY' ? (deployCloud === 'ONELOOP' ? 'PROD' : 'PRE') : currentDeployStatus === 'PRE' ? 'PROD' : undefined;
+  const deployStatusRows = inspect
     ? [...new Set((inspect.version.badges ?? []).map((badge) => badge.cloud))].map((cloud) => ({
         cloud,
         environments: new Set((inspect.version.badges ?? []).filter((badge) => badge.cloud === cloud).map((badge) => badge.env)),
@@ -205,16 +194,14 @@ export default function MatchCapabilityPage() {
     : [];
 
   const renderOperations = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion) => {
-    const hasProd = version.badges?.some((badge) => badge.env === 'PROD');
-    const clone = () => { const cloned = cloneVersion(channelCode, endpoint.id, version.id); if (cloned) openEditor(endpoint, cloned, 'config'); else message.warning('Resolve the existing Draft first.'); };
+    const clone = () => { const cloned = cloneVersion(channelCode, endpoint.id, version.id); if (cloned) openEditor(endpoint, cloned, 'config'); };
     return <Space wrap>
-      {version.sourceType === 'v2' && version.configStatus === 'deployed' && hasProd && <Button type="link" icon={<CopyOutlined />} onClick={clone}>Clone</Button>}
-      {version.configStatus === 'deployed' && hasProd && <Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button>}
-      {(version.configStatus === 'draft' || version.configStatus === 'submitted' || (version.configStatus === 'deployed' && !hasProd)) && <Button type="link" onClick={() => openConfig(endpoint, version)}>Config</Button>}
-      {(version.configStatus === 'submitted' || version.configStatus === 'deployed') && <Button type="link" onClick={() => openDeploy(endpoint, version)}>Deploy</Button>}
-      {version.configStatus === 'deployed' && <Button type="link" onClick={() => setInspect({ type: 'status', endpoint, version })}>Deploy Status</Button>}
-      {(version.configStatus === 'draft' || version.configStatus === 'submitted' || (version.configStatus === 'deployed' && !hasProd)) && <Button type="link" danger icon={<DeleteOutlined />} onClick={() => deleteVersion(channelCode, endpoint.id, version.id)}>Delete</Button>}
-      <Button type="link" onClick={() => setInspect({ type: 'log', endpoint, version })}>Log</Button>
+      {version.sourceType === 'v2' && version.configStatus === 'PROD' && <Button type="link" icon={<CopyOutlined />} onClick={clone}>Clone</Button>}
+      {version.configStatus === 'PROD' && <Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button>}
+      {version.configStatus !== 'PROD' && <Button type="link" onClick={() => openConfig(endpoint, version)}>Config</Button>}
+      <Button type="link" onClick={() => openDeploy(endpoint, version)}>Deploy</Button>
+      {version.configStatus !== 'DRAFT' && <Button type="link" onClick={() => setInspect({ endpoint, version })}>Deploy Status</Button>}
+      {version.configStatus === 'DRAFT' && <Button type="link" danger icon={<DeleteOutlined />} onClick={() => Modal.confirm({ title: 'Delete Capability Matching?', content: `Matching ID ${version.id} will be permanently deleted.`, okText: 'Delete', okButtonProps: { danger: true }, onOk: () => deleteVersion(channelCode, endpoint.id, version.id) })}>Delete</Button>}
     </Space>;
   };
 
@@ -225,7 +212,8 @@ export default function MatchCapabilityPage() {
       pagination={false}
       size="small"
       columns={[
-        { title: 'Version', dataIndex: 'version', width: 120 },
+        { title: 'Matching ID', dataIndex: 'id', width: 190 },
+        { title: 'Version', dataIndex: 'version', width: 135 },
         { title: 'Name', dataIndex: 'name', width: 260, render: (name, version) => <Space>{version.sourceType === 'legacy' && <Tag color="purple">Legacy 1.0</Tag>}<span>{name}</span></Space> },
         { title: 'Status', width: 220, render: (_, version) => renderStatus(version) },
         { title: 'Operator', dataIndex: 'operator', width: 110 },
@@ -260,7 +248,7 @@ export default function MatchCapabilityPage() {
           { title: 'URI', dataIndex: 'url', render: (uri, endpoint) => <Space><strong>{uri.startsWith(pathPrefix) ? uri.slice(pathPrefix.length) : uri}</strong>{endpoint.uriType === 'legacy' && <Tag color="purple">Legacy</Tag>}</Space> },
           { title: 'Business Type', dataIndex: 'businessTypes', width: 260, render: (businessTypes: string[]) => <Space wrap>{businessTypes.map((bt) => <Tag key={bt}>{bt}</Tag>)}</Space> },
           { title: 'Method', dataIndex: 'method', width: 120, render: (method) => <Tag color="blue">{method}</Tag> },
-          { title: 'Operation', width: 360, render: (_, endpoint) => <Space><Button size="small" onClick={() => setManagingEndpoint(endpoint)}>Manage Business Type</Button><Button type="primary" size="small" disabled={endpoint.versions.some((version) => version.configStatus === 'draft')} onClick={() => { setNewVersionEndpoint(endpoint); versionForm.resetFields(); }}>New Matching Version</Button></Space> },
+          { title: 'Operation', width: 360, render: (_, endpoint) => <Space><Button size="small" onClick={() => setManagingEndpoint(endpoint)}>Manage Business Type</Button><Button type="primary" size="small" onClick={() => { setNewVersionEndpoint(endpoint); versionForm.resetFields(); }}>New Matching Version</Button></Space> },
         ]}
       />
 
@@ -330,13 +318,13 @@ export default function MatchCapabilityPage() {
         </>}
       </Modal>
 
-      <Modal title={inspect?.type === 'status' ? 'Deploy Status' : 'Operation Log'} width={inspect?.type === 'status' ? 900 : 520} open={Boolean(inspect)} footer={null} onCancel={() => setInspect(null)}>
-        {inspect ? inspect.type === 'status'
+      <Modal title="Deploy Status" width={900} open={Boolean(inspect)} footer={null} onCancel={() => setInspect(null)}>
+        {inspect
           ? <div>
               <div style={{ marginBottom: 24 }}><strong>channel:</strong><span style={{ marginLeft: 12 }}>{channelCode}</span></div>
               <Space size={28} wrap style={{ marginBottom: 24 }}>
                 <span><strong>version:</strong><Tag color="green" style={{ marginLeft: 10 }}>{inspect.version.version}</Tag></span>
-                <span><strong>endpointId:</strong><span style={{ marginLeft: 10 }}>{inspect.endpoint.id}</span></span>
+                <span><strong>matchingId:</strong><span style={{ marginLeft: 10 }}>{inspect.version.id}</span></span>
                 <span><strong>name:</strong><span style={{ marginLeft: 10 }}>{inspect.version.name}</span></span>
               </Space>
               <Table
@@ -345,12 +333,15 @@ export default function MatchCapabilityPage() {
                 dataSource={deployStatusRows}
                 columns={[
                   { title: 'Cloud', dataIndex: 'cloud', width: 260 },
-                  { title: 'Environment', render: (_, row) => <Space>{environmentOrder.map((env) => <Tag key={env} color={row.environments.has(env) ? 'green' : 'default'}>{env}</Tag>)}</Space> },
+                  { title: 'Environment', render: (_, row) => <Space>{environmentOrder.map((env) => {
+                    const record = inspect.version.deploymentRecords?.find((item) => item.version === inspect.version.version && item.cloud === row.cloud && item.env === env);
+                    const tag = <Tag key={env} color={row.environments.has(env) ? 'green' : 'default'}>{env}</Tag>;
+                    return record ? <Tooltip key={env} title={<><div>Operator: {record.operator}</div><div>Operation Time: {record.operationTime}</div></>}>{tag}</Tooltip> : tag;
+                  })}</Space> },
                 ]}
                 locale={{ emptyText: 'No deployment record.' }}
               />
             </div>
-          : <div><strong>{inspect.version.updatedTime}</strong> · {inspect.version.operator}<div>Updated Capability Matching Version {inspect.version.version}</div></div>
           : null}
       </Modal>
     </div>

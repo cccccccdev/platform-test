@@ -15,8 +15,8 @@ import {
 import { DownOutlined, EyeOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { abilityOptions, capabilityActionOptions } from '../../mock/data';
-import { useConfigIntegrationStore } from './configIntegrationStore';
-import type { ConfigAbility, FlowVersion } from './types';
+import { CLOUD_DEPLOY_SEQUENCES, useConfigIntegrationStore } from './configIntegrationStore';
+import type { CloudType, ConfigAbility, DeployRecord, FlowGroupVersion } from './types';
 
 const { Text } = Typography;
 
@@ -106,16 +106,19 @@ function ConfigCapabilitiesModal({
   open,
   ability,
   availableActions,
+  stateMachineOptions,
   onCancel,
   onSave,
 }: {
   open: boolean;
   ability: ConfigAbility;
   availableActions: string[];
+  stateMachineOptions: string[];
   onCancel: () => void;
-  onSave: (nextActions: string[]) => void;
+  onSave: (nextActions: string[], nextStateMachine: string) => void;
 }) {
   const [form] = Form.useForm();
+  const hasFlowGroups = ability.versions.length > 0;
 
   return (
     <Modal
@@ -128,7 +131,7 @@ function ConfigCapabilitiesModal({
       }}
       onOk={() => {
         void form.validateFields().then((values) => {
-          onSave(values.actions);
+          onSave(values.actions, values.stateMachine);
         });
       }}
     >
@@ -148,8 +151,18 @@ function ConfigCapabilitiesModal({
         <Form.Item name="ability" label="Ability">
           <Select disabled />
         </Form.Item>
-        <Form.Item name="stateMachine" label="State Machine">
-          <Select disabled />
+        <Form.Item
+          name="stateMachine"
+          label="State Machine"
+          rules={[{ required: true }]}
+          extra={hasFlowGroups
+            ? 'State Machine cannot be changed because this Ability already contains a Flow Group.'
+            : 'State Machine can be changed until the first Flow Group is created.'}
+        >
+          <Select
+            disabled={hasFlowGroups}
+            options={stateMachineOptions.map((item) => ({ label: item, value: item }))}
+          />
         </Form.Item>
         <Form.Item name="actions" label="Actions" rules={[{ required: true, type: 'array', min: 1, message: 'At least one Action is required' }]}>
           <Select
@@ -169,6 +182,13 @@ function RemarkCell({ remark }: { remark?: string }) {
   return <Tooltip title={remark}><span>{remark.slice(0, 50)}...</span></Tooltip>;
 }
 
+const statusColors: Record<string, string> = {
+  DRAFT: 'default',
+  DAILY: 'blue',
+  PRE: 'orange',
+  PROD: 'green',
+};
+
 export default function ConfigAbilityListPage() {
   const { channelCode = '' } = useParams<{ channelCode: string }>();
   const navigate = useNavigate();
@@ -176,7 +196,13 @@ export default function ConfigAbilityListPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showAddCapabilities, setShowAddCapabilities] = useState(false);
   const [previewStateMachine, setPreviewStateMachine] = useState<string | null>(null);
-  const [deployStatus, setDeployStatus] = useState<{ ability: ConfigAbility; version: FlowVersion } | null>(null);
+  const [deployStatusGroup, setDeployStatusGroup] = useState<{ ability: ConfigAbility; group: FlowGroupVersion } | null>(null);
+  const [deployTarget, setDeployTarget] = useState<{
+    ability: ConfigAbility;
+    group: FlowGroupVersion;
+    allowUnsubmittedDrafts: boolean;
+  } | null>(null);
+  const [selectedCloud, setSelectedCloud] = useState<CloudType | undefined>();
   const [configAbility, setConfigAbility] = useState<ConfigAbility | null>(null);
   const pageSize = 10;
 
@@ -184,11 +210,12 @@ export default function ConfigAbilityListPage() {
     (state) => state.abilitiesByChannel[channelCode] ?? []
   );
   const addAbility = useConfigIntegrationStore((state) => state.addAbility);
-  const createVersion = useConfigIntegrationStore((state) => state.createVersion);
-  const cloneVersion = useConfigIntegrationStore((state) => state.cloneVersion);
-  const deleteVersion = useConfigIntegrationStore((state) => state.deleteVersion);
-  const deployVersion = useConfigIntegrationStore((state) => state.deployVersion);
-  const updateAbilityActions = useConfigIntegrationStore((state) => state.updateAbilityActions);
+  const createFlowGroup = useConfigIntegrationStore((state) => state.createFlowGroup);
+  const cloneGroup = useConfigIntegrationStore((state) => state.cloneGroup);
+  const deleteGroup = useConfigIntegrationStore((state) => state.deleteGroup);
+  const deployGroup = useConfigIntegrationStore((state) => state.deployGroup);
+  const getDeployPreview = useConfigIntegrationStore((state) => state.getDeployPreview);
+  const updateAbilityConfig = useConfigIntegrationStore((state) => state.updateAbilityConfig);
 
   const paginatedAbilities = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -204,113 +231,155 @@ export default function ConfigAbilityListPage() {
     });
   };
 
-  const versionPath = (ability: ConfigAbility, version: FlowVersion) =>
-    `/channel-integration/${channelCode}/integration/config/${ability.bt}/${ability.ability}/versions/${version.id}`;
+  const groupConfigPath = (ability: ConfigAbility, group: FlowGroupVersion) =>
+    `/channel-integration/${channelCode}/integration/config/${ability.bt}/${ability.ability}/versions/${group.id}`;
 
-  const handleNewVersion = (ability: ConfigAbility) => {
-    const version = createVersion(channelCode, ability.bt, ability.ability);
-    if (!version) {
-      message.warning('A Draft Version already exists. Configure, submit, or delete it first.');
+  const handleCreateFlowGroup = (ability: ConfigAbility) => {
+    const group = createFlowGroup(channelCode, ability.bt, ability.ability);
+    if (!group) {
+      message.warning('A DRAFT Flow Group already exists. Resolve it before creating another.');
       return;
     }
-    navigate(versionPath(ability, version));
+    message.success('Flow Group created');
+    navigate(groupConfigPath(ability, group));
   };
 
-  const handleClone = (ability: ConfigAbility, version: FlowVersion) => {
-    const clone = cloneVersion(channelCode, ability.bt, ability.ability, version.id);
+  const handleClone = (ability: ConfigAbility, group: FlowGroupVersion) => {
+    const clone = cloneGroup(channelCode, ability.bt, ability.ability, group.groupId);
     if (!clone) {
-      message.warning('A Draft Version already exists. Resolve it before cloning.');
+      message.warning('Only PROD Groups can be cloned, or a DRAFT Group already exists.');
       return;
     }
-    message.success('Version cloned into a new runtime Draft');
-    navigate(versionPath(ability, clone));
+    message.success(`Group cloned from ${group.groupId}, Version ${group.version}`);
+    navigate(groupConfigPath(ability, clone));
   };
 
-  const handleDeploy = (ability: ConfigAbility, version: FlowVersion) => {
-    const deploy = () => {
-      const target = deployVersion(channelCode, ability.bt, ability.ability, version.id);
-      if (!target) {
-        message.error('Only Submitted or Deployed versions can be deployed');
-        return;
-      }
-      message.success(`Version deployed to BD - ${target}`);
-    };
-    if (version.hasUnsubmittedDraft) {
+  const openDeployModal = (
+    ability: ConfigAbility,
+    group: FlowGroupVersion,
+    allowUnsubmittedDrafts = false
+  ) => {
+    const draftFlows = group.flows.filter((flow) => flow.status === 'DRAFT');
+    if (group.flows.length === 0) {
+      message.error('Group has no Flows. Create and submit at least one Flow first.');
+      return;
+    }
+    if (draftFlows.length > 0) {
+      message.error(`Submit the following Flow(s) first: ${draftFlows.map((flow) => flow.name).join(', ')}.`);
+      return;
+    }
+    const flowsWithDrafts = group.flows.filter(
+      (flow) => flow.status === 'SUBMITTED' && flow.submittedContent != null
+    );
+    if (flowsWithDrafts.length > 0 && !allowUnsubmittedDrafts) {
       Modal.confirm({
-        title: 'Unsubmitted Draft detected',
-        content: 'The Draft changes will not be included in this deployment. Continue with the last submitted content?',
-        okText: 'Continue Deploying',
-        onOk: deploy,
+        title: 'Unsubmitted Drafts Detected',
+        content: `${flowsWithDrafts.map((flow) => flow.name).join(', ')} contain unpublished drafts. The drafts will not be included. Continue with the last submitted content?`,
+        okText: 'Continue Deploying (Publish Last Submitted Content)',
+        cancelText: 'Cancel',
+        onOk: () => openDeployModal(ability, group, true),
       });
       return;
     }
-    deploy();
+    setSelectedCloud(undefined);
+    setDeployTarget({ ability, group, allowUnsubmittedDrafts });
   };
 
-  const confirmDelete = (ability: ConfigAbility, version: FlowVersion) => {
+  const confirmDeploy = () => {
+    if (!deployTarget || !selectedCloud) return;
+    const result = deployGroup(
+      channelCode,
+      deployTarget.ability.bt,
+      deployTarget.ability.ability,
+      deployTarget.group.groupId,
+      selectedCloud,
+      deployTarget.allowUnsubmittedDrafts
+    );
+    if (!result.success) {
+      message.error(result.error);
+      return;
+    }
+    message.success(`Version ${deployTarget.group.version} deployed to ${selectedCloud} - ${result.targetEnv}`);
+    setDeployTarget(null);
+    setSelectedCloud(undefined);
+  };
+
+  const confirmDeleteGroup = (ability: ConfigAbility, group: FlowGroupVersion) => {
     Modal.confirm({
       title: 'Confirm Delete',
-      content: `Delete ${version.version}?`,
+      content: `Delete Flow Group ${group.groupId} (${group.version})? This cannot be undone.`,
       okButtonProps: { danger: true },
       onOk: () => {
-        deleteVersion(channelCode, ability.bt, ability.ability, version.id);
-        message.success('Version deleted');
+        deleteGroup(channelCode, ability.bt, ability.ability, group.groupId);
+        message.success('Flow Group deleted');
       },
     });
   };
 
-  const renderStatus = (version: FlowVersion) => {
-    if (version.publishStatus === 'draft') return <Tag>Draft</Tag>;
-    if (version.publishStatus === 'submitted') return <Tag color="orange">Submitted</Tag>;
-    return <Tag color="green">Deployed</Tag>;
+  const renderStatus = (group: FlowGroupVersion) => {
+    const color = statusColors[group.status] || 'default';
+    return <Tag color={color}>{group.status}</Tag>;
   };
 
-  const renderOperations = (ability: ConfigAbility, version: FlowVersion) => {
-    const hasProd = version.badges.some((badge) => badge.env === 'PROD');
-    const openEditor = () => navigate(versionPath(ability, version));
-    const openConfig = () => {
-      if (version.hasUnsubmittedDraft) {
-        Modal.confirm({
-          title: 'Unsubmitted Draft detected',
-          content: 'Load the saved Draft? Choosing Start Fresh discards the Draft and reloads the last submitted content.',
-          okText: 'Load Draft',
-          cancelText: 'Start Fresh',
-          onOk: openEditor,
-          onCancel: openEditor,
-        });
-        return;
-      }
-      if (version.publishStatus === 'deployed') {
-        Modal.confirm({ title: 'This Version has deployment records', content: 'Submitting changes returns it to Submitted and removes existing deployment records.', okText: 'Continue Editing', onOk: openEditor });
-        return;
-      }
-      openEditor();
-    };
-    return <Space wrap>
-      {version.publishStatus === 'deployed' && hasProd && <Button type="link" onClick={() => handleClone(ability, version)}>Clone</Button>}
-      {version.publishStatus === 'deployed' && hasProd && <Button type="link" onClick={() => navigate(`${versionPath(ability, version)}?mode=detail`)}>Detail</Button>}
-      {(version.publishStatus === 'draft' || version.publishStatus === 'submitted' || (version.publishStatus === 'deployed' && !hasProd)) && <Button type="link" onClick={openConfig}>Config</Button>}
-      {(version.publishStatus === 'submitted' || version.publishStatus === 'deployed') && <Button type="link" onClick={() => handleDeploy(ability, version)}>Deploy</Button>}
-      {version.publishStatus === 'deployed' && <Button type="link" onClick={() => setDeployStatus({ ability, version })}>Deploy Status</Button>}
-      {(version.publishStatus === 'draft' || version.publishStatus === 'submitted' || (version.publishStatus === 'deployed' && !hasProd)) && <Button type="link" danger onClick={() => confirmDelete(ability, version)}>Delete</Button>}
-      <Button type="link" onClick={() => message.info(`Operation log for ${version.version}`)}>Log</Button>
-    </Space>;
+  const renderGroupOperations = (ability: ConfigAbility, group: FlowGroupVersion) => {
+    const items: React.ReactNode[] = [];
+
+    if (group.status === 'DRAFT' || group.status === 'DAILY' || group.status === 'PRE') {
+      items.push(
+        <Button key="config" type="link" onClick={() => navigate(groupConfigPath(ability, group))}>
+          Config
+        </Button>
+      );
+    }
+    if (group.status === 'PROD') {
+      items.push(
+        <Button key="clone" type="link" onClick={() => handleClone(ability, group)}>
+          Clone
+        </Button>
+      );
+      items.push(
+        <Button key="detail" type="link" onClick={() => navigate(`${groupConfigPath(ability, group)}?mode=detail`)}>
+          Detail
+        </Button>
+      );
+    }
+    items.push(
+      <Button key="deploy" type="link" onClick={() => openDeployModal(ability, group)}>
+        Deploy
+      </Button>
+    );
+    if (group.status !== 'DRAFT') {
+      items.push(
+        <Button key="deployStatus" type="link" onClick={() => setDeployStatusGroup({ ability, group })}>
+          Deploy Status
+        </Button>
+      );
+    }
+    if (group.status === 'DRAFT') {
+      items.push(
+        <Button key="delete" type="link" danger onClick={() => confirmDeleteGroup(ability, group)}>
+          Delete
+        </Button>
+      );
+    }
+    return <Space wrap>{items}</Space>;
   };
 
   const expandedRowRender = (ability: ConfigAbility) => (
-    <Table<FlowVersion>
+    <Table<FlowGroupVersion>
       dataSource={ability.versions}
       rowKey="id"
       pagination={false}
       size="small"
-      locale={{ emptyText: 'No Flow Version yet' }}
+      locale={{ emptyText: 'No Flow Group yet. Click "Create Flow Group" to add one.' }}
       columns={[
-        { title: 'Version', dataIndex: 'version', width: 110 },
-        { title: 'Status', width: 140, render: (_value, version) => renderStatus(version) },
-        { title: 'Remark', render: (_value, version) => <RemarkCell remark={version.remark} /> },
+        { title: 'Group ID', dataIndex: 'groupId', width: 100 },
+        { title: 'Version', dataIndex: 'version', width: 150 },
+        { title: 'Status', width: 100, render: (_value, group) => renderStatus(group) },
+        { title: 'Remark', render: (_value, group) => <RemarkCell remark={group.remark} /> },
         { title: 'Operator', dataIndex: 'operator', width: 110 },
         { title: 'Operation Time', dataIndex: 'operationTime', width: 180 },
-        { title: 'Operation', width: 320, render: (_value, version) => renderOperations(ability, version) },
+        { title: 'Operation', width: 380, render: (_value, group) => renderGroupOperations(ability, group) },
       ]}
     />
   );
@@ -370,13 +439,23 @@ export default function ConfigAbilityListPage() {
           <Button size="small" onClick={() => setConfigAbility(ability)}>
             Config
           </Button>
-          <Button type="primary" size="small" onClick={() => handleNewVersion(ability)}>
-            New Flow Version
+          <Button type="primary" size="small" onClick={() => handleCreateFlowGroup(ability)}>
+            Create Flow Group
           </Button>
         </Space>
       ),
     },
   ];
+
+  const deployPreview = deployTarget && selectedCloud
+    ? getDeployPreview(
+        channelCode,
+        deployTarget.ability.bt,
+        deployTarget.ability.ability,
+        deployTarget.group.groupId,
+        selectedCloud
+      )
+    : null;
 
   return (
     <div style={{ padding: 24 }}>
@@ -434,9 +513,16 @@ export default function ConfigAbilityListPage() {
           open
           ability={configAbility}
           availableActions={capabilityActionOptions[`${configAbility.bt}:${configAbility.ability}`] ?? configAbility.actions}
+          stateMachineOptions={linkedStateMachines[`${configAbility.bt}:${configAbility.ability}`] ?? [configAbility.stateMachine]}
           onCancel={() => setConfigAbility(null)}
-          onSave={(nextActions) => {
-            const result = updateAbilityActions(channelCode, configAbility.bt, configAbility.ability, nextActions);
+          onSave={(nextActions, nextStateMachine) => {
+            const result = updateAbilityConfig(
+              channelCode,
+              configAbility.bt,
+              configAbility.ability,
+              nextActions,
+              nextStateMachine
+            );
             if (!result.success && result.errors) {
               Modal.error({
                 title: 'Cannot save Actions',
@@ -449,7 +535,7 @@ export default function ConfigAbilityListPage() {
               return;
             }
             setConfigAbility(null);
-            message.success('Actions updated');
+            message.success('Capabilities updated');
           }}
         />
       )}
@@ -465,23 +551,116 @@ export default function ConfigAbilityListPage() {
         </div>
       </Modal>
 
-      <Modal title="Deploy Status" open={Boolean(deployStatus)} footer={null} width={820} onCancel={() => setDeployStatus(null)}>
-        {deployStatus && <>
-          <Space size={24} wrap style={{ marginBottom: 20 }}>
-            <span><strong>Channel:</strong> {channelCode}</span>
-            <span><strong>Version:</strong> <Tag color="green">{deployStatus.version.version}</Tag></span>
-            <span><strong>Ability:</strong> {deployStatus.ability.bt} / {deployStatus.ability.ability}</span>
-          </Space>
-          <Table
-            rowKey="cloud"
-            pagination={false}
-            dataSource={[...new Set(deployStatus.version.badges.map((badge) => badge.cloud))].map((cloud) => ({ cloud }))}
-            columns={[
-              { title: 'Cloud', dataIndex: 'cloud', width: 220 },
-              { title: 'Environment', render: (_value, row) => <Space>{(['DAILY', 'PRE', 'PROD'] as const).map((env) => <Tag key={env} color={deployStatus.version.badges.some((badge) => badge.cloud === row.cloud && badge.env === env) ? 'green' : 'default'}>{env}</Tag>)}</Space> },
-            ]}
-          />
-        </>}
+      <Modal
+        title="Deploy Flow Group"
+        open={Boolean(deployTarget)}
+        okText="Deploy"
+        cancelText="Cancel"
+        okButtonProps={{ disabled: !selectedCloud || !deployPreview?.targetEnv }}
+        onOk={confirmDeploy}
+        onCancel={() => {
+          setDeployTarget(null);
+          setSelectedCloud(undefined);
+        }}
+        width={640}
+      >
+        {deployTarget && (
+          <div style={{ padding: '12px 20px 4px' }}>
+            <Space size={20} wrap style={{ marginBottom: 28 }}>
+              <span><strong>Group ID:</strong> {deployTarget.group.groupId}</span>
+              <span><strong>Version:</strong> <Tag color="green">{deployTarget.group.version}</Tag></span>
+              <span><strong>Ability:</strong> {deployTarget.ability.bt} / {deployTarget.ability.ability}</span>
+            </Space>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 24, alignItems: 'center' }}>
+              <Text strong><span style={{ color: '#ff4d4f' }}>* </span>Cloud</Text>
+              <Select<CloudType>
+                value={selectedCloud}
+                placeholder="Select Cloud"
+                onChange={setSelectedCloud}
+                style={{ width: '100%' }}
+                options={(Object.keys(CLOUD_DEPLOY_SEQUENCES) as CloudType[]).map((cloud) => ({
+                  label: cloud,
+                  value: cloud,
+                }))}
+              />
+
+              <Text strong>Current Status</Text>
+              <Text>{selectedCloud ? deployPreview?.currentStatus ?? '-' : '-'}</Text>
+
+              <Text strong>Deploy to</Text>
+              <Select
+                disabled
+                value={deployPreview?.targetEnv ?? undefined}
+                placeholder={selectedCloud && deployPreview?.isComplete ? 'Already deployed to PROD' : '-'}
+                style={{ width: '100%' }}
+                options={deployPreview?.targetEnv ? [{ label: deployPreview.targetEnv, value: deployPreview.targetEnv }] : []}
+              />
+            </div>
+
+            {selectedCloud && (
+              <Text type="secondary" style={{ display: 'block', marginTop: 20 }}>
+                Release sequence: {CLOUD_DEPLOY_SEQUENCES[selectedCloud].join(' → ')}. Environments cannot be skipped.
+              </Text>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal title="Deploy Status" open={Boolean(deployStatusGroup)} footer={null} width={820} onCancel={() => setDeployStatusGroup(null)}>
+        {deployStatusGroup && (() => {
+          const grouped: Partial<Record<CloudType, DeployRecord[]>> = {};
+          for (const r of deployStatusGroup.group.deployRecords) {
+            if (!grouped[r.cloud]) grouped[r.cloud] = [];
+            grouped[r.cloud]!.push(r);
+          }
+          const groupedEntries = Object.entries(grouped) as Array<[CloudType, DeployRecord[]]>;
+          return <>
+            <div style={{ padding: '8px 4px 20px' }}>
+              <div style={{ marginBottom: 22 }}><strong>Channel:</strong> {channelCode}</div>
+              <Space size={28} wrap>
+                <span><strong>Group ID:</strong> {deployStatusGroup.group.groupId}</span>
+                <span><strong>Version:</strong> <Tag color="green">{deployStatusGroup.group.version}</Tag></span>
+                <span><strong>Business Type:</strong> {deployStatusGroup.ability.bt}</span>
+                <span><strong>Ability:</strong> {deployStatusGroup.ability.ability}</span>
+              </Space>
+            </div>
+            <Table<[CloudType, DeployRecord[]]>
+              rowKey={(record) => record[0]}
+              pagination={false}
+              dataSource={groupedEntries}
+              columns={[
+                { title: 'Cloud', width: 180, render: (_v: unknown, record: [CloudType, DeployRecord[]]) => <Text style={{ fontSize: 16 }}>{record[0]}</Text> },
+                {
+                  title: 'Environment',
+                  render: (_v: unknown, record: [CloudType, DeployRecord[]]) => (
+                    <Space wrap size={14}>
+                      {CLOUD_DEPLOY_SEQUENCES[record[0]].map((env) => {
+                        const rec = record[1].find((r: DeployRecord) => r.env === env);
+                        return rec ? (
+                          <Tooltip
+                            key={env}
+                            title={(
+                              <div>
+                                <div>Version: {rec.version}</div>
+                                <div>Operator: {rec.operator}</div>
+                                <div>Operation Time: {rec.operationTime}</div>
+                              </div>
+                            )}
+                          >
+                            <Tag color="green" style={{ cursor: 'help', paddingInline: 14, fontSize: 14 }}>{env}</Tag>
+                          </Tooltip>
+                        ) : (
+                          <Tag key={env} style={{ paddingInline: 14, fontSize: 14 }}>{env}</Tag>
+                        );
+                      })}
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </>;
+        })()}
       </Modal>
     </div>
   );

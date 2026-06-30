@@ -24,6 +24,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
       flowType: 'outbound',
       endType: 'wait_external',
       isConfigured: false,
+      status: 'DRAFT',
       triggerEvents: [],
     }
   ]);
@@ -78,6 +79,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
       flowType: flowType,
       endType: editingFlow?.endType || 'wait_external',
       isConfigured: true,
+      status: 'DRAFT',
     };
 
     if (editingFlow) {
@@ -228,6 +230,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
         existingFlows={flows}
         availableEvents={availableEvents}
         availableActions={[]}
+        availableSubStates={[stateName]}
         editingFlow={editingFlow}
         onSave={handleSaveFlow}
         onNext={handleNextFromConfig}

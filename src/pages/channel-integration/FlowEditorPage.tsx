@@ -11,8 +11,11 @@ import { useChannelScopeStore } from './channelScopeStore';
 import type { AuthType, AuthConfig, CredentialItem } from './channelScopeStore';
 import CredentialDrawer from './sharedCredentialDrawer';
 import AuthenticationDrawer from './sharedAuthenticationDrawer';
+import CanvasContextPanel from './CanvasContextPanel';
 
 const { Text, Title } = Typography;
+
+const EMPTY_AUTHENTICATIONS: AuthConfig[] = [];
 
 const authTypeLabels: Record<AuthType, string> = {
   basic: 'Basic Auth',
@@ -749,6 +752,8 @@ function ContextPanel({
   );
 }
 
+void ContextPanel;
+
 // Network 组件配置抽屉
 function NetworkConfigDrawer({
   visible,
@@ -782,7 +787,9 @@ function NetworkConfigDrawer({
   onSave: (config: any) => void;
 }) {
   const [activeTab, setActiveTab] = useState('endpointBasicInfo');
-  const networkAuthOptions = useChannelScopeStore((s) => channelCode ? (s.authenticationsByChannel[channelCode] ?? []) : []);
+  const networkAuthOptions = useChannelScopeStore((s) => channelCode
+    ? s.authenticationsByChannel[channelCode]
+    : undefined) ?? EMPTY_AUTHENTICATIONS;
   const [localMappingContext, setLocalMappingContext] = useState<{ section: string; rowIndex: number } | null>(null);
   // Use prop if provided, otherwise use local state
   const effectiveMappingContext = activeMappingContext !== undefined ? activeMappingContext : localMappingContext;
@@ -1851,7 +1858,7 @@ export default function FlowEditorPage() {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
 
-  const [spiData, setSpiData] = useState<{ businessType: string; ability: string; action: string } | undefined>({
+  const [, setSpiData] = useState<{ businessType: string; ability: string; action: string } | undefined>({
     businessType: 'DEPOSIT',
     ability: 'card',
     action: 'pay',
@@ -1947,7 +1954,8 @@ export default function FlowEditorPage() {
   );
   const storedVersion = storedAbility?.versions.find((item) => item.id === params.versionId);
   const storedFlow = storedVersion?.flows.find((item) => item.id === params.flowId);
-  const updateStoredFlow = useConfigIntegrationStore((state) => state.updateFlow);
+  const saveDraftFlow = useConfigIntegrationStore((state) => state.saveDraftFlow);
+  const submitFlow = useConfigIntegrationStore((state) => state.submitFlow);
   const readOnly = searchParams.get('mode') === 'detail';
   const actionName = storedFlow?.triggerEvents?.[0] ?? storedFlow?.contextActions?.[0] ?? '—';
 
@@ -2036,13 +2044,10 @@ export default function FlowEditorPage() {
 }`,
     },
   ];
-  const channelScopeCredentials = useChannelScopeStore((s) => s.credentialsByChannel[params.channelCode ?? ''] ?? []);
-  const channelScopeAuthentications = useChannelScopeStore((s) => s.authenticationsByChannel[params.channelCode ?? ''] ?? []);
-
-  const [mockGlobalVars, setMockGlobalVars] = useState<any[]>([
+  const [, setMockGlobalVars] = useState<any[]>([
     { name: 'channelCode', value: 'PAYSTACK' },
   ]);
-  const [mockOrderVars, setMockOrderVars] = useState<any[]>([
+  const [, setMockOrderVars] = useState<any[]>([
     { name: 'requestReference', value: '{{order.requestReference}}' },
   ]);
   const [mockGeneratedFields, setMockGeneratedFields] = useState<any[]>([
@@ -2052,10 +2057,6 @@ export default function FlowEditorPage() {
   const [editingCredential, setEditingCredential] = useState<CredentialItem | null>(null);
   const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
   const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
-
-  const refreshContext = useCallback((automatic = false) => {
-    if (!automatic) message.success('Context references are up to date');
-  }, []);
 
   const openComponentConfig = useCallback((code: string) => {
     if (code === 'httpCall') setShowNetworkDrawer(true);
@@ -2142,15 +2143,16 @@ export default function FlowEditorPage() {
   }));
   const serializeEdges = (): FlowCanvasEdge[] => edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target }));
 
+  const groupId = storedVersion?.groupId;
   const parentPath = `/channel-integration/${params.channelCode}/integration/config/${params.bt}/${params.ability}/versions/${params.versionId}`;
 
   const handleSave = () => {
-    if (params.channelCode && params.bt && params.ability && params.versionId && params.flowId) {
-      updateStoredFlow(
+    if (params.channelCode && params.bt && params.ability && groupId && params.flowId) {
+      saveDraftFlow(
         params.channelCode,
         params.bt,
         params.ability,
-        params.versionId,
+        groupId,
         params.flowId,
         { isConfigured: false, canvasNodes: serializeNodes(), canvasEdges: serializeEdges() }
       );
@@ -2169,15 +2171,19 @@ export default function FlowEditorPage() {
       message.error(`${incompleteNodes.length} component(s) still require configuration`);
       return;
     }
-    if (params.channelCode && params.bt && params.ability && params.versionId && params.flowId) {
-      updateStoredFlow(
+    if (params.channelCode && params.bt && params.ability && groupId && params.flowId) {
+      const result = submitFlow(
         params.channelCode,
         params.bt,
         params.ability,
-        params.versionId,
+        groupId,
         params.flowId,
         { isConfigured: true, canvasNodes: serializeNodes(), canvasEdges: serializeEdges() }
       );
+      if (!result.success) {
+        message.error(result.error);
+        return;
+      }
     }
     message.success('Flow submitted');
     navigate(parentPath);
@@ -2224,7 +2230,7 @@ export default function FlowEditorPage() {
             ['Business Type', params.bt],
             ['Ability', params.ability],
             ['Action', actionName],
-            ['Flow Version', storedVersion?.version],
+            ['Flow Group Version', storedVersion?.version],
             ['Flow ID', params.flowId],
             ['Flow Name', storedFlow?.name],
             ['Trigger Type', storedFlow?.triggerType],
@@ -2240,42 +2246,13 @@ export default function FlowEditorPage() {
       {/* 内容区域 */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         {/* Context 上下文面板 */}
-        <ContextPanel
-          spiData={spiData}
-          endpoints={mockEndpoints}
-          credentials={channelScopeCredentials}
-          authentications={channelScopeAuthentications}
-          globalVariables={mockGlobalVars}
-          orderVariables={mockOrderVars}
-          generatedFields={mockGeneratedFields}
+        <CanvasContextPanel
+          channelCode={params.channelCode ?? ''}
+          mode="flow"
+          actions={storedAbility?.actions ?? (actionName === '—' ? [] : [actionName])}
+          readOnly={readOnly}
           isMappingActive={isMappingActive}
           onFieldSelect={handleContextFieldSelect}
-          onAddGeneratedField={() => {
-            setEditingGeneratedField(null);
-            setShowGeneratedFieldDrawer(true);
-          }}
-          onAddGlobalVar={() => {
-            setEditingGlobalVar(null);
-            setShowGlobalVarDrawer(true);
-          }}
-          onAddOrderVar={() => setShowOrderVarDrawer(true)}
-          onAddCredential={() => {
-            setEditingCredential(null);
-            setShowCredentialDrawer(true);
-          }}
-          onAddAuthentication={() => {
-            setEditingAuthentication(null);
-            setShowAuthenticationDrawer(true);
-          }}
-          onEditCredential={(cred) => {
-            setEditingCredential(cred);
-            setShowCredentialDrawer(true);
-          }}
-          onEditAuthentication={(auth) => {
-            setEditingAuthentication(auth);
-            setShowAuthenticationDrawer(true);
-          }}
-          onRefresh={() => refreshContext(false)}
         />
 
         {/* 组件面板 */}

@@ -32,28 +32,18 @@ const triggerTypeOptions = [
     description: '特指由前序 Flow 中的 asyncExecuteFlow 组件异步触发的 Flow。',
   },
   {
-    value: 'SCHEDULED_TRIGGERED',
-    label: 'SCHEDULED_TRIGGERED',
-    labelCn: '定时任务触发',
-    description: '特指由平台定时任务触发的 Flow，主要用于重查询 Flow。',
+    value: 'REQUERY_TRIGGERED',
+    label: 'REQUERY_TRIGGERED',
+    labelCn: '重查触发',
+    description: '订单进入指定 Trigger Sub-State 后，由平台结合重查策略触发的 Flow。',
   },
-];
-
-// State Machine states for Trigger Sub-state
-const stateMachineStates = [
-  { value: 'INIT', label: 'INIT' },
-  { value: 'WAITING_OTP', label: 'WAITING_OTP' },
-  { value: 'VERIFYING_OTP', label: 'VERIFYING_OTP' },
-  { value: 'AUTHENTICATING', label: 'AUTHENTICATING' },
-  { value: 'PROGRESSING', label: 'PROGRESSING' },
-  { value: 'SUCCESS', label: 'SUCCESS' },
-  { value: 'FAILED', label: 'FAILED' },
 ];
 
 interface FlowSettingsModalProps {
   visible: boolean;
   flow: FlowConfig | null;
   availableActions: string[];
+  availableSubStates: string[];
   onSave: (config: FlowConfig) => void;
   onCancel: () => void;
 }
@@ -62,6 +52,7 @@ export default function FlowSettingsModal({
   visible,
   flow,
   availableActions,
+  availableSubStates,
   onSave,
   onCancel,
 }: FlowSettingsModalProps) {
@@ -79,7 +70,7 @@ export default function FlowSettingsModal({
         flowName: flow.name,
         triggerAction: flow.triggerEvents?.[0] || undefined,
         originalRequestAction: flow.triggerEvents?.[0] || undefined,
-        referenceActions: flow.outputEvents?.map(e => e.eventName) || [],
+        referenceActions: flow.contextActions || [],
         triggerSubState: flow.stateConditions?.[0]?.value || undefined,
       });
       setTriggerType(flow.triggerType || 'UPSTREAM_TRIGGERED');
@@ -170,8 +161,8 @@ export default function FlowSettingsModal({
           values.triggerAction ? [values.triggerAction] :
           Array.isArray(values.originalRequestAction) ? values.originalRequestAction :
           values.originalRequestAction ? [values.originalRequestAction] : [],
-        outputEvents: values.referenceActions?.map((action: string) => ({ eventName: action })) || [],
-        stateConditions: values.triggerSubState ? [{ id: '1', field: 'state', operator: '==', value: values.triggerSubState }] : [],
+        contextActions: values.referenceActions || [],
+        stateConditions: values.triggerSubState ? [{ id: 'trigger-sub-state', field: 'subState', operator: '==', value: values.triggerSubState }] : [],
       };
 
       onSave(updatedConfig);
@@ -242,24 +233,27 @@ export default function FlowSettingsModal({
           </Form.Item>
         );
 
-      case 'SCHEDULED_TRIGGERED':
+      case 'REQUERY_TRIGGERED':
         return (
           <>
             <Form.Item
               name="triggerSubState"
-              label="Trigger Sub-state"
-              rules={[{ required: true, message: 'Please select Trigger Sub-state' }]}
+              label="Trigger Sub-State"
+              rules={[
+                { required: true, message: 'Please select Trigger Sub-State' },
+                {
+                  validator: (_, value) => !value || availableSubStates.includes(value)
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('Trigger Sub-State is not available in the current State Machine')),
+                },
+              ]}
             >
               <Select
-                placeholder="Select sub-state"
+                placeholder={availableSubStates.length ? 'Select Trigger Sub-State' : 'No Sub-State available in the current State Machine'}
+                disabled={availableSubStates.length === 0}
+                options={availableSubStates.map((subState) => ({ label: subState, value: subState }))}
                 onChange={() => setHasChanges(true)}
-              >
-                {stateMachineStates.map(opt => (
-                  <Select.Option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </Select.Option>
-                ))}
-              </Select>
+              />
             </Form.Item>
             <Form.Item
               name="referenceActions"
