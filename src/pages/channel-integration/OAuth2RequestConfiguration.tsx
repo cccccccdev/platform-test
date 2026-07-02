@@ -3,7 +3,6 @@ import {
   Alert,
   Card,
   Checkbox,
-  Divider,
   Form,
   Input,
   Radio,
@@ -64,6 +63,27 @@ const responseScriptHelp = `/**
 * param._responseBody (JSONObject)
 *
 * @return Return a object of Order type
+*/`;
+const requestMessageScriptHelp = `/**
+*
+* @param
+*
+* The data included in param is as follows:
+*
+* "param" is the field selected to participate in the assembly message
+*
+* @return Return a request message of string type
+*/`;
+const responseMessageScriptHelp = `/**
+*
+* @param param
+*
+* The data included in param is as follows:
+*
+* param is the message of the external channel response, of string type
+*
+* @return Return a object of JSONObject type
+*
 */`;
 
 const dataTypeOptions = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -265,11 +285,12 @@ export default function OAuth2RequestConfiguration({ form, credentials, credenti
   const verificationEnabled = Form.useWatch('oauthSecurityVerificationEnabled', form);
   const decryptionEnabled = Form.useWatch('oauthSecurityDecryptionEnabled', form);
   const requestHeaders = Form.useWatch('oauthRequestHeaders', form) ?? [];
-  const requestMode = Form.useWatch('oauthRequestMode', form) ?? 'configuration';
-  const responseMode = Form.useWatch('oauthResponseMode', form) ?? 'configuration';
+  const requestMode = Form.useWatch('oauthRequestMappingMode', form) ?? 'configuration';
+  const responseMode = Form.useWatch('oauthResponseMappingMode', form) ?? 'configuration';
+  const requestFormat = Form.useWatch('oauthRequestMessageFormat', form) ?? 'JSON';
+  const responseFormat = Form.useWatch('oauthResponseMessageFormat', form) ?? 'JSON';
+  const requestBodyFieldMode = Form.useWatch('oauthRequestBodyFieldMode', form) ?? 'all';
   const [activeTab, setActiveTab] = useState('request');
-  const [requestSubTab, setRequestSubTab] = useState('pathVars');
-  const [responseSubTab, setResponseSubTab] = useState('headers');
   const pathVariables = useMemo(() => {
     const variables: string[] = [];
     const pattern = /\{([^}]+)\}/g;
@@ -392,207 +413,27 @@ export default function OAuth2RequestConfiguration({ form, credentials, credenti
       <Text type="secondary" style={{ display: 'block', marginBottom: 6, fontSize: 12 }}>Configure the channel token endpoint directly. No standalone Endpoint reference is created.</Text>
 
       <Card styles={{ body: { paddingTop: 0, minHeight: 420 } }}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          tabBarGutter={20}
-          size="small"
-          items={[
-            {
-              key: 'request',
-              label: 'Request',
-              children: (
-                <>
-                <Form.Item name="oauthRequestMode" initialValue="configuration" style={{ margin: '10px 0 8px' }}>
-                  <Radio.Group
-                    optionType="button"
-                    buttonStyle="solid"
-                    options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]}
-                    onChange={(event) => setRequestSubTab(event.target.value === 'script' ? 'script' : 'pathVars')}
-                  />
-                </Form.Item>
-                <Tabs
-                  activeKey={requestSubTab}
-                  onChange={setRequestSubTab}
-                  size="small"
-                  tabBarGutter={16}
-                  items={requestMode === 'script' ? [
-                    {
-                      key: 'script',
-                      label: 'Custom Script',
-                      children: <GroovyScriptEditor name="oauthRequestCustomScript" helpText={requestScriptHelp} />,
-                    },
-                    {
-                      key: 'authorization',
-                      label: <Space size={4}><span>Authorization</span>{authDot === 'green' ? <GreenDot /> : authDot === 'red' ? <RedDot /> : null}</Space>,
-                      children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="authentication" />,
-                    },
-                    {
-                      key: 'security',
-                      label: <Space size={4}><span>Security</span>{reqSecurityDot && <GreenDot />}</Space>,
-                      children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="request" />,
-                    },
-                  ] : [
-                    {
-                      key: 'pathVars',
-                      label: <Space size={4}><span>Path Vars</span>{reqPathVarsDot === 'green' ? <GreenDot /> : reqPathVarsDot === 'red' ? <RedDot /> : null}</Space>,
-                      children: <PathVariableMappingEditor variables={pathVariables} mappingName="oauthPathMappings" sourceOptions={pathSourceOptions} operationOptions={mappingOperationOptions} emptyText="Path variables appear automatically when the request path contains {field}." />,
-                    },
-                    {
-                      key: 'params',
-                      label: <Space size={4}><span>Params</span>{paramsDot === 'green' ? <GreenDot /> : paramsDot === 'red' ? <RedDot /> : null}</Space>,
-                      children: (
-                        <Form.Item name="oauthQueryParameters" initialValue={[]}>
-                          <FlatFieldMappingEditor
-                            title="Query Parameter Mapping"
-                            addLabel="Add Parameter"
-                            fieldPlaceholder="Query parameter name"
-                            sourceCascader
-                            sourceOptions={combinedSourceOptions}
-                            dataTypeOptions={flatDataTypeOptions}
-                            operationOptions={mappingOperationOptions}
-                          />
-                        </Form.Item>
-                      ),
-                    },
-                    {
-                      key: 'authorization',
-                      label: <Space size={4}><span>Authorization</span>{authDot === 'green' ? <GreenDot /> : authDot === 'red' ? <RedDot /> : null}</Space>,
-                      children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="authentication" />,
-                    },
-                    {
-                      key: 'headers',
-                      label: <Space size={4}><span>Headers</span>{reqHeadersDot && <GreenDot />}</Space>,
-                      children: (
-                        <Form.Item name="oauthRequestHeaders" initialValue={[]}>
-                          <FlatFieldMappingEditor
-                            title="Request Header Mapping"
-                            addLabel="Add Header"
-                            fieldPlaceholder="Header name"
-                            sourceOptions={combinedSourceOptions}
-                            dataTypeOptions={flatDataTypeOptions}
-                            operationOptions={mappingOperationOptions}
-                          />
-                        </Form.Item>
-                      ),
-                    },
-                    {
-                      key: 'body',
-                      label: <Space size={4}><span>Body</span>{reqBodyDot && <GreenDot />}</Space>,
-                      children: (
-                        <>
-                          <Form.Item label="Request Message Format" name="oauthRequestMessageFormat" initialValue="JSON" rules={[{ required: true }]}>
-                            <Radio.Group options={messageFormatOptions} />
-                          </Form.Item>
-                          <Form.Item name="oauthRequestBody" initialValue={[]}>
-                            <BodySchemaMappingEditor
-                              sourceOptions={combinedSourceOptions}
-                              dataTypeOptions={dataTypeOptions}
-                              operationOptions={mappingOperationOptions}
-                            />
-                          </Form.Item>
-                          <Divider style={{ margin: '12px 0' }} />
-                          <Form.Item label="Fields Included in Request" name="oauthRequestBodyFieldMode" initialValue="all">
-                            <Radio.Group options={[{ label: 'All Fields', value: 'all' }, { label: 'Choose Fields', value: 'selected' }]} />
-                          </Form.Item>
-                          <Form.Item noStyle shouldUpdate={(prev, next) => prev.oauthRequestBodyFieldMode !== next.oauthRequestBodyFieldMode}>
-                            {({ getFieldValue }) => getFieldValue('oauthRequestBodyFieldMode') === 'selected' ? (
-                              <Form.Item name="oauthSelectedRequestBodyFields" rules={[{ required: true, message: 'Select fields' }]}>
-                                <Select mode="multiple" placeholder="Select request body fields" options={requestBodyOptions} />
-                              </Form.Item>
-                            ) : null}
-                          </Form.Item>
-                        </>
-                      ),
-                    },
-                    {
-                      key: 'security',
-                      label: <Space size={4}><span>Security</span>{reqSecurityDot && <GreenDot />}</Space>,
-                      children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="request" />,
-                    },
-                  ]}
-                />
-                </>
-              ),
-            },
-            {
-              key: 'response',
-              label: 'Response',
-              children: (
-                <>
-                <Form.Item name="oauthResponseMode" initialValue="configuration" style={{ margin: '10px 0 8px' }}>
-                  <Radio.Group
-                    optionType="button"
-                    buttonStyle="solid"
-                    options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]}
-                    onChange={(event) => setResponseSubTab(event.target.value === 'script' ? 'script' : 'headers')}
-                  />
-                </Form.Item>
-                <Tabs
-                  activeKey={responseSubTab}
-                  onChange={setResponseSubTab}
-                  size="small"
-                  tabBarGutter={16}
-                  items={responseMode === 'script' ? [
-                    {
-                      key: 'script',
-                      label: 'Custom Script',
-                      children: <GroovyScriptEditor name="oauthResponseCustomScript" helpText={responseScriptHelp} />,
-                    },
-                    {
-                      key: 'security',
-                      label: <Space size={4}><span>Security</span>{respSecurityDot && <GreenDot />}</Space>,
-                      children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="response" />,
-                    },
-                  ] : [
-                    {
-                      key: 'headers',
-                      label: <Space size={4}><span>Headers</span>{respHeadersDot && <GreenDot />}</Space>,
-                      children: (
-                        <Form.Item name="oauthResponseHeaders" initialValue={[]}>
-                          <FlatFieldMappingEditor
-                            direction="response"
-                            title="Response Header Mapping"
-                            addLabel="Add Header"
-                            fieldPlaceholder="Response header name"
-                            sourceOptions={[]}
-                            targetOptions={responseTargetOptions}
-                            dataTypeOptions={flatDataTypeOptions}
-                            operationOptions={mappingOperationOptions}
-                          />
-                        </Form.Item>
-                      ),
-                    },
-                    {
-                      key: 'body',
-                      label: <Space size={4}><span>Body</span>{respBodyDot && <GreenDot />}</Space>,
-                      children: <>
-                        <Form.Item label="Response Message Format" name="oauthResponseMessageFormat" initialValue="JSON" rules={[{ required: true }]}>
-                          <Radio.Group options={messageFormatOptions} />
-                        </Form.Item>
-                        <Form.Item name="oauthResponseBody" initialValue={[]}>
-                          <BodySchemaMappingEditor
-                            direction="response"
-                            sourceOptions={[]}
-                            targetOptions={responseTargetOptions}
-                            dataTypeOptions={dataTypeOptions}
-                            operationOptions={mappingOperationOptions}
-                          />
-                        </Form.Item>
-                      </>,
-                    },
-                    {
-                      key: 'security',
-                      label: <Space size={4}><span>Security</span>{respSecurityDot && <GreenDot />}</Space>,
-                      children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="response" />,
-                    },
-                  ]}
-                />
-                </>
-              ),
-            },
-          ]}
-        />
+        <Tabs activeKey={activeTab} onChange={setActiveTab} tabBarGutter={20} size="small" items={[
+          { key: 'request', label: 'Request', children: <Tabs size="small" tabBarGutter={16} items={[
+            { key: 'fields', label: 'Fields & Mapping', children: <><Form.Item name="oauthRequestMappingMode" initialValue="configuration"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item><Tabs type="card" size="small" items={[
+              { key: 'path', label: <Space size={4}><span>Path Vars</span>{reqPathVarsDot === 'green' ? <GreenDot /> : reqPathVarsDot === 'red' ? <RedDot /> : null}</Space>, children: requestMode === 'configuration' ? <PathVariableMappingEditor variables={pathVariables} mappingName="oauthPathMappings" sourceOptions={pathSourceOptions} operationOptions={mappingOperationOptions} emptyText="Path variables appear automatically when the request path contains {field}." /> : <Text type="secondary">{pathVariables.length ? `Defined: ${pathVariables.map(v => `{${v}}`).join(', ')}` : 'Path variables appear automatically from Path.'}</Text> },
+              { key: 'params', label: <Space size={4}><span>Params</span>{paramsDot === 'green' ? <GreenDot /> : paramsDot === 'red' ? <RedDot /> : null}</Space>, children: <Form.Item name="oauthQueryParameters" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMode === 'script'} title="Query Parameter Fields" addLabel="Add Parameter" fieldPlaceholder="Query parameter name" sourceCascader sourceOptions={combinedSourceOptions} dataTypeOptions={flatDataTypeOptions} fixedFieldType="String" operationOptions={mappingOperationOptions} /></Form.Item> },
+              { key: 'headers', label: <Space size={4}><span>Headers</span>{reqHeadersDot && <GreenDot />}</Space>, children: <Form.Item name="oauthRequestHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMode === 'script'} title="Request Header Fields" addLabel="Add Header" fieldPlaceholder="Header name" sourceCascader sourceOptions={combinedSourceOptions} dataTypeOptions={flatDataTypeOptions} fixedFieldType="String" operationOptions={mappingOperationOptions} /></Form.Item> },
+              { key: 'body', label: <Space size={4}><span>Body</span>{reqBodyDot && <GreenDot />}</Space>, children: <Form.Item name="oauthRequestBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={requestMode === 'script'} sourceOptions={combinedSourceOptions} dataTypeOptions={dataTypeOptions} operationOptions={mappingOperationOptions} /></Form.Item> },
+            ]} />{requestMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="oauthRequestMappingScript" helpText={requestScriptHelp} /></Card>}</> },
+            { key: 'authorization', label: <Space size={4}><span>Authentication</span>{authDot === 'green' ? <GreenDot /> : authDot === 'red' ? <RedDot /> : null}</Space>, children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="authentication" /> },
+            { key: 'security', label: <Space size={4}><span>Security</span>{reqSecurityDot && <GreenDot />}</Space>, children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="request" /> },
+            { key: 'format', label: 'Message Format', children: <><Form.Item label="Request Message Format" name="oauthRequestMessageFormat" initialValue="JSON" rules={[{ required: true }]}><Radio.Group options={messageFormatOptions} /></Form.Item><Form.Item label="Request Body Fields Included" name="oauthRequestBodyFieldMode" initialValue="all"><Radio.Group options={[{ label: 'All Fields', value: 'all' }, { label: 'Choose Fields', value: 'selected' }]} /></Form.Item>{requestBodyFieldMode === 'selected' && <Form.Item name="oauthSelectedRequestBodyFields" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select Request Body fields" options={requestBodyOptions} /></Form.Item>}{requestFormat === 'Custom' && <><Form.Item label="Content Type" name="oauthCustomRequestContentType" rules={[{ required: true }]}><Select placeholder="Select Content Type" options={['application/json', 'application/xml', 'text/plain', 'application/x-www-form-urlencoded'].map(value => ({ label: value, value }))} /></Form.Item><GroovyScriptEditor name="oauthRequestMessageScript" helpText={requestMessageScriptHelp} /></>}</> },
+          ]} /> },
+          { key: 'response', label: 'Response', children: <Tabs size="small" tabBarGutter={16} items={[
+            { key: 'format', label: 'Message Format', children: <><Form.Item label="Response Message Format" name="oauthResponseMessageFormat" initialValue="JSON" rules={[{ required: true }]}><Radio.Group options={messageFormatOptions} /></Form.Item>{responseFormat === 'Custom' && <GroovyScriptEditor name="oauthResponseMessageScript" helpText={responseMessageScriptHelp} />}</> },
+            { key: 'fields', label: 'Fields & Mapping', children: <><Form.Item name="oauthResponseMappingMode" initialValue="configuration"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item><Tabs type="card" size="small" items={[
+              { key: 'headers', label: <Space size={4}><span>Headers</span>{respHeadersDot && <GreenDot />}</Space>, children: <Form.Item name="oauthResponseHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={responseMode === 'script'} direction="response" title="Response Header Fields" addLabel="Add Header" fieldPlaceholder="Response header name" sourceOptions={[]} targetOptions={responseTargetOptions} dataTypeOptions={flatDataTypeOptions} operationOptions={mappingOperationOptions} /></Form.Item> },
+              { key: 'body', label: <Space size={4}><span>Body</span>{respBodyDot && <GreenDot />}</Space>, children: <Form.Item name="oauthResponseBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={responseMode === 'script'} direction="response" sourceOptions={[]} targetOptions={responseTargetOptions} dataTypeOptions={dataTypeOptions} operationOptions={mappingOperationOptions} /></Form.Item> },
+            ]} />{responseMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="oauthResponseMappingScript" helpText={responseScriptHelp} /></Card>}</> },
+            { key: 'security', label: <Space size={4}><span>Security</span>{respSecurityDot && <GreenDot />}</Space>, children: <SecuritySection form={form} authentications={authentications} currentAuthId={currentAuthId} mode="response" /> },
+          ]} /> },
+        ]} />
       </Card>
     </div>
   );

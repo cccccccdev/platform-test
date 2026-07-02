@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Card, Cascader, Checkbox, ConfigProvider, Drawer, Form, Input, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useChannelScopeStore } from './channelScopeStore';
-import BodySchemaMappingEditor from './BodySchemaMappingEditor';
+import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappingEditor';
 import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
 import GroovyScriptEditor from './GroovyScriptEditor';
@@ -34,21 +34,46 @@ const responseScriptHelp = `/**
 * param._responseBody (JSONObject)
 * @return Order
 */`;
+const requestMessageScriptHelp = `/**
+*
+* @param
+*
+* The data included in param is as follows:
+*
+* "param" is the field selected to participate in the assembly message
+*
+* @return Return a request message of string type
+*/`;
+const responseMessageScriptHelp = `/**
+*
+* @param param
+*
+* The data included in param is as follows:
+*
+* param is the message of the external channel response, of string type
+*
+* @return Return a object of JSONObject type
+*
+*/`;
+const collectBodyOptions = (nodes: BodySchemaNode[], parent = ''): Array<{ label: string; value: string }> => nodes.flatMap((node) => {
+  const path = parent ? `${parent}.${node.name}` : node.name;
+  return ['Object', 'Array'].includes(node.type) ? collectBodyOptions(node.children ?? [], path) : [{ label: path, value: path }];
+});
 
 const Dot = ({ color }: { color: string }) => <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 7, background: color }} />;
 const tabLabel = (label: string, state: 'empty' | 'ok' | 'error') => <Space size={6}><span>{label}</span>{state !== 'empty' && <Dot color={state === 'ok' ? '#52c41a' : '#ff4d4f'} />}</Space>;
 const emptyStyle = { padding: 14, color: '#8c8c8c', background: '#fafafa', borderRadius: 6 } as const;
-function OrderVariableMapping({ sourceOptions, targetOptions }: { sourceOptions: Array<{ label: string; value: string; type: string }>; targetOptions: Array<{ label: string; value: string; type: string }> }) {
+function OrderVariableMapping({ sourceOptions, targetOptions, name = 'orderWrites', title = 'SPI to Order Variable Mapping', sourceLabel = 'SPI VALUE', targetLabel = 'ORDER VARIABLE' }: { sourceOptions: Array<{ label: string; value: string; type: string }>; targetOptions: Array<{ label: string; value: string; type: string }>; name?: string; title?: string; sourceLabel?: string; targetLabel?: string }) {
   const sourceType = (value?: string) => sourceOptions.find((item) => item.value === value)?.type ?? 'String';
   const targetType = (value?: string) => targetOptions.find((item) => item.value === value)?.type ?? 'String';
-  return <Form.List name="orderWrites">{(fields, { add, remove }) => <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#fafafa', borderBottom: '1px solid #e8e8e8' }}><Space size={8}><Text strong>SPI to Order Variable Mapping</Text><Tag style={{ margin: 0 }}>{fields.length} fields</Tag></Space><Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => add()}>Add Mapping</Button></div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 85px 24px 150px 24px minmax(180px,1fr) 85px 36px', gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, borderBottom: '1px solid #f0f0f0' }}><span>SPI VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>ORDER VARIABLE</span><span>TARGET TYPE</span><span /></div>
+  return <Form.List name={name}>{(fields, { add, remove }) => <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#fafafa', borderBottom: '1px solid #e8e8e8' }}><Space size={8}><Text strong>{title}</Text><Tag style={{ margin: 0 }}>{fields.length} fields</Tag></Space><Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => add()}>Add Mapping</Button></div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 85px 24px 150px 24px minmax(180px,1fr) 85px 36px', gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, borderBottom: '1px solid #f0f0f0' }}><span>{sourceLabel}</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>{targetLabel}</span><span>TARGET TYPE</span><span /></div>
     {fields.map((field) => <Form.Item key={field.key} noStyle shouldUpdate>{({ getFieldValue }) => {
-      const source = getFieldValue(['orderWrites', field.name, 'source']);
-      const target = getFieldValue(['orderWrites', field.name, 'target']);
+      const source = getFieldValue([name, field.name, 'source']);
+      const target = getFieldValue([name, field.name, 'target']);
       return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 85px 24px 150px 24px minmax(180px,1fr) 85px 36px', gap: 8, alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid #f5f5f5' }}>
-        <Form.Item name={[field.name, 'source']} rules={[{ required: true }]} style={{ margin: 0 }}><Select placeholder="SPI field" options={sourceOptions} /></Form.Item><Text>{sourceType(source)}</Text><span>→</span><Form.Item name={[field.name, 'operation']} style={{ margin: 0 }}><Cascader allowClear placeholder="Optional" options={mappingOperationOptions} expandTrigger="click" /></Form.Item><span>→</span><Form.Item name={[field.name, 'target']} rules={[{ required: true }]} style={{ margin: 0 }}><Select placeholder="Order Variable" options={targetOptions} /></Form.Item><Text>{targetType(target)}</Text><Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+        <Form.Item name={[field.name, 'source']} rules={[{ required: true }]} style={{ margin: 0 }}><Select placeholder={sourceLabel} options={sourceOptions} /></Form.Item><Text>{sourceType(source)}</Text><span>→</span><Form.Item name={[field.name, 'operation']} style={{ margin: 0 }}><Cascader allowClear placeholder="Optional" options={mappingOperationOptions} expandTrigger="click" /></Form.Item><span>→</span><Form.Item name={[field.name, 'target']} rules={[{ required: true }]} style={{ margin: 0 }}><Select placeholder={targetLabel} options={targetOptions} /></Form.Item><Text>{targetType(target)}</Text><Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
       </div>;
     }}</Form.Item>)}
     {fields.length === 0 && <div style={emptyStyle}>No mappings configured.</div>}
@@ -76,6 +101,10 @@ export default function HttpCallDrawer({ open, channelCode, onClose, onSave }: P
     { label: 'Order Variables', options: orders.map(v => ({ label: v.name, value: `order.${v.name}`, type: 'String' })) },
     { label: 'Credentials', options: credentials.map(v => ({ label: v.key, value: `credential.${v.key}`, type: 'String' })) },
   ];
+  const requestValueOptions = [
+    ...requestContextOptions,
+    { label: 'Generated Data', options: generated },
+  ];
   const responseContextOptions = [
     { label: 'SPI Response', options: spiResponse.map(v => ({ label: v, value: `spi.response.${v}`, type: responseTypes[v] ?? 'String' })) },
     { label: 'Global Variables', options: globals.map(v => ({ label: v.name, value: `global.${v.name}`, type: 'String' })) },
@@ -86,9 +115,15 @@ export default function HttpCallDrawer({ open, channelCode, onClose, onSave }: P
     { label: 'Generated Data', value: 'generated', children: generated },
   ];
   const spiReqOptions = spiRequest.map(v => ({ label: v, value: `spi.request.${v}`, type: requestTypes[v] ?? 'String' }));
+  const spiResOptions = spiResponse.map(v => ({ label: v, value: `spi.response.${v}`, type: responseTypes[v] ?? 'String' }));
+  const globalOptions = globals.map(v => ({ label: `${v.name} · ${v.value}`, value: v.name, type: 'String' }));
   const orderOptions = orders.map(v => ({ label: v.name, value: v.name, type: 'String' }));
-  const requestMode = Form.useWatch('requestMode', form) ?? 'configuration';
-  const responseMode = Form.useWatch('responseMode', form) ?? 'configuration';
+  const requestMappingMode = Form.useWatch('requestMappingMode', form) ?? 'configuration';
+  const responseMappingMode = Form.useWatch('responseMappingMode', form) ?? 'configuration';
+  const requestFormat = Form.useWatch('requestFormat', form) ?? 'JSON';
+  const responseFormat = Form.useWatch('responseFormat', form) ?? 'JSON';
+  const requestBody = Form.useWatch('requestBody', form) as BodySchemaNode[] | undefined;
+  const requestBodyOptions = collectBodyOptions(requestBody ?? []);
   const authEnabled = Form.useWatch('authEnabled', form);
   const authDestination = Form.useWatch('authDestination', form) ?? 'default';
   const signingEnabled = Form.useWatch('signingEnabled', form);
@@ -108,8 +143,8 @@ export default function HttpCallDrawer({ open, channelCode, onClose, onSave }: P
   const state = (key: string): 'empty' | 'ok' | 'error' => {
     if (key === 'params') return (values.queryParams?.length || pathVariables.length) ? 'ok' : 'empty';
     if (key === 'authorization') return !authEnabled ? 'empty' : values.authId ? 'ok' : 'error';
-    if (key === 'request') return requestMode === 'script' ? (values.requestScript ? 'ok' : 'error') : (values.requestHeaders?.length || values.requestBody?.length || values.orderWrites?.length || signingEnabled || encryptionEnabled) ? 'ok' : 'empty';
-    if (key === 'response') return responseMode === 'script' ? (values.responseScript ? 'ok' : 'error') : (values.responseHeaders?.length || values.responseBody?.length || verificationEnabled || decryptionEnabled) ? 'ok' : 'empty';
+    if (key === 'request') return requestMappingMode === 'script' ? (values.requestMappingScript ? 'ok' : 'error') : (values.requestHeaders?.length || values.requestBody?.length || values.orderWrites?.length || signingEnabled || encryptionEnabled) ? 'ok' : 'empty';
+    if (key === 'response') return responseMappingMode === 'script' ? (values.responseMappingScript ? 'ok' : 'error') : (values.responseHeaders?.length || values.responseBody?.length || verificationEnabled || decryptionEnabled) ? 'ok' : 'empty';
     return values.responseFallback && (responseCodeMode === 'custom' ? values.responseCodeScript : values.responseCodeAssembly?.length) ? 'ok' : 'error';
   };
   const combinedState = (keys: string[]): 'empty' | 'ok' | 'error' => {
@@ -129,7 +164,7 @@ export default function HttpCallDrawer({ open, channelCode, onClose, onSave }: P
 
   return <Drawer title={<Space><span>Configure HTTP Call</span><Tag color="blue">httpCall</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={<Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(v => onSave({ ...v, protocol: 'HTTP' }))}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ token: { fontSize: 14, controlHeight: 32, borderRadius: 5, paddingSM: 10, marginSM: 10, marginXS: 6 }, components: { Form: { itemMarginBottom: 10 }, Card: { bodyPadding: 12, headerHeight: 36 }, Tabs: { horizontalMargin: '0 0 10px 0' } } }}>
-    <div style={{ fontSize: 14 }}><Form form={form} layout="vertical" initialValues={{ protocol: 'HTTP', requestMode: 'configuration', responseMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default' }} onValuesChange={() => force(v => v + 1)}>
+    <div style={{ fontSize: 14 }}><Form form={form} layout="vertical" initialValues={{ protocol: 'HTTP', requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all' }} onValuesChange={() => force(v => v + 1)}>
       <Card size="small" style={{ marginBottom: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '120px 130px minmax(420px, 1fr)', gap: 10 }}>
           <Form.Item label="Method" name="method" rules={[{ required: true }]}><Select options={['POST', 'GET', 'PUT', 'DELETE'].map(value => ({ label: value, value }))} /></Form.Item>
@@ -138,34 +173,33 @@ export default function HttpCallDrawer({ open, channelCode, onClose, onSave }: P
         </div>
       </Card>
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
-        { key: 'request', label: tabLabel('Request', combinedState(['params', 'authorization', 'request'])), children: <>
-          <Form.Item name="requestMode" style={{ margin: '10px 0 8px' }}><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item>
-          <Tabs size="small" tabBarGutter={16} items={requestMode === 'script' ? [
-            { key: 'request-script', label: 'Custom Script', children: <GroovyScriptEditor name="requestScript" helpText={requestScriptHelp} /> },
-            { key: 'authorization', label: tabLabel('Authentication', state('authorization')), children: <Card size="small" title={<Space><Form.Item name="authEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Authentication Scheme</Space>}>{authEnabled ? <><Form.Item name="authId" label="Authentication Scheme" rules={[{ required: true }]}><Select placeholder="Select scheme" options={auth.map(a => ({ label: `${a.name} · ${a.type}`, value: a.id }))} /></Form.Item><Form.Item name="authDestination" label="Auth Destination"><Radio.Group options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{authDestination === 'custom' && <Space align="start"><Form.Item name="authDestinationLocation" label="Target Area" rules={[{ required: true }]}><Select style={{ width: 220 }} options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body'].map(value => ({ label: value, value }))} /></Form.Item><Form.Item name="authDestinationField" label="Target Field" rules={[{ required: true }]}><Input style={{ width: 280 }} /></Form.Item></Space>}</> : <Text type="secondary">Enable to apply a Channel Authentication Scheme.</Text>}</Card> },
-            { key: 'request-security', label: 'Security', children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('request').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('request').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
-          ] : [
-            { key: 'path-variables', label: 'Path Vars', children: <PathVariableMappingEditor variables={pathVariables} mappingName="pathMappings" sourceOptions={pathSourceOptions} operationOptions={mappingOperationOptions} emptyText="Path variables appear automatically when Path contains {field}." /> },
-            { key: 'params', label: tabLabel('Params', state('params')), children: <Form.Item name="queryParams" initialValue={[]}><FlatFieldMappingEditor title="Query Parameter Mapping" addLabel="Add Parameter" fieldPlaceholder="Query parameter name" sourcePlaceholder="Context field" sourceOptions={requestContextOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} /></Form.Item> },
-            { key: 'authorization', label: tabLabel('Authentication', state('authorization')), children: <Card size="small" title={<Space><Form.Item name="authEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Authentication Scheme</Space>}>{authEnabled ? <><Form.Item name="authId" label="Authentication Scheme" rules={[{ required: true }]}><Select placeholder="Select scheme" options={auth.map(a => ({ label: `${a.name} · ${a.type}`, value: a.id }))} /></Form.Item><Form.Item name="authDestination" label="Auth Destination"><Radio.Group options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{authDestination === 'custom' && <Space align="start"><Form.Item name="authDestinationLocation" label="Target Area" rules={[{ required: true }]}><Select style={{ width: 220 }} options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body'].map(value => ({ label: value, value }))} /></Form.Item><Form.Item name="authDestinationField" label="Target Field" rules={[{ required: true }]}><Input style={{ width: 280 }} /></Form.Item></Space>}</> : <Text type="secondary">Enable to apply a Channel Authentication Scheme.</Text>}</Card> },
-              { key: 'request-headers', label: 'Headers', children: <Form.Item name="requestHeaders" initialValue={[]}><FlatFieldMappingEditor title="Request Header Mapping" addLabel="Add Header" fieldPlaceholder="Request header name" sourcePlaceholder="Context field" sourceOptions={requestContextOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} /></Form.Item> },
-              { key: 'request-body', label: 'Body', children: <><Form.Item label="Request Message Format" name="requestFormat"><Select options={formats} /></Form.Item><Form.Item name="requestBody" initialValue={[]}><BodySchemaMappingEditor sourcePlaceholder="Context field" sourceOptions={requestContextOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} /></Form.Item><Form.Item name="bodyFieldMode" label="Fields Included in Request" style={{ marginTop: 10 }}><Radio.Group options={[{ label: 'Select All Fields', value: 'all' }, { label: 'Choose Fields to Select', value: 'choose' }]} /></Form.Item></> },
-              { key: 'request-order', label: 'Order Variable', children: <OrderVariableMapping sourceOptions={spiReqOptions} targetOptions={orderOptions} /> },
-              { key: 'request-security', label: 'Security', children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('request').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('request').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
-          ]} />
-        </> },
-        { key: 'response', label: tabLabel('Response', combinedState(responseMode === 'script' ? ['response'] : ['response', 'responseCode'])), children: <>
-          <Form.Item name="responseMode" style={{ margin: '10px 0 8px' }}><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item>
-          <Tabs size="small" tabBarGutter={16} items={responseMode === 'script' ? [
-            { key: 'response-script', label: 'Custom Script', children: <GroovyScriptEditor name="responseScript" helpText={responseScriptHelp} /> },
-            { key: 'response-security', label: 'Security', children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('response').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('response').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
-          ] : [
-              { key: 'response-headers', label: 'Headers', children: <Form.Item name="responseHeaders" initialValue={[]}><FlatFieldMappingEditor direction="response" title="Response Header Mapping" addLabel="Add Header" fieldPlaceholder="Response header name" targetPlaceholder="Context field" sourceOptions={[]} targetOptions={responseContextOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} /></Form.Item> },
-              { key: 'response-body', label: 'Body', children: <><Form.Item label="Response Message Format" name="responseFormat"><Select options={formats} /></Form.Item><Form.Item name="responseBody" initialValue={[]}><BodySchemaMappingEditor direction="response" targetPlaceholder="Context field" sourceOptions={[]} targetOptions={responseContextOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} /></Form.Item></> },
-              { key: 'response-security', label: 'Security', children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('response').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('response').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
-              { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small"><Form.Item name="responseFallback" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'FAIL', value: 'FAIL' }, { label: 'PENDING', value: 'PENDING' }]} /></Form.Item><Form.Item name="responseCodeMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{responseCodeMode === 'custom' ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." /> : <><Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select in assembly order" options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, { label: 'Response Body Field', value: 'responseBody' }]} /></Form.Item><Form.Item name="responseMessageField" label="Response Message Field"><Input placeholder="Optional response field path" /></Form.Item></>}</Card> },
-          ]} />
-        </> },
+        { key: 'request', label: tabLabel('Request', combinedState(['params', 'authorization', 'request'])), children: <Tabs size="small" tabBarGutter={16} items={[
+          { key: 'request-fields', label: 'Fields & Mapping', children: <>
+            <Form.Item name="requestMappingMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item>
+            <Tabs size="small" type="card" items={[
+              { key: 'path', label: 'Path Vars', children: requestMappingMode === 'configuration' ? <PathVariableMappingEditor variables={pathVariables} mappingName="pathMappings" sourceOptions={pathSourceOptions} operationOptions={mappingOperationOptions} emptyText="Path variables appear automatically when Path contains {field}." /> : <div style={emptyStyle}>{pathVariables.length ? `Defined Path Variables: ${pathVariables.map(v => `{${v}}`).join(', ')}` : 'Path variables appear automatically when Path contains {field}.'}</div> },
+              { key: 'params', label: 'Params', children: <Form.Item name="queryParams" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMappingMode === 'script'} title="Query Parameter Fields" addLabel="Add Parameter" fieldPlaceholder="Query parameter name" sourcePlaceholder="Select source value" sourceCascader sourceOptions={requestValueOptions} dataTypeOptions={flatTypes} fixedFieldType="String" operationOptions={mappingOperationOptions} /></Form.Item> },
+              { key: 'headers', label: 'Headers', children: <Form.Item name="requestHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMappingMode === 'script'} title="Request Header Fields" addLabel="Add Header" fieldPlaceholder="Request header name" sourcePlaceholder="Select source value" sourceCascader sourceOptions={requestValueOptions} dataTypeOptions={flatTypes} fixedFieldType="String" operationOptions={mappingOperationOptions} /></Form.Item> },
+              { key: 'body', label: 'Body', children: <Form.Item name="requestBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={requestMappingMode === 'script'} sourcePlaceholder="Select source value" sourceOptions={requestValueOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} /></Form.Item> },
+              { key: 'order', label: 'Order Variable', children: <OrderVariableMapping sourceOptions={spiReqOptions} targetOptions={orderOptions} /> },
+            ]} />
+            {requestMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="requestMappingScript" helpText={requestScriptHelp} /></Card>}
+          </> },
+          { key: 'request-auth', label: tabLabel('Authentication', state('authorization')), children: <Card size="small" title={<Space><Form.Item name="authEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Authentication Scheme</Space>}>{authEnabled ? <><Form.Item name="authId" label="Authentication Scheme" rules={[{ required: true }]}><Select placeholder="Select scheme" options={auth.map(a => ({ label: `${a.name} · ${a.type}`, value: a.id }))} /></Form.Item><Form.Item name="authDestination" label="Auth Destination"><Radio.Group options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{authDestination === 'custom' && <Space align="start"><Form.Item name="authDestinationLocation" label="Target Area" rules={[{ required: true }]}><Select style={{ width: 220 }} options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body'].map(value => ({ label: value, value }))} /></Form.Item><Form.Item name="authDestinationField" label="Target Field" rules={[{ required: true }]}><Input style={{ width: 280 }} /></Form.Item></Space>}</> : <Text type="secondary">Enable to apply a Channel Authentication Scheme.</Text>}</Card> },
+          { key: 'request-security', label: 'Security', children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('request').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('request').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
+          { key: 'request-format', label: 'Message Format', children: <Card size="small"><Form.Item label="Request Message Format" name="requestFormat"><Radio.Group options={formats} /></Form.Item><Form.Item label="Request Body Fields Included" name="bodyFieldMode"><Radio.Group options={[{ label: 'All Fields', value: 'all' }, { label: 'Choose Fields', value: 'choose' }]} /></Form.Item>{values.bodyFieldMode === 'choose' && <Form.Item name="selectedRequestBodyFields" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select Request Body fields" options={requestBodyOptions} /></Form.Item>}{requestFormat === 'Custom' && <><Form.Item label="Content Type" name="customRequestContentType" rules={[{ required: true }]}><Select placeholder="Select Content Type" options={['application/json', 'application/xml', 'text/plain', 'application/x-www-form-urlencoded'].map(value => ({ label: value, value }))} /></Form.Item><GroovyScriptEditor name="requestMessageScript" helpText={requestMessageScriptHelp} /></>}</Card> },
+        ]} /> },
+        { key: 'response', label: tabLabel('Response', combinedState(['response', 'responseCode'])), children: <Tabs size="small" tabBarGutter={16} items={[
+          { key: 'response-format', label: 'Message Format', children: <Card size="small"><Form.Item label="Response Message Format" name="responseFormat"><Radio.Group options={formats} /></Form.Item>{responseFormat === 'Custom' && <GroovyScriptEditor name="responseMessageScript" helpText={responseMessageScriptHelp} />}</Card> },
+          { key: 'response-fields', label: 'Fields & Mapping', children: <><Form.Item name="responseMappingMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item><Tabs type="card" size="small" items={[
+            { key: 'headers', label: 'Headers', children: <Form.Item name="responseHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={responseMappingMode === 'script'} direction="response" title="Response Header Fields" addLabel="Add Header" fieldPlaceholder="Response header name" targetPlaceholder="Context field" sourceOptions={[]} targetOptions={responseContextOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} /></Form.Item> },
+            { key: 'body', label: 'Body', children: <Form.Item name="responseBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={responseMappingMode === 'script'} direction="response" targetPlaceholder="Context field" sourceOptions={[]} targetOptions={responseContextOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} /></Form.Item> },
+            { key: 'global-variable', label: 'Global Variable', children: <OrderVariableMapping name="responseGlobalMappings" title="Global Variable to SPI Mapping" sourceLabel="GLOBAL VARIABLE" targetLabel="SPI VALUE" sourceOptions={globalOptions} targetOptions={spiResOptions} /> },
+            { key: 'order-variable', label: 'Order Variable', children: <OrderVariableMapping name="responseOrderMappings" title="Order Variable to SPI Mapping" sourceLabel="ORDER VARIABLE" targetLabel="SPI VALUE" sourceOptions={orderOptions} targetOptions={spiResOptions} /> },
+          ]} />{responseMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="responseMappingScript" helpText={responseScriptHelp} /></Card>}</> },
+          { key: 'response-security', label: 'Security', children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('response').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('response').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
+          { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small"><Form.Item name="responseFallback" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'FAIL', value: 'FAIL' }, { label: 'PENDING', value: 'PENDING' }]} /></Form.Item><Form.Item name="responseCodeMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{responseCodeMode === 'custom' ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." /> : <><Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select in assembly order" options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, { label: 'Response Body Field', value: 'responseBody' }]} /></Form.Item><Form.Item name="responseMessageField" label="Response Message Field"><Input placeholder="Optional response field path" /></Form.Item></>}</Card> },
+        ]} /> },
       ]} />
     </Form></div>
     </ConfigProvider>

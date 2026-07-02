@@ -58,10 +58,22 @@ export const timestampVersion = () => {
 export const useChannelScopeStore = create<ChannelScopeStore>((set, get) => ({
   credentialsByChannel: seedCredentials(),
   credentialVersionByChannel: { GTB_NG: '20260628111000', ZENITH_NG: '20260628111000', PAYSTACK_NG: '20260628111000' },
-  globalVariablesByChannel: { GTB_NG: [], ZENITH_NG: [], PAYSTACK_NG: [] },
+  globalVariablesByChannel: {
+    GTB_NG: [
+      { id: 'global_channel_code', name: 'channelCode', value: 'GTB_NG' },
+      { id: 'global_country_code', name: 'countryCode', value: 'NG' },
+      { id: 'global_default_currency', name: 'defaultCurrency', value: 'NGN' },
+    ],
+    ZENITH_NG: [{ id: 'global_zenith_currency', name: 'defaultCurrency', value: 'NGN' }],
+    PAYSTACK_NG: [{ id: 'global_paystack_currency', name: 'defaultCurrency', value: 'NGN' }],
+  },
   globalVariableVersionByChannel: { GTB_NG: '20260628110000', ZENITH_NG: '20260628110000', PAYSTACK_NG: '20260628110000' },
   orderVariablesByChannel: {
-    GTB_NG: [{ id: 'order_request_reference', name: 'requestReference', value: '{{order.requestReference}}' }],
+    GTB_NG: [
+      { id: 'order_request_reference', name: 'requestReference', value: '{{order.requestReference}}' },
+      { id: 'order_customer_id', name: 'customerId', value: '{{order.customerId}}' },
+      { id: 'order_original_amount', name: 'originalAmount', value: '{{order.originalAmount}}' },
+    ],
     ZENITH_NG: [],
     PAYSTACK_NG: [],
   },
