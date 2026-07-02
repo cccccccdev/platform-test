@@ -12,6 +12,8 @@ import type { AuthType, AuthConfig, CredentialItem } from './channelScopeStore';
 import CredentialDrawer from './sharedCredentialDrawer';
 import AuthenticationDrawer from './sharedAuthenticationDrawer';
 import CanvasContextPanel from './CanvasContextPanel';
+import HttpCallDrawer from './HttpCallDrawer';
+import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
 
 const { Text, Title } = Typography;
 
@@ -1360,6 +1362,8 @@ function NetworkConfigDrawer({
   );
 }
 
+void NetworkConfigDrawer;
+
 // Edge Condition Drawer - for configuring condition on edge from Condition node
 function EdgeConditionDrawer({
   visible,
@@ -1867,6 +1871,8 @@ export default function FlowEditorPage() {
 
   // Network drawer state
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
+  const [showInboundRequestDrawer, setShowInboundRequestDrawer] = useState(false);
+  const [showInboundResponseDrawer, setShowInboundResponseDrawer] = useState(false);
 
   // Edge condition config modal state
   const [showEdgeConditionDrawer, setShowEdgeConditionDrawer] = useState(false);
@@ -1899,6 +1905,8 @@ export default function FlowEditorPage() {
       setSelectedContextField(null); // Reset selected field
     }
   }, []);
+  void selectedContextField;
+  void handleMappingContextSet;
 
   // Unsaved changes warning modal
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -2044,6 +2052,7 @@ export default function FlowEditorPage() {
 }`,
     },
   ];
+  void mockEndpoints;
   const [, setMockGlobalVars] = useState<any[]>([
     { name: 'channelCode', value: 'PAYSTACK' },
   ]);
@@ -2053,6 +2062,7 @@ export default function FlowEditorPage() {
   const [mockGeneratedFields, setMockGeneratedFields] = useState<any[]>([
     { name: 'rrn', generationType: 'sequence' },
   ]);
+  void mockGeneratedFields;
 
   const [editingCredential, setEditingCredential] = useState<CredentialItem | null>(null);
   const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
@@ -2060,6 +2070,8 @@ export default function FlowEditorPage() {
 
   const openComponentConfig = useCallback((code: string) => {
     if (code === 'httpCall') setShowNetworkDrawer(true);
+    if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
+    if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
   }, []);
 
   const toRuntimeNode = useCallback((item: FlowCanvasNode): Node => {
@@ -2313,27 +2325,12 @@ export default function FlowEditorPage() {
         onConfirm={(spi) => setSpiData(spi)}
       />
 
-      {/* Network 配置抽屉 */}
-      <NetworkConfigDrawer
-        visible={showNetworkDrawer}
-        code="httpCall"
-        name="HTTP Call"
-        endpoints={mockEndpoints}
-        generatedFields={mockGeneratedFields}
-        channelCode={params.channelCode}
-        isMappingActive={isMappingActive}
-        onMappingActiveChange={setIsMappingActive}
-        activeMappingContext={activeMappingContext}
-        onMappingContextChange={handleMappingContextSet}
-        selectedContextField={selectedContextField}
-        onFieldSelect={(_field) => {
-          // When drawer selects a field, clear the selection
-          setSelectedContextField(null);
-        }}
+      <HttpCallDrawer
+        open={showNetworkDrawer}
+        channelCode={params.channelCode ?? ''}
         onClose={() => setShowNetworkDrawer(false)}
         onSave={(config) => {
-          console.log('Network config saved:', config);
-          // 更新节点状态
+          console.log('HTTP Call config saved:', config);
           setNodes(nds => nds.map(n => {
             if (n.data.code === 'httpCall') {
               return { ...n, data: { ...n.data, status: 'complete', isConfigured: true } };
@@ -2341,6 +2338,30 @@ export default function FlowEditorPage() {
             return n;
           }));
           setShowNetworkDrawer(false);
+        }}
+      />
+
+      <InboundRequestDrawer
+        open={showInboundRequestDrawer}
+        readOnly={readOnly}
+        onClose={() => setShowInboundRequestDrawer(false)}
+        onSave={(config) => {
+          console.log('Inbound Request config saved:', config);
+          setNodes((current) => current.map((node) => node.data.code === 'inboundRequest' ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true } } : node));
+          setShowInboundRequestDrawer(false);
+          message.success('Inbound Request configuration saved');
+        }}
+      />
+
+      <InboundResponseDrawer
+        open={showInboundResponseDrawer}
+        readOnly={readOnly}
+        onClose={() => setShowInboundResponseDrawer(false)}
+        onSave={(config) => {
+          console.log('Inbound Response config saved:', config);
+          setNodes((current) => current.map((node) => node.data.code === 'inboundResponse' ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true } } : node));
+          setShowInboundResponseDrawer(false);
+          message.success('Inbound Response configuration saved');
         }}
       />
 

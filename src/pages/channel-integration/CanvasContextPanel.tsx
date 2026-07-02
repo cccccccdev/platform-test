@@ -233,7 +233,7 @@ export default function CanvasContextPanel({
   }] : [];
 
   const scopeItems = [
-    { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={mode === 'flow' ? ['spi', 'global-variable'] : ['global-variable']} /> },
+    { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={mode === 'flow' ? ['spi', 'global-variable'] : []} /> },
     { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={['order-variable']} /> : <EmptyContext>Not available in Capability Matching.</EmptyContext> },
   ];
 

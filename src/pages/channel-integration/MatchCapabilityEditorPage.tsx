@@ -1,6 +1,10 @@
-import { useState } from 'react';
-import { Alert, Button, Divider, Drawer, Input, message, Select, Space, Switch, Tag } from 'antd';
-import { ArrowLeftOutlined, CloudUploadOutlined, DeleteOutlined, LockOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { useCallback, useEffect, useState } from 'react';
+import type { DragEvent } from 'react';
+import { Alert, Button, Divider, Drawer, Input, message, Select, Space, Switch, Tag, Typography } from 'antd';
+import { ArrowLeftOutlined, CheckCircleOutlined, CloudUploadOutlined, DeleteOutlined, LockOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
+import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
+import type { Connection, Edge, Node } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
@@ -10,9 +14,19 @@ import CanvasContextPanel from './CanvasContextPanel';
 
 const matchingTypeOptions: Array<{ value: MatchingType; label: string }> = [
   { value: 'single', label: 'Single Type' },
-  { value: 'order_no', label: 'Distinguish types by order no' },
-  { value: 'type_field', label: 'Distinguish types by type field' },
-  { value: 'custom', label: 'Custom' },
+  { value: 'order_no', label: 'By Order' },
+  { value: 'type_field', label: 'By Field' },
+];
+
+const requestFormats = ['Custom', 'FORM_DATA', 'JSON', 'X_WWW_FORM_URLENCODED', 'XML'].map((value) => ({ value }));
+const { Text } = Typography;
+
+type MatchLibraryComponent = { code: 'inboundPreprocess' | 'condition' | 'specifyCapability' | 'matchCapabilityByOrder'; description: string; usage: 'single' | 'multiple' };
+const MATCH_COMPONENTS: MatchLibraryComponent[] = [
+  { code: 'inboundPreprocess', description: 'Parse Common Request, message format and decryption', usage: 'single' },
+  { code: 'condition', description: 'Branch by field rules or Groovy script', usage: 'multiple' },
+  { code: 'specifyCapability', description: 'Specify Business Type, Ability and Action', usage: 'multiple' },
+  { code: 'matchCapabilityByOrder', description: 'Resolve Capability from a matched gateway order', usage: 'single' },
 ];
 
 const createRule = (): MatchRule => ({
@@ -45,7 +59,7 @@ export default function MatchCapabilityEditorPage() {
   const abilities = useConfigIntegrationStore((state) => state.abilitiesByChannel[channelCode] ?? []);
   const configuration = endpoint?.versions.find((version) => version.id === decisionVersionId);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(configuration?.rules[0]?.id ?? null);
-  const [activeDrawer, setActiveDrawer] = useState<'uri' | 'match' | null>(null);
+  const [activeDrawer, setActiveDrawer] = useState<'preprocess' | 'condition' | 'capability' | 'order' | null>(null);
   const readOnly = searchParams.get('mode') === 'detail';
   if (!endpoint || !configuration) {
     return <div style={{ padding: 24 }}><h3>Capability Matching Version not found</h3><Button onClick={() => navigate(-1)}>Back</Button></div>;
@@ -95,6 +109,7 @@ export default function MatchCapabilityEditorPage() {
     }
     update({ rules: [...configuration.rules, rule] });
     setSelectedRuleId(rule.id);
+    return rule.id;
   };
   const deleteResult = (ruleId: string) => {
     update({ rules: configuration.rules.filter((rule) => rule.id !== ruleId) });
@@ -106,10 +121,9 @@ export default function MatchCapabilityEditorPage() {
     if (configuration.matchType !== 'single' && configuration.requestFields.length === 0) return 'Common Request must contain at least one field';
     if (configuration.requestFields.some((field) => !field.name.trim())) return 'Every Common Request field requires a Field Name';
     if (configuration.matchType === 'single' && configuration.rules.length !== 1) return 'Single Type requires exactly one Capability Result';
-    if ((configuration.matchType === 'order_no' || configuration.matchType === 'custom') && configuration.rules.length === 0) return 'Declare at least one candidate Capability Result';
+    if (configuration.matchType === 'order_no' && configuration.rules.length > 0) return 'By Order obtains Capability from the matched order and must not configure Capability Result nodes';
     if (configuration.matchType === 'order_no' && (configuration.requestFields.length !== 1 || !configuration.singleNoField || !configuration.referenceField)) return 'Order No requires exactly one match field and a reference type';
     if (configuration.matchType === 'type_field' && configuration.matchFields.length === 0) return 'Type Field requires at least one input field';
-    if (configuration.matchType === 'custom' && !configuration.customScript?.trim()) return 'Custom Script is required';
     for (const rule of configuration.rules) {
       if (!rule.bt || !rule.ability || !rule.action) return 'Every Capability Result must include BT, Ability and Action';
       if (!abilities.some((item) => item.bt === rule.bt && item.ability === rule.ability)) return `Ability ${rule.bt} / ${rule.ability} does not exist in ${channelCode}`;
@@ -175,45 +189,20 @@ export default function MatchCapabilityEditorPage() {
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '292px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
         <CanvasContextPanel channelCode={channelCode} mode="matching" readOnly={readOnly} />
-
-        <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
-          <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Component Library</div>
-          <div style={{ padding: 12 }}>
-            <Input.Search size="small" placeholder="Search components..." disabled />
-            <div onClick={() => setActiveDrawer('match')} style={{ marginTop: 14, padding: 12, border: '1px solid #d9d9d9', borderRadius: 7, background: '#fafafa', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>matchCapability</strong><Tag>Single Use</Tag></div>
-              <div style={{ color: '#8c8c8c', fontSize: 11 }}>Identify Capability Result</div>
-            </div>
-            <Alert type="info" showIcon message="URI canvas components are system-managed" style={{ marginTop: 14 }} />
-          </div>
-        </div>
-
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>Canvas</div>
-          <div style={{ flex: 1, overflow: 'auto', padding: 36, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
-            <button onClick={() => setActiveDrawer('match')} style={{ display: 'block', width: 300, margin: '80px auto 0', padding: 16, textAlign: 'left', border: '2px solid #1677ff', borderRadius: 10, background: '#e6f4ff', boxShadow: '0 4px 12px rgba(22,119,255,.12)', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span><Tag color="blue">CORE</Tag><strong>matchCapability</strong></span><Tag color={configuration.rules.length ? 'green' : 'orange'}>{configuration.rules.length ? 'Configured' : 'Not Started'}</Tag></div>
-              <div style={{ color: '#595959', fontSize: 11, marginTop: 6 }}>{matchingTypeOptions.find((item) => item.value === configuration.matchType)?.label}</div>
-            </button>
-          </div>
-        </div>
+        <MatchCapabilityCanvas
+          configuration={configuration}
+          readOnly={readOnly}
+          onOpenDrawer={(drawer, ruleId) => { if (ruleId) setSelectedRuleId(ruleId); setActiveDrawer(drawer); }}
+          onAddResult={addResult}
+        />
       </div>
 
-      <Drawer title="Inbound Pre-processing" width={520} open={activeDrawer === 'uri'} onClose={() => setActiveDrawer(null)}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>Pre-processing · Decryption</strong><Switch disabled={readOnly} checked={configuration.decryptEnabled} onChange={(decryptEnabled) => update({ decryptEnabled })} /></div>
-        <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 6 }}>{configuration.decryptEnabled ? 'Decryption runs before capability matching.' : 'No decryption configured.'}</div>
-        <Divider />
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Fallback Behavior</div>
-        <Select disabled={readOnly} value={configuration.fallbackBehavior} style={{ width: '100%' }} onChange={(fallbackBehavior) => update({ fallbackBehavior })} options={[
-          { value: 'reject', label: 'Reject request' }, { value: 'alert_and_reject', label: 'Alert and reject' }, { value: 'manual_review', label: 'Manual review queue' },
-        ]} />
-      </Drawer>
-
-      <Drawer title="matchCapability Configuration" width={720} open={activeDrawer === 'match'} onClose={() => setActiveDrawer(null)}>
+      <Drawer title="inboundPreprocess Configuration" width={760} open={activeDrawer === 'preprocess'} onClose={() => setActiveDrawer(null)}>
         <div style={{ paddingBottom: 24 }}>
-            <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Matching Type</div>
+            <Alert type="info" showIcon message="Request Message Format is defined here once and inherited by the target Flow at runtime." style={{ marginBottom: 14 }} />
+            <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Callback Type Model</div>
             <Select disabled={readOnly} value={configuration.matchType} style={{ width: '100%' }} options={matchingTypeOptions} onChange={(matchType) => update({
               matchType,
               requestFields: [],
@@ -222,53 +211,120 @@ export default function MatchCapabilityEditorPage() {
               matchFields: [],
               singleNoField: '',
               referenceField: undefined,
-              rules: (matchType === 'single' ? [configuration.rules[0] ?? createRule()] : configuration.rules).map((rule) => ({ ...rule, fieldValues: {} })),
+              rules: matchType === 'order_no' ? [] : (matchType === 'single' ? [configuration.rules[0] ?? createRule()] : (configuration.rules.length ? configuration.rules : [createRule(), createRule()])).map((rule) => ({ ...rule, fieldValues: {} })),
             })} />
+
+            <div style={{ color: '#8c8c8c', fontSize: 11, margin: '14px 0 6px' }}>Request Message Format</div>
+            <Select disabled={readOnly} value={configuration.requestMessageFormat ?? 'JSON'} style={{ width: '100%' }} options={requestFormats} onChange={(requestMessageFormat) => update({ requestMessageFormat })} />
 
             <Divider>Common Request</Divider>
             {configuration.matchType === 'single' && <Alert type="info" showIcon message="Single Type does not require additional request discriminator fields." />}
 
-            {configuration.matchType === 'order_no' && <div style={{ marginTop: 12, padding: 12, background: '#fafafa', borderRadius: 8 }}>
-              <strong>Unique Order Match Parameter</strong>
-              <div style={{ color: '#8c8c8c', fontSize: 11, marginTop: 4 }}>Only one parameter can be defined in Query Parameters, Request Header, or Request Body.</div>
-              <Select disabled={readOnly} value={configuration.matchFieldSource} placeholder="Select parameter source" style={{ width: '100%', marginTop: 10 }} options={[{ value: 'query', label: 'Query Parameters' }, { value: 'header', label: 'Request Header' }, { value: 'body', label: 'Request Body' }]} onChange={(source: InboundRequestField['source']) => {
-                const current = configuration.requestFields[0];
-                const next = current ? { ...current, source } : createRequestField(source);
-                update({ matchFieldSource: source });
-                syncRequestFields([next]);
-              }} />
-              {configuration.requestFields[0] && renderRequestField(configuration.requestFields[0])}
-              <Select disabled={readOnly} value={configuration.referenceField} placeholder="Match to order reference" style={{ width: '100%', marginTop: 10 }} options={[{ value: 'requestReference' }, { value: 'responseReference' }]} onChange={(referenceField) => update({ referenceField })} />
-            </div>}
-
-            {(configuration.matchType === 'type_field' || configuration.matchType === 'custom') && <div>
+            {(configuration.matchType === 'type_field' || configuration.matchType === 'order_no') && <div>
+              {renderFieldSection('path', 'Path Variables')}
               {renderFieldSection('query', 'Query Parameters')}
               {renderFieldSection('header', 'Request Header')}
               {renderFieldSection('body', 'Request Body')}
             </div>}
-
-            {configuration.matchType === 'custom' && <div style={{ marginTop: 16 }}>
-              <strong>Groovy Script</strong>
-              <Input.TextArea disabled={readOnly} value={configuration.customScript} onChange={(event) => update({ customScript: event.target.value })} rows={9} style={{ marginTop: 8, fontFamily: 'monospace', background: '#1f1f1f', color: '#f5f5f5' }} />
-            </div>}
-
             <Divider />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>{configuration.matchType === 'type_field' ? 'Type Value Combinations' : 'Capability Results'}</strong>{!readOnly && configuration.matchType !== 'single' && <Button type="text" icon={<PlusOutlined />} onClick={addResult}>Add</Button>}</div>
-            {configuration.rules.map((rule, index) => <div key={rule.id} onClick={() => setSelectedRuleId(rule.id)} style={{ marginTop: 10, padding: 12, border: selectedRule?.id === rule.id ? '1px solid #722ed1' : '1px solid #e8e8e8', borderRadius: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span>Result {index + 1}</span>{!readOnly && configuration.matchType !== 'single' && <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={(event) => { event.stopPropagation(); deleteResult(rule.id); }} />}</div>
-              {configuration.matchType === 'type_field' && configuration.matchFields.map((field) => <Input key={field} disabled={readOnly} addonBefore={field} placeholder="Value or EMPTY_STR" value={rule.fieldValues[field]} onChange={(event) => updateRule(rule.id, { fieldValues: { ...rule.fieldValues, [field]: event.target.value } })} style={{ marginBottom: 6 }} />)}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
-                <Select disabled={readOnly} placeholder="Business Type" value={rule.bt || undefined} options={btOptions} onChange={(bt) => updateRule(rule.id, { bt, ability: '', action: '' })} />
-                <Select disabled={readOnly || !rule.bt} placeholder="Ability" value={rule.ability || undefined} options={abilities.filter((item) => item.bt === rule.bt).map((item) => ({ value: item.ability }))} onChange={(ability) => updateRule(rule.id, { ability, action: '' })} />
-                <Select disabled={readOnly || !rule.ability} placeholder="Action" value={rule.action || undefined} options={(capabilityActionOptions[`${rule.bt}:${rule.ability}`] ?? ['TRANSACTION', 'QUERY', 'VERIFY']).map((value) => ({ value }))} onChange={(action) => updateRule(rule.id, { action })} />
-              </div>
-            </div>)}
-            {configuration.rules.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: '#8c8c8c' }}>No Capability Result configured</div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><strong>Decryption before matching</strong><Switch disabled={readOnly} checked={configuration.decryptEnabled} onChange={(decryptEnabled) => update({ decryptEnabled })} /></div>
+            {configuration.decryptEnabled && <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}><Select placeholder="Encrypted field" options={configuration.requestFields.map((field) => ({ value: fieldPath(field) }))} /><Select placeholder="Algorithm" options={['AES (CBC)', 'AES (ECB)', 'Custom', 'RSA'].map((value) => ({ value }))} /></div>}
         </div>
+      </Drawer>
+
+      <Drawer title="condition Configuration" width={780} open={activeDrawer === 'condition'} onClose={() => setActiveDrawer(null)}>
+        <Alert type="info" showIcon message="Each effective branch must connect to exactly one specifyCapability component." />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 18 }}><strong>Branches</strong>{!readOnly && <Button type="primary" ghost icon={<PlusOutlined />} onClick={addResult}>Add Branch</Button>}</div>
+        {configuration.rules.map((rule, index) => <div key={rule.id} style={{ marginTop: 10, padding: 12, border: '1px solid #e8e8e8', borderRadius: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>Branch {index + 1}</strong>{!readOnly && <Button type="text" danger icon={<DeleteOutlined />} onClick={() => deleteResult(rule.id)} />}</div>
+          {configuration.matchFields.map((field) => <Input key={field} disabled={readOnly} addonBefore={field} placeholder="Value, EMPTY_STR or *" value={rule.fieldValues[field]} onChange={(event) => updateRule(rule.id, { fieldValues: { ...rule.fieldValues, [field]: event.target.value } })} style={{ marginTop: 8 }} />)}
+          <Button type="link" style={{ paddingLeft: 0, marginTop: 4 }} onClick={() => { setSelectedRuleId(rule.id); setActiveDrawer('capability'); }}>Configure target Capability →</Button>
+        </div>)}
+        <Divider>Optional Groovy condition</Divider>
+        <Input.TextArea disabled={readOnly} value={configuration.customScript} onChange={(event) => update({ customScript: event.target.value })} rows={8} placeholder="Use a Groovy condition when field comparisons are not sufficient." style={{ fontFamily: 'monospace', background: '#1f1f1f', color: '#f5f5f5' }} />
+      </Drawer>
+
+      <Drawer title="specifyCapability Configuration" width={620} open={activeDrawer === 'capability'} onClose={() => setActiveDrawer(null)}>
+        {selectedRule ? <><Alert type="info" showIcon message="This component terminates one matching path and declares its unique Capability Result." style={{ marginBottom: 18 }} /><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          <Select disabled={readOnly} placeholder="Business Type" value={selectedRule.bt || undefined} options={btOptions} onChange={(bt) => updateRule(selectedRule.id, { bt, ability: '', action: '' })} />
+          <Select disabled={readOnly || !selectedRule.bt} placeholder="Ability" value={selectedRule.ability || undefined} options={abilities.filter((item) => item.bt === selectedRule.bt).map((item) => ({ value: item.ability }))} onChange={(ability) => updateRule(selectedRule.id, { ability, action: '' })} />
+          <Select disabled={readOnly || !selectedRule.ability} placeholder="Action" value={selectedRule.action || undefined} options={(capabilityActionOptions[`${selectedRule.bt}:${selectedRule.ability}`] ?? ['TRANSACTION', 'QUERY', 'VERIFY']).map((value) => ({ value }))} onChange={(action) => updateRule(selectedRule.id, { action })} />
+        </div></> : <Alert type="warning" showIcon message="Select a specifyCapability component from the canvas first." />}
+      </Drawer>
+
+      <Drawer title="matchCapabilityByOrder Configuration" width={650} open={activeDrawer === 'order'} onClose={() => setActiveDrawer(null)}>
+        <Alert type="info" showIcon message="Capability is read automatically from the matched gateway order; no specifyCapability component is required." style={{ marginBottom: 18 }} />
+        <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Common Request field</div>
+        <Select disabled={readOnly} value={configuration.singleNoField || undefined} placeholder="Select the single order reference field" style={{ width: '100%' }} options={configuration.requestFields.map((field) => ({ value: fieldPath(field) }))} onChange={(singleNoField) => update({ singleNoField })} />
+        <div style={{ color: '#8c8c8c', fontSize: 11, margin: '14px 0 6px' }}>Compare with gateway order</div>
+        <Select disabled={readOnly} value={configuration.referenceField} placeholder="Select reference" style={{ width: '100%' }} options={[{ value: 'requestReference' }, { value: 'responseReference' }]} onChange={(referenceField) => update({ referenceField })} />
       </Drawer>
 
     </div>
   );
+}
+
+function MatchComponentLibrary({ onAdd, readOnly }: { onAdd: (code: MatchLibraryComponent['code']) => void; readOnly: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const filtered = MATCH_COMPONENTS.filter((item) => item.code.toLowerCase().includes(searchText.toLowerCase()) || item.description.toLowerCase().includes(searchText.toLowerCase()));
+  const handleDragStart = (event: DragEvent, code: MatchLibraryComponent['code']) => {
+    event.dataTransfer.setData('application/reactflow', code);
+    event.dataTransfer.effectAllowed = 'move';
+  };
+  if (!isExpanded) return <div onClick={() => setIsExpanded(true)} style={{ width: 32, height: '100%', background: '#fafafa', borderRight: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', writingMode: 'vertical-rl', fontSize: 12, fontWeight: 500, color: '#666', gap: 4 }}><span>Component Library</span><span>→</span></div>;
+  return <div style={{ width: 304, height: '100%', background: '#fff', borderRight: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontWeight: 600, fontSize: 13 }}>Component Library</span><Button type="text" size="small" onClick={() => setIsExpanded(false)}>← Collapse</Button></div>
+    <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}><Input placeholder="Search components..." prefix={<span style={{ color: '#999', fontSize: 12 }}>🔍</span>} value={searchText} onChange={(event) => setSearchText(event.target.value)} size="small" /></div>
+    {!readOnly && <div style={{ padding: '4px 12px', background: '#e6f7ff', fontSize: 10, color: '#1890ff', textAlign: 'center' }}>Drag or click a component to add it</div>}
+    <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>{filtered.map((component) => <div key={component.code} draggable={!readOnly} onDragStart={(event) => handleDragStart(event, component.code)} onClick={() => !readOnly && onAdd(component.code)} style={{ padding: '8px 12px', marginBottom: 6, border: '1px solid #e8e8e8', borderRadius: 6, cursor: readOnly ? 'default' : 'grab', fontSize: 12, background: '#fff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><div><div style={{ fontWeight: 500 }}>{component.code}</div><div style={{ color: '#888', fontSize: 10 }}>{component.description}</div></div><Tag color={component.usage === 'single' ? 'default' : 'green'} style={{ fontSize: 9, margin: 0, height: 20 }}>{component.usage === 'single' ? 'Single Use' : 'Multiple'}</Tag></div>
+    </div>)}{filtered.length === 0 && <Text type="secondary" style={{ fontSize: 12 }}>No matching components</Text>}</div>
+  </div>;
+}
+
+function MatchFlowNode({ data }: { data: Record<string, any> }) {
+  const configured = Boolean(data.isConfigured);
+  return <div onClick={() => data.onConfig?.()} style={{ border: `1.5px solid ${configured ? '#52c41a' : '#d9d9d9'}`, borderRadius: 8, background: configured ? '#fafff0' : '#fafafa', padding: '10px 14px', minWidth: 220, position: 'relative', cursor: 'pointer' }}>
+    <Handle type="target" position={Position.Top} style={{ background: '#1890ff' }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 12, color: configured ? '#52c41a' : '#999' }}>{configured ? '●' : '○'}</span><span style={{ flex: 1, fontWeight: 600, fontSize: 12 }}>{data.code}</span>{configured && <CheckCircleOutlined style={{ color: '#52c41a', fontSize: 12 }} />}</div>
+    <div style={{ color: '#8c8c8c', fontSize: 10, margin: '3px 0 0 20px' }}>{data.description}</div>
+    <Handle type="source" position={Position.Bottom} style={{ background: '#1890ff' }} />
+  </div>;
+}
+
+const matchNodeTypes = { flowNode: MatchFlowNode };
+
+function seedMatchGraph(configuration: CapabilityDecisionVersion, onOpenDrawer: (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string) => void): { nodes: Node[]; edges: Edge[] } {
+  const makeNode = (id: string, code: MatchLibraryComponent['code'], x: number, y: number, description: string, drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string): Node => ({ id, type: 'flowNode', position: { x, y }, data: { code, description, isConfigured: true, ruleId, onConfig: () => onOpenDrawer(drawer, ruleId) } });
+  const preprocess = makeNode('preprocess', 'inboundPreprocess', 320, 50, `${matchingTypeOptions.find((item) => item.value === configuration.matchType)?.label} · ${configuration.requestMessageFormat ?? 'JSON'}`, 'preprocess');
+  if (configuration.matchType === 'order_no') return { nodes: [preprocess, makeNode('order', 'matchCapabilityByOrder', 320, 210, configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Configure order reference comparison', 'order')], edges: [{ id: 'match_e1', source: 'preprocess', target: 'order', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }] };
+  if (configuration.matchType === 'single') {
+    const rule = configuration.rules[0];
+    return { nodes: [preprocess, makeNode(`cap_${rule?.id ?? 'single'}`, 'specifyCapability', 320, 210, rule?.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify Capability Result', 'capability', rule?.id)], edges: [{ id: 'match_e1', source: 'preprocess', target: `cap_${rule?.id ?? 'single'}`, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }] };
+  }
+  const condition = makeNode('condition', 'condition', 320, 200, 'Branch by field rules or Groovy script', 'condition');
+  const resultNodes = configuration.rules.map((rule, index) => makeNode(`cap_${rule.id}`, 'specifyCapability', 80 + index * 300, 380, rule.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify Capability Result', 'capability', rule.id));
+  return { nodes: [preprocess, condition, ...resultNodes], edges: [{ id: 'match_e1', source: 'preprocess', target: 'condition', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }, ...resultNodes.map((node, index) => ({ id: `match_branch_${index}`, source: 'condition', target: node.id, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }))] };
+}
+
+function MatchCapabilityCanvas({ configuration, readOnly, onOpenDrawer, onAddResult }: { configuration: CapabilityDecisionVersion; readOnly: boolean; onOpenDrawer: (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string) => void; onAddResult: () => string }) {
+  const initial = seedMatchGraph(configuration, onOpenDrawer);
+  const [nodes, setNodes] = useState<Node[]>(initial.nodes);
+  const [edges, setEdges] = useState<Edge[]>(initial.edges);
+  const graphKey = `${configuration.matchType}:${configuration.rules.map((rule) => rule.id).join(',')}`;
+  useEffect(() => { const next = seedMatchGraph(configuration, onOpenDrawer); setNodes(next.nodes); setEdges(next.edges); }, [graphKey]);
+  const addComponent = useCallback((code: MatchLibraryComponent['code']) => {
+    const libraryItem = MATCH_COMPONENTS.find((item) => item.code === code);
+    if (libraryItem?.usage === 'single' && nodes.some((node) => node.data.code === code)) return void message.warning(`${code} can only be added once`);
+    const ruleId = code === 'specifyCapability' ? onAddResult() : undefined;
+    const drawer = code === 'inboundPreprocess' ? 'preprocess' : code === 'condition' ? 'condition' : code === 'matchCapabilityByOrder' ? 'order' : 'capability';
+    const node: Node = { id: `${code}_${Date.now()}`, type: 'flowNode', position: { x: 320, y: nodes.length * 120 + 50 }, data: { code, description: libraryItem?.description, isConfigured: false, ruleId, onConfig: () => onOpenDrawer(drawer, ruleId) } };
+    setNodes((current) => [...current, node]);
+  }, [nodes, onAddResult, onOpenDrawer]);
+  const onConnect = useCallback((connection: Connection) => setEdges((current) => addEdge({ ...connection, id: `edge_${Date.now()}`, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }, current)), []);
+  const onDrop = useCallback((event: DragEvent) => { event.preventDefault(); const code = event.dataTransfer.getData('application/reactflow') as MatchLibraryComponent['code']; if (MATCH_COMPONENTS.some((item) => item.code === code)) addComponent(code); }, [addComponent]);
+  return <><MatchComponentLibrary onAdd={addComponent} readOnly={readOnly} /><div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}><div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Canvas</div><div style={{ flex: 1, minHeight: 0 }} onDrop={readOnly ? undefined : onDrop} onDragOver={(event) => { if (!readOnly) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }}><ReactFlow nodes={nodes} edges={edges} onConnect={readOnly ? undefined : onConnect} onNodesChange={(changes) => setNodes((current) => current.map((node) => { const move = changes.find((change) => change.type === 'position' && change.id === node.id); return move && 'position' in move && move.position ? { ...node, position: move.position } : node; }))} onNodeClick={(_event, node) => (node.data as any).onConfig?.()} nodeTypes={matchNodeTypes} fitView minZoom={0.1} maxZoom={2}><Background color="#e8e8e8" gap={16} /><Controls /><MiniMap /></ReactFlow></div></div></>;
 }
 
 function LegacyInboundFlowEditor({

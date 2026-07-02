@@ -41,7 +41,7 @@ export interface MatchingDeploymentRecord {
 
 export interface InboundRequestField {
   id: string;
-  source: 'query' | 'header' | 'body';
+  source: 'path' | 'query' | 'header' | 'body';
   name: string;
   type: 'String' | 'Number' | 'Boolean' | 'Object';
   moc: 'yes' | 'no';
@@ -72,6 +72,7 @@ export interface CapabilityDecisionVersion {
   customScript?: string;
   fallbackBehavior?: 'reject' | 'alert_and_reject' | 'manual_review';
   decryptEnabled?: boolean;
+  requestMessageFormat?: 'Custom' | 'FORM_DATA' | 'JSON' | 'X_WWW_FORM_URLENCODED' | 'XML';
   badges?: Array<{ cloud: string; env: string }>;
   deploymentRecords?: MatchingDeploymentRecord[];
   hasUnsubmittedDraft?: boolean;
