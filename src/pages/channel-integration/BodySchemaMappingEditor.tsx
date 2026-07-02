@@ -21,7 +21,7 @@ export interface BodySchemaNode {
   type: string;
   required?: boolean;
   description?: string;
-  sourceId?: string;
+  sourceId?: string | string[];
   operation?: string | string[];
   targetValue?: string;
   children?: BodySchemaNode[];
@@ -50,6 +50,7 @@ interface Props {
   targetOptions?: MappingOption[];
   sourcePlaceholder?: string;
   targetPlaceholder?: string;
+  schemaOnly?: boolean;
 }
 
 type DragState = { parentPath: number[]; index: number } | null;
@@ -60,6 +61,15 @@ const createNode = (): BodySchemaNode => ({
   type: 'String',
   required: false,
   description: '',
+});
+
+const createArrayItem = (type = 'String', sample?: unknown): BodySchemaNode => ({
+  ...createNode(),
+  name: '_items',
+  type,
+  children: type === 'Object' && sample && typeof sample === 'object' && !Array.isArray(sample)
+    ? jsonObjectToNodes(sample as Record<string, unknown>)
+    : undefined,
 });
 
 const inferJsonType = (value: unknown): string => {
@@ -80,16 +90,21 @@ const jsonObjectToNodes = (record: Record<string, unknown>): BodySchemaNode[] =>
       ...createNode(),
       name,
       type,
-      children: type === 'Object' ? jsonObjectToNodes(value as Record<string, unknown>) : undefined,
+      children: type === 'Object'
+        ? jsonObjectToNodes(value as Record<string, unknown>)
+        : type === 'Array'
+          ? [createArrayItem((value as unknown[]).length ? inferJsonType((value as unknown[])[0]) : 'String', (value as unknown[])[0])]
+          : undefined,
     };
   });
 
-const optionType = (options: MappingOption[], selected?: string): string => {
+const optionType = (options: MappingOption[], selected?: string | string[]): string => {
+  const selectedValue = Array.isArray(selected) ? selected[selected.length - 1] : selected;
   for (const option of options) {
     if ('options' in option) {
-      const match = option.options.find((item) => item.value === selected);
+      const match = option.options.find((item) => item.value === selectedValue);
       if (match) return match.type ?? 'String';
-    } else if (option.value === selected) return option.type ?? 'String';
+    } else if (option.value === selectedValue) return option.type ?? 'String';
   }
   return 'String';
 };
@@ -97,8 +112,8 @@ const optionType = (options: MappingOption[], selected?: string): string => {
 const countNodes = (nodes: BodySchemaNode[]): number =>
   nodes.reduce((count, node) => count + 1 + countNodes(node.children ?? []), 0);
 
-const collectObjectIds = (nodes: BodySchemaNode[]): string[] =>
-  nodes.flatMap((node) => node.type === 'Object' ? [node.id, ...collectObjectIds(node.children ?? [])] : []);
+const collectContainerIds = (nodes: BodySchemaNode[]): string[] =>
+  nodes.flatMap((node) => ['Object', 'Array'].includes(node.type) ? [node.id, ...collectContainerIds(node.children ?? [])] : []);
 
 const updateAtPath = (nodes: BodySchemaNode[], path: number[], updater: (node: BodySchemaNode) => BodySchemaNode): BodySchemaNode[] => {
   const [index, ...rest] = path;
@@ -126,15 +141,23 @@ const replaceSiblings = (nodes: BodySchemaNode[], parentPath: number[], siblings
 const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 52px';
 const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 20px 115px 20px minmax(135px, .8fr) 80px 52px';
 
-export default function BodySchemaMappingEditor({ value = [], onChange, sourceOptions, dataTypeOptions, operationOptions, direction = 'request', targetOptions = [], sourcePlaceholder = 'Credential or generated data', targetPlaceholder = 'Token or Expiry' }: Props) {
+export default function BodySchemaMappingEditor({ value = [], onChange, sourceOptions, dataTypeOptions, operationOptions, direction = 'request', targetOptions = [], sourcePlaceholder = 'Credential or generated data', targetPlaceholder = 'Token or Expiry', schemaOnly = false }: Props) {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [rootCollapsed, setRootCollapsed] = useState(false);
+  const [rootType, setRootType] = useState('Object');
+  const [rootSourceId, setRootSourceId] = useState<string[]>([]);
+  const [rootOperation, setRootOperation] = useState<string[]>([]);
+  const [rootTargetValue, setRootTargetValue] = useState<string>();
   const [dragState, setDragState] = useState<DragState>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [jsonDraft, setJsonDraft] = useState('');
   const [jsonError, setJsonError] = useState('');
   const total = useMemo(() => countNodes(value), [value]);
-  const columns = direction === 'request' ? requestColumns : responseColumns;
+  const schemaColumns = 'minmax(250px, 1.4fr) 100px 56px minmax(180px, 1fr) 52px';
+  const columns = schemaOnly ? schemaColumns : direction === 'request' ? requestColumns : responseColumns;
+  const cascaderSourceOptions = sourceOptions.map((option) => 'options' in option
+    ? { label: option.label, value: option.label, children: option.options }
+    : option);
 
   const emit = (next: BodySchemaNode[]) => onChange?.(next);
 
@@ -163,17 +186,32 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
   const changeType = (path: number[], nextType: string) => {
     const parentPath = path.slice(0, -1);
     const node = getSiblings(value, parentPath)[path[path.length - 1]];
-    if (node?.type === 'Object' && nextType !== 'Object' && (node.children?.length ?? 0) > 0) {
+    if (['Object', 'Array'].includes(node?.type ?? '') && !['Object', 'Array'].includes(nextType) && (node?.children?.length ?? 0) > 0) {
       Modal.confirm({
         title: 'Change field type?',
-        content: 'Changing this Object to a scalar type will remove all child fields.',
+        content: 'Changing this container to a scalar type will remove all child fields.',
         okText: 'Change Type',
         okButtonProps: { danger: true },
         onOk: () => updateNode(path, { type: nextType, children: [] }),
       });
       return;
     }
-    updateNode(path, { type: nextType, children: nextType === 'Object' ? (node?.children ?? []) : undefined });
+    updateNode(path, {
+      type: nextType,
+      children: nextType === 'Object'
+        ? (node?.type === 'Object' ? node.children ?? [] : [])
+        : nextType === 'Array'
+          ? [createArrayItem()]
+          : undefined,
+    });
+  };
+
+  const changeRootType = (nextType: string) => {
+    setRootType(nextType);
+    if (nextType === 'Array') emit([createArrayItem()]);
+    else if (nextType !== 'Object') emit([]);
+    else if (rootType !== 'Object') emit([]);
+    setRootCollapsed(false);
   };
 
   const moveSibling = (parentPath: number[], from: number, to: number) => {
@@ -194,11 +232,17 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
   const importJson = () => {
     try {
       const parsed: unknown = JSON.parse(jsonDraft);
-      if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
-        setJsonError('The ROOT value must be a JSON object.');
+      if (parsed === null || typeof parsed !== 'object') {
+        setJsonError('The ROOT value must be a JSON object or array.');
         return;
       }
-      emit(jsonObjectToNodes(parsed as Record<string, unknown>));
+      if (Array.isArray(parsed)) {
+        setRootType('Array');
+        emit([createArrayItem(parsed.length ? inferJsonType(parsed[0]) : 'String', parsed[0])]);
+      } else {
+        setRootType('Object');
+        emit(jsonObjectToNodes(parsed as Record<string, unknown>));
+      }
       setCollapsedIds(new Set());
       setRootCollapsed(false);
       setImportOpen(false);
@@ -209,8 +253,10 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
     }
   };
 
-  const renderNode = (node: BodySchemaNode, path: number[], depth: number): ReactNode => {
+  const renderNode = (node: BodySchemaNode, path: number[], depth: number, isArrayItem = false): ReactNode => {
     const isObject = node.type === 'Object';
+    const isArray = node.type === 'Array';
+    const isContainer = isObject || isArray;
     const collapsed = collapsedIds.has(node.id);
     const parentPath = path.slice(0, -1);
     const siblingIndex = path[path.length - 1];
@@ -218,7 +264,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
     return (
       <div key={node.id}>
         <div
-          draggable
+          draggable={!isArrayItem}
           onDragStart={() => setDragState({ parentPath, index: siblingIndex })}
           onDragEnd={() => setDragState(null)}
           onDragOver={(event) => {
@@ -240,8 +286,8 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             background: dragState?.index === siblingIndex && JSON.stringify(dragState.parentPath) === JSON.stringify(parentPath) ? '#e6f4ff' : '#fff',
           }}
         >
-          {direction === 'request' && (isObject ? <><span /><span /><span /><span /><span /></> : <>
-            <Select value={node.sourceId} placeholder={sourcePlaceholder} options={sourceOptions} onChange={(sourceId) => updateNode(path, { sourceId })} />
+          {!schemaOnly && direction === 'request' && (isContainer ? <><span /><span /><span /><span /><span /></> : <>
+            <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceId) => updateNode(path, { sourceId: sourceId as string[] })} />
             <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, node.sourceId)}</Text>
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
             <Cascader allowClear value={node.operation as string[] | undefined} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(operation) => updateNode(path, { operation: operation as string[] })} />
@@ -251,15 +297,15 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             <Tooltip title="Drag to reorder within this level">
               <HolderOutlined style={{ color: '#bfbfbf', cursor: 'grab', marginRight: 6 }} />
             </Tooltip>
-            {isObject ? (
+            {isContainer ? (
               <Button type="text" size="small" icon={collapsed ? <CaretRightOutlined /> : <CaretDownOutlined />} onClick={() => toggleNode(node.id)} style={{ width: 24, padding: 0, marginRight: 2 }} />
             ) : <span style={{ width: 26 }} />}
-            <Input value={node.name} placeholder="Field name" status={!node.name ? 'error' : undefined} onChange={(event) => updateNode(path, { name: event.target.value })} />
+            <Input value={isArrayItem ? '_items' : node.name} disabled={isArrayItem} placeholder="Field name" status={!node.name ? 'error' : undefined} onChange={(event) => updateNode(path, { name: event.target.value })} />
           </div>
-          <Select value={node.type} options={dataTypeOptions} onChange={(nextType) => changeType(path, nextType)} />
+          <Select value={node.type} options={isArrayItem ? dataTypeOptions.filter(option => option.value !== 'Array') : dataTypeOptions} onChange={(nextType) => changeType(path, nextType)} />
           <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!node.required} onChange={(required) => updateNode(path, { required })} /></div>
           <Input value={node.description} placeholder="Optional" onChange={(event) => updateNode(path, { description: event.target.value })} />
-          {direction === 'response' && (isObject ? <><span /><span /><span /><span /><span /></> : <>
+          {!schemaOnly && direction === 'response' && (isContainer ? <><span /><span /><span /><span /><span /></> : <>
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
             <Cascader allowClear value={node.operation as string[] | undefined} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(operation) => updateNode(path, { operation: operation as string[] })} />
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
@@ -268,10 +314,10 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
           </>)}
           <Space size={0}>
             {isObject && <Tooltip title="Add child field"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt(path)} /></Tooltip>}
-            <Tooltip title="Delete field"><Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeAt(path)} /></Tooltip>
+            {!isArrayItem && <Tooltip title="Delete field"><Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeAt(path)} /></Tooltip>}
           </Space>
         </div>
-        {isObject && !collapsed && (node.children ?? []).map((child, index) => renderNode(child, [...path, index], depth + 1))}
+        {isContainer && !collapsed && (node.children ?? []).map((child, index) => renderNode(child, [...path, index], depth + 1, isArray))}
         {isObject && !collapsed && (node.children?.length ?? 0) === 0 && (
           <button type="button" onClick={() => addAt(path)} style={{ marginLeft: 48 + depth * 20, border: 0, background: 'transparent', color: '#8c8c8c', padding: '7px 0', cursor: 'pointer', fontSize: 12 }}>
             No child fields. <span style={{ color: '#1677ff' }}>Add child</span>
@@ -290,8 +336,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
         </Space>
         <Space size={6}>
           <Tooltip title="Expand all"><Button size="small" icon={<PlusSquareOutlined />} onClick={() => { setRootCollapsed(false); setCollapsedIds(new Set()); }} /></Tooltip>
-          <Tooltip title="Collapse all"><Button size="small" icon={<MinusSquareOutlined />} onClick={() => { setRootCollapsed(true); setCollapsedIds(new Set(collectObjectIds(value))); }} /></Tooltip>
-          <Tooltip title="Add a child field under ROOT"><Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => addAt([])}>Add Child</Button></Tooltip>
+          <Tooltip title="Collapse all"><Button size="small" icon={<MinusSquareOutlined />} onClick={() => { setRootCollapsed(true); setCollapsedIds(new Set(collectContainerIds(value))); }} /></Tooltip>
           <Button size="small" icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>Import JSON</Button>
         </Space>
       </div>
@@ -299,27 +344,43 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 980 }}>
           <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, background: '#fcfcfc', borderBottom: '1px solid #f0f0f0' }}>
-            {direction === 'request' ? <>
+            {schemaOnly ? <>
+              <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
+            </> : direction === 'request' ? <>
               <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
             </> : <>
               <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span /><span>OPERATION</span><span /><span>TARGET VALUE</span><span>TARGET TYPE</span><span />
             </>}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', minHeight: 44, padding: '5px 8px', background: '#f5f7ff', borderBottom: '1px solid #e8e8e8' }}>
-            {direction === 'request' && <><span /><span /><span /><span /><span /></>}
+            {!schemaOnly && direction === 'request' && (['Object', 'Array'].includes(rootType) ? <><span /><span /><span /><span /><span /></> : <>
+              <Cascader value={rootSourceId} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(next) => setRootSourceId(next as string[])} />
+              <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, rootSourceId)}</Text>
+              <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+              <Cascader allowClear value={rootOperation} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(next) => setRootOperation(next as string[])} />
+              <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+            </>)}
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <Button type="text" size="small" icon={rootCollapsed ? <CaretRightOutlined /> : <CaretDownOutlined />} onClick={() => setRootCollapsed(!rootCollapsed)} style={{ width: 24, padding: 0, marginRight: 8 }} />
               <Tag color="purple" style={{ margin: 0, fontWeight: 600 }}>ROOT</Tag>
             </div>
-            <Text strong style={{ color: '#1677ff' }}>Object</Text>
+            <Select value={rootType} options={dataTypeOptions} onChange={changeRootType} />
             <Text type="secondary" style={{ textAlign: 'center' }}>—</Text><Text type="secondary">—</Text>
-            {direction === 'response' && <><span /><span /><span /><span /><span /></>}
-            <Tooltip title="Add child field under ROOT"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt([])} /></Tooltip>
+            {!schemaOnly && direction === 'response' && (['Object', 'Array'].includes(rootType) ? <><span /><span /><span /><span /><span /></> : <>
+              <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+              <Cascader allowClear value={rootOperation} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(next) => setRootOperation(next as string[])} />
+              <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+              <Select value={rootTargetValue} placeholder={targetPlaceholder} options={targetOptions} onChange={setRootTargetValue} />
+              <Text style={{ fontSize: 12 }}>{optionType(targetOptions, rootTargetValue)}</Text>
+            </>)}
+            {rootType === 'Object' ? <Tooltip title="Add child field under ROOT"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt([])} /></Tooltip> : <span />}
           </div>
           {!rootCollapsed && (
             <div style={{ maxHeight: 480, overflowY: 'auto' }}>
-              {value.length > 0 ? value.map((node, index) => renderNode(node, [index], 0)) : (
+              {value.length > 0 ? value.map((node, index) => renderNode(node, [index], 0, rootType === 'Array')) : rootType === 'Object' ? (
                 <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>No child fields defined under ROOT. <Button type="link" size="small" onClick={() => addAt([])}>Add child</Button></div>
+              ) : (
+                <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>Scalar ROOT does not contain child fields.</div>
               )}
             </div>
           )}

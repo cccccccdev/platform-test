@@ -42,6 +42,8 @@ interface Props {
   sourcePlaceholder?: string;
   targetPlaceholder?: string;
   sourceCascader?: boolean;
+  fixedFieldType?: string;
+  schemaOnly?: boolean;
 }
 
 const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 36px';
@@ -79,6 +81,8 @@ export default function FlatFieldMappingEditor({
   sourcePlaceholder = 'Credential or generated data',
   targetPlaceholder = 'Token or Expiry',
   sourceCascader = false,
+  fixedFieldType,
+  schemaOnly = false,
 }: Props) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const emit = (next: FlatMappingField[]) => onChange?.(next);
@@ -92,7 +96,8 @@ export default function FlatFieldMappingEditor({
     next.splice(to, 0, item);
     emit(next);
   };
-  const columns = direction === 'request' ? requestColumns : responseColumns;
+  const schemaColumns = 'minmax(240px, 1.4fr) 90px 56px minmax(180px, 1fr) 36px';
+  const columns = schemaOnly ? schemaColumns : direction === 'request' ? requestColumns : responseColumns;
   const cascaderSourceOptions = sourceOptions.map((option) => 'options' in option
     ? { label: option.label, value: option.label, children: option.options }
     : option);
@@ -106,7 +111,9 @@ export default function FlatFieldMappingEditor({
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 960 }}>
           <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, background: '#fcfcfc', borderBottom: '1px solid #f0f0f0' }}>
-            {direction === 'request' ? <>
+            {schemaOnly ? <>
+              <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
+            </> : direction === 'request' ? <>
               <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
             </> : <>
               <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span /><span>OPERATION</span><span /><span>TARGET VALUE</span><span>TARGET TYPE</span><span />
@@ -123,7 +130,7 @@ export default function FlatFieldMappingEditor({
                 onDrop={(event) => { event.preventDefault(); if (dragIndex !== null) move(dragIndex, index); setDragIndex(null); }}
                 style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', minHeight: 43, padding: '5px 8px', borderBottom: '1px solid #f0f0f0', background: dragIndex === index ? '#e6f4ff' : '#fff' }}
               >
-                {direction === 'request' ? <>
+                {!schemaOnly && direction === 'request' ? <>
                   {sourceCascader
                     ? <Cascader value={item.sourceValue as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceValue) => update(index, { sourceValue: sourceValue as string[] })} />
                     : <Select value={item.sourceValue as string | undefined} placeholder={sourcePlaceholder} options={sourceOptions} onChange={(sourceValue) => update(index, { sourceValue })} />}
@@ -136,10 +143,10 @@ export default function FlatFieldMappingEditor({
                   <Tooltip title="Drag to reorder"><HolderOutlined style={{ color: '#bfbfbf', cursor: 'grab', marginRight: 6 }} /></Tooltip>
                   <Input value={item.name} placeholder={fieldPlaceholder} status={!item.name ? 'error' : undefined} onChange={(event) => update(index, { name: event.target.value })} />
                 </div>
-                <Select value={item.type ?? 'String'} options={dataTypeOptions} onChange={(type) => update(index, { type })} />
+                {fixedFieldType ? <Text>{fixedFieldType}</Text> : <Select value={item.type} placeholder="Type" options={dataTypeOptions} onChange={(type) => update(index, { type })} />}
                 <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!item.required} onChange={(required) => update(index, { required })} /></div>
                 <Input value={item.description} placeholder="Optional" onChange={(event) => update(index, { description: event.target.value })} />
-                {direction === 'response' ? <>
+                {!schemaOnly && direction === 'response' ? <>
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
                   <Cascader allowClear value={item.operation as string[] | undefined} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(operation) => update(index, { operation: operation as string[] })} />
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
