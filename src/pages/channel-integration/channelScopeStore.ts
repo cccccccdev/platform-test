@@ -66,7 +66,19 @@ export const useChannelScopeStore = create<ChannelScopeStore>((set, get) => ({
     PAYSTACK_NG: [],
   },
   orderVariableVersionByChannel: { GTB_NG: '20260628110500', ZENITH_NG: '20260628110500', PAYSTACK_NG: '20260628110500' },
-  authenticationsByChannel: {},
+  authenticationsByChannel: {
+    GTB_NG: [
+      {
+        id: 'auth_seed_basic',
+        name: 'GTB Basic Auth',
+        type: 'basic',
+        version: '20260701110000',
+        credentials: { username: 'API_KEY', password: 'SECRET_KEY' },
+        operator: 'admin',
+        operationTime: '2026-07-01 11:00:00',
+      },
+    ],
+  },
 
   addCredential: (channelCode, credential) => set((state) => ({
     credentialsByChannel: {

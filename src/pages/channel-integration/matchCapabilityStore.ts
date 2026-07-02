@@ -31,7 +31,7 @@ const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisio
     const [source, ...nameParts] = field.split('.');
     return {
       id: `${endpoint.id}_field_${index}`,
-      source: (['query', 'header', 'body'].includes(source) ? source : 'body') as 'query' | 'header' | 'body',
+      source: (['path', 'query', 'header', 'body'].includes(source) ? source : 'body') as 'path' | 'query' | 'header' | 'body',
       name: nameParts.join('.') || field,
       type: 'String' as const,
       moc: 'yes' as const,
@@ -56,10 +56,11 @@ const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisio
     singleNoField: endpoint.singleNoField,
     referenceField: endpoint.referenceField,
     matchFields: endpoint.matchFields,
-    rules: endpoint.rules,
+    rules: endpoint.matchType === 'order_no' && endpoint.uriType !== 'legacy' ? [] : endpoint.rules,
     customScript: endpoint.customScript,
     fallbackBehavior: endpoint.fallbackBehavior,
     decryptEnabled: endpoint.decryptEnabled,
+    requestMessageFormat: 'JSON',
     badges: endpoint.badges,
     deploymentRecords: (endpoint.badges ?? []).map((badge) => ({
       ...badge,
@@ -190,6 +191,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       customScript: 'def execute(request) {\n  return null\n}',
       fallbackBehavior: 'alert_and_reject',
       decryptEnabled: false,
+      requestMessageFormat: 'JSON',
       badges: [],
       hasUnsubmittedDraft: false,
       updatedTime: new Date().toLocaleString(),

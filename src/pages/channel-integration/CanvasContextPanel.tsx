@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Collapse, Input, Modal, Space, Tag, message } from 'antd';
-import { PlusOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { EditOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useChannelScopeStore } from './channelScopeStore';
 import type { AuthConfig, CredentialItem, VariableItem } from './channelScopeStore';
 import AuthenticationDrawer from './sharedAuthenticationDrawer';
@@ -93,10 +93,6 @@ export default function CanvasContextPanel({
   const [showCredentialGuidance, setShowCredentialGuidance] = useState(false);
   const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
   const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
-
-  const addButton = (onClick: () => void, label: string) => readOnly ? null : (
-    <Button type="text" size="small" aria-label={`Add ${label}`} icon={<PlusOutlined />} onClick={(event) => { event.stopPropagation(); onClick(); }} style={{ padding: '0 4px', height: 20 }} />
-  );
 
   const submitGlobalVariable = () => {
     const key = globalVariableKeyDraft.trim();
@@ -197,8 +193,22 @@ export default function CanvasContextPanel({
     },
     {
       key: 'authentication',
-      label: <Space><span>🛡️</span><span>Authentication</span>{addButton(() => { setEditingAuthentication(null); setShowAuthenticationDrawer(true); }, 'Authentication')}</Space>,
-      children: authentications.length ? authentications.map((item) => <div key={item.id} onClick={() => { if (!readOnly) { setEditingAuthentication(item); setShowAuthenticationDrawer(true); } }} style={{ padding: '5px 2px', cursor: readOnly ? 'default' : 'pointer', fontSize: 11 }}><Tag color="geekblue">{item.name}</Tag><div style={{ color: '#595959', marginTop: 3 }}>{authTypeLabels[item.type]}</div><div style={{ color: '#8c8c8c', marginTop: 2 }}>Version {item.version}</div></div>) : <EmptyContext>No Authentication configured.</EmptyContext>,
+      label: <Space><span>🛡️</span><span>Authentication</span></Space>,
+      children: <div>
+        {authentications.length ? authentications.map((item) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, gap: 6 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 600, color: '#262626', fontSize: 11 }}>{item.name}</span>
+              <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>{authTypeLabels[item.type]}</Tag>
+            </div>
+            <div style={{ color: '#8c8c8c', marginTop: 2 }}>v{item.version}</div>
+          </div>
+          <Button type="text" size="small" icon={<EditOutlined />} aria-label={`${readOnly ? 'View' : 'Edit'} ${item.name}`} onClick={() => { setEditingAuthentication(item); setShowAuthenticationDrawer(true); }} />
+        </div>) : <EmptyContext>No Authentication configured.</EmptyContext>}
+        {!readOnly && <div style={{ padding: '8px 4px 0' }}>
+          <Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingAuthentication(null); setShowAuthenticationDrawer(true); }}>Create Scheme</Button>
+        </div>}
+      </div>,
     },
   ];
 
@@ -223,7 +233,7 @@ export default function CanvasContextPanel({
   }] : [];
 
   const scopeItems = [
-    { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={mode === 'flow' ? ['spi', 'global-variable'] : ['global-variable']} /> },
+    { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={mode === 'flow' ? ['spi', 'global-variable'] : []} /> },
     { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={['order-variable']} /> : <EmptyContext>Not available in Capability Matching.</EmptyContext> },
   ];
 
