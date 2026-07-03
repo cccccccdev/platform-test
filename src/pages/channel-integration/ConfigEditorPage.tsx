@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Badge, Breadcrumb, Button, Modal, Space, Table, Tag, Typography } from 'antd';
-import { EditOutlined, EyeOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { Badge, Breadcrumb, Button, message, Modal, Space, Table, Tag, Typography } from 'antd';
+import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import FlowConfigModal from './FlowConfigModal';
 import FlowSettingsModal from './FlowSettingsModal';
@@ -61,6 +61,7 @@ export default function ConfigEditorPage() {
   );
   const version = ability?.versions.find((item) => item.id === versionId);
   const addFlow = useConfigIntegrationStore((state) => state.addFlow);
+  const deleteFlow = useConfigIntegrationStore((state) => state.deleteFlow);
   const updateFlow = useConfigIntegrationStore((state) => state.updateFlow);
 
   if (!ability || !version) {
@@ -85,6 +86,20 @@ export default function ConfigEditorPage() {
   const handleSettingsSave = (flow: FlowConfig) => {
     updateFlow(channelCode, bt, abilityCode, groupId, flow.id, flow);
     setEditingFlow(null);
+  };
+
+  const handleDeleteFlow = (flow: FlowConfig) => {
+    Modal.confirm({
+      title: 'Delete Flow',
+      content: `Delete Flow "${flow.name}"? This action cannot be undone.`,
+      okText: 'Delete',
+      okButtonProps: { danger: true },
+      cancelText: 'Cancel',
+      onOk: () => {
+        deleteFlow(channelCode, bt, abilityCode, groupId, flow.id);
+        message.success('Flow deleted');
+      },
+    });
   };
 
   const handleEditComponents = (flow: FlowConfig) => {
@@ -168,7 +183,7 @@ export default function ConfigEditorPage() {
           },
           {
             title: 'Operation',
-            width: 260,
+            width: 340,
             render: (_value, flow) => (
               <Space>
                 <Button
@@ -188,6 +203,11 @@ export default function ConfigEditorPage() {
                     {readOnly ? 'View Components' : 'Edit Components'}
                   </Button>
                 </Badge>
+                {!readOnly && flow.status === 'DRAFT' && (
+                  <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDeleteFlow(flow)}>
+                    Delete
+                  </Button>
+                )}
               </Space>
             ),
           },

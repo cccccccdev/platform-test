@@ -4,6 +4,7 @@ import { QuestionCircleOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { FlowConfig, TriggerType } from './types';
+import { ACTION_HELP, buildTemplateCanvas, getActionsForTrigger, getTemplates, TRIGGER_TYPE_DESCRIPTIONS } from './flowTemplates';
 
 const { Text } = Typography;
 
@@ -12,32 +13,27 @@ const triggerTypeOptions = [
   {
     value: 'UPSTREAM_TRIGGERED',
     label: 'UPSTREAM_TRIGGERED',
-    labelCn: '上游触发',
-    description: '由内部上游系统调用网关触发，通常用于内部业务请求发起的正向交易、验证或查询类 Flow。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.UPSTREAM_TRIGGERED,
   },
   {
     value: 'EXTERNAL_INBOUND_TRIGGERED',
     label: 'EXTERNAL_INBOUND_TRIGGERED',
-    labelCn: '外部触发',
-    description: '特指 Inbound 类型，完全由外部系统发起的一笔新的业务请求，不依赖前序 Outbound 请求。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.EXTERNAL_INBOUND_TRIGGERED,
   },
   {
     value: 'CALLBACK_TRIGGERED',
     label: 'CALLBACK_TRIGGERED',
-    labelCn: 'CALLBACK 触发',
-    description: '特指存在前序 Outbound 请求的前提下，外部渠道发来对应回调请求，用于处理原请求的异步结果或后续通知。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.CALLBACK_TRIGGERED,
   },
   {
     value: 'ASYNC_TRIGGERED',
     label: 'ASYNC_TRIGGERED',
-    labelCn: '异步触发',
-    description: '特指由前序 Flow 中的 asyncExecuteFlow 组件异步触发的 Flow。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.ASYNC_TRIGGERED,
   },
   {
     value: 'REQUERY_TRIGGERED',
     label: 'REQUERY_TRIGGERED',
-    labelCn: '重查触发',
-    description: '订单进入指定 Trigger Sub-State 后，由平台结合重查策略触发的 Flow。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.REQUERY_TRIGGERED,
   },
 ];
 
@@ -72,10 +68,15 @@ export default function FlowConfigModal({
     () => (endpointsByChannel[channelCode] ?? []).filter((endpoint) => endpoint.uriType === 'new'),
     [channelCode, endpointsByChannel]
   );
-  const [triggerType, setTriggerType] = useState<string>('UPSTREAM_TRIGGERED');
+  const [triggerType, setTriggerType] = useState<TriggerType>('UPSTREAM_TRIGGERED');
   const [hasChanges, setHasChanges] = useState(false);
 
-  const actionSelectOptions = availableActions.map((a) => ({ value: a, label: a }));
+  const eligibleActions = useMemo(() => getActionsForTrigger(triggerType, availableActions, existingFlows), [triggerType, availableActions, existingFlows]);
+  const actionSelectOptions = eligibleActions.map((a) => ({ value: a, label: a }));
+  const actionField = triggerType === 'CALLBACK_TRIGGERED' ? 'originalRequestAction' : triggerType === 'ASYNC_TRIGGERED' || triggerType === 'REQUERY_TRIGGERED' ? 'referenceActions' : 'triggerAction';
+  const selectedAction = Form.useWatch(actionField, form);
+  const normalizedAction = Array.isArray(selectedAction) ? selectedAction[0] : selectedAction;
+  const templateOptions = getTemplates(triggerType, normalizedAction);
 
   useEffect(() => {
     if (visible) {
@@ -91,12 +92,13 @@ export default function FlowConfigModal({
   };
 
   const handleTriggerTypeChange = (e: any) => {
-    setTriggerType(e.target.value);
+    setTriggerType(e.target.value as TriggerType);
     form.setFieldValue('triggerAction', undefined);
     form.setFieldValue('originalRequestAction', undefined);
     form.setFieldValue('referenceActions', undefined);
     form.setFieldValue('triggerSubState', undefined);
     form.setFieldValue('inboundUriId', undefined);
+    form.setFieldValue('template', undefined);
   };
 
   const handleValuesChange = () => {
@@ -142,7 +144,7 @@ export default function FlowConfigModal({
         selectedActions.push(...(Array.isArray(values.originalRequestAction) ? values.originalRequestAction : [values.originalRequestAction]));
       }
       if (values.referenceActions) {
-        selectedActions.push(...values.referenceActions);
+        selectedActions.push(...(Array.isArray(values.referenceActions) ? values.referenceActions : [values.referenceActions]));
       }
 
       const validationError = validateActionsInAvailable(selectedActions);
@@ -161,15 +163,17 @@ export default function FlowConfigModal({
             : 'outbound',
         endType: 'wait_external',
         triggerType: triggerType as TriggerType,
+        template: values.template,
         // Ensure triggerEvents is always an array
         triggerEvents: Array.isArray(values.triggerAction) ? values.triggerAction : values.triggerAction ? [values.triggerAction] : Array.isArray(values.originalRequestAction) ? values.originalRequestAction : values.originalRequestAction ? [values.originalRequestAction] : [],
-        contextActions: values.referenceActions || [],
+        contextActions: Array.isArray(values.referenceActions) ? values.referenceActions : values.referenceActions ? [values.referenceActions] : [],
         stateConditions: values.triggerSubState
           ? [{ id: 'trigger-sub-state', field: 'subState', operator: '==', value: values.triggerSubState }]
           : [],
         inboundUriId: values.inboundUriId,
         isConfigured: false,
         status: 'DRAFT',
+        ...buildTemplateCanvas(values.template),
       };
 
       onSave(config);
@@ -177,14 +181,22 @@ export default function FlowConfigModal({
     });
   };
 
-  const emptyActions = availableActions.length === 0;
-  const placeholderText = emptyActions ? 'No Actions available – add Actions via Config Integration' : 'Select action';
+  const emptyActions = eligibleActions.length === 0;
+  const placeholderText = emptyActions ? 'No eligible Actions available' : 'Select action';
+
+  useEffect(() => {
+    form.setFieldValue('template', templateOptions.length === 1 ? templateOptions[0] : undefined);
+  }, [form, normalizedAction, triggerType, templateOptions.length]);
+
+  const actionLabel = (label: string) => (
+    <Space>{label}<Tooltip title={ACTION_HELP[triggerType]}><QuestionCircleOutlined style={{ color: '#999' }} /></Tooltip></Space>
+  );
 
   const renderDynamicFields = () => {
     switch (triggerType) {
       case 'UPSTREAM_TRIGGERED':
         return (
-          <Form.Item name="triggerAction" label="Trigger Action" rules={[{ required: true, message: 'Please select Trigger Action' }]}>
+          <Form.Item name="triggerAction" label={actionLabel('Trigger Action')} rules={[{ required: true, message: 'Please select Trigger Action' }]}>
             <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
           </Form.Item>
         );
@@ -196,7 +208,7 @@ export default function FlowConfigModal({
           </Form.Item>
           <Form.Item
             name="triggerAction"
-            label="Trigger Action"
+            label={actionLabel('Trigger Action')}
             rules={[{ required: true, message: 'Please select Trigger Action' }]}
           >
             <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
@@ -210,7 +222,7 @@ export default function FlowConfigModal({
           </Form.Item>
           <Form.Item
             name="originalRequestAction"
-            label="Original Request Action"
+            label={actionLabel('Original Request Action')}
             rules={[{ required: true, message: 'Please select Original Request Action' }]}
           >
             <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
@@ -221,10 +233,10 @@ export default function FlowConfigModal({
         return (
           <Form.Item
             name="referenceActions"
-            label="Reference Action"
+            label={actionLabel('Reference Action')}
             rules={[{ required: true, message: 'Please select Reference Action' }]}
           >
-            <Select mode="multiple" placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
+            <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
           </Form.Item>
         );
 
@@ -251,10 +263,10 @@ export default function FlowConfigModal({
             </Form.Item>
             <Form.Item
               name="referenceActions"
-              label="Reference Action"
+              label={actionLabel('Reference Action')}
               rules={[{ required: true, message: 'Please select Reference Action' }]}
             >
-              <Select mode="multiple" placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
+              <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} />
             </Form.Item>
           </>
         );
@@ -316,7 +328,6 @@ export default function FlowConfigModal({
               <Radio key={opt.value} value={opt.value} style={{ height: 'auto', padding: '8px 0' }}>
                 <Space>
                   <Text>{opt.label}</Text>
-                  <Text type="secondary">({opt.labelCn})</Text>
                   <Tooltip title={opt.description}>
                     <QuestionCircleOutlined style={{ color: '#999' }} />
                   </Tooltip>
@@ -328,6 +339,18 @@ export default function FlowConfigModal({
 
         {/* Dynamic Fields */}
         {renderDynamicFields()}
+
+        <Form.Item
+          name="template"
+          label="Template"
+          rules={[{ required: true, message: 'Please select a Template' }]}
+        >
+          <Select
+            placeholder={normalizedAction ? 'Select template' : 'Select an Action first'}
+            disabled={!normalizedAction || templateOptions.length <= 1}
+            options={templateOptions.map((template) => ({ label: template, value: template }))}
+          />
+        </Form.Item>
       </Form>
     </Modal>
   );

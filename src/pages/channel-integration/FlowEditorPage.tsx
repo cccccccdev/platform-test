@@ -14,6 +14,7 @@ import AuthenticationDrawer from './sharedAuthenticationDrawer';
 import CanvasContextPanel from './CanvasContextPanel';
 import HttpCallDrawer from './HttpCallDrawer';
 import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
+import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
 
 const { Text, Title } = Typography;
 
@@ -33,33 +34,36 @@ const authTypeColors: Record<AuthType, string> = {
   oauth2: 'orange',
 };
 
-type LibraryComponent = { code: string; name: string; group: string; usage: 'single' | 'multiple' };
+type ComponentScope = 'match' | 'outbound' | 'inbound';
+type LibraryComponent = { code: string; name: string; group: string; usage: 'single' | 'multiple'; scopes: ComponentScope[] };
 
 // Phase 3 component library. eventListener and legacy network are intentionally unavailable.
 const COMPONENT_LIBRARY = [
-  { code: 'initOutboundOrder', name: 'Initialize Outbound Order', group: 'Outbound', usage: 'single' },
-  { code: 'updateOutboundOrder', name: 'Update Outbound Order', group: 'Outbound', usage: 'multiple' },
-  { code: 'generateRequestReference', name: 'Generate Request Reference', group: 'Outbound', usage: 'multiple' },
-  { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple' },
-  { code: 'sendCompleteMQ', name: 'Send Complete MQ', group: 'Outbound', usage: 'multiple' },
-  { code: 'condition', name: 'Condition Check', group: 'Common', usage: 'multiple' },
-  { code: 'asyncExecuteFlow', name: 'Async Execute Flow', group: 'Common', usage: 'multiple' },
-  { code: 'inboundRequest', name: 'Inbound Request', group: 'Inbound', usage: 'single' },
-  { code: 'inboundResponse', name: 'Inbound Response', group: 'Inbound', usage: 'single' },
-  { code: 'initInboundOrder', name: 'Initialize Inbound Order', group: 'Inbound', usage: 'single' },
-  { code: 'updateInboundOrder', name: 'Update Inbound Order', group: 'Inbound', usage: 'multiple' },
-  { code: 'queryInboundOrder', name: 'Query Inbound Order', group: 'Query', usage: 'multiple' },
-  { code: 'queryOutboundOrder', name: 'Query Outbound Order', group: 'Query', usage: 'multiple' },
-  { code: 'requestBusinessAccessLayer', name: 'Request Business Access Layer', group: 'Integration', usage: 'multiple' },
-  { code: 'responseCodeInner2Outer', name: 'Response Code Inner to Outer', group: 'Response Code', usage: 'multiple' },
-  { code: 'responseCodeOuter2Inner', name: 'Response Code Outer to Inner', group: 'Response Code', usage: 'multiple' },
-  { code: 'sendReQueryMQ', name: 'Send ReQuery MQ', group: 'Requery', usage: 'multiple' },
+  { code: 'initOutboundOrder', name: 'Initialize Outbound Order', group: 'Outbound', usage: 'single', scopes: ['outbound'] },
+  { code: 'prepareExtendOrder', name: 'Prepare Extend Order', group: 'Outbound', usage: 'single', scopes: ['outbound'] },
+  { code: 'updateOutboundOrder', name: 'Update Outbound Order', group: 'Outbound', usage: 'multiple', scopes: ['outbound', 'inbound'] },
+  { code: 'updateOutboundBatchOrder', name: 'Update Outbound Batch Order', group: 'Inbound', usage: 'multiple', scopes: ['inbound'] },
+  { code: 'generateRequestReference', name: 'Generate Request Reference', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
+  { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
+  { code: 'sendCompleteMQ', name: 'Send Complete MQ', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
+  { code: 'condition', name: 'Condition Check', group: 'Common', usage: 'multiple', scopes: ['match', 'outbound', 'inbound'] },
+  { code: 'asyncExecuteFlow', name: 'Async Execute Flow', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
+  { code: 'inboundRequest', name: 'Inbound Request', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
+  { code: 'inboundResponse', name: 'Inbound Response', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
+  { code: 'initInboundOrder', name: 'Initialize Inbound Order', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
+  { code: 'updateInboundOrder', name: 'Update Inbound Order', group: 'Inbound', usage: 'multiple', scopes: ['outbound', 'inbound'] },
+  { code: 'queryInboundOrder', name: 'Query Inbound Order', group: 'Query', usage: 'multiple', scopes: ['inbound'] },
+  { code: 'queryOutboundOrder', name: 'Query Outbound Order', group: 'Query', usage: 'multiple', scopes: ['outbound', 'inbound'] },
+  { code: 'requestBusinessAccessLayer', name: 'Request Business Access Layer', group: 'Integration', usage: 'multiple', scopes: ['inbound'] },
+  { code: 'responseCodeInner2Outer', name: 'Response Code Inner to Outer', group: 'Response Code', usage: 'multiple', scopes: ['inbound'] },
+  { code: 'sendReQueryMQ', name: 'Send ReQuery MQ', group: 'Requery', usage: 'multiple', scopes: ['inbound'] },
   // Runtime prerequisites are visible for seeded sample flows but cannot be added manually.
-  { code: 'loadCredential', name: 'Load Credential', group: 'System', usage: 'single' },
-  { code: 'loadGlobalVariable', name: 'Load Global Variable', group: 'System', usage: 'single' },
+  { code: 'loadCredential', name: 'Load Credential', group: 'System', usage: 'single', scopes: ['outbound', 'inbound'] },
+  { code: 'loadGlobalVariable', name: 'Load Global Variable', group: 'System', usage: 'single', scopes: ['outbound', 'inbound'] },
 ] satisfies LibraryComponent[];
 
 const ADDABLE_COMPONENTS = COMPONENT_LIBRARY.filter((item) => item.group !== 'System');
+const scopeLabels: Record<ComponentScope, string> = { match: 'Match Capability', outbound: 'Outbound', inbound: 'Inbound' };
 
 // 组件面板
 function ComponentLibraryPanel({
@@ -171,6 +175,9 @@ function ComponentLibraryPanel({
                   <Tag color={c.usage === 'single' ? 'default' : 'green'} style={{ fontSize: 9, margin: 0, height: 20 }}>
                     {c.usage === 'single' ? 'Single Use' : 'Multiple'}
                   </Tag>
+                </div>
+                <div style={{ marginTop: 5 }}>
+                  {c.scopes.map((scope) => <Tag key={scope} color={scope === 'match' ? 'purple' : scope === 'outbound' ? 'blue' : 'cyan'} style={{ fontSize: 9, marginBottom: 2 }}>{scopeLabels[scope]}</Tag>)}
                 </div>
               </div>
         ))}
@@ -1545,6 +1552,8 @@ function EdgeConditionDrawer({
   );
 }
 
+void EdgeConditionDrawer;
+
 // Generated Field Drawer
 function GeneratedFieldDrawer({
   visible,
@@ -1873,6 +1882,8 @@ export default function FlowEditorPage() {
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
   const [showInboundRequestDrawer, setShowInboundRequestDrawer] = useState(false);
   const [showInboundResponseDrawer, setShowInboundResponseDrawer] = useState(false);
+  const [showConditionNodeDrawer, setShowConditionNodeDrawer] = useState(false);
+  const [selectedConditionNodeId, setSelectedConditionNodeId] = useState<string | null>(null);
 
   // Edge condition config modal state
   const [showEdgeConditionDrawer, setShowEdgeConditionDrawer] = useState(false);
@@ -1966,6 +1977,10 @@ export default function FlowEditorPage() {
   const submitFlow = useConfigIntegrationStore((state) => state.submitFlow);
   const readOnly = searchParams.get('mode') === 'detail';
   const actionName = storedFlow?.triggerEvents?.[0] ?? storedFlow?.contextActions?.[0] ?? '—';
+  const flowScope: ComponentScope = storedFlow?.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || storedFlow?.triggerType === 'CALLBACK_TRIGGERED'
+    ? 'inbound'
+    : 'outbound';
+  const availableComponents = ADDABLE_COMPONENTS.filter((component) => component.scopes.includes(flowScope));
 
   const mockEndpoints = [
     {
@@ -2068,10 +2083,11 @@ export default function FlowEditorPage() {
   const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
   const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
 
-  const openComponentConfig = useCallback((code: string) => {
+  const openComponentConfig = useCallback((code: string, nodeId?: string) => {
     if (code === 'httpCall') setShowNetworkDrawer(true);
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
+    if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
   }, []);
 
   const toRuntimeNode = useCallback((item: FlowCanvasNode): Node => {
@@ -2086,12 +2102,13 @@ export default function FlowEditorPage() {
         code: item.componentCode,
         status: item.status,
         isConfigured: item.status === 'complete' || item.status === 'readonly',
-        onConfig: () => openComponentConfig(item.componentCode),
+        onConfig: () => openComponentConfig(item.componentCode, item.id),
         onDelete: () => {
           setNodes((current) => current.filter((node) => node.id !== item.id));
           setEdges((current) => current.filter((edge) => edge.source !== item.id && edge.target !== item.id));
         },
         isDraggable: item.status !== 'readonly',
+        config: item.config,
       },
     };
   }, [openComponentConfig]);
@@ -2152,8 +2169,9 @@ export default function FlowEditorPage() {
     x: node.position.x,
     y: node.position.y,
     status: (node.data.status as FlowCanvasNode['status']) ?? (node.data.isConfigured ? 'complete' : 'not_started'),
+    config: node.data.config as Record<string, unknown> | undefined,
   }));
-  const serializeEdges = (): FlowCanvasEdge[] => edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target }));
+  const serializeEdges = (): FlowCanvasEdge[] => edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, data: edge.data as Record<string, unknown> | undefined }));
 
   const groupId = storedVersion?.groupId;
   const parentPath = `/channel-integration/${params.channelCode}/integration/config/${params.bt}/${params.ability}/versions/${params.versionId}`;
@@ -2269,7 +2287,7 @@ export default function FlowEditorPage() {
 
         {/* 组件面板 */}
         <ComponentLibraryPanel
-          components={readOnly ? [] : ADDABLE_COMPONENTS}
+          components={readOnly ? [] : availableComponents}
           onAddComponent={readOnly ? () => undefined : handleAddComponent}
         />
 
@@ -2366,17 +2384,25 @@ export default function FlowEditorPage() {
       />
 
       {/* Edge Condition Modal */}
-      <EdgeConditionDrawer
-        visible={showEdgeConditionDrawer}
-        edge={selectedEdgeForCondition}
-        nodes={nodes}
+      <ConditionConfigurationDrawer
+        open={showEdgeConditionDrawer}
+        targetComponent={String(nodes.find((node) => node.id === selectedEdgeForCondition?.target)?.data.code ?? '')}
+        fieldOptions={[
+          { label: 'Channel Response Code', value: 'channelResponse.code', type: 'String' },
+          { label: 'Channel Response Status', value: 'channelResponse.status', type: 'String' },
+          { label: 'SPI Request Amount', value: 'spi.request.amount', type: 'Long' },
+          { label: 'SPI Request Currency', value: 'spi.request.currency', type: 'String' },
+          { label: 'SPI Request Reference', value: 'spi.request.reference', type: 'String' },
+        ]}
+        value={selectedEdgeForCondition?.data?.condition as any}
+        readOnly={readOnly}
         onClose={() => {
           setShowEdgeConditionDrawer(false);
           setSelectedEdgeForCondition(null);
         }}
-        onSave={(edgeId, condition) => {
+        onSave={(condition) => {
           setEdges((eds) => eds.map(e => {
-            if (e.id === edgeId) {
+            if (e.id === selectedEdgeForCondition?.id) {
               return { ...e, data: { ...e.data, condition } };
             }
             return e;
@@ -2384,6 +2410,26 @@ export default function FlowEditorPage() {
           setShowEdgeConditionDrawer(false);
           setSelectedEdgeForCondition(null);
           message.success('Branch condition saved');
+        }}
+      />
+
+      <ConditionNodeDrawer
+        open={showConditionNodeDrawer}
+        branches={edges.filter((edge) => edge.source === selectedConditionNodeId).map((edge, index) => {
+          const condition = edge.data?.condition as any;
+          return {
+            name: condition?.branchName ?? `Branch ${index + 1}`,
+            target: String(nodes.find((node) => node.id === edge.target)?.data.code ?? 'Unknown'),
+            summary: condition?.scriptMode ? 'Groovy Script' : condition?.groups?.length ? `${condition.groups.length} condition group(s)` : '',
+          };
+        })}
+        endCurrentFlow={Boolean(nodes.find((node) => node.id === selectedConditionNodeId)?.data.config && (nodes.find((node) => node.id === selectedConditionNodeId)?.data.config as any).endCurrentFlow)}
+        readOnly={readOnly}
+        onClose={() => setShowConditionNodeDrawer(false)}
+        onSave={({ endCurrentFlow }) => {
+          setNodes((current) => current.map((node) => node.id === selectedConditionNodeId ? { ...node, data: { ...node.data, config: { ...(node.data.config as Record<string, unknown> | undefined), endCurrentFlow } } } : node));
+          setShowConditionNodeDrawer(false);
+          message.success('Condition configuration saved');
         }}
       />
 

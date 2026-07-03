@@ -28,6 +28,11 @@ export const mockBusinessTypes: Record<string, Array<{ bt: string; mode: 'Config
   GTB_NG: [
     { bt: 'COLLECTION', mode: 'Config Integration' },
     { bt: 'DISBURSEMENT', mode: 'Code Integration' },
+    { bt: 'BANK_CARD_DEBIT', mode: 'Config Integration' },
+    { bt: 'WALLET_DEBIT', mode: 'Config Integration' },
+    { bt: 'SMS', mode: 'Config Integration' },
+    { bt: 'KYC', mode: 'Config Integration' },
+    { bt: 'FUND_NOTIFICATION', mode: 'Config Integration' },
   ],
   ZENITH_NG: [
     { bt: 'COLLECTION', mode: 'Config Integration' },
@@ -330,6 +335,11 @@ export const abilityOptions: Record<string, string[]> = {
   DISBURSEMENT: ['BANK_TRF'],
   REFUND: ['REFUND_PAY'],
   TRANSFER: ['WALLET_TRF'],
+  BANK_CARD_DEBIT: ['INFO_PAYMENT'],
+  WALLET_DEBIT: ['TRANSFER'],
+  SMS: ['BULK_MESSAGE'],
+  KYC: ['FINGERPRINT_VERIFY'],
+  FUND_NOTIFICATION: ['CUSTOMER_VALIDATION'],
 }
 
 // Country 枚举
@@ -339,7 +349,7 @@ export const countryOptions = ['Nigeria', 'Ghana', 'Kenya', 'Tanzania', 'Uganda'
 export const partyOptions = ['PalmPay NG', 'PalmPay GH', 'PalmPay KE']
 
 // Business Type 枚举
-export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRANSFER']
+export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRANSFER', 'BANK_CARD_DEBIT', 'WALLET_DEBIT', 'SMS', 'KYC', 'FUND_NOTIFICATION']
 
 // Action 枚举
 export const actionOptions = ['TRANSACTION', 'QUERY', 'VERIFY', 'CANCEL', 'REVERSAL', 'INBOUND_TRANSACTION', 'INBOUND_QUERY']
@@ -352,4 +362,9 @@ export const capabilityActionOptions: Record<string, string[]> = {
   'DISBURSEMENT:BANK_TRF': ['TRANSACTION', 'QUERY', 'CANCEL', 'REVERSAL'],
   'REFUND:REFUND_PAY': ['TRANSACTION', 'QUERY'],
   'TRANSFER:WALLET_TRF': ['TRANSACTION', 'QUERY', 'REVERSAL'],
+  'BANK_CARD_DEBIT:INFO_PAYMENT': ['TRANSACTION', 'VERIFY'],
+  'WALLET_DEBIT:TRANSFER': ['TRANSACTION', 'VERIFY'],
+  'SMS:BULK_MESSAGE': ['TRANSACTION'],
+  'KYC:FINGERPRINT_VERIFY': ['QUERY'],
+  'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['INBOUND_QUERY'],
 }

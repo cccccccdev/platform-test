@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { CloudType, ConfigAbility, EnvType, FlowConfig, FlowGroupVersion, GroupStatus, DeployRecord, SubmittedFlowContent } from './types';
 import { capabilityActionOptions } from '../../mock/data';
+import { buildTemplateCanvas } from './flowTemplates';
 
 const now = () => {
   const date = new Date();
@@ -263,6 +264,115 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
         },
       ],
     },
+    {
+      bt: 'BANK_CARD_DEBIT',
+      ability: 'INFO_PAYMENT',
+      actions: capabilityActionOptions['BANK_CARD_DEBIT:INFO_PAYMENT'] ?? [],
+      stateMachine: 'BankCard_Debit_StateMachine',
+      versions: [
+        {
+          id: 'gtb_bank_card_debit_info_payment_draft',
+          groupId: 129,
+          version: '20260703114910',
+          status: 'DRAFT',
+          badges: [],
+          remark: 'Bank card debit payment and OTP verification demo',
+          operator: 'admin',
+          operationTime: '2026-07-03 11:49:10',
+          deployRecords: [],
+          flows: [
+            {
+              id: 'flow_1783050559924',
+              name: 'place_order',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'wait_external',
+              triggerType: 'UPSTREAM_TRIGGERED',
+              template: 'TRANSACTION',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: [],
+              isConfigured: false,
+              status: 'DRAFT',
+              ...buildTemplateCanvas('TRANSACTION'),
+            },
+            {
+              id: 'flow_1783050572774',
+              name: 'verify_otp',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'wait_external',
+              triggerType: 'UPSTREAM_TRIGGERED',
+              template: 'VERIFY',
+              triggerEvents: ['VERIFY'],
+              contextActions: [],
+              isConfigured: false,
+              status: 'DRAFT',
+              ...buildTemplateCanvas('VERIFY'),
+            },
+            {
+              id: 'flow_1783050610609',
+              name: 'place_order_callback',
+              executionType: 'single',
+              flowType: 'inbound',
+              endType: 'wait_external',
+              triggerType: 'CALLBACK_TRIGGERED',
+              template: 'CALLBACK',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: [],
+              inboundUriId: 'gtb_callback_endpoint',
+              isConfigured: false,
+              status: 'DRAFT',
+              ...buildTemplateCanvas('CALLBACK'),
+            },
+            {
+              id: 'flow_1783050634527',
+              name: 'verify_otp_callback',
+              executionType: 'single',
+              flowType: 'inbound',
+              endType: 'wait_external',
+              triggerType: 'CALLBACK_TRIGGERED',
+              template: 'CALLBACK',
+              triggerEvents: ['VERIFY'],
+              contextActions: [],
+              inboundUriId: 'gtb_callback_endpoint',
+              isConfigured: false,
+              status: 'DRAFT',
+              ...buildTemplateCanvas('CALLBACK'),
+            },
+            {
+              id: 'flow_1783050858525',
+              name: 'result_requery',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'wait_external',
+              triggerType: 'REQUERY_TRIGGERED',
+              template: 'REQUERY',
+              triggerEvents: [],
+              contextActions: ['VERIFY'],
+              stateConditions: [{ id: 'requery-progressing', field: 'subState', operator: '==', value: 'PROGRESSING' }],
+              isConfigured: false,
+              status: 'DRAFT',
+              ...buildTemplateCanvas('REQUERY'),
+            },
+            {
+              id: 'flow_1783050899045',
+              name: 'verify_otp_requery',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'wait_external',
+              triggerType: 'REQUERY_TRIGGERED',
+              template: 'REQUERY',
+              triggerEvents: [],
+              contextActions: ['VERIFY'],
+              stateConditions: [{ id: 'requery-verifying-otp', field: 'subState', operator: '==', value: 'VERIFYING_OTP' }],
+              isConfigured: false,
+              status: 'DRAFT',
+              ...buildTemplateCanvas('REQUERY'),
+            },
+          ],
+        },
+      ],
+    },
   ],
   ZENITH_NG: [
     {
@@ -373,6 +483,7 @@ interface ConfigIntegrationStore {
     targetEnv?: EnvType;
   };
   addFlow: (channelCode: string, bt: string, ability: string, groupId: number, flow: FlowConfig) => void;
+  deleteFlow: (channelCode: string, bt: string, ability: string, groupId: number, flowId: string) => void;
   updateFlow: (
     channelCode: string,
     bt: string,
@@ -586,6 +697,17 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     const newFlow: FlowConfig = { ...flow, status: 'DRAFT' };
     get().updateGroup(channelCode, bt, abilityCode, groupId, {
       flows: [...group.flows, newFlow],
+    });
+  },
+
+  deleteFlow: (channelCode, bt, abilityCode, groupId, flowId) => {
+    const state = get();
+    const { ability, group } = findGroup(state.abilitiesByChannel, channelCode, bt, abilityCode, groupId);
+    if (!ability || !group) return;
+    const target = group.flows.find((flow) => flow.id === flowId);
+    if (!target || target.status !== 'DRAFT') return;
+    get().updateGroup(channelCode, bt, abilityCode, groupId, {
+      flows: group.flows.filter((flow) => flow.id !== flowId),
     });
   },
 
