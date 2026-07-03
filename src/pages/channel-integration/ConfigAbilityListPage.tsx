@@ -14,7 +14,7 @@ import {
 } from 'antd';
 import { DownOutlined, EyeOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
-import { abilityOptions, capabilityActionOptions } from '../../mock/data';
+import { abilityOptions, capabilityActionOptions, mockBusinessTypes } from '../../mock/data';
 import { CLOUD_DEPLOY_SEQUENCES, useConfigIntegrationStore } from './configIntegrationStore';
 import type { CloudType, ConfigAbility, DeployRecord, FlowGroupVersion } from './types';
 
@@ -25,16 +25,23 @@ const linkedStateMachines: Record<string, string[]> = {
   'COLLECTION:USSD_PAY': ['BankCard_Debit_StateMachine'],
   'COLLECTION:WALLET_PAY': ['Default_Refund_StateMachine'],
   'DISBURSEMENT:BANK_TRF': ['Default_Refund_StateMachine'],
+  'BANK_CARD_DEBIT:INFO_PAYMENT': ['BankCard_Debit_StateMachine'],
+  'WALLET_DEBIT:TRANSFER': ['Default_Refund_StateMachine'],
+  'SMS:BULK_MESSAGE': ['Default_Refund_StateMachine'],
+  'KYC:FINGERPRINT_VERIFY': ['Default_Refund_StateMachine'],
+  'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['Default_Refund_StateMachine'],
 };
 
 function AddCapabilitiesModal({
   open,
   existingAbilities,
+  availableBusinessTypes,
   onConfirm,
   onCancel,
 }: {
   open: boolean;
   existingAbilities: ConfigAbility[];
+  availableBusinessTypes: string[];
   onConfirm: (bt: string, ability: string, actions: string[], stateMachine: string) => void;
   onCancel: () => void;
 }) {
@@ -70,7 +77,7 @@ function AddCapabilitiesModal({
         <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}>
           <Select
             placeholder="Select Business Type"
-            options={Object.keys(abilityOptions).map((item) => ({ label: item, value: item }))}
+            options={availableBusinessTypes.map((item) => ({ label: item, value: item }))}
             onChange={() => form.setFieldsValue({ ability: undefined, actions: undefined, stateMachine: undefined })}
           />
         </Form.Item>
@@ -495,6 +502,9 @@ export default function ConfigAbilityListPage() {
       <AddCapabilitiesModal
         open={showAddCapabilities}
         existingAbilities={abilities}
+        availableBusinessTypes={(mockBusinessTypes[channelCode] ?? [])
+          .filter((item) => item.mode === 'Config Integration')
+          .map((item) => item.bt)}
         onCancel={() => setShowAddCapabilities(false)}
         onConfirm={(bt, ability, actions, stateMachine) => {
           if (abilities.some((item) => item.bt === bt && item.ability === ability)) {

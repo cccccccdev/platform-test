@@ -257,7 +257,7 @@ export default function MatchCapabilityPage() {
           <Form.Item name="businessType" label="Business Type" rules={[{ required: true, message: 'Select Business Type' }]}>
             <Select placeholder="Select Config Integration Business Type" options={configBusinessTypes.map((value) => ({ value }))} />
           </Form.Item>
-          <Form.Item name="path" label="Path" rules={[{ required: true, message: 'Enter Path' }, { pattern: /^[A-Za-z0-9_/-]+$/, message: 'Use letters, numbers, _, - or /' }]}>
+          <Form.Item name="path" label="Path" rules={[{ required: true, message: 'Enter Path' }, { pattern: /^(?:[A-Za-z0-9_-]+|\{[A-Za-z_][A-Za-z0-9_]*\})(?:\/(?:[A-Za-z0-9_-]+|\{[A-Za-z_][A-Za-z0-9_]*\}))*$/, message: 'Use path segments or variables such as callback/{aa}' }]}>
             <Input addonBefore={pathPrefix} placeholder="payment_callback" />
           </Form.Item>
           <Form.Item name="method" label="Method" rules={[{ required: true }]}>

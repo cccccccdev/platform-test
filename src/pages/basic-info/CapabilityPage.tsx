@@ -37,6 +37,17 @@ const INITIAL_DATA: BusinessTypeItem[] = [
     isExpand: true,
     abilities: [
       {
+        key: 'ab_bank_card_info_payment',
+        name: 'INFO_PAYMENT',
+        operateTime: '2026-07-03 10:00:00',
+        operator: 'admin',
+        isExpand: true,
+        actions: [
+          { key: 'act_bank_card_transaction', name: 'TRANSACTION', operateTime: '2026-07-03 10:00:00', operator: 'admin' },
+          { key: 'act_bank_card_verify', name: 'VERIFY', operateTime: '2026-07-03 10:00:00', operator: 'admin' },
+        ],
+      },
+      {
         key: 'ab1',
         name: 'REFUND',
         operateTime: '—',
@@ -98,9 +109,42 @@ const INITIAL_DATA: BusinessTypeItem[] = [
       },
     ],
   },
+  {
+    key: 'bt_wallet_debit',
+    name: 'WALLET_DEBIT',
+    isExpand: true,
+    abilities: [{
+      key: 'ab_wallet_transfer', name: 'TRANSFER', operateTime: '2026-07-03 10:00:00', operator: 'admin', isExpand: true,
+      actions: [
+        { key: 'act_wallet_transaction', name: 'TRANSACTION', operateTime: '2026-07-03 10:00:00', operator: 'admin' },
+        { key: 'act_wallet_verify', name: 'VERIFY', operateTime: '2026-07-03 10:00:00', operator: 'admin' },
+      ],
+    }],
+  },
+  {
+    key: 'bt_sms', name: 'SMS', isExpand: true,
+    abilities: [{
+      key: 'ab_sms_bulk', name: 'BULK_MESSAGE', operateTime: '2026-07-03 10:00:00', operator: 'admin', isExpand: true,
+      actions: [{ key: 'act_sms_transaction', name: 'TRANSACTION', operateTime: '2026-07-03 10:00:00', operator: 'admin' }],
+    }],
+  },
+  {
+    key: 'bt_kyc', name: 'KYC', isExpand: true,
+    abilities: [{
+      key: 'ab_kyc_fingerprint', name: 'FINGERPRINT_VERIFY', operateTime: '2026-07-03 10:00:00', operator: 'admin', isExpand: true,
+      actions: [{ key: 'act_kyc_query', name: 'QUERY', operateTime: '2026-07-03 10:00:00', operator: 'admin' }],
+    }],
+  },
+  {
+    key: 'bt_fund_notification', name: 'FUND_NOTIFICATION', isExpand: true,
+    abilities: [{
+      key: 'ab_fund_customer_validation', name: 'CUSTOMER_VALIDATION', operateTime: '2026-07-03 10:00:00', operator: 'admin', isExpand: true,
+      actions: [{ key: 'act_fund_inbound_query', name: 'INBOUND_QUERY', operateTime: '2026-07-03 10:00:00', operator: 'admin' }],
+    }],
+  },
 ];
 
-const BUSINESS_TYPE_OPTIONS = ['BANK_CARD_DEBIT', 'INFO_PAYMENT'].map(v => ({ label: v, value: v }));
+const BUSINESS_TYPE_OPTIONS = INITIAL_DATA.map(({ name }) => ({ label: name, value: name }));
 
 function generateActionName(existingActions: ActionItem[]): string {
   const nums = existingActions

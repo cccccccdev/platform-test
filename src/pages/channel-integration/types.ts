@@ -73,6 +73,16 @@ export interface CapabilityDecisionVersion {
   fallbackBehavior?: 'reject' | 'alert_and_reject' | 'manual_review';
   decryptEnabled?: boolean;
   requestMessageFormat?: 'Custom' | 'FORM_DATA' | 'JSON' | 'X_WWW_FORM_URLENCODED' | 'XML';
+  requestContentType?: string;
+  requestFormatScript?: string;
+  preprocessPathFields?: Array<Record<string, unknown>>;
+  preprocessQueryFields?: Array<Record<string, unknown>>;
+  preprocessHeaderFields?: Array<Record<string, unknown>>;
+  preprocessBodyFields?: Array<Record<string, unknown>>;
+  decryptionAlgorithm?: string;
+  encryptedField?: string;
+  decryptionSourceFields?: string[];
+  decryptionScript?: string;
   badges?: Array<{ cloud: string; env: string }>;
   deploymentRecords?: MatchingDeploymentRecord[];
   hasUnsubmittedDraft?: boolean;
@@ -175,12 +185,14 @@ export interface FlowCanvasNode {
   x: number;
   y: number;
   status: 'not_started' | 'editing' | 'complete' | 'error' | 'need_review' | 'readonly';
+  config?: Record<string, unknown>;
 }
 
 export interface FlowCanvasEdge {
   id: string;
   source: string;
   target: string;
+  data?: Record<string, unknown>;
 }
 
 // Flow status: DRAFT | SUBMITTED
@@ -190,6 +202,7 @@ export type FlowStatus = 'DRAFT' | 'SUBMITTED';
 export interface SubmittedFlowContent {
   name: string;
   triggerType?: TriggerType;
+  template?: string;
   triggerEvents?: string[];
   contextActions?: string[];
   inboundUriId?: string;
@@ -211,6 +224,7 @@ export interface FlowConfig {
   endType: EndType;
   stepIndex?: number;
   triggerType?: TriggerType;
+  template?: string;
   triggerEvents?: string[];
   contextActions?: string[];
   inboundUriId?: string;

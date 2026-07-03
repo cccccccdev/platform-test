@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { message, Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import type { FlowConfig, TriggerType } from './types';
+import { ACTION_HELP, TRIGGER_TYPE_DESCRIPTIONS } from './flowTemplates';
 
 const { Text } = Typography;
 
@@ -11,31 +12,31 @@ const triggerTypeOptions = [
     value: 'UPSTREAM_TRIGGERED',
     label: 'UPSTREAM_TRIGGERED',
     labelCn: '上游触发',
-    description: '由内部上游系统调用网关触发，通常用于内部业务请求发起的正向交易、验证或查询类 Flow。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.UPSTREAM_TRIGGERED,
   },
   {
     value: 'EXTERNAL_INBOUND_TRIGGERED',
     label: 'EXTERNAL_INBOUND_TRIGGERED',
     labelCn: '外部触发',
-    description: '特指 Inbound 类型，完全由外部系统发起的一笔新的业务请求，不依赖前序 Outbound 请求。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.EXTERNAL_INBOUND_TRIGGERED,
   },
   {
     value: 'CALLBACK_TRIGGERED',
     label: 'CALLBACK_TRIGGERED',
     labelCn: 'CALLBACK 触发',
-    description: '特指存在前序 Outbound 请求的前提下，外部渠道发来对应回调请求，用于处理原请求的异步结果或后续通知。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.CALLBACK_TRIGGERED,
   },
   {
     value: 'ASYNC_TRIGGERED',
     label: 'ASYNC_TRIGGERED',
     labelCn: '异步触发',
-    description: '特指由前序 Flow 中的 asyncExecuteFlow 组件异步触发的 Flow。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.ASYNC_TRIGGERED,
   },
   {
     value: 'REQUERY_TRIGGERED',
     label: 'REQUERY_TRIGGERED',
     labelCn: '重查触发',
-    description: '订单进入指定 Trigger Sub-State 后，由平台结合重查策略触发的 Flow。',
+    description: TRIGGER_TYPE_DESCRIPTIONS.REQUERY_TRIGGERED,
   },
 ];
 
@@ -63,6 +64,9 @@ export default function FlowSettingsModal({
   const [pendingTriggerType, setPendingTriggerType] = useState<string | null>(null);
 
   const actionSelectOptions = availableActions.map((a) => ({ value: a, label: a }));
+  const actionLabel = (label: string) => (
+    <Space>{label}<Tooltip title={ACTION_HELP[triggerType as TriggerType]}><QuestionCircleOutlined style={{ color: '#999' }} /></Tooltip></Space>
+  );
 
   useEffect(() => {
     if (visible && flow) {
@@ -180,7 +184,7 @@ export default function FlowSettingsModal({
         return (
           <Form.Item
             name="triggerAction"
-            label="Trigger Action"
+            label={actionLabel('Trigger Action')}
             rules={[{ required: true, message: 'Please select Trigger Action' }]}
           >
             <Select
@@ -196,7 +200,7 @@ export default function FlowSettingsModal({
         return (
           <Form.Item
             name="originalRequestAction"
-            label="Original Request Action"
+            label={actionLabel('Original Request Action')}
             rules={[{ required: true, message: 'Please select Original Request Action' }]}
           >
             <Select
@@ -212,7 +216,7 @@ export default function FlowSettingsModal({
         return (
           <Form.Item
             name="referenceActions"
-            label="Reference Action"
+            label={actionLabel('Reference Action')}
             rules={[{ required: true, message: 'Please select Reference Action' }]}
           >
             <Select
@@ -257,7 +261,7 @@ export default function FlowSettingsModal({
             </Form.Item>
             <Form.Item
               name="referenceActions"
-              label="Reference Action"
+              label={actionLabel('Reference Action')}
               rules={[{ required: true, message: 'Please select Reference Action' }]}
             >
               <Select
@@ -334,7 +338,6 @@ export default function FlowSettingsModal({
                 <Radio key={opt.value} value={opt.value} style={{ height: 'auto', padding: '8px 0' }}>
                   <Space>
                     <Text>{opt.label}</Text>
-                    <Text type="secondary">({opt.labelCn})</Text>
                     <Tooltip title={opt.description}>
                       <QuestionCircleOutlined style={{ color: '#999' }} />
                     </Tooltip>
