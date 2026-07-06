@@ -17,6 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { abilityOptions, capabilityActionOptions, mockBusinessTypes } from '../../mock/data';
 import { CLOUD_DEPLOY_SEQUENCES, useConfigIntegrationStore } from './configIntegrationStore';
 import type { CloudType, ConfigAbility, DeployRecord, FlowGroupVersion } from './types';
+import StateMachinePreviewModal from './StateMachinePreviewModal';
 
 const { Text } = Typography;
 
@@ -550,16 +551,11 @@ export default function ConfigAbilityListPage() {
         />
       )}
 
-      <Modal
-        title={`State Machine: ${previewStateMachine ?? ''}`}
+      <StateMachinePreviewModal
         open={Boolean(previewStateMachine)}
-        footer={null}
-        onCancel={() => setPreviewStateMachine(null)}
-      >
-        <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
-          Read-only State Machine preview
-        </div>
-      </Modal>
+        stateMachine={previewStateMachine ?? ''}
+        onClose={() => setPreviewStateMachine(null)}
+      />
 
       <Modal
         title="Deploy Flow Group"

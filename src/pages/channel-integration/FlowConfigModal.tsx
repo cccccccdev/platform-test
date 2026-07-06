@@ -65,7 +65,7 @@ export default function FlowConfigModal({
   const { channelCode = '' } = useParams<{ channelCode: string }>();
   const endpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
   const inboundUris = useMemo(
-    () => (endpointsByChannel[channelCode] ?? []).filter((endpoint) => endpoint.uriType === 'new'),
+    () => endpointsByChannel[channelCode] ?? [],
     [channelCode, endpointsByChannel]
   );
   const [triggerType, setTriggerType] = useState<TriggerType>('UPSTREAM_TRIGGERED');
@@ -204,7 +204,7 @@ export default function FlowConfigModal({
       case 'EXTERNAL_INBOUND_TRIGGERED':
         return (<>
           <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
-            <Select placeholder="Select a stable URI ID" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url}` }))} />
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Match Capability" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
           </Form.Item>
           <Form.Item
             name="triggerAction"
@@ -218,7 +218,7 @@ export default function FlowConfigModal({
       case 'CALLBACK_TRIGGERED':
         return (<>
           <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
-            <Select placeholder="Select a stable URI ID" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url}` }))} />
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Match Capability" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
           </Form.Item>
           <Form.Item
             name="originalRequestAction"

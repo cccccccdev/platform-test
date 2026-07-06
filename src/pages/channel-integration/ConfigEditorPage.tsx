@@ -6,6 +6,7 @@ import FlowConfigModal from './FlowConfigModal';
 import FlowSettingsModal from './FlowSettingsModal';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import type { FlowConfig, TriggerType } from './types';
+import StateMachinePreviewModal from './StateMachinePreviewModal';
 
 const { Text, Title } = Typography;
 
@@ -228,22 +229,18 @@ export default function ConfigEditorPage() {
       <FlowSettingsModal
         visible={Boolean(editingFlow)}
         flow={editingFlow}
+        existingFlows={flows}
         availableActions={ability.actions ?? []}
         availableSubStates={availableSubStates}
         onSave={handleSettingsSave}
         onCancel={() => setEditingFlow(null)}
       />
 
-      <Modal
-        title={`State Machine: ${ability.stateMachine}`}
+      <StateMachinePreviewModal
         open={previewStateMachine}
-        footer={null}
-        onCancel={() => setPreviewStateMachine(false)}
-      >
-        <div style={{ padding: 32, textAlign: 'center', color: '#666' }}>
-          Read-only State Machine preview
-        </div>
-      </Modal>
+        stateMachine={ability.stateMachine}
+        onClose={() => setPreviewStateMachine(false)}
+      />
 
       <Modal
         title="Unsaved Draft Detected"

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Alert, Button, Card, Checkbox, ConfigProvider, Drawer, Form, Input, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Cascader, Checkbox, ConfigProvider, Drawer, Form, Input, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
+import { ArrowRightOutlined } from '@ant-design/icons';
 import BodySchemaMappingEditor from './BodySchemaMappingEditor';
 import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
+import EndpointPathVariablesReference from './EndpointPathVariablesReference';
 
 const { Text } = Typography;
 const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -18,8 +20,9 @@ const spiRequestOptions = [{ label: 'SPI Request', options: spiRequest.map((valu
 const spiResponseOptions = [{ label: 'SPI Response', options: spiResponse.map((value) => ({ label: value, value: `spi.response.${value}`, type: 'String' })) }];
 
 type Props = { open: boolean; readOnly?: boolean; onClose: () => void; onSave: (config: Record<string, unknown>) => void };
+type InboundRequestProps = Props & { pathVariables?: string[]; endpointPath?: string };
 
-export function InboundRequestDrawer({ open, readOnly = false, onClose, onSave }: Props) {
+export function InboundRequestDrawer({ open, readOnly = false, pathVariables = [], endpointPath, onClose, onSave }: InboundRequestProps) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('format');
   const requestMappingMode = Form.useWatch('requestMappingMode', form) ?? 'configuration';
@@ -36,7 +39,9 @@ export function InboundRequestDrawer({ open, readOnly = false, onClose, onSave }
             <Alert type="info" showIcon message="Define the complete request fields using the preprocessed, decrypted request. Do not add an encrypted carrier already consumed by inboundPreprocess." style={{ marginBottom: 12 }} />
             <Form.Item name="requestMappingMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item>
             <Tabs type="card" size="small" items={[
-              { key: 'path', label: 'Path Vars', children: <Form.Item name="pathVariables" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Path Variable Fields" addLabel="Add Variable" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
+              { key: 'path', label: 'Path Vars', children: requestMappingMode === 'script'
+                ? <EndpointPathVariablesReference variables={pathVariables} endpointPath={endpointPath} />
+                : <InboundPathVariableMapping variables={pathVariables} endpointPath={endpointPath} /> },
               { key: 'query', label: 'Params', children: <Form.Item name="queryParameters" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Query Parameter Fields" addLabel="Add Parameter" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
               { key: 'header', label: 'Headers', children: <Form.Item name="requestHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Request Header Fields" addLabel="Add Header" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
               { key: 'body', label: 'Body', children: <Form.Item name="requestBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={requestMappingMode === 'script'} direction="response" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
@@ -52,6 +57,28 @@ export function InboundRequestDrawer({ open, readOnly = false, onClose, onSave }
       </Form>
     </ConfigProvider>
   </Drawer>;
+}
+
+function InboundPathVariableMapping({ variables, endpointPath }: { variables: string[]; endpointPath?: string }) {
+  if (variables.length === 0) return <EndpointPathVariablesReference variables={variables} endpointPath={endpointPath} />;
+  const columns = 'minmax(180px,1fr) 80px 24px 150px 24px minmax(200px,1fr) 90px';
+  return <div>
+    <EndpointPathVariablesReference variables={variables} endpointPath={endpointPath} />
+    <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', marginTop: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '7px 10px', color: '#8c8c8c', fontSize: 11, background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+        <span>PATH VARIABLE</span><span>TYPE</span><span /><span>OPERATION</span><span /><span>SPI REQUEST FIELD</span><span>TYPE</span>
+      </div>
+      {variables.map((variable) => <div key={variable} style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
+        <Input value={`{${variable}}`} disabled />
+        <Text>String</Text>
+        <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+        <Form.Item name={['pathVariableMappings', variable, 'operation']} style={{ margin: 0 }}><Cascader allowClear placeholder="Optional" options={mappingOperationOptions} expandTrigger="click" /></Form.Item>
+        <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+        <Form.Item name={['pathVariableMappings', variable, 'target']} rules={[{ required: true, message: 'Select SPI request field' }]} style={{ margin: 0 }}><Select placeholder="Select SPI request field" options={spiRequestOptions} /></Form.Item>
+        <Text>String</Text>
+      </div>)}
+    </div>
+  </div>;
 }
 
 export function InboundResponseDrawer({ open, readOnly = false, onClose, onSave }: Props) {
