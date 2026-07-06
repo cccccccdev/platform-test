@@ -154,6 +154,7 @@ export default function MatchCapabilityEditorPage() {
         readOnly={readOnly}
         initialValues={configuration as unknown as Record<string, unknown>}
         pathVariables={pathVariables}
+        endpointPath={endpoint.url}
         onClose={() => setActiveDrawer(null)}
         onSave={(values) => {
           const endpointPathFields = pathVariables.map((name, index) => ({ id: `path_${index}`, name, type: 'String', required: true, description: 'Defined by Endpoint Path' }));

@@ -147,7 +147,7 @@ export default function CanvasContextPanel({
     ...(mode === 'flow' ? [{
       key: 'spi',
       label: <Space><span>🔵</span><span>SPI</span><Tag>Read only</Tag></Space>,
-      children: spiItems.length ? <Collapse ghost items={spiItems} defaultActiveKey={spiItems.slice(0, 1).map((item) => item.key)} /> : <EmptyContext>No SPI Action available.</EmptyContext>,
+      children: spiItems.length ? <Collapse ghost items={spiItems} defaultActiveKey={[]} /> : <EmptyContext>No SPI Action available.</EmptyContext>,
     }] : []),
     {
       key: 'global-variable',
@@ -233,8 +233,8 @@ export default function CanvasContextPanel({
   }] : [];
 
   const scopeItems = [
-    { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={mode === 'flow' ? ['spi', 'global-variable'] : []} /> },
-    { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={['order-variable']} /> : <EmptyContext>Not available in Capability Matching.</EmptyContext> },
+    { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
+    { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={[]} /> : <EmptyContext>Not available in Capability Matching.</EmptyContext> },
   ];
 
   return <>

@@ -3,6 +3,7 @@ import { Alert, Button, Card, ConfigProvider, Drawer, Form, Input, Radio, Select
 import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import BodySchemaMappingEditor from './BodySchemaMappingEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
+import EndpointPathVariablesReference from './EndpointPathVariablesReference';
 
 const { Text } = Typography;
 const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -10,7 +11,7 @@ const flatTypes = types.filter((item) => !['Object', 'Array'].includes(item.valu
 const formats = ['Custom', 'FORM_DATA', 'JSON', 'X_WWW_FORM_URLENCODED', 'XML'].map((value) => ({ label: value, value }));
 const encryption = ['AES (CBC)', 'AES (ECB)', 'Custom', 'RSA'].map((value) => ({ label: value, value }));
 
-export default function InboundPreprocessDrawer({ open, readOnly, initialValues, pathVariables, onClose, onSave }: { open: boolean; readOnly: boolean; initialValues: Record<string, unknown>; pathVariables: string[]; onClose: () => void; onSave: (values: Record<string, unknown>) => void }) {
+export default function InboundPreprocessDrawer({ open, readOnly, initialValues, pathVariables, endpointPath, onClose, onSave }: { open: boolean; readOnly: boolean; initialValues: Record<string, unknown>; pathVariables: string[]; endpointPath?: string; onClose: () => void; onSave: (values: Record<string, unknown>) => void }) {
   const [form] = Form.useForm();
   const [, force] = useState(0);
   const format = Form.useWatch('requestMessageFormat', form) ?? 'JSON';
@@ -22,7 +23,7 @@ export default function InboundPreprocessDrawer({ open, readOnly, initialValues,
         <Alert type="info" showIcon message="Prepare only the request fields required for capability matching. The selected message format is inherited by the target Flow." style={{ marginBottom: 14 }} />
         <Tabs size="small" items={[
           { key: 'format', label: 'Message Format', children: <Card size="small"><Form.Item name="requestMessageFormat" label="Request Message Format" rules={[{ required: true }]}><Radio.Group options={formats} /></Form.Item>{format === 'Custom' && <><Form.Item name="requestContentType" label="Content Type" rules={[{ required: true }]}><Input placeholder="application/json" /></Form.Item><Form.Item name="requestFormatScript" label="Custom Parse Script" rules={[{ required: true }]}><Input.TextArea rows={14} placeholder={'def execute(rawRequest) {\n  // return parsed request data\n  return null\n}'} style={{ fontFamily: 'monospace', background: '#1f1f1f', color: '#f5f5f5' }} /></Form.Item></>}</Card> },
-          { key: 'path', label: 'Path Vars', children: <PathVariablesReference variables={pathVariables} /> },
+          { key: 'path', label: 'Path Vars', children: <EndpointPathVariablesReference variables={pathVariables} endpointPath={endpointPath} /> },
           { key: 'params', label: 'Params', children: <Form.Item name="preprocessQueryFields" initialValue={[]}><FlatFieldMappingEditor schemaOnly fixedFieldType="String" title="Query Parameters" addLabel="Add Parameter" fieldPlaceholder="Parameter name" sourceOptions={[]} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} /></Form.Item> },
           { key: 'headers', label: 'Headers', children: <Form.Item name="preprocessHeaderFields" initialValue={[]}><FlatFieldMappingEditor schemaOnly fixedFieldType="String" title="Request Headers" addLabel="Add Header" fieldPlaceholder="Header name" sourceOptions={[]} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} /></Form.Item> },
           { key: 'body', label: 'Body', children: <Form.Item name="preprocessBodyFields" initialValue={[]}><BodySchemaMappingEditor schemaOnly sourceOptions={[]} dataTypeOptions={types} operationOptions={mappingOperationOptions} /></Form.Item> },
@@ -31,12 +32,4 @@ export default function InboundPreprocessDrawer({ open, readOnly, initialValues,
       </Form>
     </ConfigProvider>
   </Drawer>;
-}
-
-function PathVariablesReference({ variables }: { variables: string[] }) {
-  if (variables.length === 0) return <div style={{ padding: '14px 16px', color: '#8c8c8c', background: '#fafafa', borderRadius: 6 }}>Path variables appear automatically when the Endpoint Path contains {'{field}'}.</div>;
-  return <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', padding: '8px 12px', color: '#8c8c8c', fontSize: 11, background: '#fafafa' }}><span>PATH VARIABLE</span><span>FIELD TYPE</span></div>
-    {variables.map((variable) => <div key={variable} style={{ display: 'grid', gridTemplateColumns: '1fr 120px', padding: '10px 12px', borderTop: '1px solid #f0f0f0' }}><Input value={variable} disabled /><Text>String</Text></div>)}
-  </div>;
 }

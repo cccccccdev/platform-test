@@ -7,6 +7,7 @@ import type { Node, Edge, Connection } from '@xyflow/react';
 import type { FlowCanvasEdge, FlowCanvasNode } from './types';
 import '@xyflow/react/dist/style.css';
 import { useConfigIntegrationStore } from './configIntegrationStore';
+import { useMatchCapabilityStore } from './matchCapabilityStore';
 import { useChannelScopeStore } from './channelScopeStore';
 import type { AuthType, AuthConfig, CredentialItem } from './channelScopeStore';
 import CredentialDrawer from './sharedCredentialDrawer';
@@ -15,6 +16,7 @@ import CanvasContextPanel from './CanvasContextPanel';
 import HttpCallDrawer from './HttpCallDrawer';
 import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
 import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
+import StateMachinePreviewModal from './StateMachinePreviewModal';
 
 const { Text, Title } = Typography;
 
@@ -1901,6 +1903,7 @@ export default function FlowEditorPage() {
 
   // Mapping active state - controls whether Context panel fields are clickable for mapping
   const [isMappingActive, setIsMappingActive] = useState(false);
+  const [showStateMachinePreview, setShowStateMachinePreview] = useState(false);
 
   // Selected context field - passed to drawer when user selects from Context panel
   const [selectedContextField, setSelectedContextField] = useState<string | null>(null);
@@ -1973,14 +1976,30 @@ export default function FlowEditorPage() {
   );
   const storedVersion = storedAbility?.versions.find((item) => item.id === params.versionId);
   const storedFlow = storedVersion?.flows.find((item) => item.id === params.flowId);
+  const inboundEndpoints = useMatchCapabilityStore((state) => state.endpointsByChannel[params.channelCode ?? ''] ?? []);
   const saveDraftFlow = useConfigIntegrationStore((state) => state.saveDraftFlow);
   const submitFlow = useConfigIntegrationStore((state) => state.submitFlow);
   const readOnly = searchParams.get('mode') === 'detail';
   const actionName = storedFlow?.triggerEvents?.[0] ?? storedFlow?.contextActions?.[0] ?? '—';
+  const inboundUri = storedFlow?.inboundUriId
+    ? inboundEndpoints.find((endpoint) => endpoint.id === storedFlow.inboundUriId)
+    : undefined;
+  const inboundPathVariables = [...(inboundUri?.url ?? '').matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
+  const triggerSubState = storedFlow?.stateConditions?.find((condition) => condition.field === 'subState')?.value;
   const flowScope: ComponentScope = storedFlow?.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || storedFlow?.triggerType === 'CALLBACK_TRIGGERED'
     ? 'inbound'
     : 'outbound';
   const availableComponents = ADDABLE_COMPONENTS.filter((component) => component.scopes.includes(flowScope));
+  const contextItems: Array<[string, string | number | undefined]> = [
+    ['Channel', params.channelCode],
+    ['Business Type', params.bt],
+    ['Ability', params.ability],
+    ['Trigger Type', storedFlow?.triggerType],
+    ...(flowScope === 'inbound' ? [['URI', inboundUri ? `${inboundUri.method} ${inboundUri.url}` : storedFlow?.inboundUriId] as [string, string | undefined]] : []),
+    ...(storedFlow?.triggerType === 'REQUERY_TRIGGERED' ? [['Trigger Sub-State', triggerSubState] as [string, string | undefined]] : []),
+    ['Flow Group Version', storedVersion?.version],
+    ['Flow ID', params.flowId],
+  ];
 
   const mockEndpoints = [
     {
@@ -2243,7 +2262,10 @@ export default function FlowEditorPage() {
           Back
         </Button>
         <Divider type="vertical" style={{ height: 24 }} />
-        <Title level={5} style={{ margin: 0 }}>Config Flow</Title>
+        <Space size={8}>
+          <Title level={5} style={{ margin: 0 }}>Config Flow</Title>
+          <Tag color="blue" style={{ margin: 0 }}>{storedFlow?.name ?? '—'}</Tag>
+        </Space>
         <div style={{ flex: 1 }} />
         {!readOnly && (
           <Space>
@@ -2254,20 +2276,17 @@ export default function FlowEditorPage() {
       </div>
 
       <div style={{ padding: '12px 16px', background: '#f5f7fa' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, minmax(110px, 1fr))', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: '12px 16px' }}>
-          {[
-            ['Channel', params.channelCode],
-            ['Business Type', params.bt],
-            ['Ability', params.ability],
-            ['Action', actionName],
-            ['Flow Group Version', storedVersion?.version],
-            ['Flow ID', params.flowId],
-            ['Flow Name', storedFlow?.name],
-            ['Trigger Type', storedFlow?.triggerType],
-          ].map(([label, value]) => (
-            <div key={label} style={{ minWidth: 0, padding: '0 14px', borderRight: label === 'Trigger Type' ? 'none' : '1px solid #f0f0f0' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${contextItems.length}, minmax(110px, 1fr))`, background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: '12px 16px' }}>
+          {contextItems.map(([label, value], index) => (
+            <div key={label} style={{ minWidth: 0, padding: '0 14px', borderRight: index === contextItems.length - 1 ? 'none' : '1px solid #f0f0f0' }}>
               <div style={{ color: '#8c8c8c', fontSize: 10, marginBottom: 4 }}>{label}</div>
-              <div title={value} style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value ?? '—'}</div>
+              {label === 'Trigger Sub-State' ? (
+                <Button type="link" size="small" style={{ height: 'auto', padding: 0, fontSize: 12, fontWeight: 500 }} onClick={() => setShowStateMachinePreview(true)}>
+                  {value ?? '—'}
+                </Button>
+              ) : (
+                <div title={value == null ? undefined : String(value)} style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value ?? '—'}</div>
+              )}
             </div>
           ))}
         </div>
@@ -2279,7 +2298,7 @@ export default function FlowEditorPage() {
         <CanvasContextPanel
           channelCode={params.channelCode ?? ''}
           mode="flow"
-          actions={storedAbility?.actions ?? (actionName === '—' ? [] : [actionName])}
+          actions={actionName === '—' ? [] : [actionName]}
           readOnly={readOnly}
           isMappingActive={isMappingActive}
           onFieldSelect={handleContextFieldSelect}
@@ -2362,6 +2381,8 @@ export default function FlowEditorPage() {
       <InboundRequestDrawer
         open={showInboundRequestDrawer}
         readOnly={readOnly}
+        endpointPath={inboundUri?.url}
+        pathVariables={inboundPathVariables}
         onClose={() => setShowInboundRequestDrawer(false)}
         onSave={(config) => {
           console.log('Inbound Request config saved:', config);
@@ -2505,6 +2526,13 @@ export default function FlowEditorPage() {
           setShowAuthenticationDrawer(false);
           setEditingAuthentication(null);
         }}
+      />
+
+      <StateMachinePreviewModal
+        open={showStateMachinePreview}
+        stateMachine={storedAbility?.stateMachine ?? ''}
+        highlightedState={triggerSubState}
+        onClose={() => setShowStateMachinePreview(false)}
       />
 
       {/* Unsaved Changes Warning Modal */}

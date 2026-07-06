@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { message, Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import type { FlowConfig, TriggerType } from './types';
-import { ACTION_HELP, TRIGGER_TYPE_DESCRIPTIONS } from './flowTemplates';
+import { ACTION_HELP, getActionsForTrigger, TRIGGER_TYPE_DESCRIPTIONS } from './flowTemplates';
+import { useParams } from 'react-router-dom';
+import { useMatchCapabilityStore } from './matchCapabilityStore';
 
 const { Text } = Typography;
 
@@ -43,6 +45,7 @@ const triggerTypeOptions = [
 interface FlowSettingsModalProps {
   visible: boolean;
   flow: FlowConfig | null;
+  existingFlows: FlowConfig[];
   availableActions: string[];
   availableSubStates: string[];
   onSave: (config: FlowConfig) => void;
@@ -52,18 +55,23 @@ interface FlowSettingsModalProps {
 export default function FlowSettingsModal({
   visible,
   flow,
+  existingFlows,
   availableActions,
   availableSubStates,
   onSave,
   onCancel,
 }: FlowSettingsModalProps) {
   const [form] = Form.useForm();
-  const [triggerType, setTriggerType] = useState<string>('UPSTREAM_TRIGGERED');
+  const { channelCode = '' } = useParams<{ channelCode: string }>();
+  const endpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
+  const inboundUris = useMemo(() => endpointsByChannel[channelCode] ?? [], [channelCode, endpointsByChannel]);
+  const [triggerType, setTriggerType] = useState<TriggerType>('UPSTREAM_TRIGGERED');
   const [hasChanges, setHasChanges] = useState(false);
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [pendingTriggerType, setPendingTriggerType] = useState<string | null>(null);
 
-  const actionSelectOptions = availableActions.map((a) => ({ value: a, label: a }));
+  const eligibleActions = useMemo(() => getActionsForTrigger(triggerType, availableActions, existingFlows), [triggerType, availableActions, existingFlows]);
+  const actionSelectOptions = eligibleActions.map((a) => ({ value: a, label: a }));
   const actionLabel = (label: string) => (
     <Space>{label}<Tooltip title={ACTION_HELP[triggerType as TriggerType]}><QuestionCircleOutlined style={{ color: '#999' }} /></Tooltip></Space>
   );
@@ -74,8 +82,9 @@ export default function FlowSettingsModal({
         flowName: flow.name,
         triggerAction: flow.triggerEvents?.[0] || undefined,
         originalRequestAction: flow.triggerEvents?.[0] || undefined,
-        referenceActions: flow.contextActions || [],
+        referenceActions: flow.contextActions?.[0] || undefined,
         triggerSubState: flow.stateConditions?.[0]?.value || undefined,
+        inboundUriId: flow.inboundUriId,
       });
       setTriggerType(flow.triggerType || 'UPSTREAM_TRIGGERED');
       setHasChanges(false);
@@ -97,11 +106,12 @@ export default function FlowSettingsModal({
 
   const handleWarningConfirm = () => {
     if (pendingTriggerType) {
-      setTriggerType(pendingTriggerType);
+      setTriggerType(pendingTriggerType as TriggerType);
       form.setFieldValue('triggerAction', undefined);
       form.setFieldValue('originalRequestAction', undefined);
       form.setFieldValue('referenceActions', undefined);
       form.setFieldValue('triggerSubState', undefined);
+      form.setFieldValue('inboundUriId', undefined);
       setHasChanges(true);
     }
     setShowChangeWarning(false);
@@ -148,7 +158,7 @@ export default function FlowSettingsModal({
         selectedActions.push(...(Array.isArray(values.originalRequestAction) ? values.originalRequestAction : [values.originalRequestAction]));
       }
       if (values.referenceActions) {
-        selectedActions.push(...values.referenceActions);
+        selectedActions.push(...(Array.isArray(values.referenceActions) ? values.referenceActions : [values.referenceActions]));
       }
 
       const invalid = selectedActions.filter((a) => !availableActions.includes(a));
@@ -165,8 +175,10 @@ export default function FlowSettingsModal({
           values.triggerAction ? [values.triggerAction] :
           Array.isArray(values.originalRequestAction) ? values.originalRequestAction :
           values.originalRequestAction ? [values.originalRequestAction] : [],
-        contextActions: values.referenceActions || [],
+        contextActions: Array.isArray(values.referenceActions) ? values.referenceActions : values.referenceActions ? [values.referenceActions] : [],
         stateConditions: values.triggerSubState ? [{ id: 'trigger-sub-state', field: 'subState', operator: '==', value: values.triggerSubState }] : [],
+        inboundUriId: values.inboundUriId,
+        flowType: triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || triggerType === 'CALLBACK_TRIGGERED' ? 'inbound' : 'outbound',
       };
 
       onSave(updatedConfig);
@@ -175,12 +187,11 @@ export default function FlowSettingsModal({
   };
 
   const renderDynamicFields = () => {
-    const emptyActions = availableActions.length === 0;
-    const placeholderText = emptyActions ? 'No Actions available' : 'Select action';
+    const emptyActions = eligibleActions.length === 0;
+    const placeholderText = emptyActions ? 'No eligible Actions available' : 'Select action';
 
     switch (triggerType) {
       case 'UPSTREAM_TRIGGERED':
-      case 'EXTERNAL_INBOUND_TRIGGERED':
         return (
           <Form.Item
             name="triggerAction"
@@ -196,8 +207,21 @@ export default function FlowSettingsModal({
           </Form.Item>
         );
 
+      case 'EXTERNAL_INBOUND_TRIGGERED':
+        return <>
+          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Match Capability" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+          </Form.Item>
+          <Form.Item name="triggerAction" label={actionLabel('Trigger Action')} rules={[{ required: true, message: 'Please select Trigger Action' }]}>
+            <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} onChange={() => handleActionChange('triggerAction', '', false)} />
+          </Form.Item>
+        </>;
+
       case 'CALLBACK_TRIGGERED':
-        return (
+        return (<>
+          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Match Capability" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+          </Form.Item>
           <Form.Item
             name="originalRequestAction"
             label={actionLabel('Original Request Action')}
@@ -210,7 +234,7 @@ export default function FlowSettingsModal({
               onChange={() => handleActionChange('originalRequestAction', '', false)}
             />
           </Form.Item>
-        );
+        </>);
 
       case 'ASYNC_TRIGGERED':
         return (
@@ -220,19 +244,10 @@ export default function FlowSettingsModal({
             rules={[{ required: true, message: 'Please select Reference Action' }]}
           >
             <Select
-              mode="multiple"
               placeholder={placeholderText}
               disabled={emptyActions}
               options={actionSelectOptions}
-              onChange={(values) => {
-                const currentValues = form.getFieldValue('referenceActions') || [];
-                const isRemoving = values.length < currentValues.length;
-                if (isRemoving) {
-                  handleActionChange('referenceActions', '', true);
-                } else {
-                  setHasChanges(true);
-                }
-              }}
+              onChange={() => setHasChanges(true)}
             />
           </Form.Item>
         );
@@ -265,19 +280,10 @@ export default function FlowSettingsModal({
               rules={[{ required: true, message: 'Please select Reference Action' }]}
             >
               <Select
-                mode="multiple"
                 placeholder={placeholderText}
                 disabled={emptyActions}
                 options={actionSelectOptions}
-                onChange={(values) => {
-                  const currentValues = form.getFieldValue('referenceActions') || [];
-                  const isRemoving = values.length < currentValues.length;
-                  if (isRemoving) {
-                    handleActionChange('referenceActions', '', true);
-                  } else {
-                    setHasChanges(true);
-                  }
-                }}
+                onChange={() => setHasChanges(true)}
               />
             </Form.Item>
           </>
