@@ -29,7 +29,7 @@ export interface MatchRule {
 }
 
 export type MatchingType = 'single' | 'order_no' | 'type_field' | 'custom';
-export type UriConfigStatus = 'DRAFT' | 'DAILY' | 'PRE' | 'PROD';
+export type UriConfigStatus = 'UNDEPLOYED' | 'DAILY' | 'PRE' | 'PROD';
 
 export interface MatchingDeploymentRecord {
   cloud: string;
@@ -59,6 +59,7 @@ export interface CapabilityDecisionVersion {
   id: string;
   version: string;
   name: string;
+  remark?: string;
   sourceType: 'legacy' | 'v2';
   configStatus: UriConfigStatus;
   fields: string[];
@@ -96,8 +97,8 @@ export interface InboundEndpoint {
   id: string;
   name: string;
   url: string;
-  businessType: string;
-  businessTypes: string[];
+  businessType?: string;
+  businessTypes?: string[];
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   uriType: 'new' | 'legacy';
   description: string;

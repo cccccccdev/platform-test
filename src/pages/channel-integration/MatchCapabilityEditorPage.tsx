@@ -51,6 +51,8 @@ export default function MatchCapabilityEditorPage() {
   const [activeDrawer, setActiveDrawer] = useState<'preprocess' | 'condition' | 'capability' | 'order' | null>(null);
   const [capabilityDraft, setCapabilityDraft] = useState<Pick<MatchRule, 'bt' | 'ability' | 'action'>>({ bt: '', ability: '', action: '' });
   const [orderDraft, setOrderDraft] = useState<{ singleNoField: string; referenceField?: 'requestReference' | 'responseReference' }>({ singleNoField: '' });
+  const [showSubmitRemark, setShowSubmitRemark] = useState(false);
+  const [submitRemark, setSubmitRemark] = useState('');
   const readOnly = searchParams.get('mode') === 'detail';
   const runtimeDetail = searchParams.get('source') === 'runtime';
   if (!endpoint || !configuration) {
@@ -81,9 +83,9 @@ export default function MatchCapabilityEditorPage() {
           <strong>Runtime Control / Route Matching Detail</strong>
         </div>
         <div style={{ padding: '12px 16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(6, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
             {[
-              ['URI', endpoint.url], ['Business Type', endpoint.businessTypes.join(', ')], ['Method', endpoint.method],
+              ['URI', endpoint.url], ['Method', endpoint.method],
               ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['URI ID', endpoint.id],
             ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'URI ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
           </div>
@@ -176,12 +178,16 @@ export default function MatchCapabilityEditorPage() {
   const handleSubmit = () => {
     const error = validate();
     if (error) return void message.error(error);
-    submitVersion(channelCode, endpoint.id, configuration.id);
+    setSubmitRemark(configuration.remark ?? '');
+    setShowSubmitRemark(true);
+  };
+  const confirmSubmit = () => {
+    submitVersion(channelCode, endpoint.id, configuration.id, submitRemark);
     message.success('Route Matching submitted. The current Version is ready to deploy.');
     navigate(`/channel-integration/${channelCode}/integration/config/route-matching`);
   };
 
-  const btOptions = endpoint.businessTypes.map((value) => ({ value }));
+  const btOptions = [...new Set(abilities.map((item) => item.bt))].map((value) => ({ value }));
   const selectedRule = configuration.rules.find((rule) => rule.id === selectedRuleId);
   const pathVariables = [...endpoint.url.matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
   const openDrawer = (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string) => {
@@ -202,9 +208,9 @@ export default function MatchCapabilityEditorPage() {
       </div>
 
       <div style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(6, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
           {[
-            ['URI', endpoint.url], ['Business Type', endpoint.businessTypes.join(', ')], ['Method', endpoint.method],
+            ['URI', endpoint.url], ['Method', endpoint.method],
             ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['URI ID', endpoint.id],
           ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'URI ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
         </div>
@@ -220,6 +226,12 @@ export default function MatchCapabilityEditorPage() {
           onDeleteResult={deleteResult}
         />
       </div>
+
+      <Drawer title="Submit Route Matching" width={520} open={showSubmitRemark} onClose={() => setShowSubmitRemark(false)} extra={<Space><Button onClick={() => setShowSubmitRemark(false)}>Cancel</Button><Button type="primary" onClick={confirmSubmit}>Submit</Button></Space>}>
+        <Alert type="info" showIcon message="Remark is optional and will be shown in the Route Matching list." style={{ marginBottom: 16 }} />
+        <div style={{ color: '#595959', marginBottom: 6 }}>Remark</div>
+        <Input.TextArea value={submitRemark} maxLength={160} showCount rows={5} placeholder="Describe this Matching record or configuration change" onChange={(event) => setSubmitRemark(event.target.value)} />
+      </Drawer>
 
       <InboundPreprocessDrawer
         open={activeDrawer === 'preprocess'}
@@ -385,6 +397,8 @@ function LegacyInboundFlowEditor({
 }) {
   const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showSubmitRemark, setShowSubmitRemark] = useState(false);
+  const [submitRemark, setSubmitRemark] = useState(configuration.remark ?? '');
   const updateDecisionVersion = useMatchCapabilityStore((state) => state.updateDecisionVersion);
   const saveChannel = useMatchCapabilityStore((state) => state.saveChannel);
   const submitVersion = useMatchCapabilityStore((state) => state.submitVersion);
@@ -396,6 +410,11 @@ function LegacyInboundFlowEditor({
       legacyComponents: components.map((item) => item.id === component.id ? { ...item, config: { ...item.config, [key]: value } } : item),
     });
   };
+  const confirmSubmit = () => {
+    submitVersion(channelCode, endpoint.id, configuration.id, submitRemark);
+    message.success('Legacy Route Matching submitted. The current Version is ready to deploy.');
+    navigate(`/channel-integration/${channelCode}/integration/config/route-matching`);
+  };
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f7fa' }}>
@@ -406,14 +425,14 @@ function LegacyInboundFlowEditor({
         <div style={{ flex: 1 }} />
         {!readOnly && <Space>
           <Button icon={<SaveOutlined />} onClick={() => { saveChannel(channelCode); message.success('Legacy Inbound Flow draft saved'); }}>Save Draft</Button>
-          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => { submitVersion(channelCode, endpoint.id, configuration.id); message.success('Legacy Route Matching submitted. The current Version is ready to deploy.'); navigate(`/channel-integration/${channelCode}/integration/config/route-matching`); }}>Submit</Button>
+          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => { setSubmitRemark(configuration.remark ?? ''); setShowSubmitRemark(true); }}>Submit</Button>
         </Space>}
       </div>
 
       <div style={{ padding: '12px 16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
           {[
-            ['URI', endpoint.url], ['Flow Name', configuration.name], ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['Endpoint ID', endpoint.id],
+            ['URI', endpoint.url], ['Remark', configuration.remark || '-'], ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['Endpoint ID', endpoint.id],
           ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'Endpoint ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
         </div>
       </div>
@@ -452,6 +471,12 @@ function LegacyInboundFlowEditor({
           </div>
         </div>
       </div>
+
+      <Drawer title="Submit Route Matching" width={520} open={showSubmitRemark} onClose={() => setShowSubmitRemark(false)} extra={<Space><Button onClick={() => setShowSubmitRemark(false)}>Cancel</Button><Button type="primary" onClick={confirmSubmit}>Submit</Button></Space>}>
+        <Alert type="info" showIcon message="Remark is optional and will be shown in the Route Matching list." style={{ marginBottom: 16 }} />
+        <div style={{ color: '#595959', marginBottom: 6 }}>Remark</div>
+        <Input.TextArea value={submitRemark} maxLength={160} showCount rows={5} placeholder="Describe this Matching record or configuration change" onChange={(event) => setSubmitRemark(event.target.value)} />
+      </Drawer>
 
       <Drawer title={selected ? `${selected.code} Configuration` : 'Legacy Component Configuration'} width={560} open={Boolean(selected)} onClose={() => setSelectedId(null)}>
         {selected && <div>
