@@ -80,9 +80,16 @@ function OrderVariableMapping({ sourceOptions, targetOptions, name = 'orderWrite
   </div>}</Form.List>;
 }
 
-type Props = { open: boolean; channelCode: string; onClose: () => void; onSave: (config: Record<string, unknown>) => void };
+type Props = {
+  open: boolean;
+  channelCode: string;
+  initialValues?: Record<string, unknown>;
+  readOnly?: boolean;
+  onClose: () => void;
+  onSave: (config: Record<string, unknown>) => void;
+};
 
-export default function HttpCallDrawer({ open, channelCode, onClose, onSave }: Props) {
+export default function HttpCallDrawer({ open, channelCode, initialValues = {}, readOnly = false, onClose, onSave }: Props) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('request');
   const [, force] = useState(0);
@@ -162,9 +169,9 @@ export default function HttpCallDrawer({ open, channelCode, onClose, onSave }: P
     { key: 'decryption', label: <Space><Form.Item name="decryptionEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Decryption</Space>, children: decryptionEnabled ? <><Form.Item name="decryptionAlgorithm" label="Algorithm" rules={[{ required: true }]}><Select options={encryption} /></Form.Item><Form.Item name="encryptedField" label="Response Encrypted Field"><Input placeholder="Response field path" /></Form.Item><Form.Item name="decryptionSources" label="Decryption Source Fields"><Checkbox.Group options={['Response Header', 'Response Body']} /></Form.Item></> : <Text type="secondary">Enable response decryption.</Text> },
   ];
 
-  return <Drawer title={<Space><span>Configure HTTP Call</span><Tag color="blue">httpCall</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={<Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(v => onSave({ ...v, protocol: 'HTTP' }))}>Save</Button></Space>}>
+  return <Drawer title={<Space><span>Configure HTTP Call</span><Tag color="blue">httpCall</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(v => onSave({ ...v, protocol: 'HTTP' }))}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ token: { fontSize: 14, controlHeight: 32, borderRadius: 5, paddingSM: 10, marginSM: 10, marginXS: 6 }, components: { Form: { itemMarginBottom: 10 }, Card: { bodyPadding: 12, headerHeight: 36 }, Tabs: { horizontalMargin: '0 0 10px 0' } } }}>
-    <div style={{ fontSize: 14 }}><Form form={form} layout="vertical" initialValues={{ protocol: 'HTTP', requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all' }} onValuesChange={() => force(v => v + 1)}>
+    <div style={{ fontSize: 14 }}><Form form={form} disabled={readOnly} layout="vertical" initialValues={{ protocol: 'HTTP', requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all', ...initialValues }} onValuesChange={() => force(v => v + 1)}>
       <Card size="small" style={{ marginBottom: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '120px 130px minmax(420px, 1fr)', gap: 10 }}>
           <Form.Item label="Method" name="method" rules={[{ required: true }]}><Select options={['POST', 'GET', 'PUT', 'DELETE'].map(value => ({ label: value, value }))} /></Form.Item>

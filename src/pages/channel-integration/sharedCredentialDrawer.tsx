@@ -11,11 +11,14 @@ interface Props {
   onClose: () => void;
 }
 
+const emptyCredentials: CredentialItem[] = [];
+
 export default function CredentialDrawer({ visible, channelCode, credential, onSave, onClose }: Props) {
   const [form] = Form.useForm();
   const addCredential = useChannelScopeStore((s) => s.addCredential);
   const updateCredential = useChannelScopeStore((s) => s.updateCredential);
-  const credentials = useChannelScopeStore((s) => s.credentialsByChannel[channelCode] ?? []);
+  const credentialsByChannel = useChannelScopeStore((s) => s.credentialsByChannel);
+  const credentials = credentialsByChannel[channelCode] ?? emptyCredentials;
 
   useEffect(() => {
     if (visible) {

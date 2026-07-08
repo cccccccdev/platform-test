@@ -50,6 +50,7 @@ export default function ConfigEditorPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const readOnly = searchParams.get('mode') === 'detail';
+  const runtimeDetail = searchParams.get('source') === 'runtime';
   const [showFlowConfigModal, setShowFlowConfigModal] = useState(false);
   const [editingFlow, setEditingFlow] = useState<FlowConfig | null>(null);
   const [previewStateMachine, setPreviewStateMachine] = useState(false);
@@ -69,8 +70,8 @@ export default function ConfigEditorPage() {
     return (
       <div style={{ padding: 24 }}>
         <Title level={4}>Flow Configuration not found</Title>
-        <Button onClick={() => navigate(`/channel-integration/${channelCode}/integration`)}>
-          Back to Config Integration
+        <Button onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/flow-groups`)}>
+          Back to Flow Groups
         </Button>
       </div>
     );
@@ -112,21 +113,31 @@ export default function ConfigEditorPage() {
   };
 
   const navigateToFlowEditor = (flow: FlowConfig) => {
-    navigate(
-      `/channel-integration/${channelCode}/integration/config/${bt}/${abilityCode}/versions/${versionId}/flows/${flow.id}?flowType=${flow.flowType}${readOnly ? '&mode=detail' : ''}`
-    );
+    const basePath = runtimeDetail
+      ? `/channel-integration/${channelCode}/channel-info/runtime-control/flow-groups/${bt}/${abilityCode}/versions/${versionId}/flows/${flow.id}`
+      : `/channel-integration/${channelCode}/integration/config/flow-groups/${bt}/${abilityCode}/versions/${versionId}/flows/${flow.id}`;
+    navigate(`${basePath}?flowType=${flow.flowType}${readOnly ? '&mode=detail' : ''}${runtimeDetail ? '&source=runtime' : ''}`);
   };
 
   return (
     <div style={{ padding: 24 }}>
       <Breadcrumb
         style={{ marginBottom: 16 }}
-        items={[
-          { title: 'Channel Integration', href: '/channel-integration' },
-          { title: channelCode, href: `/channel-integration/${channelCode}/integration` },
-          { title: 'Config Integration', href: `/channel-integration/${channelCode}/integration` },
-          { title: readOnly ? 'Flow Configuration Detail' : 'Flow Configuration' },
-        ]}
+        items={runtimeDetail
+          ? [
+              { title: channelCode, href: `/channel-integration/${channelCode}/channel-info` },
+              { title: 'Channel Info', href: `/channel-integration/${channelCode}/channel-info` },
+              { title: 'Runtime Control' },
+              { title: 'Flow Groups' },
+              { title: readOnly ? 'Flow Configuration Detail' : 'Flow Configuration' },
+            ]
+          : [
+              { title: 'Channel Integration', href: '/channel-integration' },
+              { title: channelCode, href: `/channel-integration/${channelCode}/integration/config/flow-groups` },
+              { title: 'Config Integration' },
+              { title: 'Flow Groups', href: `/channel-integration/${channelCode}/integration/config/flow-groups` },
+              { title: readOnly ? 'Flow Configuration Detail' : 'Flow Configuration' },
+            ]}
       />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -170,10 +181,16 @@ export default function ConfigEditorPage() {
           },
           {
             title: 'Triggered By',
-            width: 150,
-            render: (_value, flow) => (
-              <span>{flow.triggerEvents?.[0] ?? flow.contextActions?.[0] ?? '-'}</span>
-            ),
+            width: 170,
+            render: (_value, flow) => flow.triggerEvents?.[0] ?? flow.contextActions?.[0] ?? '-',
+          },
+          {
+            title: 'Trigger Sub-State',
+            width: 240,
+            render: (_value, flow) => {
+              const triggerSubState = flow.stateConditions?.find((condition) => condition.field === 'subState')?.value;
+              return flow.triggerType === 'REQUERY_TRIGGERED' && triggerSubState ? <Tag color="gold">{triggerSubState}</Tag> : <span style={{ color: '#999' }}>N/A</span>;
+            },
           },
           {
             title: 'Status',
@@ -187,14 +204,15 @@ export default function ConfigEditorPage() {
             width: 340,
             render: (_value, flow) => (
               <Space>
-                <Button
-                  type="text"
-                  icon={<SettingOutlined />}
-                  disabled={readOnly}
-                  onClick={() => setEditingFlow(flow)}
-                >
-                  Settings
-                </Button>
+                {!readOnly && version.status !== 'PROD' && (
+                  <Button
+                    type="text"
+                    icon={<SettingOutlined />}
+                    onClick={() => setEditingFlow(flow)}
+                  >
+                    Settings
+                  </Button>
+                )}
                 <Badge dot={flow.status === 'SUBMITTED' && Boolean(flow.submittedContent)}>
                   <Button
                     type="text"

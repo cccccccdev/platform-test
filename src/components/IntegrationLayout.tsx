@@ -1,17 +1,15 @@
-import { useState } from 'react';
 import { Button, Layout, Menu } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
+  ArrowLeftOutlined,
   SettingOutlined,
   CodeOutlined,
   DatabaseOutlined,
-  HomeOutlined,
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
 
 export default function IntegrationLayout() {
-  const [collapsed, setCollapsed] = useState(true); // Default collapsed
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -23,19 +21,26 @@ export default function IntegrationLayout() {
   // Update menu items with actual channelCode
   const getMenuItems = () => [
     {
-      key: '/home',
-      icon: <HomeOutlined />,
-      label: '平台首页',
+      key: '/channel-integration',
+      icon: <ArrowLeftOutlined />,
+      label: 'Channel List',
     },
     {
-      key: `/channel-integration/${channelCode}/integration/match-capability`,
-      icon: <DatabaseOutlined />,
-      label: 'Match Capability',
-    },
-    {
-      key: `/channel-integration/${channelCode}/integration`,
+      key: 'config-integration',
       icon: <SettingOutlined />,
       label: 'Config Integration',
+      children: [
+        {
+          key: `/channel-integration/${channelCode}/integration/config/route-matching`,
+          icon: <DatabaseOutlined />,
+          label: 'Route Matching',
+        },
+        {
+          key: `/channel-integration/${channelCode}/integration/config/flow-groups`,
+          icon: <SettingOutlined />,
+          label: 'Flow Groups',
+        },
+      ],
     },
     {
       key: `/channel-integration/${channelCode}/integration/code`,
@@ -49,20 +54,27 @@ export default function IntegrationLayout() {
     navigate(key);
   };
 
-  const selectedMenuKey = location.pathname.includes('/match-capability')
-    ? `/channel-integration/${channelCode}/integration/match-capability`
+  const selectedMenuKey = location.pathname.includes('/route-matching') || location.pathname.includes('/match-capability')
+    ? `/channel-integration/${channelCode}/integration/config/route-matching`
+    : location.pathname.includes('/flow-groups') || location.pathname.includes('/integration/config')
+      ? `/channel-integration/${channelCode}/integration/config/flow-groups`
+      : location.pathname.includes('/integration/code')
+        ? `/channel-integration/${channelCode}/integration/code`
+        : `/channel-integration/${channelCode}/integration/config/flow-groups`;
+
+  const breadcrumbLeaf = location.pathname.includes('/route-matching') || location.pathname.includes('/match-capability')
+    ? 'Route Matching'
+    : location.pathname.includes('/flow-groups') || location.pathname.includes('/integration/config')
+      ? 'Flow Groups'
     : location.pathname.includes('/integration/code')
-      ? `/channel-integration/${channelCode}/integration/code`
-      : `/channel-integration/${channelCode}/integration`;
+        ? 'Code Integration'
+        : 'Flow Groups';
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
         theme="light"
-        width={200}
+        width={240}
         style={{
           height: '100vh',
           position: 'fixed',
@@ -81,28 +93,27 @@ export default function IntegrationLayout() {
             alignItems: 'center',
             justifyContent: 'center',
             color: '#1a1a2e',
-            fontSize: collapsed ? 14 : 14,
+            fontSize: 14,
             fontWeight: 'bold',
             borderBottom: '1px solid #e5e4e7',
           }}
         >
-          {collapsed ? 'INT' : 'Integration'}
-          {!collapsed && (
-            <div style={{ fontSize: 12, fontWeight: 'normal', color: '#666', marginTop: 4 }}>
-              Channel: {channelCode}
-            </div>
-          )}
+          Integration
+          <div style={{ fontSize: 12, fontWeight: 'normal', color: '#666', marginTop: 4 }}>
+            Channel: {channelCode}
+          </div>
         </div>
         <Menu
           theme="light"
           mode="inline"
           selectedKeys={[selectedMenuKey]}
+          defaultOpenKeys={['config-integration']}
           items={getMenuItems()}
           onClick={handleMenuClick}
           style={{ borderRight: 0 }}
         />
       </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'margin-left 0.2s', minHeight: '100vh' }}>
+      <Layout style={{ marginLeft: 240, minHeight: '100vh' }}>
         <div
           style={{
             padding: '16px 24px',
@@ -124,9 +135,9 @@ export default function IntegrationLayout() {
           <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
           Channel Integration
           <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
-          {location.pathname.includes('/match-capability') && 'Match Capability'}
-          {location.pathname.includes('/integration/config') && location.pathname.split('/').length <= 5 && 'Config Integration'}
-          {location.pathname.includes('/integration/code') && !location.pathname.includes('/integration/code/') && 'Code Integration'}
+          Integration
+          <span style={{ margin: '0 8px', color: '#ccc' }}>/</span>
+          {breadcrumbLeaf}
         </div>
         <Content style={{ padding: 24, background: '#f5f5f5', minHeight: 'calc(100vh - 57px)' }}>
           <Outlet />

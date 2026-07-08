@@ -8,6 +8,8 @@ import { useMatchCapabilityStore } from './matchCapabilityStore';
 
 const { Text } = Typography;
 
+const triggerActionOf = (flow: FlowConfig) => flow.triggerEvents?.[0] ?? flow.contextActions?.[0];
+
 // Trigger Type options with descriptions
 const triggerTypeOptions = [
   {
@@ -70,7 +72,15 @@ export default function FlowSettingsModal({
   const [showChangeWarning, setShowChangeWarning] = useState(false);
   const [pendingTriggerType, setPendingTriggerType] = useState<string | null>(null);
 
-  const eligibleActions = useMemo(() => getActionsForTrigger(triggerType, availableActions, existingFlows), [triggerType, availableActions, existingFlows]);
+  const eligibleActions = useMemo(() => {
+    const currentAction = flow ? triggerActionOf(flow) : undefined;
+    const usedBySameTrigger = new Set(existingFlows
+      .filter((item) => item.id !== flow?.id && item.triggerType === triggerType)
+      .map(triggerActionOf)
+      .filter(Boolean));
+    return getActionsForTrigger(triggerType, availableActions, existingFlows)
+      .filter((action) => action === currentAction || !usedBySameTrigger.has(action));
+  }, [triggerType, availableActions, existingFlows, flow]);
   const actionSelectOptions = eligibleActions.map((a) => ({ value: a, label: a }));
   const actionLabel = (label: string) => (
     <Space>{label}<Tooltip title={ACTION_HELP[triggerType as TriggerType]}><QuestionCircleOutlined style={{ color: '#999' }} /></Tooltip></Space>
@@ -166,6 +176,11 @@ export default function FlowSettingsModal({
         message.error(`Action(s) ${invalid.join(', ')} are not in the available Actions for this Ability. Please add them via Config Integration first.`);
         return;
       }
+      const selectedAction = selectedActions[0];
+      if (selectedAction && existingFlows.some((item) => item.id !== flow.id && item.triggerType === triggerType && triggerActionOf(item) === selectedAction)) {
+        message.error('Each Trigger Type + Action can only have one Flow in the same Group.');
+        return;
+      }
 
       const updatedConfig: FlowConfig = {
         ...flow,
@@ -209,8 +224,8 @@ export default function FlowSettingsModal({
 
       case 'EXTERNAL_INBOUND_TRIGGERED':
         return <>
-          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Match Capability" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Route Matching URI' }]}>
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
           </Form.Item>
           <Form.Item name="triggerAction" label={actionLabel('Trigger Action')} rules={[{ required: true, message: 'Please select Trigger Action' }]}>
             <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} onChange={() => handleActionChange('triggerAction', '', false)} />
@@ -219,8 +234,8 @@ export default function FlowSettingsModal({
 
       case 'CALLBACK_TRIGGERED':
         return (<>
-          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Match Capability" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Route Matching URI' }]}>
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
           </Form.Item>
           <Form.Item
             name="originalRequestAction"

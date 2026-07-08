@@ -74,7 +74,7 @@ const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisio
       { id: 'legacy_parse', code: 'parseServletRequest', name: 'Parse Servlet Request', config: { messageFormat: 'JSON', parseQuery: true } },
       { id: 'legacy_credential', code: 'loadCredential', name: 'Load Credential', config: { credential: 'Primary Credential' } },
       { id: 'legacy_global', code: 'loadGlobalVariable', name: 'Load Global Variable', config: { scope: 'Channel' } },
-      { id: 'legacy_match', code: 'matchCapability', name: 'Match Capability', config: { callbackTypeModel: 'Custom', script: 'return capability' } },
+      { id: 'legacy_match', code: 'matchCapability', name: 'Route Matching', config: { callbackTypeModel: 'Custom', script: 'return capability' } },
       { id: 'legacy_callback_request', code: 'callbackRequest', name: 'Callback Request', config: { requestFormat: 'JSON', timeout: '3000' } },
       { id: 'legacy_rrn', code: 'generateRrn', name: 'Generate RRN', config: { prefix: 'RRN', length: '12' } },
       { id: 'legacy_outer_inner', code: 'institutionOuter2Inner', name: 'Institution Outer to Inner', config: { mappingProfile: 'DEFAULT_INBOUND' } },

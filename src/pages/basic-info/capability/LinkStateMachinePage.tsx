@@ -257,7 +257,7 @@ export default function LinkStateMachinePage() {
                                 type="link"
                                 size="small"
                                 onClick={() => {
-                                  window.location.href = `/channel-integration/${r.channelCode}/integration/config/${bt}/${ability}`;
+                                  window.location.href = `/channel-integration/${r.channelCode}/integration/config/flow-groups`;
                                 }}
                               >
                                 Preview

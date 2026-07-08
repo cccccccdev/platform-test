@@ -17,7 +17,7 @@ export default function InboundPreprocessDrawer({ open, readOnly, initialValues,
   const format = Form.useWatch('requestMessageFormat', form) ?? 'JSON';
   const decryptionEnabled = Form.useWatch('decryptEnabled', form);
   const decryptionAlgorithm = Form.useWatch('decryptionAlgorithm', form);
-  return <Drawer title={<Space><span>inboundPreprocess Configuration</span><Tag color="blue">Match Capability</Tag></Space>} width="min(1080px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(onSave)}>Submit</Button></Space>}>
+  return <Drawer title={<Space><span>inboundPreprocess Configuration</span><Tag color="blue">Route Matching</Tag></Space>} width="min(1080px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(onSave)}>Submit</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ components: { Form: { itemMarginBottom: 10 }, Tabs: { horizontalMargin: '0 0 10px 0' } } }}>
       <Form form={form} disabled={readOnly} layout="vertical" initialValues={{ requestMessageFormat: 'JSON', ...initialValues, decryptEnabled: initialValues.decryptEnabled ?? false }} onValuesChange={() => force((value) => value + 1)}>
         <Alert type="info" showIcon message="Prepare only the request fields required for capability matching. The selected message format is inherited by the target Flow." style={{ marginBottom: 14 }} />

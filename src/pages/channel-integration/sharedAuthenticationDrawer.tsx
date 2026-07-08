@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Drawer, Button, Modal, Form, Input, InputNumber, Radio, Select, Space, Tag, Checkbox, message, Steps, Alert } from 'antd';
 import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useChannelScopeStore, timestampVersion } from './channelScopeStore';
-import type { AuthConfig, AuthType } from './channelScopeStore';
+import type { AuthConfig, AuthType, CredentialItem } from './channelScopeStore';
 import OAuth2RequestConfiguration from './OAuth2RequestConfiguration';
 
 interface Props {
@@ -20,6 +20,7 @@ const authTypeOptions = [
   { label: 'OAuth 2', value: 'oauth2' },
 ];
 
+const emptyCredentials: CredentialItem[] = [];
 const emptyAuthentications: AuthConfig[] = [];
 
 function OAuth2Form({
@@ -74,7 +75,8 @@ export default function AuthenticationDrawer({ visible, channelCode, auth, onSav
   const [form] = Form.useForm();
   const [oauthStep, setOauthStep] = useState(0);
   const addAuthentication = useChannelScopeStore((s) => s.addAuthentication);
-  const credentials = useChannelScopeStore((s) => s.credentialsByChannel[channelCode] ?? []);
+  const credentialsByChannel = useChannelScopeStore((s) => s.credentialsByChannel);
+  const credentials = credentialsByChannel[channelCode] ?? emptyCredentials;
   const authenticationsByChannel = useChannelScopeStore((s) => s.authenticationsByChannel);
   const authentications = authenticationsByChannel[channelCode] ?? emptyAuthentications;
   const credentialVersion = useChannelScopeStore((s) => s.credentialVersionByChannel[channelCode]) ?? '';

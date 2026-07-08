@@ -15,7 +15,7 @@ interface StateFlowListPageProps {
   autoShowConfigModal?: boolean;
 }
 
-export default function StateFlowListPage({ channelCode, bt, stateName, onBack, autoShowConfigModal = false }: StateFlowListPageProps) {
+export default function StateFlowListPage({ channelCode, stateName, onBack, autoShowConfigModal = false }: StateFlowListPageProps) {
   const [flows, setFlows] = useState<FlowConfig[]>([
     {
       id: 'flow_default_1',
@@ -91,7 +91,7 @@ export default function StateFlowListPage({ channelCode, bt, stateName, onBack, 
     setEditingFlow(null);
 
     // Navigate to component editor page (FlowEditorPage)
-    const url = `/channel-integration/${channelCode}/integration/config/${bt}/${stateName}/0?flowType=${flowType}`;
+    const url = `/channel-integration/${channelCode}/integration/config/flow-groups`;
     window.location.href = url;
   };
 

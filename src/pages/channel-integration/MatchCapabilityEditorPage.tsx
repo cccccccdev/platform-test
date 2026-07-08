@@ -9,19 +9,21 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
-import type { CapabilityDecisionVersion, InboundEndpoint, InboundRequestField, LegacyInboundComponent, MatchRule } from './types';
+import type { CapabilityDecisionVersion, ConfigAbility, InboundEndpoint, InboundRequestField, LegacyInboundComponent, MatchRule } from './types';
 import CanvasContextPanel from './CanvasContextPanel';
 import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
 import InboundPreprocessDrawer from './InboundPreprocessDrawer';
 
 const { Text } = Typography;
 
-type MatchLibraryComponent = { code: 'inboundPreprocess' | 'condition' | 'specifyCapability' | 'matchCapabilityByOrder'; description: string; usage: 'single' | 'multiple'; scopes: Array<'Match Capability' | 'Outbound' | 'Inbound'> };
+const EMPTY_ABILITIES: ConfigAbility[] = [];
+
+type MatchLibraryComponent = { code: 'inboundPreprocess' | 'condition' | 'specifyCapability' | 'matchCapabilityByOrder'; description: string; usage: 'single' | 'multiple'; scopes: Array<'Route Matching' | 'Outbound' | 'Inbound'> };
 const MATCH_COMPONENTS: MatchLibraryComponent[] = [
-  { code: 'inboundPreprocess', description: 'Parse Common Request, message format and decryption', usage: 'single', scopes: ['Match Capability'] },
-  { code: 'condition', description: 'Branch by field rules or Groovy script', usage: 'multiple', scopes: ['Match Capability', 'Outbound', 'Inbound'] },
-  { code: 'specifyCapability', description: 'Specify Business Type, Ability and Action', usage: 'multiple', scopes: ['Match Capability'] },
-  { code: 'matchCapabilityByOrder', description: 'Resolve Capability from a matched gateway order', usage: 'single', scopes: ['Match Capability'] },
+  { code: 'inboundPreprocess', description: 'Parse Common Request, message format and decryption', usage: 'single', scopes: ['Route Matching'] },
+  { code: 'condition', description: 'Branch by field rules or Groovy script', usage: 'multiple', scopes: ['Route Matching', 'Outbound', 'Inbound'] },
+  { code: 'specifyCapability', description: 'Specify Business Type, Ability and Action', usage: 'multiple', scopes: ['Route Matching'] },
+  { code: 'matchCapabilityByOrder', description: 'Resolve Capability from a matched gateway order', usage: 'single', scopes: ['Route Matching'] },
 ];
 
 const createRule = (): MatchRule => ({
@@ -42,15 +44,85 @@ export default function MatchCapabilityEditorPage() {
   const updateDecisionVersion = useMatchCapabilityStore((state) => state.updateDecisionVersion);
   const saveChannel = useMatchCapabilityStore((state) => state.saveChannel);
   const submitVersion = useMatchCapabilityStore((state) => state.submitVersion);
-  const abilities = useConfigIntegrationStore((state) => state.abilitiesByChannel[channelCode] ?? []);
+  const abilitiesByChannel = useConfigIntegrationStore((state) => state.abilitiesByChannel);
+  const abilities = abilitiesByChannel[channelCode] ?? EMPTY_ABILITIES;
   const configuration = endpoint?.versions.find((version) => version.id === decisionVersionId);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(configuration?.rules[0]?.id ?? null);
   const [activeDrawer, setActiveDrawer] = useState<'preprocess' | 'condition' | 'capability' | 'order' | null>(null);
   const [capabilityDraft, setCapabilityDraft] = useState<Pick<MatchRule, 'bt' | 'ability' | 'action'>>({ bt: '', ability: '', action: '' });
   const [orderDraft, setOrderDraft] = useState<{ singleNoField: string; referenceField?: 'requestReference' | 'responseReference' }>({ singleNoField: '' });
   const readOnly = searchParams.get('mode') === 'detail';
+  const runtimeDetail = searchParams.get('source') === 'runtime';
   if (!endpoint || !configuration) {
-    return <div style={{ padding: 24 }}><h3>Capability Matching Version not found</h3><Button onClick={() => navigate(-1)}>Back</Button></div>;
+    return <div style={{ padding: 24 }}><h3>Route Matching Version not found</h3><Button onClick={() => navigate(-1)}>Back</Button></div>;
+  }
+
+  if (runtimeDetail && readOnly) {
+    const capabilityNodes = configuration.sourceType === 'legacy'
+      ? (configuration.legacyComponents ?? []).map((component) => ({ id: component.id, title: component.code, subtitle: component.name }))
+      : configuration.matchType === 'order_no'
+        ? [
+            { id: 'preprocess', title: 'inboundPreprocess', subtitle: `Prepare matching fields · ${configuration.requestMessageFormat ?? 'JSON'}` },
+            { id: 'order', title: 'matchCapabilityByOrder', subtitle: configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Order reference matching' },
+          ]
+        : configuration.rules.map((rule) => ({
+            id: rule.id,
+            title: configuration.matchType === 'single' ? 'specifyCapability' : `specifyCapability · ${rule.fieldValues ? Object.values(rule.fieldValues).join(' / ') : ''}`,
+            subtitle: rule.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Capability Result',
+          }));
+    const canvasNodes = configuration.matchType === 'type_field' && configuration.sourceType !== 'legacy'
+      ? [{ id: 'preprocess', title: 'inboundPreprocess', subtitle: `Prepare matching fields · ${configuration.requestMessageFormat ?? 'JSON'}` }, { id: 'condition', title: 'condition', subtitle: 'Branch by field rules' }, ...capabilityNodes]
+      : capabilityNodes;
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f7fa' }}>
+        <div style={{ height: 58, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+          <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>Back</Button>
+          <Divider type="vertical" />
+          <strong>Runtime Control / Route Matching Detail</strong>
+        </div>
+        <div style={{ padding: '12px 16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(6, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
+            {[
+              ['URI', endpoint.url], ['Business Type', endpoint.businessTypes.join(', ')], ['Method', endpoint.method],
+              ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['URI ID', endpoint.id],
+            ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'URI ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
+          </div>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ width: 292, borderRight: '1px solid #f0f0f0', background: '#fff', overflow: 'auto' }}>
+            <div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Context</div>
+            <div style={{ padding: 14 }}>
+              <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Channel</div>
+              <Tag style={{ marginBottom: 16 }}>{channelCode}</Tag>
+              <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Route Matching Fields</div>
+              {configuration.requestFields.length ? configuration.requestFields.map((field) => (
+                <div key={field.id} style={{ padding: '8px 10px', border: '1px solid #f0f0f0', borderRadius: 6, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 600 }}>{field.source}.{field.name}</div>
+                  <div style={{ color: '#8c8c8c', fontSize: 11 }}>{field.type} · {field.moc === 'yes' ? 'required' : 'optional'}</div>
+                </div>
+              )) : <Text type="secondary">No request fields.</Text>}
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            <div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Canvas</div>
+            <div style={{ flex: 1, overflow: 'auto', padding: 36, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+              {canvasNodes.map((node, index) => (
+                <div key={node.id}>
+                  <div style={{ width: 360, margin: '0 auto', padding: 14, border: '1px solid #9254de', borderRadius: 8, background: '#f9f0ff' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <strong>{node.title}</strong>
+                      <Tag color="green">Configured</Tag>
+                    </div>
+                    <div style={{ color: '#595959', fontSize: 11, marginTop: 5 }}>{node.subtitle}</div>
+                  </div>
+                  {index < canvasNodes.length - 1 && <div style={{ textAlign: 'center', fontSize: 24, lineHeight: '42px' }}>↓</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (configuration.sourceType === 'legacy') {
@@ -99,14 +171,14 @@ export default function MatchCapabilityEditorPage() {
   const handleSave = () => {
     saveChannel(channelCode);
     message.success('URI Configuration saved as Draft');
-    navigate(`/channel-integration/${channelCode}/integration/match-capability`);
+    navigate(`/channel-integration/${channelCode}/integration/config/route-matching`);
   };
   const handleSubmit = () => {
     const error = validate();
     if (error) return void message.error(error);
     submitVersion(channelCode, endpoint.id, configuration.id);
-    message.success('Capability Matching submitted. The current Version is ready to deploy.');
-    navigate(`/channel-integration/${channelCode}/integration/match-capability`);
+    message.success('Route Matching submitted. The current Version is ready to deploy.');
+    navigate(`/channel-integration/${channelCode}/integration/config/route-matching`);
   };
 
   const btOptions = endpoint.businessTypes.map((value) => ({ value }));
@@ -122,9 +194,9 @@ export default function MatchCapabilityEditorPage() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f7fa' }}>
       <div style={{ height: 58, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(`/channel-integration/${channelCode}/integration/match-capability`)}>Back</Button>
+        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => readOnly ? navigate(-1) : navigate(`/channel-integration/${channelCode}/integration/config/route-matching`)}>Back</Button>
         <Divider type="vertical" />
-        <strong>{readOnly ? 'Capability Matching Detail' : 'Configure Capability Matching'}</strong>
+        <strong>{runtimeDetail ? 'Runtime Control / Route Matching Detail' : readOnly ? 'Route Matching Detail' : 'Configure Route Matching'}</strong>
         <div style={{ flex: 1 }} />
         {!readOnly && <Space><Button icon={<SaveOutlined />} onClick={handleSave}>Save Draft</Button><Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>Submit</Button></Space>}
       </div>
@@ -225,7 +297,7 @@ function MatchComponentLibrary({ onAdd, readOnly }: { onAdd: (code: MatchLibrary
     {!readOnly && <div style={{ padding: '4px 12px', background: '#e6f7ff', fontSize: 10, color: '#1890ff', textAlign: 'center' }}>Drag or click a component to add it</div>}
     <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>{filtered.map((component) => <div key={component.code} draggable={!readOnly} onDragStart={(event) => handleDragStart(event, component.code)} onClick={() => !readOnly && onAdd(component.code)} style={{ padding: '8px 12px', marginBottom: 6, border: '1px solid #e8e8e8', borderRadius: 6, cursor: readOnly ? 'default' : 'grab', fontSize: 12, background: '#fff' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><div><div style={{ fontWeight: 500 }}>{component.code}</div><div style={{ color: '#888', fontSize: 10 }}>{component.description}</div></div><Tag color={component.usage === 'single' ? 'default' : 'green'} style={{ fontSize: 9, margin: 0, height: 20 }}>{component.usage === 'single' ? 'Single Use' : 'Multiple'}</Tag></div>
-      <div style={{ marginTop: 5 }}>{component.scopes.map((scope) => <Tag key={scope} color={scope === 'Match Capability' ? 'purple' : scope === 'Outbound' ? 'blue' : 'cyan'} style={{ fontSize: 9 }}>{scope}</Tag>)}</div>
+      <div style={{ marginTop: 5 }}>{component.scopes.map((scope) => <Tag key={scope} color={scope === 'Route Matching' ? 'purple' : scope === 'Outbound' ? 'blue' : 'cyan'} style={{ fontSize: 9 }}>{scope}</Tag>)}</div>
     </div>)}{filtered.length === 0 && <Text type="secondary" style={{ fontSize: 12 }}>No matching components</Text>}</div>
   </div>;
 }
@@ -272,8 +344,9 @@ function MatchCapabilityCanvas({ configuration, readOnly, onOpenDrawer, onAddRes
     if (ruleId) onDeleteResult(ruleId);
   }, [onDeleteResult]);
   useEffect(() => {
+    if (readOnly) return;
     setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, onDelete: () => removeNode(node.id, node.data.ruleId as string | undefined) } })));
-  }, [removeNode]);
+  }, [readOnly, removeNode]);
   const addComponent = useCallback((code: MatchLibraryComponent['code']) => {
     const libraryItem = MATCH_COMPONENTS.find((item) => item.code === code);
     if (libraryItem?.usage === 'single' && nodes.some((node) => node.data.code === code)) return void message.warning(`${code} can only be added once`);
@@ -296,7 +369,7 @@ function MatchCapabilityCanvas({ configuration, readOnly, onOpenDrawer, onAddRes
   const onDrop = useCallback((event: DragEvent) => { event.preventDefault(); const code = event.dataTransfer.getData('application/reactflow') as MatchLibraryComponent['code']; if (MATCH_COMPONENTS.some((item) => item.code === code)) addComponent(code); }, [addComponent]);
   const conditionBranches = edges.filter((edge) => edge.source === selectedConditionNodeId).map((edge, index) => { const condition = edge.data?.condition as any; return { name: condition?.branchName ?? `Branch ${index + 1}`, target: String(nodes.find((node) => node.id === edge.target)?.data.code ?? 'Unknown'), summary: condition?.scriptMode ? 'Groovy Script' : condition?.groups?.length ? `${condition.groups.length} condition group(s)` : '' }; });
   const selectedConditionConfig = nodes.find((node) => node.id === selectedConditionNodeId)?.data.config as Record<string, unknown> | undefined;
-  return <><MatchComponentLibrary onAdd={addComponent} readOnly={readOnly} /><div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}><div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Canvas</div><div style={{ flex: 1, minHeight: 0 }}><ReactFlow nodes={nodes} edges={edges} onDrop={readOnly ? undefined : onDrop} onDragOver={(event) => { if (!readOnly) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }} onConnect={readOnly ? undefined : onConnect} onEdgeClick={(_event, edge) => { if (nodes.find((node) => node.id === edge.source)?.data.code === 'condition') setSelectedConditionEdge(edge); }} onNodesChange={(changes) => setNodes((current) => current.map((node) => { const move = changes.find((change) => change.type === 'position' && change.id === node.id); return move && 'position' in move && move.position ? { ...node, position: move.position } : node; }))} onNodeClick={(_event, node) => (node.data as any).onConfig?.()} nodeTypes={matchNodeTypes} fitView minZoom={0.1} maxZoom={2}><Background color="#e8e8e8" gap={16} /><Controls /><MiniMap /></ReactFlow></div></div><ConditionNodeDrawer open={showConditionNode} branches={conditionBranches} endCurrentFlow={Boolean(selectedConditionConfig?.endCurrentFlow)} readOnly={readOnly} onClose={() => setShowConditionNode(false)} onSave={({ endCurrentFlow }) => { setNodes((current) => current.map((node) => node.id === selectedConditionNodeId ? { ...node, data: { ...node.data, config: { ...(node.data.config as Record<string, unknown> | undefined), endCurrentFlow } } } : node)); setShowConditionNode(false); }} /><ConditionConfigurationDrawer open={Boolean(selectedConditionEdge)} targetComponent={String(nodes.find((node) => node.id === selectedConditionEdge?.target)?.data.code ?? '')} fieldOptions={configuration.requestFields.map((field) => ({ label: `${field.source}.${field.name}`, value: `${field.source}.${field.name}`, type: field.type }))} value={selectedConditionEdge?.data?.condition as any} readOnly={readOnly} onClose={() => setSelectedConditionEdge(null)} onSave={(condition) => { setEdges((current) => current.map((edge) => edge.id === selectedConditionEdge?.id ? { ...edge, data: { ...edge.data, condition } } : edge)); setSelectedConditionEdge(null); message.success('Branch condition saved'); }} /></>;
+  return <>{!readOnly && <MatchComponentLibrary onAdd={addComponent} readOnly={readOnly} />}<div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}><div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Canvas</div><div style={{ flex: 1, minHeight: 0 }}><ReactFlow nodes={nodes} edges={edges} onDrop={readOnly ? undefined : onDrop} onDragOver={(event) => { if (!readOnly) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }} onConnect={readOnly ? undefined : onConnect} onEdgeClick={(_event, edge) => { if (nodes.find((node) => node.id === edge.source)?.data.code === 'condition') setSelectedConditionEdge(edge); }} onNodesChange={readOnly ? undefined : (changes) => setNodes((current) => current.map((node) => { const move = changes.find((change) => change.type === 'position' && change.id === node.id); return move && 'position' in move && move.position ? { ...node, position: move.position } : node; }))} onNodeClick={(_event, node) => (node.data as any).onConfig?.()} nodeTypes={matchNodeTypes} fitView minZoom={0.1} maxZoom={2}><Background color="#e8e8e8" gap={16} /><Controls /><MiniMap /></ReactFlow></div></div><ConditionNodeDrawer open={showConditionNode} branches={conditionBranches} endCurrentFlow={Boolean(selectedConditionConfig?.endCurrentFlow)} readOnly={readOnly} onClose={() => setShowConditionNode(false)} onSave={({ endCurrentFlow }) => { setNodes((current) => current.map((node) => node.id === selectedConditionNodeId ? { ...node, data: { ...node.data, config: { ...(node.data.config as Record<string, unknown> | undefined), endCurrentFlow } } } : node)); setShowConditionNode(false); }} /><ConditionConfigurationDrawer open={Boolean(selectedConditionEdge)} targetComponent={String(nodes.find((node) => node.id === selectedConditionEdge?.target)?.data.code ?? '')} fieldOptions={configuration.requestFields.map((field) => ({ label: `${field.source}.${field.name}`, value: `${field.source}.${field.name}`, type: field.type }))} value={selectedConditionEdge?.data?.condition as any} readOnly={readOnly} onClose={() => setSelectedConditionEdge(null)} onSave={(condition) => { setEdges((current) => current.map((edge) => edge.id === selectedConditionEdge?.id ? { ...edge, data: { ...edge.data, condition } } : edge)); setSelectedConditionEdge(null); message.success('Branch condition saved'); }} /></>;
 }
 
 function LegacyInboundFlowEditor({
@@ -327,13 +400,13 @@ function LegacyInboundFlowEditor({
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f7fa' }}>
       <div style={{ height: 58, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(`/channel-integration/${channelCode}/integration/match-capability`)}>Back</Button>
+        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => readOnly ? navigate(-1) : navigate(`/channel-integration/${channelCode}/integration/config/route-matching`)}>Back</Button>
         <Divider type="vertical" />
         <Space><Tag color="purple">Legacy 1.0</Tag><strong>{readOnly ? 'Inbound Flow Detail' : 'Configure Legacy Inbound Flow'}</strong></Space>
         <div style={{ flex: 1 }} />
         {!readOnly && <Space>
           <Button icon={<SaveOutlined />} onClick={() => { saveChannel(channelCode); message.success('Legacy Inbound Flow draft saved'); }}>Save Draft</Button>
-          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => { submitVersion(channelCode, endpoint.id, configuration.id); message.success('Legacy Capability Matching submitted. The current Version is ready to deploy.'); navigate(`/channel-integration/${channelCode}/integration/match-capability`); }}>Submit</Button>
+          <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => { submitVersion(channelCode, endpoint.id, configuration.id); message.success('Legacy Route Matching submitted. The current Version is ready to deploy.'); navigate(`/channel-integration/${channelCode}/integration/config/route-matching`); }}>Submit</Button>
         </Space>}
       </div>
 
@@ -353,10 +426,10 @@ function LegacyInboundFlowEditor({
         style={{ margin: '0 16px 12px' }}
       />
 
-      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '292px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: readOnly ? '292px minmax(430px, 1fr)' : '292px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
         <CanvasContextPanel channelCode={channelCode} mode="matching" readOnly={readOnly} />
 
-        <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
+        {!readOnly && <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
           <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Component Library</div>
           <div style={{ padding: 12 }}>
             {components.map((component) => <div key={component.id} style={{ marginBottom: 9, padding: 11, border: '1px solid #e8e8e8', borderRadius: 7, background: '#fafafa' }}>
@@ -364,7 +437,7 @@ function LegacyInboundFlowEditor({
               <div style={{ color: '#8c8c8c', fontSize: 11 }}>{component.name}</div>
             </div>)}
           </div>
-        </div>
+        </div>}
 
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ height: 44, display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #f0f0f0', fontWeight: 600 }}>Legacy Inbound Flow Canvas</div>

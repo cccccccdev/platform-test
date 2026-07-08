@@ -42,7 +42,7 @@ export default function MatchCapabilityPage() {
   const [inspect, setInspect] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
   const [deploying, setDeploying] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
   const [deployCloud, setDeployCloud] = useState<string>();
-  const [filters, setFilters] = useState({ keyword: '', businessType: '', method: '', status: '' });
+  const [filters, setFilters] = useState({ businessType: '', method: '', status: '' });
   const endpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
   const endpoints = useMemo(() => endpointsByChannel[channelCode] ?? [], [channelCode, endpointsByChannel]);
   const addEndpoint = useMatchCapabilityStore((state) => state.addEndpoint);
@@ -59,15 +59,13 @@ export default function MatchCapabilityPage() {
     .map((item) => item.bt);
 
   const visibleEndpoints = useMemo(() => endpoints.filter((endpoint) => {
-    const keyword = filters.keyword.trim().toLowerCase();
-    return (!keyword || endpoint.url.toLowerCase().includes(keyword))
-      && (!filters.businessType || endpoint.businessTypes.includes(filters.businessType))
+    return (!filters.businessType || endpoint.businessTypes.includes(filters.businessType))
       && (!filters.method || endpoint.method === filters.method)
       && (!filters.status || endpoint.versions.some((version) => version.configStatus === filters.status));
   }), [endpoints, filters]);
 
   const openEditor = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion, mode: 'config' | 'detail') => {
-    navigate(`/channel-integration/${channelCode}/integration/match-capability/${endpoint.id}/versions/${version.id}?mode=${mode}`);
+    navigate(`/channel-integration/${channelCode}/integration/config/route-matching/${endpoint.id}/versions/${version.id}?mode=${mode}`);
   };
 
   const toggleExpand = (endpointId: string) => setExpandedRows((previous) => {
@@ -146,7 +144,7 @@ export default function MatchCapabilityPage() {
     const configBusinessType = newVersionEndpoint.businessTypes.find((bt) => configBusinessTypes.includes(bt));
     if (!configBusinessType) return void message.warning('Add at least one Config Integration Business Type before creating a 2.0 Matching Version.');
     const version = createVersion(channelCode, newVersionEndpoint.id, name, configBusinessType);
-    if (!version) return void message.warning('A Draft Capability Matching Version already exists.');
+    if (!version) return void message.warning('A Draft Route Matching Version already exists.');
     setNewVersionEndpoint(null);
     versionForm.resetFields();
     openEditor(newVersionEndpoint, version, 'config');
@@ -201,7 +199,7 @@ export default function MatchCapabilityPage() {
       {version.configStatus !== 'PROD' && <Button type="link" onClick={() => openConfig(endpoint, version)}>Config</Button>}
       <Button type="link" onClick={() => openDeploy(endpoint, version)}>Deploy</Button>
       {version.configStatus !== 'DRAFT' && <Button type="link" onClick={() => setInspect({ endpoint, version })}>Deploy Status</Button>}
-      {version.configStatus === 'DRAFT' && <Button type="link" danger icon={<DeleteOutlined />} onClick={() => Modal.confirm({ title: 'Delete Capability Matching?', content: `Matching ID ${version.id} will be permanently deleted.`, okText: 'Delete', okButtonProps: { danger: true }, onOk: () => deleteVersion(channelCode, endpoint.id, version.id) })}>Delete</Button>}
+      {version.configStatus === 'DRAFT' && <Button type="link" danger icon={<DeleteOutlined />} onClick={() => Modal.confirm({ title: 'Delete Route Matching?', content: `Matching ID ${version.id} will be permanently deleted.`, okText: 'Delete', okButtonProps: { danger: true }, onOk: () => deleteVersion(channelCode, endpoint.id, version.id) })}>Delete</Button>}
     </Space>;
   };
 
@@ -225,14 +223,13 @@ export default function MatchCapabilityPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Breadcrumb style={{ marginBottom: 16 }} items={[{ title: 'Channel Integration' }, { title: channelCode }, { title: 'Integration' }, { title: 'Match Capability' }]} />
+      <Breadcrumb style={{ marginBottom: 16 }} items={[{ title: 'Channel Integration' }, { title: channelCode }, { title: 'Integration' }, { title: 'Config Integration' }, { title: 'Route Matching' }]} />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div><h2 style={{ margin: 0 }}>Match Capability</h2><div style={{ color: '#8c8c8c', marginTop: 4 }}>Inbound Endpoint and capability matching configuration</div></div>
+        <div><h2 style={{ margin: 0 }}>Route Matching</h2><div style={{ color: '#8c8c8c', marginTop: 4 }}>Inbound path and capability routing configuration</div></div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowNewEndpoint(true)}>New Inbound Endpoint</Button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(3, 1fr)', gap: 12, marginBottom: 16, padding: 16, background: '#fafafa', borderRadius: 8 }}>
-        <Input.Search placeholder="Search URI" allowClear onSearch={(keyword) => setFilters((current) => ({ ...current, keyword }))} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(160px, 1fr))', gap: 12, marginBottom: 16, padding: 16, background: '#fafafa', borderRadius: 8 }}>
         <Select allowClear placeholder="Business Type" options={configBusinessTypes.map((value) => ({ value }))} onChange={(businessType) => setFilters((current) => ({ ...current, businessType: businessType ?? '' }))} />
         <Select allowClear placeholder="Method" options={['POST', 'GET', 'PUT', 'DELETE'].map((value) => ({ value }))} onChange={(method) => setFilters((current) => ({ ...current, method: method ?? '' }))} />
         <Select allowClear placeholder="Status" options={Object.entries(statusMeta).map(([value, meta]) => ({ value, label: meta.label }))} onChange={(status) => setFilters((current) => ({ ...current, status: status ?? '' }))} />
@@ -245,7 +242,7 @@ export default function MatchCapabilityPage() {
         expandable={{ expandedRowRender, expandedRowKeys: Array.from(expandedRows), showExpandColumn: false }}
         columns={[
           { title: '', width: 50, render: (_, endpoint) => <Button type="text" icon={expandedRows.has(endpoint.id) ? <DownOutlined /> : <RightOutlined />} onClick={() => toggleExpand(endpoint.id)} /> },
-          { title: 'URI', dataIndex: 'url', render: (uri, endpoint) => <Space><strong>{uri.startsWith(pathPrefix) ? uri.slice(pathPrefix.length) : uri}</strong>{endpoint.uriType === 'legacy' && <Tag color="purple">Legacy</Tag>}</Space> },
+          { title: 'URI', dataIndex: 'url', render: (uri) => <strong>{uri.startsWith(pathPrefix) ? uri.slice(pathPrefix.length) : uri}</strong> },
           { title: 'Business Type', dataIndex: 'businessTypes', width: 260, render: (businessTypes: string[]) => <Space wrap>{businessTypes.map((bt) => <Tag key={bt}>{bt}</Tag>)}</Space> },
           { title: 'Method', dataIndex: 'method', width: 120, render: (method) => <Tag color="blue">{method}</Tag> },
           { title: 'Operation', width: 360, render: (_, endpoint) => <Space><Button size="small" onClick={() => setManagingEndpoint(endpoint)}>Manage Business Type</Button><Button type="primary" size="small" onClick={() => { setNewVersionEndpoint(endpoint); versionForm.resetFields(); }}>New Matching Version</Button></Space> },
@@ -275,7 +272,7 @@ export default function MatchCapabilityPage() {
       </Modal>
 
       <Modal
-        title="Deploy Capability Matching"
+        title="Deploy Route Matching"
         open={Boolean(deploying)}
         okText="Deploy"
         okButtonProps={{ disabled: !deployCloud || !nextDeployEnvironment }}
@@ -300,7 +297,7 @@ export default function MatchCapabilityPage() {
 
       <Modal title="Manage Business Type" open={Boolean(managingEndpoint)} footer={null} onCancel={() => setManagingEndpoint(null)}>
         {managingEndpoint && <>
-          <div style={{ color: '#8c8c8c', marginBottom: 12 }}>Add Config Integration Business Types. A Business Type used by any Capability Matching Version cannot be removed.</div>
+          <div style={{ color: '#8c8c8c', marginBottom: 12 }}>Add Config Integration Business Types. A Business Type used by any Route Matching Version cannot be removed.</div>
           <Select
             mode="multiple"
             style={{ width: '100%' }}
@@ -309,7 +306,7 @@ export default function MatchCapabilityPage() {
             onChange={(businessTypes) => {
               const usedBusinessTypes = new Set(managingEndpoint.versions.flatMap((version) => version.rules.map((rule) => rule.bt)).filter(Boolean));
               const blocked = [...usedBusinessTypes].find((bt) => !businessTypes.includes(bt));
-              if (blocked) return void message.error(`${blocked} is used by a Capability Matching Version and cannot be removed.`);
+              if (blocked) return void message.error(`${blocked} is used by a Route Matching Version and cannot be removed.`);
               updateEndpoint(channelCode, managingEndpoint.id, { businessTypes, businessType: businessTypes[0] ?? '' });
               setManagingEndpoint({ ...managingEndpoint, businessTypes, businessType: businessTypes[0] ?? '' });
             }}

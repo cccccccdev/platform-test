@@ -240,7 +240,7 @@ export default function ConfigAbilityListPage() {
   };
 
   const groupConfigPath = (ability: ConfigAbility, group: FlowGroupVersion) =>
-    `/channel-integration/${channelCode}/integration/config/${ability.bt}/${ability.ability}/versions/${group.id}`;
+    `/channel-integration/${channelCode}/integration/config/flow-groups/${ability.bt}/${ability.ability}/versions/${group.id}`;
 
   const handleCreateFlowGroup = (ability: ConfigAbility) => {
     const group = createFlowGroup(channelCode, ability.bt, ability.ability);
@@ -469,7 +469,7 @@ export default function ConfigAbilityListPage() {
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between' }}>
         <div>
-          <h2 style={{ margin: 0 }}>Config Integration</h2>
+          <h2 style={{ margin: 0 }}>Flow Groups</h2>
           <Text type="secondary">Channel: {channelCode}</Text>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddCapabilities(true)}>

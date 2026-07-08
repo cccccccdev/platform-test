@@ -81,9 +81,62 @@ export const mockEndpointFields: Record<string, string[]> = {
   refund_endpoint: ['merchantId', 'orderId', 'amount', 'sign'],
 }
 
-// Match Capability 的内置样例数据。
+// Route Matching 的内置样例数据。
 // 运行期新增和修改只保存在内存中；刷新页面或重启项目后会恢复为这里的样例。
 export const mockInboundEndpointsByChannel = {
+  MTN_UG: [
+    {
+      id: 'mtn_ug_payment_callback',
+      name: 'MTN UG Payment Callback',
+      url: '/callback/mtn_ug/payment',
+      businessType: 'FUND_NOTIFICATION',
+      businessTypes: ['FUND_NOTIFICATION'],
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'MTN Uganda payment callback route matching',
+      fields: ['body.orderNo', 'body.status', 'body.responseCode'],
+      matchType: 'order_no' as const,
+      matchFieldSource: 'body' as const,
+      singleNoField: 'body.orderNo',
+      referenceField: 'requestReference' as const,
+      matchFields: [],
+      rules: [{ id: 'mtn_payment_callback_rule', fieldValues: {}, bt: 'FUND_NOTIFICATION', ability: 'PAYMENT_NOTIFY', action: 'TRANSACTION' }],
+      fallbackBehavior: 'alert_and_reject' as const,
+      decryptEnabled: false,
+      version: '20260706161000',
+      configStatus: 'PROD' as const,
+      badges: [{ cloud: 'ALIYUN', env: 'PROD' }],
+      referenceCount: 2,
+      updatedTime: '2026-07-06 16:10:00',
+      operator: 'admin',
+    },
+    {
+      id: 'mtn_ug_resource_callback',
+      name: 'MTN UG Resource Callback',
+      url: '/callback/mtn_ug/getfinancialresourceinformation',
+      businessType: 'FUND_NOTIFICATION',
+      businessTypes: ['FUND_NOTIFICATION'],
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'MTN Uganda bill query callback route matching',
+      fields: ['body.billRef', 'body.resultCode', 'body.message'],
+      matchType: 'type_field' as const,
+      singleNoField: '',
+      matchFields: ['body.resultCode'],
+      rules: [
+        { id: 'mtn_resource_success', fieldValues: { 'body.resultCode': '101' }, bt: 'FUND_NOTIFICATION', ability: 'BILL_QUERY_NOTIFY', action: 'QUERY' },
+        { id: 'mtn_resource_failed', fieldValues: { 'body.resultCode': '102' }, bt: 'FUND_NOTIFICATION', ability: 'BILL_QUERY_NOTIFY', action: 'QUERY' },
+      ],
+      fallbackBehavior: 'reject' as const,
+      decryptEnabled: false,
+      version: '20260706162500',
+      configStatus: 'PROD' as const,
+      badges: [{ cloud: 'ALIYUN', env: 'PROD' }],
+      referenceCount: 1,
+      updatedTime: '2026-07-06 16:25:00',
+      operator: 'admin',
+    },
+  ],
   GTB_NG: [
     {
       id: 'gtb_callback_endpoint',

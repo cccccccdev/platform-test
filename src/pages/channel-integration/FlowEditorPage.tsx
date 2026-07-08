@@ -4,7 +4,7 @@ import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Moda
 import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
 import type { Node, Edge, Connection } from '@xyflow/react';
-import type { FlowCanvasEdge, FlowCanvasNode } from './types';
+import type { FlowCanvasEdge, FlowCanvasNode, InboundEndpoint } from './types';
 import '@xyflow/react/dist/style.css';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
@@ -21,6 +21,7 @@ import StateMachinePreviewModal from './StateMachinePreviewModal';
 const { Text, Title } = Typography;
 
 const EMPTY_AUTHENTICATIONS: AuthConfig[] = [];
+const EMPTY_ENDPOINTS: InboundEndpoint[] = [];
 
 const authTypeLabels: Record<AuthType, string> = {
   basic: 'Basic Auth',
@@ -65,7 +66,7 @@ const COMPONENT_LIBRARY = [
 ] satisfies LibraryComponent[];
 
 const ADDABLE_COMPONENTS = COMPONENT_LIBRARY.filter((item) => item.group !== 'System');
-const scopeLabels: Record<ComponentScope, string> = { match: 'Match Capability', outbound: 'Outbound', inbound: 'Inbound' };
+const scopeLabels: Record<ComponentScope, string> = { match: 'Route Matching', outbound: 'Outbound', inbound: 'Inbound' };
 
 // 组件面板
 function ComponentLibraryPanel({
@@ -1976,7 +1977,8 @@ export default function FlowEditorPage() {
   );
   const storedVersion = storedAbility?.versions.find((item) => item.id === params.versionId);
   const storedFlow = storedVersion?.flows.find((item) => item.id === params.flowId);
-  const inboundEndpoints = useMatchCapabilityStore((state) => state.endpointsByChannel[params.channelCode ?? ''] ?? []);
+  const inboundEndpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
+  const inboundEndpoints = inboundEndpointsByChannel[params.channelCode ?? ''] ?? EMPTY_ENDPOINTS;
   const saveDraftFlow = useConfigIntegrationStore((state) => state.saveDraftFlow);
   const submitFlow = useConfigIntegrationStore((state) => state.submitFlow);
   const readOnly = searchParams.get('mode') === 'detail';
@@ -2193,7 +2195,7 @@ export default function FlowEditorPage() {
   const serializeEdges = (): FlowCanvasEdge[] => edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, data: edge.data as Record<string, unknown> | undefined }));
 
   const groupId = storedVersion?.groupId;
-  const parentPath = `/channel-integration/${params.channelCode}/integration/config/${params.bt}/${params.ability}/versions/${params.versionId}`;
+  const parentPath = `/channel-integration/${params.channelCode}/integration/config/flow-groups/${params.bt}/${params.ability}/versions/${params.versionId}`;
 
   const handleSave = () => {
     if (params.channelCode && params.bt && params.ability && groupId && params.flowId) {
@@ -2305,10 +2307,12 @@ export default function FlowEditorPage() {
         />
 
         {/* 组件面板 */}
-        <ComponentLibraryPanel
-          components={readOnly ? [] : availableComponents}
-          onAddComponent={readOnly ? () => undefined : handleAddComponent}
-        />
+        {!readOnly && (
+          <ComponentLibraryPanel
+            components={availableComponents}
+            onAddComponent={handleAddComponent}
+          />
+        )}
 
         {/* 画布区域 */}
         <div

@@ -19,10 +19,10 @@ const spiResponse = ['responseCode', 'responseMessage', 'status', 'requestRefere
 const spiRequestOptions = [{ label: 'SPI Request', options: spiRequest.map((value) => ({ label: value, value: `spi.request.${value}`, type: 'String' })) }];
 const spiResponseOptions = [{ label: 'SPI Response', options: spiResponse.map((value) => ({ label: value, value: `spi.response.${value}`, type: 'String' })) }];
 
-type Props = { open: boolean; readOnly?: boolean; onClose: () => void; onSave: (config: Record<string, unknown>) => void };
+type Props = { open: boolean; initialValues?: Record<string, unknown>; readOnly?: boolean; onClose: () => void; onSave: (config: Record<string, unknown>) => void };
 type InboundRequestProps = Props & { pathVariables?: string[]; endpointPath?: string };
 
-export function InboundRequestDrawer({ open, readOnly = false, pathVariables = [], endpointPath, onClose, onSave }: InboundRequestProps) {
+export function InboundRequestDrawer({ open, initialValues = {}, readOnly = false, pathVariables = [], endpointPath, onClose, onSave }: InboundRequestProps) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('format');
   const requestMappingMode = Form.useWatch('requestMappingMode', form) ?? 'configuration';
@@ -32,9 +32,9 @@ export function InboundRequestDrawer({ open, readOnly = false, pathVariables = [
   const codeMappingMode = Form.useWatch('codeMappingMode', form) ?? 'default';
   return <Drawer title={<Space><span>Configure Inbound Request</span><Tag color="cyan">inboundRequest</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(onSave)}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ components: { Form: { itemMarginBottom: 10 } } }}>
-      <Form form={form} disabled={readOnly} layout="vertical" initialValues={{ requestMappingMode: 'configuration', codeMappingEnabled: false, codeMappingMode: 'default' }}>
+      <Form form={form} disabled={readOnly} layout="vertical" initialValues={{ requestMappingMode: 'configuration', codeMappingEnabled: false, codeMappingMode: 'default', ...initialValues }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
-          { key: 'format', label: 'Message Format', children: <Card size="small"><Alert type="info" showIcon message="Request Message Format is inherited from Match Capability · inboundPreprocess." description="The target Flow uses the currently effective preprocessing format. inboundRequest does not override it." /></Card> },
+          { key: 'format', label: 'Message Format', children: <Card size="small"><Alert type="info" showIcon message="Request Message Format is inherited from Route Matching · inboundPreprocess." description="The target Flow uses the currently effective preprocessing format. inboundRequest does not override it." /></Card> },
           { key: 'mapping', label: 'Fields & Mapping', children: <>
             <Alert type="info" showIcon message="Define the complete request fields using the preprocessed, decrypted request. Do not add an encrypted carrier already consumed by inboundPreprocess." style={{ marginBottom: 12 }} />
             <Form.Item name="requestMappingMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item>
@@ -81,7 +81,7 @@ function InboundPathVariableMapping({ variables, endpointPath }: { variables: st
   </div>;
 }
 
-export function InboundResponseDrawer({ open, readOnly = false, onClose, onSave }: Props) {
+export function InboundResponseDrawer({ open, initialValues = {}, readOnly = false, onClose, onSave }: Props) {
   const [form] = Form.useForm();
   const responseMappingMode = Form.useWatch('responseMappingMode', form) ?? 'configuration';
   const responseFormat = Form.useWatch('responseFormat', form) ?? 'JSON';
@@ -89,7 +89,7 @@ export function InboundResponseDrawer({ open, readOnly = false, onClose, onSave 
   const encryptionEnabled = Form.useWatch('encryptionEnabled', form);
   return <Drawer title={<Space><span>Configure Inbound Response</span><Tag color="green">inboundResponse</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(onSave)}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ components: { Form: { itemMarginBottom: 10 } } }}>
-      <Form form={form} disabled={readOnly} layout="vertical" initialValues={{ responseMappingMode: 'configuration', responseFormat: 'JSON' }}>
+      <Form form={form} disabled={readOnly} layout="vertical" initialValues={{ responseMappingMode: 'configuration', responseFormat: 'JSON', ...initialValues }}>
         <Tabs items={[
           { key: 'mapping', label: 'Fields & Mapping', children: <>
             <Form.Item name="responseMappingMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item>

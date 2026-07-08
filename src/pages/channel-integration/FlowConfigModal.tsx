@@ -203,8 +203,8 @@ export default function FlowConfigModal({
 
       case 'EXTERNAL_INBOUND_TRIGGERED':
         return (<>
-          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Match Capability" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Route Matching URI' }]}>
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
           </Form.Item>
           <Form.Item
             name="triggerAction"
@@ -217,8 +217,8 @@ export default function FlowConfigModal({
 
       case 'CALLBACK_TRIGGERED':
         return (<>
-          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Match Capability URI' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Match Capability" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+          <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Route Matching URI' }]}>
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
           </Form.Item>
           <Form.Item
             name="originalRequestAction"

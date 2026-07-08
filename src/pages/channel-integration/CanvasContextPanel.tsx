@@ -234,7 +234,7 @@ export default function CanvasContextPanel({
 
   const scopeItems = [
     { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
-    { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={[]} /> : <EmptyContext>Not available in Capability Matching.</EmptyContext> },
+    { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={[]} /> : <EmptyContext>Not available in Route Matching.</EmptyContext> },
   ];
 
   return <>
