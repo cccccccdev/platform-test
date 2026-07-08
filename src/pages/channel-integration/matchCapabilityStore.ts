@@ -12,7 +12,7 @@ const statusFromBadges = (badges: Array<{ cloud: string; env: string }>): Capabi
   if (badges.some((badge) => badge.env === 'PROD')) return 'PROD';
   if (badges.some((badge) => badge.env === 'PRE')) return 'PRE';
   if (badges.some((badge) => badge.env === 'DAILY')) return 'DAILY';
-  return 'DRAFT';
+  return 'UNDEPLOYED';
 };
 
 export const nextMatchingId = (endpointsByChannel: Record<string, InboundEndpoint[]>): string => {
@@ -47,6 +47,7 @@ const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisio
     id: `${endpoint.id}_version_1`,
     version: endpoint.version,
     name: endpoint.name.slice(0, 32),
+    remark: endpoint.name,
     sourceType: endpoint.uriType === 'legacy' ? 'legacy' : 'v2',
     configStatus: endpoint.configStatus,
     fields: requestFields.map((field) => `${field.source}.${field.name}`),
@@ -98,12 +99,11 @@ const cloneSeedData = (): Record<string, InboundEndpoint[]> => {
       ? endpoint.versions
       : endpoint.uriType === 'legacy'
         ? [
-            { ...seedVersion, version: '20260322024417', name: 'Legacy Callback PROD', configStatus: 'PROD' as const, badges: [{ cloud: 'ALIYUN', env: 'DAILY' }, { cloud: 'ALIYUN', env: 'PRE' }, { cloud: 'ALIYUN', env: 'PROD' }] },
-            { ...structuredClone(seedVersion), id: String(matchingId++), version: '20260122035216', name: 'Legacy Callback Draft', configStatus: 'DRAFT' as const, badges: [] },
+            { ...seedVersion, version: '20260322024417', name: 'Legacy Callback PROD', remark: 'Legacy Callback PROD', configStatus: 'PROD' as const, badges: [{ cloud: 'ALIYUN', env: 'DAILY' }, { cloud: 'ALIYUN', env: 'PRE' }, { cloud: 'ALIYUN', env: 'PROD' }] },
+            { ...structuredClone(seedVersion), id: String(matchingId++), version: '20260122035216', name: 'Legacy Callback Undeployed', remark: 'Legacy Callback Undeployed', configStatus: 'UNDEPLOYED' as const, badges: [] },
           ]
         : [seedVersion];
-    const businessTypes = endpoint.businessTypes ?? [...new Set([endpoint.businessType, ...versions.flatMap((version) => version.rules.map((rule) => rule.bt))].filter(Boolean))];
-    return { ...endpoint, businessTypes, versions };
+    return { ...endpoint, versions };
   })]));
 };
 
@@ -115,14 +115,14 @@ interface MatchCapabilityStore {
   addEndpoint: (channelCode: string, endpoint: InboundEndpoint) => void;
   updateEndpoint: (channelCode: string, endpointId: string, updates: Partial<InboundEndpoint>) => void;
   updateDecisionVersion: (channelCode: string, endpointId: string, versionId: string, updates: Partial<CapabilityDecisionVersion>) => void;
-  createVersion: (channelCode: string, endpointId: string, name: string, businessType?: string) => CapabilityDecisionVersion | null;
+  createVersion: (channelCode: string, endpointId: string) => CapabilityDecisionVersion | null;
   cloneVersion: (channelCode: string, endpointId: string, versionId: string) => CapabilityDecisionVersion | null;
   deployVersion: (channelCode: string, endpointId: string, versionId: string, cloud: string, env: string) => void;
   discardVersionDraft: (channelCode: string, endpointId: string, versionId: string) => void;
   deleteVersion: (channelCode: string, endpointId: string, versionId: string) => void;
   deleteEndpoint: (channelCode: string, endpointId: string) => void;
   saveChannel: (channelCode: string) => void;
-  submitVersion: (channelCode: string, endpointId: string, versionId: string) => void;
+  submitVersion: (channelCode: string, endpointId: string, versionId: string, remark?: string) => void;
   discardChannel: (channelCode: string) => void;
 }
 
@@ -153,7 +153,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
         ...endpoint,
         versions: endpoint.versions.map((version) => {
           if (version.id !== versionId) return version;
-          const tracksDraft = version.configStatus !== 'DRAFT';
+          const tracksDraft = version.configStatus !== 'UNDEPLOYED';
           const baseline = tracksDraft && !version.draftBaseline
             ? JSON.stringify({ ...version, hasUnsubmittedDraft: false, draftBaseline: undefined })
             : version.draftBaseline;
@@ -171,7 +171,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
     dirtyByChannel: { ...state.dirtyByChannel, [channelCode]: true },
   })),
 
-  createVersion: (channelCode, endpointId, name, businessType) => {
+  createVersion: (channelCode, endpointId) => {
     const endpoint = get().getEndpoints(channelCode).find((item) => item.id === endpointId);
     if (!endpoint) return null;
     const source = endpoint.versions[0];
@@ -179,15 +179,16 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
     const version: CapabilityDecisionVersion = source.sourceType === 'legacy' ? {
       id: matchingId,
       version: timestampVersion(),
-      name: name.trim().slice(0, 32),
+      name: `Matching ${matchingId}`,
+      remark: '',
       sourceType: 'v2',
-      configStatus: 'DRAFT',
+      configStatus: 'UNDEPLOYED',
       fields: [],
       requestFields: [],
       matchType: 'single',
       singleNoField: '',
       matchFields: [],
-      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: businessType ?? endpoint.businessTypes.find(Boolean) ?? '', ability: '', action: '' }],
+      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: '', ability: '', action: '' }],
       customScript: 'def execute(request) {\n  return null\n}',
       fallbackBehavior: 'alert_and_reject',
       decryptEnabled: false,
@@ -200,9 +201,10 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       ...structuredClone(source),
       id: matchingId,
       version: timestampVersion(),
-      name: name.trim().slice(0, 32),
+      name: `Matching ${matchingId}`,
+      remark: '',
       sourceType: 'v2',
-      configStatus: 'DRAFT',
+      configStatus: 'UNDEPLOYED',
       badges: [],
       hasUnsubmittedDraft: false,
       draftBaseline: undefined,
@@ -227,8 +229,9 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       ...structuredClone(source),
       id: nextMatchingId(get().endpointsByChannel),
       version: timestampVersion(),
-      name: `${source.name} Copy`.slice(0, 32),
-      configStatus: 'DRAFT',
+      name: `Matching ${nextMatchingId(get().endpointsByChannel)}`,
+      remark: `Cloned from Route Matching ${source.id}, Version ${source.version}.`,
+      configStatus: 'UNDEPLOYED',
       badges: [],
       hasUnsubmittedDraft: false,
       draftBaseline: undefined,
@@ -295,14 +298,15 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
     dirtyByChannel: { ...state.dirtyByChannel, [channelCode]: false },
   })),
 
-  submitVersion: (channelCode, endpointId, versionId) => set((state) => {
+  submitVersion: (channelCode, endpointId, versionId, remark) => set((state) => {
     const submitted = (state.endpointsByChannel[channelCode] ?? []).map((endpoint) => endpoint.id === endpointId ? {
       ...endpoint,
       versions: endpoint.versions.map((version) => version.id === versionId ? {
         ...version,
-        version: version.configStatus === 'DRAFT' ? version.version : timestampVersion(),
-        configStatus: 'DRAFT' as const,
-        badges: version.configStatus === 'DRAFT' ? version.badges : [],
+        version: version.configStatus === 'UNDEPLOYED' ? version.version : timestampVersion(),
+        remark: remark?.trim() ?? '',
+        configStatus: 'UNDEPLOYED' as const,
+        badges: version.configStatus === 'UNDEPLOYED' ? version.badges : [],
         hasUnsubmittedDraft: false,
         draftBaseline: undefined,
         updatedTime: new Date().toLocaleString(),
