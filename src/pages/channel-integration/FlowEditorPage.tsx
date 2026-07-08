@@ -50,7 +50,7 @@ const COMPONENT_LIBRARY = [
   { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
   { code: 'sendCompleteMQ', name: 'Send Complete MQ', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
   { code: 'condition', name: 'Condition Check', group: 'Common', usage: 'multiple', scopes: ['match', 'outbound', 'inbound'] },
-  { code: 'asyncExecuteFlow', name: 'Async Execute Flow', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
+  { code: 'asyncTriggerFlow', name: 'Async Trigger Flow', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
   { code: 'inboundRequest', name: 'Inbound Request', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
   { code: 'inboundResponse', name: 'Inbound Response', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
   { code: 'initInboundOrder', name: 'Initialize Inbound Order', group: 'Inbound', usage: 'single', scopes: ['inbound'] },

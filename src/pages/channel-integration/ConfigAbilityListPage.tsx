@@ -17,7 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { abilityOptions, capabilityActionOptions, mockBusinessTypes } from '../../mock/data';
 import { CLOUD_DEPLOY_SEQUENCES, useConfigIntegrationStore } from './configIntegrationStore';
 import type { CloudType, ConfigAbility, DeployRecord, FlowGroupVersion } from './types';
-import StateMachinePreviewModal from './StateMachinePreviewModal';
+import StateMachinePreviewModal, { isNoStateMachine, stateMachineDisplayName } from './StateMachinePreviewModal';
 
 const { Text } = Typography;
 
@@ -433,7 +433,11 @@ export default function ConfigAbilityListPage() {
     {
       title: 'State Machine',
       dataIndex: 'stateMachine',
-      render: (stateMachine: string) => (
+      render: (stateMachine: string) => isNoStateMachine(stateMachine) ? (
+        <Tooltip title="Legacy migrated information has no State Machine association">
+          <Tag color="default">{stateMachineDisplayName(stateMachine)}</Tag>
+        </Tooltip>
+      ) : (
         <Button type="link" icon={<EyeOutlined />} onClick={() => setPreviewStateMachine(stateMachine)}>
           {stateMachine}
         </Button>

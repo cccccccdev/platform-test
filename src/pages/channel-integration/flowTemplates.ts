@@ -4,7 +4,7 @@ export const TRIGGER_TYPE_DESCRIPTIONS: Record<TriggerType, string> = {
   UPSTREAM_TRIGGERED: 'Triggered when an internal upstream system sends a business request to the gateway.',
   EXTERNAL_INBOUND_TRIGGERED: 'Triggered when an external system initiates a new inbound business request.',
   CALLBACK_TRIGGERED: 'Triggered when an external channel returns a result or notification for an earlier outbound request.',
-  ASYNC_TRIGGERED: 'Triggered asynchronously by an asyncExecuteFlow component in an earlier flow.',
+  ASYNC_TRIGGERED: 'Triggered asynchronously by an asyncTriggerFlow component in an earlier flow.',
   REQUERY_TRIGGERED: 'Triggered by the platform requery strategy after an order enters the configured sub-state.',
 };
 
@@ -56,7 +56,7 @@ const templateComponents: Record<string, string[]> = {
   MESSAGE_NOTIFICATION: ['inboundRequest', 'initInboundOrder', 'requestBusinessAccessLayer', 'responseCodeInner2Outer', 'inboundResponse'],
   INBOUND_QUERY: ['inboundRequest', 'requestBusinessAccessLayer', 'responseCodeInner2Outer', 'inboundResponse'],
   INBOUND_RE_QUERY: ['inboundRequest', 'queryInboundOrder', 'responseCodeInner2Outer', 'inboundResponse'],
-  INBOUND_TRANSACTION_WITH_ACK: ['inboundRequest', 'initInboundOrder', 'requestBusinessAccessLayer', 'responseCodeInner2Outer', 'inboundResponse', 'asyncExecuteFlow'],
+  INBOUND_TRANSACTION_WITH_ACK: ['inboundRequest', 'initInboundOrder', 'requestBusinessAccessLayer', 'responseCodeInner2Outer', 'inboundResponse', 'asyncTriggerFlow'],
 };
 
 export function buildTemplateCanvas(template: string): { canvasNodes: FlowCanvasNode[]; canvasEdges: FlowCanvasEdge[] } {

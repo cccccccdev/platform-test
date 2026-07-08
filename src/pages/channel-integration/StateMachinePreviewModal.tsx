@@ -1,14 +1,57 @@
-import { Modal, Space, Tag, Typography } from 'antd';
+import { Alert, Empty, Modal, Space, Tag, Typography } from 'antd';
 import { Background, Controls, MarkerType, ReactFlow, ReactFlowProvider } from '@xyflow/react';
 import type { Edge, Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 const { Text } = Typography;
 
+export const NO_STATE_MACHINE = 'NO_STATE_MACHINE';
+
+export function isNoStateMachine(stateMachine?: string) {
+  return !stateMachine || stateMachine === NO_STATE_MACHINE;
+}
+
+export function stateMachineDisplayName(stateMachine?: string) {
+  return isNoStateMachine(stateMachine) ? 'No State Machine' : stateMachine;
+}
+
 type StateDefinition = { id: string; name: string; description: string; x: number; y: number; status?: string };
 type TransitionDefinition = { id: string; source: string; target: string; event?: string };
 
 const stateMachines: Record<string, { description: string; states: StateDefinition[]; transitions: TransitionDefinition[] }> = {
+  Wallet_Debit_StateMachine: {
+    description: 'Wallet debit lifecycle covering pending callback, requery and final result states.',
+    states: [
+      { id: 'init', name: 'INIT', description: 'Wallet debit initialized', x: 40, y: 160, status: 'INIT' },
+      { id: 'wait_callback', name: 'PAYMENT_PENDING_WAIT_CALLBACK', description: 'Waiting for payment callback', x: 310, y: 80, status: 'PENDING' },
+      { id: 'wait_requery', name: 'PAYMENT_PENDING_WAIT_REQUERY', description: 'Waiting for requery execution', x: 310, y: 250, status: 'PENDING' },
+      { id: 'success', name: 'PAYMENT_SUCCESS', description: 'Wallet debit succeeded', x: 670, y: 80, status: 'SUCCESS' },
+      { id: 'failed', name: 'PAYMENT_FAILED_BY_CHANNEL', description: 'Wallet debit failed', x: 670, y: 250, status: 'FAIL' },
+    ],
+    transitions: [
+      { id: 'e1', source: 'init', target: 'wait_callback', event: 'accepted' },
+      { id: 'e2', source: 'wait_callback', target: 'success', event: 'callback_success' },
+      { id: 'e3', source: 'wait_callback', target: 'wait_requery', event: 'callback_timeout' },
+      { id: 'e4', source: 'wait_requery', target: 'success', event: 'requery_success' },
+      { id: 'e5', source: 'wait_requery', target: 'failed', event: 'requery_failed' },
+    ],
+  },
+  Fund_Notification_StateMachine: {
+    description: 'Inbound fund notification lifecycle for payment and bill query callbacks.',
+    states: [
+      { id: 'pending', name: 'PAYMENT_PENDING_WAIT_CALLBACK', description: 'Notification is pending', x: 40, y: 170, status: 'PENDING' },
+      { id: 'payment_success', name: 'PAYMENT_SUCCESS', description: 'Payment notification succeeded', x: 350, y: 70, status: 'SUCCESS' },
+      { id: 'payment_failed', name: 'PAYMENT_FAILED_BY_CHANNEL', description: 'Payment notification failed', x: 350, y: 270, status: 'FAIL' },
+      { id: 'bill_success', name: 'BILL_QUERY_SUCCESS', description: 'Bill query notification succeeded', x: 660, y: 70, status: 'SUCCESS' },
+      { id: 'bill_failed', name: 'BILL_QUERY_FAILED', description: 'Bill query notification failed', x: 660, y: 270, status: 'FAIL' },
+    ],
+    transitions: [
+      { id: 'e1', source: 'pending', target: 'payment_success', event: 'payment_success' },
+      { id: 'e2', source: 'pending', target: 'payment_failed', event: 'payment_failed' },
+      { id: 'e3', source: 'pending', target: 'bill_success', event: 'bill_query_success' },
+      { id: 'e4', source: 'pending', target: 'bill_failed', event: 'bill_query_failed' },
+    ],
+  },
   BankCard_Debit_StateMachine: {
     description: 'Bank card debit lifecycle with OTP, authentication and frictionless processing paths.',
     states: [
@@ -59,7 +102,41 @@ export default function StateMachinePreviewModal({
   highlightedState?: string;
   onClose: () => void;
 }) {
-  const definition = stateMachines[stateMachine] ?? stateMachines.Default_Refund_StateMachine;
+  if (isNoStateMachine(stateMachine)) {
+    return (
+      <Modal title="State Machine: No State Machine" open={open} footer={null} width={720} onCancel={onClose} destroyOnHidden>
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="State machine is not applicable"
+        />
+        <Alert
+          type="info"
+          showIcon
+          message="Legacy Flow Group has no State Machine association"
+          description="This record was migrated from 1.0 distributed Flow information. It can be viewed and used for compatibility, but no state machine preview is available."
+        />
+      </Modal>
+    );
+  }
+
+  const definition = stateMachines[stateMachine];
+
+  if (!definition) {
+    return (
+      <Modal title={`State Machine: ${stateMachine}`} open={open} footer={null} width={720} onCancel={onClose} destroyOnHidden>
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="State Machine definition is unavailable"
+        />
+        <Alert
+          type="warning"
+          showIcon
+          message="State Machine definition not found in this demo"
+          description="The Ability has a State Machine name, but the preview canvas data has not been modeled in the current demo."
+        />
+      </Modal>
+    );
+  }
   const nodes: Node[] = definition.states.map((state) => {
     const highlighted = state.name === highlightedState;
     return {

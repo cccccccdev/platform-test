@@ -28,7 +28,7 @@ import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { CapabilityDecisionVersion, ConfigAbility, FlowGroupVersion, InboundEndpoint } from './types';
-import StateMachinePreviewModal from './StateMachinePreviewModal';
+import StateMachinePreviewModal, { NO_STATE_MACHINE, isNoStateMachine } from './StateMachinePreviewModal';
 import CanvasContextPanel from './CanvasContextPanel';
 import InboundPreprocessDrawer from './InboundPreprocessDrawer';
 import { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
@@ -38,7 +38,7 @@ import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentD
 const { Content, Sider } = Layout;
 const { Text } = Typography;
 
-type MainState = 'INIT' | 'PENDING' | 'SUCCESS' | 'FAIL';
+type MainState = 'INIT' | 'PENDING' | 'TO_BE_VERIFY' | 'SUCCESS' | 'FAIL';
 type PageKey = 'external-internal' | 'internal-external' | 'requery' | 'runtime-route-matching' | 'runtime-flow-groups';
 type DetailView = { type: 'event'; record: ExternalRecord } | { type: 'approval'; record: ExternalRecord; approval?: ExternalApprovalRequest };
 type Source = 'httpCall' | 'Route Matching';
@@ -195,6 +195,13 @@ const subStates: Array<{ value: string; mainState: MainState }> = [
   { value: 'BILL_QUERY_FAILED', mainState: 'FAIL' },
 ];
 
+const legacyNoStateMachineSubStates: Array<{ value: string; mainState: MainState }> = [
+  { value: 'PENDING', mainState: 'PENDING' },
+  { value: 'TO_BE_VERIFY', mainState: 'TO_BE_VERIFY' },
+  { value: 'SUCCESS', mainState: 'SUCCESS' },
+  { value: 'FAIL', mainState: 'FAIL' },
+];
+
 const responseCodesByState: Record<MainState, Array<{ label: string; value: string }>> = {
   INIT: [{ label: '61000000 - Initialized', value: '61000000' }],
   PENDING: [
@@ -202,6 +209,7 @@ const responseCodesByState: Record<MainState, Array<{ label: string; value: stri
     { label: '61000016 - Channel exception: Retrying', value: '61000016' },
     { label: '62000006 - Request timeout, re-query pending', value: '62000006' },
   ],
+  TO_BE_VERIFY: [{ label: '61000004 - To be verified', value: '61000004' }],
   SUCCESS: [{ label: '61000001 - Success', value: '61000001' }],
   FAIL: [
     { label: '62000001 - Internal processing error', value: '62000001' },
@@ -278,11 +286,14 @@ function unique<T>(items: T[]) {
 }
 
 function mainStateForSubState(subState?: string): MainState | undefined {
-  return subStates.find((item) => item.value === subState)?.mainState;
+  return [...subStates, ...legacyNoStateMachineSubStates].find((item) => item.value === subState)?.mainState;
 }
 
 function subStatesForCapability(_channelCode: string, bt?: string, ability?: string) {
   if (!bt || !ability) return [];
+  if (isLegacyNoStateMachineCapability(bt, ability)) {
+    return legacyNoStateMachineSubStates;
+  }
   if (bt === 'SETTLEMENT_ACCOUNT' && ability === 'BALANCE_QUERY') {
     return subStates.filter((item) => item.value.startsWith('BALANCE_QUERY_'));
   }
@@ -310,7 +321,12 @@ function mainStateColor(value: MainState) {
   if (value === 'SUCCESS') return 'green';
   if (value === 'FAIL') return 'red';
   if (value === 'PENDING') return 'gold';
+  if (value === 'TO_BE_VERIFY') return 'purple';
   return 'default';
+}
+
+function isLegacyNoStateMachineCapability(bt?: string, ability?: string) {
+  return bt === 'SETTLEMENT_ACCOUNT' && ability === 'BALANCE_QUERY';
 }
 
 function valueOptions(values: string[]) {
@@ -447,9 +463,9 @@ export default function ChannelInfoPage() {
     [channelCode, selectedRequeryAbility, selectedRequeryBt],
   );
   const stateMachineName = useMemo(() => {
+    if (isLegacyNoStateMachineCapability(selectedBt, selectedAbility)) return NO_STATE_MACHINE;
     const linked = flowGroupAbilities.find((item) => item.bt === selectedBt && item.ability === selectedAbility)?.stateMachine;
     if (linked) return linked;
-    if (selectedBt === 'SETTLEMENT_ACCOUNT' && selectedAbility === 'BALANCE_QUERY') return 'BankCard_Debit_StateMachine';
     return selectedBt && selectedAbility ? 'Default_Refund_StateMachine' : '';
   }, [flowGroupAbilities, selectedAbility, selectedBt]);
   const subStateChanged = Boolean(editingExternal && selectedSubState && selectedSubState !== editingExternal.subState);
@@ -926,7 +942,14 @@ export default function ChannelInfoPage() {
     },
     { title: 'Business Type', dataIndex: 'bt', width: 180 },
     { title: 'Ability', dataIndex: 'ability', width: 180 },
-    { title: 'State Machine', dataIndex: 'stateMachine', width: 260 },
+    {
+      title: 'State Machine',
+      dataIndex: 'stateMachine',
+      width: 260,
+      render: (stateMachine: string) => isNoStateMachine(stateMachine)
+        ? <Tag color="default">No State Machine</Tag>
+        : stateMachine,
+    },
     { title: 'Actions', dataIndex: 'actions', render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value}>{value}</Tag>)}</Space> },
     {
       title: 'Operation',
@@ -973,7 +996,7 @@ export default function ChannelInfoPage() {
           <Form.Item name="mainState" label="Main State">
             <Select
               allowClear
-              options={valueOptions(['INIT', 'PENDING', 'SUCCESS', 'FAIL'])}
+              options={valueOptions(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'])}
               placeholder="Select Main State"
               onChange={() => searchForm.setFieldsValue({ subState: undefined })}
             />
@@ -1557,8 +1580,13 @@ export default function ChannelInfoPage() {
                 onClick={() => setPreviewStateMachine(stateMachineName)}
                 style={{ paddingLeft: 0 }}
               >
-                Preview State Machine{stateMachineName ? `: ${stateMachineName}` : ''}
+                {isNoStateMachine(stateMachineName)
+                  ? 'State Machine: Not Applicable'
+                  : `Preview State Machine${stateMachineName ? `: ${stateMachineName}` : ''}`}
               </Button>
+              {isNoStateMachine(stateMachineName) && (
+                <Text type="secondary">Legacy BT + Ability uses fixed legacy statuses.</Text>
+              )}
             </div>
           )}
           <Form.Item label="Gateway Sub State" required>
