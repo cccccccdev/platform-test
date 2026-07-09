@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider, Navigate, useParams } from 'react-router-dom';
+import { createHashRouter, RouterProvider, Navigate, useParams } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import IntegrationLayout from '../components/IntegrationLayout';
 import NoSidebarLayout from '../components/NoSidebarLayout';
@@ -71,7 +71,7 @@ function LegacyRouteMatchingDetailRedirect() {
   return <Navigate to={`/channel-integration/${channelCode}/integration/config/route-matching/${uriId}/versions/${decisionVersionId}${window.location.search}`} replace />;
 }
 
-const router = createBrowserRouter(
+const router = createHashRouter(
 [
   { index: true, element: <Navigate to="/home" replace /> },
   { path: '/home', element: <HomePage /> },
@@ -184,9 +184,7 @@ const router = createBrowserRouter(
   // Standalone stateMachine canvas (no sidebar, outside AppShell)
   { path: 'basic-info/capability/stateMachine/canvas', element: <StateMachineCanvas /> },
   { path: '*', element: <Navigate to="/home" replace /> },
-],
-  { basename: import.meta.env.BASE_URL.replace(/\/$/, '') },
-);
+]);
 
 export default function Router() {
   return <RouterProvider router={router} />;
