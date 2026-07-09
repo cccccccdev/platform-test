@@ -4,7 +4,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   HomeOutlined,
   DashboardOutlined,
-  ForkOutlined,
 } from '@ant-design/icons';
 
 const { Sider, Content } = Layout;
@@ -15,16 +14,6 @@ const menuItems = [
     key: '/channel-integration',
     icon: <DashboardOutlined />,
     label: 'Channel Integration',
-  },
-  {
-    key: 'process-orchestration',
-    icon: <ForkOutlined />,
-    label: 'Process Orchestration',
-    children: [
-      { key: '/process-orchestration/l2-dictionary', label: 'L2 Dictionary' },
-      { key: '/process-orchestration/l3-library', label: 'L3 Library' },
-      { key: '/process-orchestration/l4-library', label: 'L4 Library' },
-    ],
   },
 ];
 

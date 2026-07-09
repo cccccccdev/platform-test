@@ -1,4 +1,4 @@
-import { Card, Row, Col, Space, Tag, Typography } from 'antd';
+import { Card, Row, Col, Typography } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -14,7 +14,6 @@ import {
   ApartmentOutlined,
   FileTextOutlined,
   MessageOutlined,
-  UserOutlined,
   ControlOutlined,
 } from '@ant-design/icons';
 
@@ -156,19 +155,6 @@ export default function HomePage() {
         { name: '渠道列表', path: '/channel-integration', icon: <BankOutlined /> },
       ],
     },
-    {
-      title: '流程编排',
-      description: 'L2原子层 → L3组合层 → L4模板层，完整的三层架构编排能力',
-      icon: <ApiOutlined style={{ color: '#fa8c16' }} />,
-      color: '#fa8c16',
-      path: '/process-orchestration/l2-dictionary',
-      subItems: [
-        { name: 'L2字典', path: '/process-orchestration/l2-dictionary', icon: <ApiOutlined /> },
-        { name: 'L3组件库', path: '/process-orchestration/l3-library', icon: <AppstoreOutlined /> },
-        { name: '公共模版库', path: '/process-orchestration/l4-library', icon: <ForkOutlined /> },
-        { name: '个人模版库', path: '/process-orchestration/my-templates', icon: <UserOutlined /> },
-      ],
-    },
   ];
 
   return (
@@ -188,23 +174,7 @@ export default function HomePage() {
             <Title level={2} style={{ color: '#fff', marginBottom: 8, fontWeight: 600 }}>
               接入平台 2.0
             </Title>
-            <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 15 }}>
-              让接入像乐高积木一样简单
-            </Text>
           </div>
-          <Space>
-            <Tag style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff' }}>
-              L2 原子层
-            </Tag>
-            <span style={{ color: 'rgba(255,255,255,0.5)' }}>→</span>
-            <Tag style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff' }}>
-              L3 组合层
-            </Tag>
-            <span style={{ color: 'rgba(255,255,255,0.5)' }}>→</span>
-            <Tag style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff' }}>
-              L4 模板层
-            </Tag>
-          </Space>
         </div>
       </Card>
 
@@ -216,57 +186,6 @@ export default function HomePage() {
           </Col>
         ))}
       </Row>
-
-      {/* Platform Architecture */}
-      <Card
-        title={<span style={{ fontSize: 16, fontWeight: 600 }}>平台架构</span>}
-        style={{ margin: '24px 0' }}
-        bodyStyle={{ padding: '24px 32px' }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexWrap: 'wrap', gap: 24 }}>
-          {[
-            { label: 'L2 原子层', desc: '最小技术单元', color: '#1890ff', example: 'MoMo Pay API、WeChat Query API' },
-            { label: 'L3 组合层', desc: '可复用逻辑块', color: '#52c41a', example: '支付选择器、退款处理' },
-            { label: 'L4 模板层', desc: '面向场景方案', color: '#fa8c16', example: '电商支付流程、余额查询流程' },
-          ].map((layer, idx) => (
-            <div
-              key={layer.label}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                padding: '16px 24px',
-                background: `${layer.color}08`,
-                borderRadius: 12,
-                border: `1px solid ${layer.color}20`,
-              }}
-            >
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 10,
-                  background: `${layer.color}15`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 18,
-                  fontWeight: 600,
-                  color: layer.color,
-                }}
-              >
-                L{idx + 2}
-              </div>
-              <div>
-                <div style={{ fontWeight: 600, color: layer.color }}>{layer.label}</div>
-                <div style={{ fontSize: 12, color: '#666' }}>{layer.desc}</div>
-                <div style={{ fontSize: 11, color: '#999', marginTop: 2 }}>{layer.example}</div>
-              </div>
-              {idx < 2 && <span style={{ color: '#d9d9d9', fontSize: 20, marginLeft: 8 }}>→</span>}
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }
