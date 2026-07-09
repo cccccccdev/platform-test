@@ -44,6 +44,10 @@ import StateMachineListPage from '../pages/basic-info/capability/StateMachineLis
 import LinkStateMachinePage from '../pages/basic-info/capability/LinkStateMachinePage';
 import StateMachineCanvas from '../pages/basic-info/capability/stateMachine/StateMachineCanvas';
 
+function ComingSoonPage({ title }: { title: string }) {
+  return <div style={{ padding: 24 }}>{title} Page - 待实现</div>;
+}
+
 function IntegrationIndexRedirect() {
   const { channelCode = '' } = useParams();
   return <Navigate to={`/channel-integration/${channelCode}/integration/config/flow-groups`} replace />;
@@ -78,6 +82,7 @@ const router = createBrowserRouter(
 [
   { index: true, element: <Navigate to="/home" replace /> },
   { path: '/home', element: <HomePage /> },
+  { path: '/channel', element: <Navigate to="/channel-integration" replace /> },
 
   // Channel Integration module (no sidebar)
   {
@@ -173,7 +178,18 @@ const router = createBrowserRouter(
           { path: 'exchange-rate', element: <ExchangeRatePage /> },
           { path: 'product', element: <ProductPage /> },
           { path: 'merchant', element: <MerchantPage /> },
+          { path: 'party', element: <ComingSoonPage title="Party" /> },
+          { path: 'card-bin', element: <ComingSoonPage title="Card Bin" /> },
+          { path: 'party-tenant', element: <ComingSoonPage title="Party & Tenant" /> },
+          { path: 'institution-type', element: <ComingSoonPage title="Institution Type" /> },
+          { path: 'institution', element: <ComingSoonPage title="Institution" /> },
+          { path: 'segment', element: <ComingSoonPage title="Segment" /> },
+          { path: 'response-code', element: <ComingSoonPage title="Response Code" /> },
+          { path: 'application', element: <ComingSoonPage title="Application" /> },
+          { path: 'service', element: <ComingSoonPage title="Service" /> },
           { path: 'capability', element: <CapabilityPage /> },
+          { path: 'capability/features', element: <ComingSoonPage title="Capability Features" /> },
+          { path: 'capability/spi', element: <ComingSoonPage title="Capability SPI" /> },
           { path: 'capability/stateMachine', element: <StateMachineListPage /> },
           { path: 'capability/link-state-machine', element: <LinkStateMachinePage /> },
           { path: 'stateMachine', element: <StateMachineListPage /> },
@@ -183,6 +199,7 @@ const router = createBrowserRouter(
   },
   // Standalone stateMachine canvas (no sidebar, outside AppShell)
   { path: 'basic-info/capability/stateMachine/canvas', element: <StateMachineCanvas /> },
+  { path: '*', element: <Navigate to="/home" replace /> },
 ],
   { basename: import.meta.env.BASE_URL.replace(/\/$/, '') },
 );

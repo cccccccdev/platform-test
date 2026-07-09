@@ -12,7 +12,7 @@ const { Sider, Content } = Layout;
 const menuItems = [
   { key: '/home', icon: <HomeOutlined />, label: '首页' },
   {
-    key: 'channel-integration',
+    key: '/channel-integration',
     icon: <DashboardOutlined />,
     label: 'Channel Integration',
   },
