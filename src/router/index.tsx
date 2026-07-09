@@ -1,4 +1,4 @@
-import { createHashRouter, RouterProvider, Navigate, useParams } from 'react-router-dom';
+import { createHashRouter, RouterProvider, Navigate, useLocation, useParams } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import IntegrationLayout from '../components/IntegrationLayout';
 import NoSidebarLayout from '../components/NoSidebarLayout';
@@ -37,6 +37,9 @@ import StateMachineListPage from '../pages/basic-info/capability/StateMachineLis
 import LinkStateMachinePage from '../pages/basic-info/capability/LinkStateMachinePage';
 import StateMachineCanvas from '../pages/basic-info/capability/stateMachine/StateMachineCanvas';
 
+import TestCenterPage from '../pages/tests/TestCenterPage';
+import ContextInspectorPage from '../pages/inspector/ContextInspectorPage';
+
 function ComingSoonPage({ title }: { title: string }) {
   return <div style={{ padding: 24 }}>{title} Page - 待实现</div>;
 }
@@ -58,17 +61,20 @@ function LegacyFlowGroupsRedirect() {
 
 function LegacyFlowGroupDetailRedirect() {
   const { channelCode = '', bt = '', ability = '', versionId = '' } = useParams();
-  return <Navigate to={`/channel-integration/${channelCode}/integration/config/flow-groups/${bt}/${ability}/versions/${versionId}${window.location.search}`} replace />;
+  const { search } = useLocation();
+  return <Navigate to={`/channel-integration/${channelCode}/integration/config/flow-groups/${bt}/${ability}/versions/${versionId}${search}`} replace />;
 }
 
 function LegacyFlowDetailRedirect() {
   const { channelCode = '', bt = '', ability = '', versionId = '', flowId = '' } = useParams();
-  return <Navigate to={`/channel-integration/${channelCode}/integration/config/flow-groups/${bt}/${ability}/versions/${versionId}/flows/${flowId}${window.location.search}`} replace />;
+  const { search } = useLocation();
+  return <Navigate to={`/channel-integration/${channelCode}/integration/config/flow-groups/${bt}/${ability}/versions/${versionId}/flows/${flowId}${search}`} replace />;
 }
 
 function LegacyRouteMatchingDetailRedirect() {
   const { channelCode = '', uriId = '', decisionVersionId = '' } = useParams();
-  return <Navigate to={`/channel-integration/${channelCode}/integration/config/route-matching/${uriId}/versions/${decisionVersionId}${window.location.search}`} replace />;
+  const { search } = useLocation();
+  return <Navigate to={`/channel-integration/${channelCode}/integration/config/route-matching/${uriId}/versions/${decisionVersionId}${search}`} replace />;
 }
 
 const router = createHashRouter(
@@ -76,6 +82,25 @@ const router = createHashRouter(
   { index: true, element: <Navigate to="/home" replace /> },
   { path: '/home', element: <HomePage /> },
   { path: '/channel', element: <Navigate to="/channel-integration" replace /> },
+  { path: '/actions', element: <ComingSoonPage title="Action Library" /> },
+  { path: '/tests', element: <TestCenterPage /> },
+  { path: '/inspector', element: <ContextInspectorPage /> },
+  { path: '/flow', element: <ComingSoonPage title="Flow" /> },
+  { path: '/flow/editor/:flowId', element: <ComingSoonPage title="Flow Editor" /> },
+  { path: '/channel-legacy', element: <Navigate to="/channel-integration" replace /> },
+  { path: '/channel/:channelId', element: <ComingSoonPage title="Channel Detail" /> },
+  { path: '/channel/:channelId/info', element: <ComingSoonPage title="Channel Info" /> },
+  { path: '/channel/:channelId/scenario', element: <ComingSoonPage title="Channel Scenario" /> },
+  { path: '/channel/:channelId/scenario/:scenarioId/edit', element: <ComingSoonPage title="Scenario Edit" /> },
+  { path: '/channel/:channelId/scenario/:scenarioId/detail', element: <ComingSoonPage title="Scenario Detail" /> },
+  { path: '/channel/:channelId/scenario/:scenarioId/deploy', element: <ComingSoonPage title="Scenario Deploy" /> },
+  { path: '/channel/:channelId/scenario/:scenarioId/log', element: <ComingSoonPage title="Scenario Log" /> },
+  { path: '/channel/:channelId/scenario/:scenarioId/control', element: <ComingSoonPage title="Scenario Control" /> },
+  { path: '/scenario', element: <ComingSoonPage title="Scenario" /> },
+  { path: '/process-orchestration/l2-dictionary', element: <ComingSoonPage title="L2 Dictionary" /> },
+  { path: '/process-orchestration/l3-library', element: <ComingSoonPage title="L3 Library" /> },
+  { path: '/process-orchestration/l4-library', element: <ComingSoonPage title="L4 Library" /> },
+  { path: '/process-orchestration/my-templates', element: <ComingSoonPage title="My Templates" /> },
 
   // Channel Integration module (no sidebar)
   {

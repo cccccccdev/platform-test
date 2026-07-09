@@ -641,7 +641,7 @@ export default function CapabilityPage() {
                             const queryParams = new URLSearchParams();
                             queryParams.set('sm', record.smName);
                             queryParams.set('mode', 'view');
-                            window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
+                            navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
                           }}
                         >
                           Preview

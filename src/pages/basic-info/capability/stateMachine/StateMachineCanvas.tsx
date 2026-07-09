@@ -23,7 +23,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Button, message, Modal, Input, Typography, Space, Tag } from 'antd';
 import { LeftOutlined } from '@ant-design/icons';
 import StateNode from './StateNode';
@@ -209,6 +209,7 @@ function validateStateMachine(nodes: AnyNode[], edges: AnyEdge[]): ValidationErr
 // Canvas Content Component
 // ─────────────────────────────────────────────────
 function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string; sm: string; mode: string }) {
+  const navigate = useNavigate();
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<AnyEdge>(initialEdges);
   const [selectedNode, setSelectedNode] = useState<AnyNode | null>(null);
@@ -591,9 +592,9 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
     }
     message.success('Draft saved successfully', 2);
     setTimeout(() => {
-      window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
+      navigate(`/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`);
     }, 500);
-  }, [bt, ability, nodes, edges, canSave, sm]);
+  }, [bt, ability, nodes, edges, canSave, sm, navigate]);
 
   // Get current status from storage
   const getCurrentStatus = (): 'DRAFT' | 'SUBMITTED' => {
@@ -623,9 +624,9 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
     }
     message.success('Submitted successfully', 2);
     setTimeout(() => {
-      window.location.href = `/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`;
+      navigate(`/basic-info/capability/stateMachine?bt=${bt}&ability=${ability}`);
     }, 500);
-  }, [nodes, edges, sm, bt, ability]);
+  }, [nodes, edges, sm, bt, ability, navigate]);
 
   return (
     <>

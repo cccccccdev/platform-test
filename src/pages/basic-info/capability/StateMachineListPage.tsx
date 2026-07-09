@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PlusOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -86,6 +86,7 @@ function isStateMachineReferenced(_smName: string): boolean {
 }
 
 export default function StateMachineListPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const bt = searchParams.get('bt') || '';
   const ability = searchParams.get('ability') || '';
@@ -186,14 +187,14 @@ export default function StateMachineListPage() {
     const queryParams = new URLSearchParams();
     queryParams.set('sm', sm.name);
     queryParams.set('mode', 'edit');
-    window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
+    navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
   };
 
   const openDetail = (sm: StateMachineItem) => {
     const queryParams = new URLSearchParams();
     queryParams.set('sm', sm.name);
     queryParams.set('mode', 'view');
-    window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
+    navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
   };
 
   const columns: ColumnsType<StateMachineItem> = [
@@ -360,7 +361,7 @@ export default function StateMachineListPage() {
                             type="link"
                             size="small"
                             onClick={() => {
-                              window.location.href = `/basic-info/capability/link-state-machine?bt=${r.bt}&ability=${r.ability}`;
+                              navigate(`/basic-info/capability/link-state-machine?bt=${r.bt}&ability=${r.ability}`);
                             }}
                           >
                             Preview

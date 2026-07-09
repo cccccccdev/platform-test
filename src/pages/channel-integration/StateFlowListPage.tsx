@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Space, Typography, Card, Tag, Empty } from 'antd';
 import { PlusOutlined, ArrowRightOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import type { FlowConfig } from './types';
 import FlowConfigModal from './FlowConfigModal';
 
@@ -16,6 +17,7 @@ interface StateFlowListPageProps {
 }
 
 export default function StateFlowListPage({ channelCode, stateName, onBack, autoShowConfigModal = false }: StateFlowListPageProps) {
+  const navigate = useNavigate();
   const [flows, setFlows] = useState<FlowConfig[]>([
     {
       id: 'flow_default_1',
@@ -91,8 +93,7 @@ export default function StateFlowListPage({ channelCode, stateName, onBack, auto
     setEditingFlow(null);
 
     // Navigate to component editor page (FlowEditorPage)
-    const url = `/channel-integration/${channelCode}/integration/config/flow-groups`;
-    window.location.href = url;
+    navigate(`/channel-integration/${channelCode}/integration/config/flow-groups`);
   };
 
   const getEndTypeLabel = (endType: string) => {
