@@ -45,8 +45,12 @@ type Source = 'httpCall' | 'Route Matching';
 type ResponseCodeType = 'ALL' | 'Include' | 'Exclude';
 
 const pageKeyFromPath = (pathname: string): PageKey => {
-  if (pathname.includes('/channel-info/runtime-control/route-matching')) return 'runtime-route-matching';
-  if (pathname.includes('/channel-info/runtime-control/flow-groups')) return 'runtime-flow-groups';
+  const normalizedPath = pathname.toLowerCase();
+  if (
+    normalizedPath.includes('/channel-info/runtime-control/route-matching')
+    || normalizedPath.includes('/channel-info/runtime-control/route-matchina')
+  ) return 'runtime-route-matching';
+  if (normalizedPath.includes('/channel-info/runtime-control/flow-groups')) return 'runtime-flow-groups';
   return 'external-internal';
 };
 

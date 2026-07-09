@@ -205,17 +205,17 @@ export default function ConfigEditorPage() {
         style={{ marginBottom: 16 }}
         items={runtimeDetail
           ? [
-              { title: channelCode, href: `/channel-integration/${channelCode}/channel-info` },
-              { title: 'Channel Info', href: `/channel-integration/${channelCode}/channel-info` },
+              { title: channelCode, onClick: () => navigate(`/channel-integration/${channelCode}/channel-info`) },
+              { title: 'Channel Info', onClick: () => navigate(`/channel-integration/${channelCode}/channel-info`) },
               { title: 'Runtime Control' },
               { title: 'Flow Groups' },
               { title: readOnly ? 'Flow Configuration Detail' : 'Flow Configuration' },
             ]
           : [
-              { title: 'Channel Integration', href: '/channel-integration' },
-              { title: channelCode, href: `/channel-integration/${channelCode}/integration/config/flow-groups` },
+              { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
+              { title: channelCode, onClick: () => navigate(`/channel-integration/${channelCode}/integration/config/flow-groups`) },
               { title: 'Config Integration' },
-              { title: 'Flow Groups', href: `/channel-integration/${channelCode}/integration/config/flow-groups` },
+              { title: 'Flow Groups', onClick: () => navigate(`/channel-integration/${channelCode}/integration/config/flow-groups`) },
               { title: readOnly ? 'Flow Configuration Detail' : 'Flow Configuration' },
             ]}
       />

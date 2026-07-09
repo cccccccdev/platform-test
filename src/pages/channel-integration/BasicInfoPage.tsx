@@ -13,7 +13,7 @@ export default function BasicInfoPage() {
         style={{ marginBottom: 16 }}
         items={[
           { title: 'Omnicore Solution' },
-          { title: 'Channel Integration', href: '/channel-integration' },
+          { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
           { title: channelCode },
           { title: 'Basic Info' },
         ]}

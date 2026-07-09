@@ -77,6 +77,11 @@ function LegacyRouteMatchingDetailRedirect() {
   return <Navigate to={`/channel-integration/${channelCode}/integration/config/route-matching/${uriId}/versions/${decisionVersionId}${search}`} replace />;
 }
 
+function RuntimeRouteMatchingTypoRedirect() {
+  const { channelCode = '' } = useParams();
+  return <Navigate to={`/channel-integration/${channelCode}/channel-info/runtime-control/route-matching`} replace />;
+}
+
 const router = createHashRouter(
 [
   { index: true, element: <Navigate to="/home" replace /> },
@@ -115,6 +120,7 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
+      { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matchina', element: <RuntimeRouteMatchingTypoRedirect /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matching', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/flow-groups', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matching/:uriId/versions/:decisionVersionId', element: <MatchCapabilityEditorPage /> },
