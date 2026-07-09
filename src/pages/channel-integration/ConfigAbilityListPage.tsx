@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Button,
+  Breadcrumb,
   Form,
   message,
   Modal,
@@ -191,7 +192,7 @@ function RemarkCell({ remark }: { remark?: string }) {
 }
 
 const statusColors: Record<string, string> = {
-  DRAFT: 'default',
+  UNDEPLOYED: 'default',
   DAILY: 'blue',
   PRE: 'orange',
   PROD: 'green',
@@ -245,7 +246,7 @@ export default function ConfigAbilityListPage() {
   const handleCreateFlowGroup = (ability: ConfigAbility) => {
     const group = createFlowGroup(channelCode, ability.bt, ability.ability);
     if (!group) {
-      message.warning('A DRAFT Flow Group already exists. Resolve it before creating another.');
+      message.warning('An UNDEPLOYED Flow Group already exists. Resolve it before creating another.');
       return;
     }
     message.success('Flow Group created');
@@ -255,7 +256,7 @@ export default function ConfigAbilityListPage() {
   const handleClone = (ability: ConfigAbility, group: FlowGroupVersion) => {
     const clone = cloneGroup(channelCode, ability.bt, ability.ability, group.groupId);
     if (!clone) {
-      message.warning('Only PROD Groups can be cloned, or a DRAFT Group already exists.');
+      message.warning('Only PROD Groups can be cloned, or an UNDEPLOYED Group already exists.');
       return;
     }
     message.success(`Group cloned from ${group.groupId}, Version ${group.version}`);
@@ -332,7 +333,7 @@ export default function ConfigAbilityListPage() {
   const renderGroupOperations = (ability: ConfigAbility, group: FlowGroupVersion) => {
     const items: React.ReactNode[] = [];
 
-    if (group.status === 'DRAFT' || group.status === 'DAILY' || group.status === 'PRE') {
+    if (group.status === 'UNDEPLOYED' || group.status === 'DAILY' || group.status === 'PRE') {
       items.push(
         <Button key="config" type="link" onClick={() => navigate(groupConfigPath(ability, group))}>
           Config
@@ -356,14 +357,14 @@ export default function ConfigAbilityListPage() {
         Deploy
       </Button>
     );
-    if (group.status !== 'DRAFT') {
+    if (group.status !== 'UNDEPLOYED') {
       items.push(
         <Button key="deployStatus" type="link" onClick={() => setDeployStatusGroup({ ability, group })}>
           Deploy Status
         </Button>
       );
     }
-    if (group.status === 'DRAFT') {
+    if (group.status === 'UNDEPLOYED') {
       items.push(
         <Button key="delete" type="link" danger onClick={() => confirmDeleteGroup(ability, group)}>
           Delete
@@ -471,6 +472,7 @@ export default function ConfigAbilityListPage() {
 
   return (
     <div style={{ padding: 24 }}>
+      <Breadcrumb style={{ marginBottom: 16 }} items={[{ title: 'Channel Integration' }, { title: 'Flow Groups' }]} />
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ margin: 0 }}>Flow Groups</h2>

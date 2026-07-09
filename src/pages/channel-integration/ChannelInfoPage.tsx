@@ -468,6 +468,10 @@ export default function ChannelInfoPage() {
     if (linked) return linked;
     return selectedBt && selectedAbility ? 'Default_Refund_StateMachine' : '';
   }, [flowGroupAbilities, selectedAbility, selectedBt]);
+  const requeryStateMachineName = useMemo(() => {
+    if (isLegacyNoStateMachineCapability(selectedRequeryBt, selectedRequeryAbility)) return NO_STATE_MACHINE;
+    return selectedRequeryAbilityConfig?.stateMachine ?? (selectedRequeryBt && selectedRequeryAbility ? 'Default_Refund_StateMachine' : '');
+  }, [selectedRequeryAbility, selectedRequeryAbilityConfig, selectedRequeryBt]);
   const subStateChanged = Boolean(editingExternal && selectedSubState && selectedSubState !== editingExternal.subState);
 
   const resetForm = () => {
@@ -730,6 +734,8 @@ export default function ChannelInfoPage() {
     const originallyOpen = rows.some((row) => target.kind === 'matching' ? matchingSwitches[row.id] ?? true : groupSwitches[row.id] ?? true);
     const enabledRows = rows.filter((row) => draft[row.id]?.enabled);
     if (originallyOpen && enabledRows.length === 0) return 'At least one ID must remain enabled.';
+    const zeroWeightRows = enabledRows.filter((row) => Number(draft[row.id]?.weight ?? 0) <= 0);
+    if (zeroWeightRows.length > 0) return 'Enabled IDs must have a weight greater than 0%.';
     const total = enabledRows.reduce((sum, row) => sum + Number(draft[row.id]?.weight ?? 0), 0);
     if (enabledRows.length > 0 && total !== 100) return 'The weight sum of enabled IDs must be 100%.';
     return null;
@@ -1664,6 +1670,30 @@ export default function ChannelInfoPage() {
 
       <Modal title={editingRequery ? 'Modify Strategy' : 'Create Strategy'} open={requeryOpen} width={980} onCancel={resetRequeryForm} onOk={saveRequery} okText="Save">
         <Form form={requeryForm} labelCol={{ span: 7 }} wrapperCol={{ span: 17 }} style={{ marginTop: 12 }} initialValues={{ type: 'ALL' }}>
+          <Form.Item label="Business Type">
+            <Input value={selectedRequeryBt} disabled />
+          </Form.Item>
+          <Form.Item label="Ability">
+            <Input value={selectedRequeryAbility} disabled />
+          </Form.Item>
+          <Form.Item label="Action">
+            <Input value={selectedRequeryAction} disabled />
+          </Form.Item>
+          <Form.Item label="State Machine">
+            <Space>
+              <Input
+                value={isNoStateMachine(requeryStateMachineName) ? 'No State Machine' : requeryStateMachineName}
+                disabled
+                style={{ width: 360 }}
+              />
+              <Button
+                disabled={!requeryStateMachineName || isNoStateMachine(requeryStateMachineName)}
+                onClick={() => setPreviewStateMachine(requeryStateMachineName)}
+              >
+                Preview
+              </Button>
+            </Space>
+          </Form.Item>
           <Form.Item name="strategyName" label="Strategy Name" rules={[{ required: true }]}>
             <Input placeholder="Please enter strategy name" />
           </Form.Item>
@@ -1735,7 +1765,10 @@ export default function ChannelInfoPage() {
                 render: (_, row) => (
                   <Switch
                     checked={runtimeDraft[row.id]?.enabled ?? false}
-                    onChange={(enabled) => setRuntimeDraft((draft) => ({ ...draft, [row.id]: { ...(draft[row.id] ?? { weight: 0 }), enabled } }))}
+                    onChange={(enabled) => setRuntimeDraft((draft) => {
+                      const current = draft[row.id] ?? { weight: 0 };
+                      return { ...draft, [row.id]: { ...current, enabled, weight: enabled && Number(current.weight ?? 0) <= 0 ? 100 : current.weight } };
+                    })}
                   />
                 ),
               },

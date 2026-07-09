@@ -8,6 +8,10 @@ import { ACTION_HELP, buildTemplateCanvas, getActionsForTrigger, getTemplates, T
 
 const { Text } = Typography;
 
+const firstValue = (value?: string | string[]) => Array.isArray(value) ? value[0] : value;
+const triggerActionOf = (flow: FlowConfig) => flow.triggerEvents?.[0] ?? flow.contextActions?.[0];
+const triggerSubStateOf = (flow: FlowConfig) => flow.stateConditions?.find((condition) => condition.field === 'subState')?.value;
+
 // Trigger Type options with descriptions
 const triggerTypeOptions = [
   {
@@ -127,6 +131,52 @@ export default function FlowConfigModal({
     return null;
   };
 
+  const validateFlowRouteKey = (values: any) => {
+    const action = firstValue(values.triggerAction) ?? firstValue(values.originalRequestAction) ?? firstValue(values.referenceActions);
+    const uri = values.inboundUriId;
+    const subState = values.triggerSubState;
+
+    if ((triggerType === 'UPSTREAM_TRIGGERED' || triggerType === 'ASYNC_TRIGGERED') && action) {
+      const duplicate = existingFlows.some((flow) => flow.triggerType === triggerType && triggerActionOf(flow) === action);
+      if (duplicate) {
+        form.setFields([{ name: actionField, errors: ['Action already exists for this Trigger Type in current Version'] }]);
+        return false;
+      }
+    }
+
+    if ((triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || triggerType === 'CALLBACK_TRIGGERED') && uri && action) {
+      const duplicate = existingFlows.some((flow) =>
+        (flow.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || flow.triggerType === 'CALLBACK_TRIGGERED') &&
+        flow.inboundUriId === uri &&
+        triggerActionOf(flow) === action
+      );
+      if (duplicate) {
+        form.setFields([
+          { name: 'inboundUriId', errors: ['URI + Action already exists in current Version'] },
+          { name: actionField, errors: ['URI + Action already exists in current Version'] },
+        ]);
+        return false;
+      }
+    }
+
+    if (triggerType === 'REQUERY_TRIGGERED' && subState && action) {
+      const duplicate = existingFlows.some((flow) =>
+        flow.triggerType === 'REQUERY_TRIGGERED' &&
+        triggerSubStateOf(flow) === subState &&
+        triggerActionOf(flow) === action
+      );
+      if (duplicate) {
+        form.setFields([
+          { name: 'triggerSubState', errors: ['Sub-State + Action already exists in current Version'] },
+          { name: actionField, errors: ['Sub-State + Action already exists in current Version'] },
+        ]);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleAdd = () => {
     form.validateFields().then((values) => {
       if (!isFlowNameUnique(values.flowName)) {
@@ -152,6 +202,7 @@ export default function FlowConfigModal({
         message.error(validationError);
         return;
       }
+      if (!validateFlowRouteKey(values)) return;
 
       const config: FlowConfig = {
         id: `flow_${Date.now()}`,
@@ -204,7 +255,7 @@ export default function FlowConfigModal({
       case 'EXTERNAL_INBOUND_TRIGGERED':
         return (<>
           <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Route Matching URI' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url}` }))} />
           </Form.Item>
           <Form.Item
             name="triggerAction"
@@ -218,7 +269,7 @@ export default function FlowConfigModal({
       case 'CALLBACK_TRIGGERED':
         return (<>
           <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Route Matching URI' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url}` }))} />
           </Form.Item>
           <Form.Item
             name="originalRequestAction"

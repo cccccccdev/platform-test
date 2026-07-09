@@ -287,12 +287,12 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
             },
           ],
         },
-        // DRAFT group - no deploy records yet, one SUBMITTED flow, one DRAFT flow
+        // UNDEPLOYED group - no deploy records yet, one SUBMITTED flow, one DRAFT flow
         {
           id: 'gtb_card_draft_group',
           groupId: 127,
           version: '20260608120000',
-          status: 'DRAFT',
+          status: 'UNDEPLOYED',
           badges: [],
           remark: 'New feature exploration',
           operator: 'admin',
@@ -339,7 +339,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
           id: 'gtb_ussd_draft',
           groupId: 125,
           version: '20260606090000',
-          status: 'DRAFT',
+          status: 'UNDEPLOYED',
           badges: [],
           remark: '',
           operator: 'admin',
@@ -382,7 +382,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
           id: 'gtb_bank_card_debit_info_payment_draft',
           groupId: 129,
           version: '20260703114910',
-          status: 'DRAFT',
+          status: 'UNDEPLOYED',
           badges: [],
           remark: 'Bank card debit payment and OTP verification demo',
           operator: 'admin',
@@ -525,7 +525,7 @@ export const CLOUD_DEPLOY_SEQUENCES = {
 } as const satisfies Record<CloudType, readonly EnvType[]>;
 
 export interface DeployPreview {
-  currentStatus: 'DRAFT' | EnvType;
+  currentStatus: 'UNDEPLOYED' | EnvType;
   targetEnv: EnvType | null;
   isComplete: boolean;
 }
@@ -537,7 +537,7 @@ function getDeployPreviewForGroup(group: FlowGroupVersion, cloud: CloudType): De
       .filter((record) => record.cloud === cloud && record.version === group.version)
       .map((record) => record.env)
   );
-  let currentStatus: 'DRAFT' | EnvType = 'DRAFT';
+  let currentStatus: 'UNDEPLOYED' | EnvType = 'UNDEPLOYED';
   for (const env of sequence) {
     if (!currentVersionEnvs.has(env)) {
       return { currentStatus, targetEnv: env, isComplete: false };
@@ -553,7 +553,7 @@ function computeGroupStatus(deployRecords: DeployRecord[], currentVersion: strin
   if (currentRecords.some((r) => r.env === 'PROD')) return 'PROD';
   if (currentRecords.some((r) => r.env === 'PRE')) return 'PRE';
   if (currentRecords.some((r) => r.env === 'DAILY')) return 'DAILY';
-  return 'DRAFT';
+  return 'UNDEPLOYED';
 }
 
 interface ConfigIntegrationStore {
@@ -648,12 +648,12 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       (item) => item.bt === bt && item.ability === abilityCode
     );
     if (!ability) return null;
-    if (ability.versions.some((v) => v.status === 'DRAFT')) return null;
+    if (ability.versions.some((v) => v.status === 'UNDEPLOYED')) return null;
     const group: FlowGroupVersion = {
       id: `flow_group_${Date.now()}`,
       groupId: nextGroupId(get().abilitiesByChannel),
       version: timestampVersion(),
-      status: 'DRAFT',
+      status: 'UNDEPLOYED',
       badges: [],
       remark: '',
       operator: 'admin',
@@ -713,7 +713,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       id: `flow_group_${Date.now()}`,
       groupId: nextGroupId(state.abilitiesByChannel),
       version: timestampVersion(),
-      status: 'DRAFT',
+      status: 'UNDEPLOYED',
       badges: [],
       deployRecords: [],
       remark: `Cloned from Flow Group ${group.groupId}, Version ${group.version}.`,
@@ -856,7 +856,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     if (!flow) return { success: false, error: 'Flow not found' };
 
     // Generate one new Version at the start of a post-release editing round.
-    // Subsequent Flow submits keep using that DRAFT Version until it is deployed.
+    // Subsequent Flow submits keep using that UNDEPLOYED Version until it is deployed.
     const currentVersionHasPublishedRecords = group.deployRecords.some(
       (record) => record.version === group.version
     );
@@ -877,7 +877,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       // Generate new version for the group
       get().updateGroup(channelCode, bt, abilityCode, groupId, {
         version: newVersion,
-        status: 'DRAFT',
+        status: 'UNDEPLOYED',
         flows: updatedFlows,
       });
     } else {

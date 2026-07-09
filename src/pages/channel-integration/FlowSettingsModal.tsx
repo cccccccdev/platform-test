@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { message, Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
+import { Alert, message, Modal, Form, Input, Select, Radio, Button, Space, Typography, Tooltip } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import type { FlowConfig, TriggerType } from './types';
 import { ACTION_HELP, getActionsForTrigger, TRIGGER_TYPE_DESCRIPTIONS } from './flowTemplates';
@@ -8,7 +8,9 @@ import { useMatchCapabilityStore } from './matchCapabilityStore';
 
 const { Text } = Typography;
 
+const firstValue = (value?: string | string[]) => Array.isArray(value) ? value[0] : value;
 const triggerActionOf = (flow: FlowConfig) => flow.triggerEvents?.[0] ?? flow.contextActions?.[0];
+const triggerSubStateOf = (flow: FlowConfig) => flow.stateConditions?.find((condition) => condition.field === 'subState')?.value;
 
 // Trigger Type options with descriptions
 const triggerTypeOptions = [
@@ -142,6 +144,49 @@ export default function FlowSettingsModal({
     }
   };
 
+  const validateFlowRouteKey = (values: any) => {
+    if (!flow) return false;
+    const action = firstValue(values.triggerAction) ?? firstValue(values.originalRequestAction) ?? firstValue(values.referenceActions);
+    const uri = values.inboundUriId;
+    const subState = values.triggerSubState;
+
+    if ((triggerType === 'UPSTREAM_TRIGGERED' || triggerType === 'ASYNC_TRIGGERED') && action) {
+      const duplicate = existingFlows.some((item) => item.id !== flow.id && item.triggerType === triggerType && triggerActionOf(item) === action);
+      if (duplicate) {
+        message.error('Action already exists for this Trigger Type in current Version.');
+        return false;
+      }
+    }
+
+    if ((triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || triggerType === 'CALLBACK_TRIGGERED') && uri && action) {
+      const duplicate = existingFlows.some((item) =>
+        item.id !== flow.id &&
+        (item.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || item.triggerType === 'CALLBACK_TRIGGERED') &&
+        item.inboundUriId === uri &&
+        triggerActionOf(item) === action
+      );
+      if (duplicate) {
+        form.setFields([{ name: 'inboundUriId', errors: ['URI + Action already exists in current Version'] }]);
+        return false;
+      }
+    }
+
+    if (triggerType === 'REQUERY_TRIGGERED' && subState && action) {
+      const duplicate = existingFlows.some((item) =>
+        item.id !== flow.id &&
+        item.triggerType === 'REQUERY_TRIGGERED' &&
+        triggerSubStateOf(item) === subState &&
+        triggerActionOf(item) === action
+      );
+      if (duplicate) {
+        form.setFields([{ name: 'triggerSubState', errors: ['Sub-State + Action already exists in current Version'] }]);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleClose = () => {
     if (hasChanges) {
       Modal.confirm({
@@ -176,16 +221,12 @@ export default function FlowSettingsModal({
         message.error(`Action(s) ${invalid.join(', ')} are not in the available Actions for this Ability. Please add them via Config Integration first.`);
         return;
       }
-      const selectedAction = selectedActions[0];
-      if (selectedAction && existingFlows.some((item) => item.id !== flow.id && item.triggerType === triggerType && triggerActionOf(item) === selectedAction)) {
-        message.error('Each Trigger Type + Action can only have one Flow in the same Group.');
-        return;
-      }
+      if (!validateFlowRouteKey(values)) return;
 
       const updatedConfig: FlowConfig = {
         ...flow,
         name: values.flowName,
-        triggerType: triggerType as TriggerType,
+        triggerType: flow.triggerType,
         triggerEvents: Array.isArray(values.triggerAction) ? values.triggerAction :
           values.triggerAction ? [values.triggerAction] :
           Array.isArray(values.originalRequestAction) ? values.originalRequestAction :
@@ -193,7 +234,7 @@ export default function FlowSettingsModal({
         contextActions: Array.isArray(values.referenceActions) ? values.referenceActions : values.referenceActions ? [values.referenceActions] : [],
         stateConditions: values.triggerSubState ? [{ id: 'trigger-sub-state', field: 'subState', operator: '==', value: values.triggerSubState }] : [],
         inboundUriId: values.inboundUriId,
-        flowType: triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || triggerType === 'CALLBACK_TRIGGERED' ? 'inbound' : 'outbound',
+        flowType: flow.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || flow.triggerType === 'CALLBACK_TRIGGERED' ? 'inbound' : 'outbound',
       };
 
       onSave(updatedConfig);
@@ -215,7 +256,7 @@ export default function FlowSettingsModal({
           >
             <Select
               placeholder={placeholderText}
-              disabled={emptyActions}
+              disabled
               options={actionSelectOptions}
               onChange={() => handleActionChange('triggerAction', '', false)}
             />
@@ -225,17 +266,17 @@ export default function FlowSettingsModal({
       case 'EXTERNAL_INBOUND_TRIGGERED':
         return <>
           <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Route Matching URI' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url}` }))} />
           </Form.Item>
           <Form.Item name="triggerAction" label={actionLabel('Trigger Action')} rules={[{ required: true, message: 'Please select Trigger Action' }]}>
-            <Select placeholder={placeholderText} disabled={emptyActions} options={actionSelectOptions} onChange={() => handleActionChange('triggerAction', '', false)} />
+            <Select placeholder={placeholderText} disabled options={actionSelectOptions} onChange={() => handleActionChange('triggerAction', '', false)} />
           </Form.Item>
         </>;
 
       case 'CALLBACK_TRIGGERED':
         return (<>
           <Form.Item name="inboundUriId" label="Inbound URI" rules={[{ required: true, message: 'Select Route Matching URI' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url} · ${endpoint.name}` }))} />
+            <Select showSearch optionFilterProp="label" placeholder="Select an Inbound Endpoint from Route Matching" options={inboundUris.map((endpoint) => ({ value: endpoint.id, label: `${endpoint.method} ${endpoint.url}` }))} />
           </Form.Item>
           <Form.Item
             name="originalRequestAction"
@@ -244,7 +285,7 @@ export default function FlowSettingsModal({
           >
             <Select
               placeholder={placeholderText}
-              disabled={emptyActions}
+              disabled
               options={actionSelectOptions}
               onChange={() => handleActionChange('originalRequestAction', '', false)}
             />
@@ -260,7 +301,7 @@ export default function FlowSettingsModal({
           >
             <Select
               placeholder={placeholderText}
-              disabled={emptyActions}
+              disabled
               options={actionSelectOptions}
               onChange={() => setHasChanges(true)}
             />
@@ -296,7 +337,7 @@ export default function FlowSettingsModal({
             >
               <Select
                 placeholder={placeholderText}
-                disabled={emptyActions}
+                disabled
                 options={actionSelectOptions}
                 onChange={() => setHasChanges(true)}
               />
@@ -347,11 +388,18 @@ export default function FlowSettingsModal({
           >
             <Input placeholder="Enter Flow Name" />
           </Form.Item>
+          <Alert
+            type="warning"
+            showIcon
+            message="Flow Name changes take effect after this Flow Group is deployed to the target environment."
+            style={{ marginBottom: 16 }}
+          />
 
           {/* Trigger Type */}
           <Form.Item label={<Space>Trigger Type<span style={{ color: '#ff4d4f' }}>*</span></Space>}>
             <Radio.Group
               value={triggerType}
+              disabled
               onChange={handleTriggerTypeChange}
               style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
             >
