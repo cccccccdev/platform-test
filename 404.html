@@ -10,9 +10,7 @@
         .split('/')
         .slice(1 + segmentCount)
         .join('/')
-        .replace(/&/g, '~and~');
-      const search = location.search ? '&' + location.search.slice(1).replace(/&/g, '~and~') : '';
-      location.replace(base + '/?/' + rest + search + location.hash);
+      location.replace(base + '#/' + rest + location.search + location.hash);
     </script>
   </head>
   <body></body>
