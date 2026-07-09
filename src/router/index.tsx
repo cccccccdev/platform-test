@@ -1,6 +1,5 @@
 import { createBrowserRouter, RouterProvider, Navigate, useParams } from 'react-router-dom';
 import AppShell from '../components/AppShell';
-import OrchestrationLayout from '../components/OrchestrationLayout';
 import IntegrationLayout from '../components/IntegrationLayout';
 import NoSidebarLayout from '../components/NoSidebarLayout';
 import HomePage from '../pages/home/HomePage';
@@ -24,12 +23,6 @@ import SceneEditPage from '../pages/channel-integration/SceneEditPage';
 import SceneDetailPage from '../pages/channel-integration/SceneDetailPage';
 import FlowEditorPage from '../pages/channel-integration/FlowEditorPage';
 import TestPage from '../pages/channel-integration/TestPage';
-
-// Process Orchestration pages (orchestration sidebar)
-import L2DictionaryPage from '../pages/orchestration/L2DictionaryPage';
-import L3LibraryListPage from '../pages/orchestration/L3LibraryListPage';
-import L4LibraryListPage from '../pages/orchestration/L4LibraryListPage';
-import MyTemplatesPage from '../pages/orchestration/MyTemplatesPage';
 
 // Basic Info pages (has sidebar)
 import BasicInfoIndex from '../pages/basic-info/BasicInfoIndex';
@@ -97,6 +90,8 @@ const router = createBrowserRouter(
       { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
+      { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matching', element: <ChannelInfoPage /> },
+      { path: 'channel-integration/:channelCode/channel-info/runtime-control/flow-groups', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matching/:uriId/versions/:decisionVersionId', element: <MatchCapabilityEditorPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/flow-groups/:bt/:ability/versions/:versionId', element: <ConfigEditorPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/flow-groups/:bt/:ability/versions/:versionId/flows/:flowId', element: <RuntimeFlowCanvasPage /> },
@@ -150,17 +145,6 @@ const router = createBrowserRouter(
       { path: 'channel-integration/:channelCode/scenes/:sceneId/api-debug', element: <div style={{ padding: 24 }}>AI Debug Page - 待实现</div> },
       // Channel-level AI Debug (no scene)
       { path: 'channel-integration/:channelCode/api-debug', element: <div style={{ padding: 24 }}>AI Debug Page - 待实现</div> },
-    ],
-  },
-
-  // Process Orchestration module (orchestration sidebar)
-  {
-    element: <OrchestrationLayout />,
-    children: [
-      { path: 'process-orchestration/l2-dictionary', element: <L2DictionaryPage /> },
-      { path: 'process-orchestration/l3-library', element: <L3LibraryListPage /> },
-      { path: 'process-orchestration/l4-library', element: <L4LibraryListPage /> },
-      { path: 'process-orchestration/my-templates', element: <MyTemplatesPage /> },
     ],
   },
 

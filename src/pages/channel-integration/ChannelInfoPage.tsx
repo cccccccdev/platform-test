@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Breadcrumb,
@@ -23,7 +23,7 @@ import {
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { DownOutlined, EyeOutlined, LockOutlined, RightOutlined, UnlockOutlined } from '@ant-design/icons';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
@@ -43,6 +43,12 @@ type PageKey = 'external-internal' | 'internal-external' | 'requery' | 'runtime-
 type DetailView = { type: 'event'; record: ExternalRecord } | { type: 'approval'; record: ExternalRecord; approval?: ExternalApprovalRequest };
 type Source = 'httpCall' | 'Route Matching';
 type ResponseCodeType = 'ALL' | 'Include' | 'Exclude';
+
+const pageKeyFromPath = (pathname: string): PageKey => {
+  if (pathname.includes('/channel-info/runtime-control/route-matching')) return 'runtime-route-matching';
+  if (pathname.includes('/channel-info/runtime-control/flow-groups')) return 'runtime-flow-groups';
+  return 'external-internal';
+};
 
 interface PathCapability {
   path: string;
@@ -285,6 +291,15 @@ function unique<T>(items: T[]) {
   return Array.from(new Set(items));
 }
 
+function businessTypesForEndpoint(endpoint: InboundEndpoint) {
+  return unique([
+    ...(endpoint.businessTypes ?? []),
+    ...(endpoint.businessType ? [endpoint.businessType] : []),
+    ...endpoint.rules.map((rule) => rule.bt),
+    ...endpoint.versions.flatMap((version) => version.rules.map((rule) => rule.bt)),
+  ].filter(Boolean));
+}
+
 function mainStateForSubState(subState?: string): MainState | undefined {
   return [...subStates, ...legacyNoStateMachineSubStates].find((item) => item.value === subState)?.mainState;
 }
@@ -339,7 +354,9 @@ function fallbackRequeryFlowName(bt: string, ability: string, action: string) {
 
 export default function ChannelInfoPage() {
   const { channelCode = 'MTN_UG' } = useParams();
-  const [pageKey, setPageKey] = useState<PageKey>('external-internal');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [pageKey, setPageKey] = useState<PageKey>(() => pageKeyFromPath(location.pathname));
   const [cloud, setCloud] = useState<string>();
   const [env, setEnv] = useState<string>();
   const [applied, setApplied] = useState<{ cloud: string; env: string } | null>(null);
@@ -416,6 +433,10 @@ export default function ChannelInfoPage() {
   const isRequery = pageKey === 'requery';
   const isRuntimeRouteMatching = pageKey === 'runtime-route-matching';
   const isRuntimeFlowGroups = pageKey === 'runtime-flow-groups';
+
+  useEffect(() => {
+    setPageKey(pageKeyFromPath(location.pathname));
+  }, [location.pathname]);
 
   const externalEndpointOptions = useMemo(() => endpointOptionsFrom(pathCapabilities), []);
   const internalEndpointOptions = useMemo(() => endpointOptionsFrom(internalPathCapabilities), []);
@@ -839,7 +860,7 @@ export default function ChannelInfoPage() {
   ];
 
   const internalColumns: ColumnsType<InternalRecord> = [
-    { title: 'Path', dataIndex: 'path', width: 260 },
+    { title: 'Endpoint', dataIndex: 'path', width: 260 },
     { title: 'Business Type', dataIndex: 'bt', width: 180 },
     { title: 'Ability', dataIndex: 'ability', width: 170 },
     { title: 'Gateway Sub State', dataIndex: 'subState', width: 240 },
@@ -900,7 +921,7 @@ export default function ChannelInfoPage() {
     },
     { title: 'Path', dataIndex: 'url', width: 360 },
     { title: 'Method', dataIndex: 'method', width: 120, render: (value) => <Tag color="blue">{value}</Tag> },
-    { title: 'Business Type', dataIndex: 'businessTypes', render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value}>{value}</Tag>)}</Space> },
+    { title: 'Business Type', render: (_, endpoint) => <Space wrap>{businessTypesForEndpoint(endpoint).map((value) => <Tag key={value}>{value}</Tag>)}</Space> },
     {
       title: 'Operation',
       width: 280,
@@ -916,7 +937,6 @@ export default function ChannelInfoPage() {
   const flowGroupVersionColumns = (ability: ConfigAbility): ColumnsType<FlowGroupVersion> => [
     { title: 'Group ID', dataIndex: 'groupId', width: 120 },
     { title: 'Version', dataIndex: 'version', width: 150 },
-    { title: 'Status', dataIndex: 'status', width: 120, render: (value) => <Tag color={value === 'PROD' ? 'green' : value === 'PRE' ? 'orange' : value === 'DAILY' ? 'blue' : 'default'}>{value}</Tag> },
     { title: 'Weight', width: 100, render: (_, group) => `${groupWeights[String(group.groupId)] ?? 100}%` },
     { title: 'Runtime Status', width: 130, render: (_, group) => <Tag color={(groupSwitches[String(group.groupId)] ?? true) ? 'green' : 'default'}>{(groupSwitches[String(group.groupId)] ?? true) ? 'on' : 'off'}</Tag> },
     {
@@ -973,11 +993,11 @@ export default function ChannelInfoPage() {
     <Card size="small">
       <Form form={searchForm} layout="vertical">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-          <Form.Item name="endpoint" label={isExternal ? 'Endpoint' : 'Path'}>
+          <Form.Item name="endpoint" label="Endpoint">
             <Select
               allowClear
               options={isExternal ? externalEndpointOptions : internalEndpointOptions}
-              placeholder={isExternal ? 'Select Endpoint' : 'Select Path'}
+              placeholder="Select Endpoint"
               onChange={() => searchForm.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, mainState: undefined })}
             />
           </Form.Item>
@@ -1447,7 +1467,7 @@ export default function ChannelInfoPage() {
           showIcon
           message={isExternal
             ? 'Endpoint options are grouped by source from published Flow Group Versions and Route Matching. Same Endpoint + BT + Ability shares one mapping set.'
-            : 'Endpoint options are Path values from Route Matching. Select Path and BT, then choose Gateway Sub State to derive Main State and Response Code candidates.'}
+            : 'Endpoint options are values from Route Matching. Select Endpoint and BT, then choose Gateway Sub State to derive Main State and Response Code candidates.'}
         />
         {renderSearchCard()}
         <Card>
@@ -1516,6 +1536,9 @@ export default function ChannelInfoPage() {
                 setPageKey(item.key);
                 resetForm();
                 resetRequeryForm();
+                if (item.key === 'runtime-route-matching') navigate(`/channel-integration/${channelCode}/channel-info/runtime-control/route-matching`);
+                if (item.key === 'runtime-flow-groups') navigate(`/channel-integration/${channelCode}/channel-info/runtime-control/flow-groups`);
+                if (item.key !== 'runtime-route-matching' && item.key !== 'runtime-flow-groups') navigate(`/channel-integration/${channelCode}/channel-info`);
               }
             }}
             items={[
@@ -1571,7 +1594,7 @@ export default function ChannelInfoPage() {
             </>
           ) : (
             <>
-              <Form.Item name="path" label="Path" rules={[{ required: true }]}><Select disabled={!!editingInternal} options={internalEndpointOptions} onChange={() => form.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item name="path" label="Endpoint" rules={[{ required: true }]}><Select disabled={!!editingInternal} options={internalEndpointOptions} onChange={() => form.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, responseCode: undefined })} /></Form.Item>
               <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}><Select disabled={!!editingInternal || !selectedPath} options={internalBtOptions} onChange={() => form.setFieldsValue({ ability: undefined, subState: undefined, responseCode: undefined })} /></Form.Item>
               <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!!editingInternal || !selectedBt} options={internalAbilityOptions} onChange={() => form.setFieldsValue({ subState: undefined, responseCode: undefined })} /></Form.Item>
             </>
@@ -1894,7 +1917,7 @@ export default function ChannelInfoPage() {
 
       <Modal title="Bulk Operation" open={bulkOpen} onCancel={() => { setBulkOpen(false); bulkForm.resetFields(); }} onOk={() => { setBulkOpen(false); bulkForm.resetFields(); message.success('Upload submitted'); }} okText="OK" width={680}>
         <Form form={bulkForm} layout="vertical">
-          <Form.Item name="endpoint" label={isExternal ? 'Endpoint' : 'Path'} required><Select options={isExternal ? externalEndpointOptions : internalEndpointOptions} onChange={() => bulkForm.setFieldsValue({ bt: undefined, ability: undefined })} /></Form.Item>
+          <Form.Item name="endpoint" label="Endpoint" required><Select options={isExternal ? externalEndpointOptions : internalEndpointOptions} onChange={() => bulkForm.setFieldsValue({ bt: undefined, ability: undefined })} /></Form.Item>
           <Form.Item name="bt" label="Business Type" required><Select disabled={!bulkEndpoint} options={bulkBtOptions} onChange={() => bulkForm.setFieldsValue({ ability: undefined })} /></Form.Item>
           {isExternal && <Form.Item name="ability" label="Ability" required><Select disabled={!bulkBt} options={bulkAbilityOptions} /></Form.Item>}
           <Space><Button type="primary">Upload</Button><Button type="link">Download Template</Button></Space>
@@ -1963,7 +1986,7 @@ export default function ChannelInfoPage() {
         )}
         {internalHistory && (
           <>
-            <Descriptions column={2} size="small" style={{ marginBottom: 16 }} items={[{ key: 'path', label: 'Path', children: internalHistory.path }, { key: 'bt', label: 'Business Type', children: internalHistory.bt }, { key: 'ability', label: 'Ability', children: internalHistory.ability }, { key: 'responseCode', label: 'Response Code', children: internalHistory.responseCode }, { key: 'state', label: 'Main State', children: internalHistory.mainState }]} />
+            <Descriptions column={2} size="small" style={{ marginBottom: 16 }} items={[{ key: 'path', label: 'Endpoint', children: internalHistory.path }, { key: 'bt', label: 'Business Type', children: internalHistory.bt }, { key: 'ability', label: 'Ability', children: internalHistory.ability }, { key: 'responseCode', label: 'Response Code', children: internalHistory.responseCode }, { key: 'state', label: 'Main State', children: internalHistory.mainState }]} />
             <Table rowKey="version" pagination={false} dataSource={[{ version: '20260528215545', description: internalHistory.description, channelStatus: internalHistory.channelStatus || '-', channelResponseCode: internalHistory.channelResponseCode || '-', operator: 'Abayomi Mustapha', operationTime: '2026-05-28 23:54:38', approvalStatus: 'Approved' }, { version: '1', description: internalHistory.description, channelStatus: internalHistory.channelStatus || '-', channelResponseCode: internalHistory.channelResponseCode || '-', operator: 'Abayomi Mustapha', operationTime: '2026-05-26 15:28:38', approvalStatus: '-' }]} columns={[{ title: 'Version', dataIndex: 'version', width: 160 }, { title: 'Description', dataIndex: 'description' }, { title: 'Channel Status', dataIndex: 'channelStatus', width: 170 }, { title: 'Channel Response Code', dataIndex: 'channelResponseCode', width: 210 }, { title: 'Operator', dataIndex: 'operator', width: 180 }, { title: 'Operation Time', dataIndex: 'operationTime', width: 190 }, { title: 'Approval Status', dataIndex: 'approvalStatus', width: 150 }]} />
           </>
         )}
