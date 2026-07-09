@@ -259,8 +259,8 @@ export interface DeployRecord {
   operationTime: string;
 }
 
-// Group status: DRAFT | DAILY | PRE | PROD
-export type GroupStatus = 'DRAFT' | 'DAILY' | 'PRE' | 'PROD';
+// Group status: UNDEPLOYED | DAILY | PRE | PROD
+export type GroupStatus = 'UNDEPLOYED' | 'DAILY' | 'PRE' | 'PROD';
 
 // Flow Group Version (sub-record) under a BT + Ability
 export interface FlowGroupVersion {
