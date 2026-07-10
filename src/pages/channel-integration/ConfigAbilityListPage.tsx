@@ -29,6 +29,7 @@ const linkedStateMachines: Record<string, string[]> = {
   'DISBURSEMENT:BANK_TRF': ['Default_Refund_StateMachine'],
   'BANK_CARD_DEBIT:INFO_PAYMENT': ['BankCard_Debit_StateMachine'],
   'WALLET_DEBIT:TRANSFER': ['Default_Refund_StateMachine'],
+  'SMS:SINGLE_MESSAGE': ['SMS_Single_Message_StateMachine'],
   'SMS:BULK_MESSAGE': ['Default_Refund_StateMachine'],
   'KYC:FINGERPRINT_VERIFY': ['Default_Refund_StateMachine'],
   'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['Default_Refund_StateMachine'],

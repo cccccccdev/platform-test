@@ -34,6 +34,23 @@ const createRule = (): MatchRule => ({
   action: '',
 });
 
+const requestFieldSourceLabels: Record<InboundRequestField['source'], string> = {
+  path: 'Path Variables',
+  query: 'Query Parameters',
+  header: 'Headers',
+  body: 'Body',
+};
+
+const buildRequestFieldCascaderOptions = (requestFields: InboundRequestField[]) =>
+  (Object.entries(requestFieldSourceLabels) as Array<[InboundRequestField['source'], string]>).map(([source, label]) => ({
+    label,
+    value: source,
+    isLeaf: false,
+    children: requestFields
+      .filter((field) => field.source === source)
+      .map((field) => ({ label: field.name, value: field.name })),
+  }));
+
 export default function MatchCapabilityEditorPage() {
   const { channelCode = '', uriId = '', decisionVersionId = '' } = useParams<{ channelCode: string; uriId: string; decisionVersionId: string }>();
   const [searchParams] = useSearchParams();
@@ -60,13 +77,14 @@ export default function MatchCapabilityEditorPage() {
   }
 
   if (runtimeDetail && readOnly) {
+    const orderCapabilityNodes = [
+      { id: 'preprocess', title: 'inboundPreprocess', subtitle: `Prepare matching fields · ${configuration.requestMessageFormat ?? 'JSON'}` },
+      { id: 'order', title: 'matchCapabilityByOrder', subtitle: configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Order reference matching' },
+    ];
     const capabilityNodes = configuration.sourceType === 'legacy'
       ? (configuration.legacyComponents ?? []).map((component) => ({ id: component.id, title: component.code, subtitle: component.name }))
       : configuration.matchType === 'order_no'
-        ? [
-            { id: 'preprocess', title: 'inboundPreprocess', subtitle: `Prepare matching fields · ${configuration.requestMessageFormat ?? 'JSON'}` },
-            { id: 'order', title: 'matchCapabilityByOrder', subtitle: configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Order reference matching' },
-          ]
+        ? orderCapabilityNodes
         : configuration.rules.map((rule) => ({
             id: rule.id,
             title: configuration.matchType === 'single' ? 'specifyCapability' : `specifyCapability · ${rule.fieldValues ? Object.values(rule.fieldValues).join(' / ') : ''}`,
@@ -83,11 +101,11 @@ export default function MatchCapabilityEditorPage() {
           <strong>Runtime Control / Route Matching Detail</strong>
         </div>
         <div style={{ padding: '12px 16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
             {[
               ['URI', endpoint.url], ['Method', endpoint.method],
-              ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['URI ID', endpoint.id],
-            ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'URI ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
+              ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus],
+            ].map(([label, value], index, items) => <div key={label} style={{ padding: '0 14px', borderRight: index === items.length - 1 ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
           </div>
         </div>
         <div style={{ flex: 1, minHeight: 0, display: 'flex', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
@@ -155,7 +173,6 @@ export default function MatchCapabilityEditorPage() {
     if (configuration.matchType !== 'single' && configuration.requestFields.length === 0) return 'Common Request must contain at least one field';
     if (configuration.requestFields.some((field) => !field.name.trim())) return 'Every Common Request field requires a Field Name';
     if (configuration.matchType === 'single' && configuration.rules.length !== 1) return 'Single Type requires exactly one Capability Result';
-    if (configuration.matchType === 'order_no' && configuration.rules.length > 0) return 'By Order obtains Capability from the matched order and must not configure Capability Result nodes';
     if (configuration.matchType === 'order_no' && (configuration.requestFields.length !== 1 || !configuration.singleNoField || !configuration.referenceField)) return 'Order No requires exactly one match field and a reference type';
     if (configuration.matchType === 'type_field' && configuration.matchFields.length === 0) return 'Type Field requires at least one input field';
     for (const rule of configuration.rules) {
@@ -190,6 +207,8 @@ export default function MatchCapabilityEditorPage() {
   const btOptions = [...new Set(abilities.map((item) => item.bt))].map((value) => ({ value }));
   const selectedRule = configuration.rules.find((rule) => rule.id === selectedRuleId);
   const pathVariables = [...endpoint.url.matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
+  const requestFieldOptions = buildRequestFieldCascaderOptions(configuration.requestFields);
+  const isConfiguredRequestField = (fieldPathValue: string) => configuration.requestFields.some((field) => fieldPath(field) === fieldPathValue);
   const openDrawer = (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string) => {
     if (ruleId) setSelectedRuleId(ruleId);
     const rule = configuration.rules.find((item) => item.id === (ruleId ?? selectedRuleId));
@@ -208,12 +227,12 @@ export default function MatchCapabilityEditorPage() {
       </div>
 
       <div style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(5, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
-          {[
-            ['URI', endpoint.url], ['Method', endpoint.method],
-            ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus], ['URI ID', endpoint.id],
-          ].map(([label, value]) => <div key={label} style={{ padding: '0 14px', borderRight: label === 'URI ID' ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
-        </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
+            {[
+              ['URI', endpoint.url], ['Method', endpoint.method],
+              ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus],
+            ].map(([label, value], index, items) => <div key={label} style={{ padding: '0 14px', borderRight: index === items.length - 1 ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
+          </div>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
@@ -277,15 +296,22 @@ export default function MatchCapabilityEditorPage() {
         </div></> : <Alert type="warning" showIcon message="Select a specifyCapability component from the canvas first." />}
       </Drawer>
 
-      <Drawer title="matchCapabilityByOrder Configuration" width={650} open={activeDrawer === 'order'} onClose={() => setActiveDrawer(null)} extra={!readOnly && <Space><Button onClick={() => setActiveDrawer(null)}>Cancel</Button><Button type="primary" onClick={() => { if (!orderDraft.singleNoField || !orderDraft.referenceField) return void message.error('Common Request Field and gateway order reference are required'); update(orderDraft); setActiveDrawer(null); message.success('Order matching configuration submitted'); }}>Submit</Button></Space>}>
+      <Drawer title="matchCapabilityByOrder Configuration" width={650} open={activeDrawer === 'order'} onClose={() => setActiveDrawer(null)} extra={!readOnly && <Space><Button onClick={() => setActiveDrawer(null)}>Cancel</Button><Button type="primary" onClick={() => { if (!orderDraft.singleNoField || !orderDraft.referenceField) return void message.error('Common Request Field and gateway order reference are required'); if (!isConfiguredRequestField(orderDraft.singleNoField)) return void message.error('Common Request Field must be selected from inboundPreprocess fields'); update(orderDraft); setActiveDrawer(null); message.success('Order matching configuration submitted'); }}>Submit</Button></Space>}>
         <Alert type="info" showIcon message="This component must be connected immediately after inboundPreprocess. Capability is read automatically from the matched gateway order." style={{ marginBottom: 18 }} />
         <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Common Request field</div>
-        <Cascader disabled={readOnly} value={orderDraft.singleNoField ? orderDraft.singleNoField.split(/\.(.+)/).filter(Boolean) : undefined} placeholder="Select from inboundPreprocess" style={{ width: '100%' }} options={[
-          { label: 'Path Variables', value: 'path', children: configuration.requestFields.filter((field) => field.source === 'path').map((field) => ({ label: field.name, value: field.name })) },
-          { label: 'Query Parameters', value: 'query', children: configuration.requestFields.filter((field) => field.source === 'query').map((field) => ({ label: field.name, value: field.name })) },
-          { label: 'Headers', value: 'header', children: configuration.requestFields.filter((field) => field.source === 'header').map((field) => ({ label: field.name, value: field.name })) },
-          { label: 'Body', value: 'body', children: configuration.requestFields.filter((field) => field.source === 'body').map((field) => ({ label: field.name, value: field.name })) },
-        ]} onChange={(value) => setOrderDraft((draft) => ({ ...draft, singleNoField: value.join('.') }))} />
+        <Cascader
+          disabled={readOnly}
+          value={orderDraft.singleNoField ? orderDraft.singleNoField.split(/\.(.+)/).filter(Boolean) as string[] : undefined}
+          placeholder="Select from inboundPreprocess"
+          style={{ width: '100%' }}
+          options={requestFieldOptions as any}
+          changeOnSelect={false}
+          onChange={(value) => {
+            const selectedPath = value.filter((item): item is string | number => item != null).join('.');
+            if (value.length !== 2 || !isConfiguredRequestField(selectedPath)) return;
+            setOrderDraft((draft) => ({ ...draft, singleNoField: selectedPath }));
+          }}
+        />
         <div style={{ color: '#8c8c8c', fontSize: 11, margin: '14px 0 6px' }}>Compare with gateway order</div>
         <Select disabled={readOnly} value={orderDraft.referenceField} placeholder="Select reference" style={{ width: '100%' }} options={[{ value: 'requestReference' }, { value: 'responseReference' }]} onChange={(referenceField) => setOrderDraft((draft) => ({ ...draft, referenceField }))} />
       </Drawer>
@@ -329,7 +355,15 @@ const matchNodeTypes = { flowNode: MatchFlowNode };
 function seedMatchGraph(configuration: CapabilityDecisionVersion, onOpenDrawer: (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string, nodeId?: string) => void, onDelete: (nodeId: string, ruleId?: string) => void): { nodes: Node[]; edges: Edge[] } {
   const makeNode = (id: string, code: MatchLibraryComponent['code'], x: number, y: number, description: string, drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string): Node => ({ id, type: 'flowNode', position: { x, y }, data: { code, description, isConfigured: true, ruleId, onConfig: () => onOpenDrawer(drawer, ruleId, id), onDelete: () => onDelete(id, ruleId) } });
   const preprocess = makeNode('preprocess', 'inboundPreprocess', 320, 50, `Prepare matching fields · ${configuration.requestMessageFormat ?? 'JSON'}`, 'preprocess');
-  if (configuration.matchType === 'order_no') return { nodes: [preprocess, makeNode('order', 'matchCapabilityByOrder', 320, 210, configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Configure order reference comparison', 'order')], edges: [{ id: 'match_e1', source: 'preprocess', target: 'order', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }] };
+  if (configuration.matchType === 'order_no') {
+    const orderNode = makeNode('order', 'matchCapabilityByOrder', 320, 210, configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Configure order reference comparison', 'order');
+    return {
+      nodes: [preprocess, orderNode],
+      edges: [
+        { id: 'match_e1', source: 'preprocess', target: 'order', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } },
+      ],
+    };
+  }
   if (configuration.matchType === 'single') {
     const rule = configuration.rules[0];
     return { nodes: [makeNode(`cap_${rule?.id ?? 'single'}`, 'specifyCapability', 320, 120, rule?.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify one Capability Result', 'capability', rule?.id)], edges: [] };
@@ -373,6 +407,9 @@ function MatchCapabilityCanvas({ configuration, readOnly, onOpenDrawer, onAddRes
     const targetCode = nodes.find((node) => node.id === connection.target)?.data.code;
     if (targetCode === 'matchCapabilityByOrder' && sourceCode !== 'inboundPreprocess') {
       return void message.warning('matchCapabilityByOrder must be connected immediately after inboundPreprocess');
+    }
+    if (sourceCode === 'matchCapabilityByOrder') {
+      return void message.warning('matchCapabilityByOrder determines Capability at runtime and cannot connect to downstream components');
     }
     const edge: Edge = { ...connection, id: `edge_${Date.now()}`, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } };
     setEdges((current) => addEdge(edge, current));

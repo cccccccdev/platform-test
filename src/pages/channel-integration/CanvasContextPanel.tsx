@@ -151,7 +151,7 @@ export default function CanvasContextPanel({
     }] : []),
     {
       key: 'global-variable',
-      label: <Space><span>📝</span><span>Global Variable</span><VersionTag version={globalVariableVersion} /></Space>,
+      label: <Space><span>📝</span><span>Global Variable</span><VersionTag version={globalVariables.length ? globalVariableVersion : undefined} /></Space>,
       children: <div>
         {globalVariables.length
           ? globalVariables.map((item) => <GlobalVariableRow
@@ -214,7 +214,7 @@ export default function CanvasContextPanel({
 
   const orderItems = mode === 'flow' ? [{
     key: 'order-variable',
-    label: <Space><span>📦</span><span>Order Variable</span><VersionTag version={orderVariableVersion} /></Space>,
+    label: <Space><span>📦</span><span>Order Variable</span><VersionTag version={orderVariables.length ? orderVariableVersion : undefined} /></Space>,
     children: <div>
       {orderVariables.length
         ? orderVariables.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.name}</div>)

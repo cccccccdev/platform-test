@@ -75,6 +75,21 @@ const stateMachines: Record<string, { description: string; states: StateDefiniti
       { id: 'e9', source: 'authenticating', target: 'failed', event: 'authentication_failed' },
     ],
   },
+  SMS_Single_Message_StateMachine: {
+    description: 'Single SMS lifecycle from initialization to submitted state and final delivery result.',
+    states: [
+      { id: 'init', name: 'INIT', description: 'SMS request initialized', x: 40, y: 170, status: 'INIT' },
+      { id: 'submitted', name: 'SUBMITTED', description: 'Request submitted to channel; waiting for final result', x: 350, y: 170, status: 'PENDING' },
+      { id: 'delivered', name: 'DELIVERED', description: 'SMS delivered successfully', x: 690, y: 80, status: 'SUCCESS' },
+      { id: 'failed', name: 'FAILED', description: 'SMS failed, rejected, expired, or invalid', x: 690, y: 260, status: 'FAIL' },
+    ],
+    transitions: [
+      { id: 'sms_e1', source: 'init', target: 'submitted', event: 'submitted' },
+      { id: 'sms_e2', source: 'init', target: 'failed', event: 'submit_failed' },
+      { id: 'sms_e3', source: 'submitted', target: 'delivered', event: 'delivered' },
+      { id: 'sms_e4', source: 'submitted', target: 'failed', event: 'failed' },
+    ],
+  },
   Default_Refund_StateMachine: {
     description: 'Default transaction lifecycle from initialization to processing and final result.',
     states: [

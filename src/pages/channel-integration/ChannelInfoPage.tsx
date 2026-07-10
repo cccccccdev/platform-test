@@ -27,7 +27,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
-import type { CapabilityDecisionVersion, ConfigAbility, FlowGroupVersion, InboundEndpoint } from './types';
+import type { CapabilityDecisionVersion, ConfigAbility, FlowGroupVersion, InboundEndpoint, InboundRequestField } from './types';
 import StateMachinePreviewModal, { NO_STATE_MACHINE, isNoStateMachine } from './StateMachinePreviewModal';
 import CanvasContextPanel from './CanvasContextPanel';
 import InboundPreprocessDrawer from './InboundPreprocessDrawer';
@@ -182,6 +182,9 @@ type RuntimeNodeCard = Omit<RuntimeComponentDetail, 'source'> & {
 };
 
 const pathCapabilities: PathCapability[] = [
+  { path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', flowGroups: ['EVEXIN / Group 526 / SMS_SINGLE_MESSAGE_TRANSACTION'] },
+  { path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', flowGroups: ['EVEXIN / Route Matching / SMS Status Callback'] },
+  { path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', flowGroups: ['EVEXIN / Route Matching / SMS Status Callback'] },
   { path: '/test/path', source: 'httpCall', bt: 'WALLET_DEBIT', ability: 'TRANSFER', flowGroups: ['Group 1 / Flow 1', 'Group 1 / Flow 2'] },
   { path: '/test/path', source: 'httpCall', bt: 'SETTLEMENT_ACCOUNT', ability: 'BALANCE_QUERY', flowGroups: ['Group 2 / Flow 3'] },
   { path: '/callback/payment', source: 'Route Matching', bt: 'FUND_NOTIFICATION', ability: 'PAYMENT_NOTIFY', flowGroups: ['Route Matching / Payment Callback'] },
@@ -191,6 +194,9 @@ const pathCapabilities: PathCapability[] = [
 const internalPathCapabilities: PathCapability[] = pathCapabilities.filter((item) => item.source === 'Route Matching');
 
 const subStates: Array<{ value: string; mainState: MainState }> = [
+  { value: 'SUBMITTED', mainState: 'PENDING' },
+  { value: 'DELIVERED', mainState: 'SUCCESS' },
+  { value: 'FAILED', mainState: 'FAIL' },
   { value: 'PAYMENT_PENDING_WAIT_CALLBACK', mainState: 'PENDING' },
   { value: 'PAYMENT_PENDING_WAIT_REQUERY', mainState: 'PENDING' },
   { value: 'PAYMENT_SUCCESS', mainState: 'SUCCESS' },
@@ -211,6 +217,7 @@ const legacyNoStateMachineSubStates: Array<{ value: string; mainState: MainState
 const responseCodesByState: Record<MainState, Array<{ label: string; value: string }>> = {
   INIT: [{ label: '61000000 - Initialized', value: '61000000' }],
   PENDING: [
+    { label: '61000004 - Transaction in progress', value: '61000004' },
     { label: '61000003 - Pending', value: '61000003' },
     { label: '61000016 - Channel exception: Retrying', value: '61000016' },
     { label: '62000006 - Request timeout, re-query pending', value: '62000006' },
@@ -218,6 +225,8 @@ const responseCodesByState: Record<MainState, Array<{ label: string; value: stri
   TO_BE_VERIFY: [{ label: '61000004 - To be verified', value: '61000004' }],
   SUCCESS: [{ label: '61000001 - Success', value: '61000001' }],
   FAIL: [
+    { label: '61000002 - Failure due to unknown reasons', value: '61000002' },
+    { label: '65000003 - The requested phone number is invalid', value: '65000003' },
     { label: '62000001 - Internal processing error', value: '62000001' },
     { label: '63000036 - Bill found, no outstanding payment', value: '63000036' },
     { label: '63000009 - Bill not found', value: '63000009' },
@@ -225,6 +234,16 @@ const responseCodesByState: Record<MainState, Array<{ label: string; value: stri
 };
 
 const initialExternalRecords: ExternalRecord[] = [
+  { id: 'evexin-send-pending', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: '200#0000#PENDING', channelDescription: 'success', subState: 'SUBMITTED', mainState: 'PENDING', responseCode: '61000004' },
+  { id: 'evexin-send-failed-status', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: '200#0000#FAILED', channelDescription: 'success', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-send-failed-code', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: '200#9999#', channelDescription: 'failed', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-send-invalid-phone', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: '200#6001008#', channelDescription: 'failed', subState: 'FAILED', mainState: 'FAIL', responseCode: '65000003' },
+  { id: 'evexin-callback-pending', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: 'PENDING', channelDescription: '处理中', subState: 'SUBMITTED', mainState: 'PENDING', responseCode: '61000004' },
+  { id: 'evexin-callback-delivered', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: 'DELIVERED', channelDescription: '已送达', subState: 'DELIVERED', mainState: 'SUCCESS', responseCode: '61000001' },
+  { id: 'evexin-callback-undelivered', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: 'UNDELIVERED', channelDescription: '未送达', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-callback-reject', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: 'REJECT', channelDescription: '拒绝接收', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-callback-failed', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: 'FAILED', channelDescription: '失败', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-callback-expire', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: 'EXPIRE', channelDescription: '过期', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
   { id: 'ext-1', path: '/test/path', source: 'httpCall', bt: 'SETTLEMENT_ACCOUNT', ability: 'BALANCE_QUERY', channelResponseCode: '200#', channelDescription: 'SUCCESS', subState: 'BALANCE_QUERY_SUCCESS', mainState: 'SUCCESS', responseCode: '61000001' },
   { id: 'ext-2', path: '/test/path', source: 'httpCall', bt: 'SETTLEMENT_ACCOUNT', ability: 'BALANCE_QUERY', channelResponseCode: '400#INTERNAL_PROCESSING_ERROR', channelDescription: 'INTERNAL_PROCESSING_ERROR', subState: 'BALANCE_QUERY_FAILED', mainState: 'FAIL', responseCode: '62000001' },
   { id: 'ext-3', path: '/test/path', source: 'httpCall', bt: 'WALLET_DEBIT', ability: 'TRANSFER', channelResponseCode: '202#PROCESSING', channelDescription: 'PROCESSING', subState: 'PAYMENT_PENDING_WAIT_CALLBACK', mainState: 'PENDING', responseCode: '61000003' },
@@ -318,6 +337,9 @@ function subStatesForCapability(_channelCode: string, bt?: string, ability?: str
   if (bt === 'FUND_NOTIFICATION' && ability === 'PAYMENT_NOTIFY') {
     return subStates.filter((item) => item.value.startsWith('PAYMENT_'));
   }
+  if (bt === 'SMS' && ability === 'SINGLE_MESSAGE') {
+    return subStates.filter((item) => ['SUBMITTED', 'DELIVERED', 'FAILED'].includes(item.value));
+  }
   return subStates;
 }
 
@@ -347,6 +369,23 @@ function isLegacyNoStateMachineCapability(bt?: string, ability?: string) {
 function valueOptions(values: string[]) {
   return values.map((value) => ({ label: value, value }));
 }
+
+const requestFieldSourceLabels: Record<InboundRequestField['source'], string> = {
+  path: 'Path Variables',
+  query: 'Query Parameters',
+  header: 'Headers',
+  body: 'Body',
+};
+
+const buildRequestFieldCascaderOptions = (requestFields: InboundRequestField[]) =>
+  (Object.entries(requestFieldSourceLabels) as Array<[InboundRequestField['source'], string]>).map(([source, label]) => ({
+    label,
+    value: source,
+    isLeaf: false,
+    children: requestFields
+      .filter((field) => field.source === source)
+      .map((field) => ({ label: field.name, value: field.name })),
+  }));
 
 function fallbackRequeryFlowName(bt: string, ability: string, action: string) {
   return `${bt} ${ability} ${action} Requery Flow`.replaceAll('_', ' ');
@@ -812,12 +851,23 @@ export default function ChannelInfoPage() {
   };
 
   const openTimeoutConfig = (ability: ConfigAbility, group: FlowGroupVersion) => {
-    const paths = group.flows.flatMap((flow, index) => ({
-      id: `${group.groupId}-${flow.id}-${index}`,
-      path: flow.flowType === 'inbound' ? '/callback/payment' : index === 0 ? '/test/path' : '/request-to-pay/status',
-      timeout: 10000,
-      source: flow.name,
-    }));
+    const paths = group.flows.flatMap((flow, index) => {
+      const httpNodes = flow.canvasNodes?.filter((node) => node.componentCode === 'httpCall') ?? [];
+      if (httpNodes.length > 0) {
+        return httpNodes.map((node, nodeIndex) => ({
+          id: `${group.groupId}-${flow.id}-${node.id}-${nodeIndex}`,
+          path: String(node.config?.path ?? '/test/path'),
+          timeout: Number(node.config?.timeout ?? 10000),
+          source: flow.name,
+        }));
+      }
+      return {
+        id: `${group.groupId}-${flow.id}-${index}`,
+        path: flow.flowType === 'inbound' ? '/callback/payment' : index === 0 ? '/test/path' : '/request-to-pay/status',
+        timeout: 10000,
+        source: flow.name,
+      };
+    });
     const deduped = unique(paths.map((item) => item.path)).map((path) => {
       const first = paths.find((item) => item.path === path);
       return first ?? { id: `${group.groupId}-${path}`, path, timeout: 10000, source: 'httpCall' };
@@ -1416,15 +1466,11 @@ export default function ChannelInfoPage() {
           <div style={{ color: '#8c8c8c', fontSize: 11, marginBottom: 6 }}>Common Request field</div>
           <Cascader
             disabled
-            value={typeof data.singleNoField === 'string' ? data.singleNoField.split(/\.(.+)/).filter(Boolean) : undefined}
+            value={typeof data.singleNoField === 'string' ? data.singleNoField.split(/\.(.+)/).filter(Boolean) as string[] : undefined}
             placeholder="Select from inboundPreprocess"
             style={{ width: '100%' }}
-            options={[
-              { label: 'Path Variables', value: 'path', children: requestFields.filter((field) => field.source === 'path').map((field) => ({ label: field.name, value: field.name })) },
-              { label: 'Query Parameters', value: 'query', children: requestFields.filter((field) => field.source === 'query').map((field) => ({ label: field.name, value: field.name })) },
-              { label: 'Headers', value: 'header', children: requestFields.filter((field) => field.source === 'header').map((field) => ({ label: field.name, value: field.name })) },
-              { label: 'Body', value: 'body', children: requestFields.filter((field) => field.source === 'body').map((field) => ({ label: field.name, value: field.name })) },
-            ]}
+            options={buildRequestFieldCascaderOptions(requestFields) as any}
+            changeOnSelect={false}
           />
           <div style={{ color: '#8c8c8c', fontSize: 11, margin: '14px 0 6px' }}>Compare with gateway order</div>
           <Select disabled value={typeof data.referenceField === 'string' ? data.referenceField : undefined} placeholder="Select reference" style={{ width: '100%' }} options={[{ value: 'requestReference' }, { value: 'responseReference' }]} />

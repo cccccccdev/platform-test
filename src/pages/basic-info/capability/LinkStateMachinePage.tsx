@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Table, Button, Space, message, Breadcrumb, Select, Form, Typography, Tag, Card, Empty, Tooltip, Modal } from 'antd';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { LeftOutlined, EyeOutlined, DeleteOutlined, PlusOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
+import { useConfigIntegrationStore } from '../../channel-integration/configIntegrationStore';
 
 const { Title, Text } = Typography;
 
@@ -24,12 +25,30 @@ interface StateMachineItem {
   status?: 'DRAFT' | 'SUBMITTED';
 }
 
+const DEFAULT_LINKED_STATE_MACHINES: LinkedSMRecord[] = [
+  { bt: 'BANK_CARD_DEBIT', ability: 'REFUND', smName: 'Default_Refund_StateMachine', operator: 'admin', operationTime: '2026-05-19 10:00:00' },
+  { bt: 'BANK_CARD_DEBIT', ability: 'INFO_PAYMENT', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
+  { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_StateMachine', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
+];
+
+const DEFAULT_STATE_MACHINES: StateMachineItem[] = [
+  { id: 'sm1', name: 'Default_Refund_StateMachine', description: 'REFUND state machine', status: 'SUBMITTED' },
+  { id: 'sm2', name: 'BankCard_Debit_StateMachine', description: 'Bank card debit state machine', status: 'SUBMITTED' },
+  { id: 'sm_sms_single_message', name: 'SMS_Single_Message_StateMachine', description: 'Single SMS lifecycle', status: 'SUBMITTED' },
+];
+
+function mergeBy<T>(records: T[], defaults: T[], keyOf: (record: T) => string): T[] {
+  const keys = new Set(records.map(keyOf));
+  return [...records, ...defaults.filter((record) => !keys.has(keyOf(record)))];
+}
+
 function getLinkedSM(): LinkedSMRecord[] {
   try {
     const stored = localStorage.getItem(LINKED_SM_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const parsed = stored ? JSON.parse(stored) : [];
+    return mergeBy(parsed, DEFAULT_LINKED_STATE_MACHINES, (item) => `${item.bt}:${item.ability}:${item.smName}`);
   } catch {
-    return [];
+    return DEFAULT_LINKED_STATE_MACHINES;
   }
 }
 
@@ -40,16 +59,21 @@ function saveLinkedSM(records: LinkedSMRecord[]) {
 function getStateMachineList(): StateMachineItem[] {
   try {
     const stored = localStorage.getItem(SM_LIST_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const parsed = stored ? JSON.parse(stored) : [];
+    return mergeBy(parsed, DEFAULT_STATE_MACHINES, (item) => item.name);
   } catch {
-    return [];
+    return DEFAULT_STATE_MACHINES;
   }
 }
 
 function getStoredStatuses(): Record<string, 'DRAFT' | 'SUBMITTED'> {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : {};
+    return stored ? JSON.parse(stored) : {
+      Default_Refund_StateMachine: 'SUBMITTED',
+      BankCard_Debit_StateMachine: 'SUBMITTED',
+      SMS_Single_Message_StateMachine: 'SUBMITTED',
+    };
   } catch {
     return {};
   }
@@ -66,36 +90,21 @@ export default function LinkStateMachinePage() {
   const [, setRefreshKey] = useState(0);
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [unLinkModalOpen, setUnLinkModalOpen] = useState(false);
+  const abilitiesByChannel = useConfigIntegrationStore((state) => state.abilitiesByChannel);
 
   const linkedRecords = getLinkedSM().filter(r => r.bt === bt && r.ability === ability);
 
-  // Mock function to get channel info referencing this state machine
-  // In real implementation, this would query backend API or localStorage
   interface ChannelRef {
     channelCode: string;
     version: string;
   }
-  const getReferencingChannels = (smName: string): ChannelRef[] => {
-    // Mock data - return some sample channels for any state machine
-    // In production, this would check actual channel integration data
-    const allChannels = ['GTB_NG', 'ECBANK', 'PAYPAL', 'STRIPE', 'ALIPAY', 'ABC_PAY', 'WECHAT_PAY', 'UNION_PAY'];
-    const versions = ['v1.0', 'v2.0', 'v1.2', 'v3.0', 'v1.5'];
-    // Generate deterministic mock channels based on smName
-    const hash = smName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const count = (hash % 4) + 1; // 1-5 channels
-    const channels: ChannelRef[] = [];
-    for (let i = 0; i < count; i++) {
-      const idx = (hash + i) % allChannels.length;
-      const ch = allChannels[idx];
-      if (!channels.some(c => c.channelCode === ch)) {
-        channels.push({
-          channelCode: ch,
-          version: versions[(hash + i) % versions.length],
-        });
-      }
-    }
-    return channels;
-  };
+  const getReferencingChannels = (smName: string): ChannelRef[] => Object.entries(abilitiesByChannel)
+    .flatMap(([channelCode, abilities]) => abilities
+      .filter((item) => item.bt === bt && item.ability === ability && item.stateMachine === smName && item.versions.length > 0)
+      .map((item) => ({
+        channelCode,
+        version: item.versions.map((version) => version.version).join(', '),
+      })));
 
   const availableStateMachines = () => {
     const list = getStateMachineList();
@@ -146,6 +155,7 @@ export default function LinkStateMachinePage() {
     const channels = getReferencingChannels(smName);
     if (channels.length > 0) {
       setUnLinkModalOpen(true);
+      message.error('Cannot UnLink: StateMachine is referenced by Flow Group');
       return;
     }
     const records = getLinkedSM();
@@ -256,9 +266,7 @@ export default function LinkStateMachinePage() {
                               <Button
                                 type="link"
                                 size="small"
-                                onClick={() => {
-                                  window.location.href = `/channel-integration/${r.channelCode}/integration/config/flow-groups`;
-                                }}
+                                onClick={() => navigate(`/channel-integration/${r.channelCode}/integration/config/flow-groups`)}
                               >
                                 Preview
                               </Button>
@@ -344,6 +352,7 @@ export default function LinkStateMachinePage() {
                         size="small"
                         danger
                         icon={<DeleteOutlined />}
+                        disabled={getReferencingChannels(record.smName).length > 0}
                         onClick={() => handleUnLink(record.smName)}
                       >
                         UnLink

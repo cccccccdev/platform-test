@@ -1886,6 +1886,7 @@ export default function FlowEditorPage() {
   const [showInboundRequestDrawer, setShowInboundRequestDrawer] = useState(false);
   const [showInboundResponseDrawer, setShowInboundResponseDrawer] = useState(false);
   const [showConditionNodeDrawer, setShowConditionNodeDrawer] = useState(false);
+  const [selectedConfigNodeId, setSelectedConfigNodeId] = useState<string | null>(null);
   const [selectedConditionNodeId, setSelectedConditionNodeId] = useState<string | null>(null);
 
   // Edge condition config modal state
@@ -2105,11 +2106,14 @@ export default function FlowEditorPage() {
   const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
 
   const openComponentConfig = useCallback((code: string, nodeId?: string) => {
+    setSelectedConfigNodeId(nodeId ?? null);
     if (code === 'httpCall') setShowNetworkDrawer(true);
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
   }, []);
+  const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
+  const selectedConfig = selectedConfigNode?.data.config as Record<string, unknown> | undefined;
 
   const toRuntimeNode = useCallback((item: FlowCanvasNode): Node => {
     const info = COMPONENT_LIBRARY.find((component) => component.code === item.componentCode);
@@ -2369,12 +2373,14 @@ export default function FlowEditorPage() {
       <HttpCallDrawer
         open={showNetworkDrawer}
         channelCode={params.channelCode ?? ''}
+        initialValues={selectedConfig}
+        readOnly={readOnly}
         onClose={() => setShowNetworkDrawer(false)}
         onSave={(config) => {
           console.log('HTTP Call config saved:', config);
           setNodes(nds => nds.map(n => {
-            if (n.data.code === 'httpCall') {
-              return { ...n, data: { ...n.data, status: 'complete', isConfigured: true } };
+            if (n.id === selectedConfigNodeId) {
+              return { ...n, data: { ...n.data, status: 'complete', isConfigured: true, config } };
             }
             return n;
           }));
@@ -2384,13 +2390,14 @@ export default function FlowEditorPage() {
 
       <InboundRequestDrawer
         open={showInboundRequestDrawer}
+        initialValues={selectedConfig}
         readOnly={readOnly}
         endpointPath={inboundUri?.url}
         pathVariables={inboundPathVariables}
         onClose={() => setShowInboundRequestDrawer(false)}
         onSave={(config) => {
           console.log('Inbound Request config saved:', config);
-          setNodes((current) => current.map((node) => node.data.code === 'inboundRequest' ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true } } : node));
+          setNodes((current) => current.map((node) => node.id === selectedConfigNodeId ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config } } : node));
           setShowInboundRequestDrawer(false);
           message.success('Inbound Request configuration saved');
         }}
@@ -2398,11 +2405,12 @@ export default function FlowEditorPage() {
 
       <InboundResponseDrawer
         open={showInboundResponseDrawer}
+        initialValues={selectedConfig}
         readOnly={readOnly}
         onClose={() => setShowInboundResponseDrawer(false)}
         onSave={(config) => {
           console.log('Inbound Response config saved:', config);
-          setNodes((current) => current.map((node) => node.data.code === 'inboundResponse' ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true } } : node));
+          setNodes((current) => current.map((node) => node.id === selectedConfigNodeId ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config } } : node));
           setShowInboundResponseDrawer(false);
           message.success('Inbound Response configuration saved');
         }}

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PlusOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
+import { useConfigIntegrationStore } from '../../channel-integration/configIntegrationStore';
 
 const { Title, Text } = Typography;
 
@@ -28,6 +29,44 @@ interface LinkedSMRecord {
   operationTime: string;
 }
 
+const DEFAULT_STATE_MACHINES: StateMachineItem[] = [
+  {
+    id: 'sm1',
+    name: 'Default_Refund_StateMachine',
+    description: 'REFUND state machine',
+    status: 'SUBMITTED',
+    operator: 'admin',
+    operationTime: '2026-05-19 10:00:00',
+  },
+  {
+    id: 'sm2',
+    name: 'BankCard_Debit_StateMachine',
+    description: 'Bank card debit state machine',
+    status: 'DRAFT',
+    operator: 'admin',
+    operationTime: '2026-05-19 11:00:00',
+  },
+  {
+    id: 'sm_sms_single_message',
+    name: 'SMS_Single_Message_StateMachine',
+    description: 'Single SMS lifecycle: initialized, submitted, delivered or failed',
+    status: 'SUBMITTED',
+    operator: 'Bailly',
+    operationTime: '2026-07-03 09:52:37',
+  },
+];
+
+const DEFAULT_LINKED_STATE_MACHINES: LinkedSMRecord[] = [
+  { bt: 'BANK_CARD_DEBIT', ability: 'REFUND', smName: 'Default_Refund_StateMachine', operator: 'admin', operationTime: '2026-05-19 10:00:00' },
+  { bt: 'BANK_CARD_DEBIT', ability: 'INFO_PAYMENT', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
+  { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_StateMachine', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
+];
+
+function mergeBy<T>(records: T[], defaults: T[], keyOf: (record: T) => string): T[] {
+  const keys = new Set(records.map(keyOf));
+  return [...records, ...defaults.filter((record) => !keys.has(keyOf(record)))];
+}
+
 function getStoredStatuses(): Record<string, 'DRAFT' | 'SUBMITTED'> {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -46,9 +85,9 @@ function saveStatus(name: string, status: 'DRAFT' | 'SUBMITTED') {
 function getStoredList(): StateMachineItem[] {
   try {
     const stored = localStorage.getItem(SM_LIST_KEY);
-    return stored ? JSON.parse(stored) : [];
+    return mergeBy(stored ? JSON.parse(stored) : [], DEFAULT_STATE_MACHINES, (item) => item.name);
   } catch {
-    return [];
+    return DEFAULT_STATE_MACHINES;
   }
 }
 
@@ -60,17 +99,9 @@ function getLinkedSMList(): LinkedSMRecord[] {
   try {
     const stored = localStorage.getItem(LINKED_SM_KEY);
     const parsed = stored ? JSON.parse(stored) : [];
-    // Merge with mock data if no stored data
-    if (parsed.length === 0) {
-      return [
-        { bt: 'BANK_CARD_DEBIT', ability: 'REFUND', smName: 'Default_Refund_StateMachine', operator: 'admin', operationTime: '2026-05-19 10:00:00' },
-        { bt: 'INFO_PAYMENT', ability: 'TRANSACTION', smName: 'Default_Refund_StateMachine', operator: 'admin', operationTime: '2026-05-20 14:30:00' },
-        { bt: 'BANK_CARD_DEBIT', ability: 'RE_QUERY', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
-      ];
-    }
-    return parsed;
+    return mergeBy(parsed, DEFAULT_LINKED_STATE_MACHINES, (item) => `${item.bt}:${item.ability}:${item.smName}`);
   } catch {
-    return [];
+    return DEFAULT_LINKED_STATE_MACHINES;
   }
 }
 
@@ -79,14 +110,9 @@ function isStateMachineLinked(smName: string): boolean {
   return linkedList.some(r => r.smName === smName);
 }
 
-function isStateMachineReferenced(_smName: string): boolean {
-  // Placeholder: In real implementation, this would check Channel Integration references
-  // For now, return false to allow modify/delete
-  return false;
-}
-
 export default function StateMachineListPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const bt = searchParams.get('bt') || '';
   const ability = searchParams.get('ability') || '';
 
@@ -94,6 +120,12 @@ export default function StateMachineListPage() {
   const [createForm] = Form.useForm();
   const [stateMachineList, setStateMachineList] = useState<StateMachineItem[]>([]);
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
+  const abilitiesByChannel = useConfigIntegrationStore((state) => state.abilitiesByChannel);
+
+  const isStateMachineReferenced = (smName: string): boolean =>
+    Object.values(abilitiesByChannel)
+      .flat()
+      .some((ability) => ability.stateMachine === smName && ability.versions.length > 0);
 
   const getLinkedRecordsForSM = (smName: string): LinkedSMRecord[] => {
     const allLinked = getLinkedSMList();
@@ -104,32 +136,10 @@ export default function StateMachineListPage() {
   useEffect(() => {
     const storedList = getStoredList();
     const storedStatuses = getStoredStatuses();
-    if (storedList.length > 0) {
-      setStateMachineList(storedList.map(sm => ({
-        ...sm,
-        status: storedStatuses[sm.name] || sm.status,
-      })));
-    } else {
-      // Default demo data
-      setStateMachineList([
-        {
-          id: 'sm1',
-          name: 'Default_Refund_StateMachine',
-          description: 'REFUND state machine',
-          status: 'SUBMITTED',
-          operator: 'admin',
-          operationTime: '2026-05-19 10:00:00',
-        },
-        {
-          id: 'sm2',
-          name: 'BankCard_Debit_StateMachine',
-          description: 'Bank card debit state machine',
-          status: 'DRAFT',
-          operator: 'admin',
-          operationTime: '2026-05-19 11:00:00',
-        },
-      ]);
-    }
+    setStateMachineList(storedList.map(sm => ({
+      ...sm,
+      status: storedStatuses[sm.name] || sm.status,
+    })));
   }, []);
 
   const handleCreate = async () => {
@@ -186,14 +196,14 @@ export default function StateMachineListPage() {
     const queryParams = new URLSearchParams();
     queryParams.set('sm', sm.name);
     queryParams.set('mode', 'edit');
-    window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
+    navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
   };
 
   const openDetail = (sm: StateMachineItem) => {
     const queryParams = new URLSearchParams();
     queryParams.set('sm', sm.name);
     queryParams.set('mode', 'view');
-    window.location.href = `/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`;
+    navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
   };
 
   const columns: ColumnsType<StateMachineItem> = [
@@ -360,7 +370,7 @@ export default function StateMachineListPage() {
                             type="link"
                             size="small"
                             onClick={() => {
-                              window.location.href = `/basic-info/capability/link-state-machine?bt=${r.bt}&ability=${r.ability}`;
+                              navigate(`/basic-info/capability/link-state-machine?bt=${r.bt}&ability=${r.ability}`);
                             }}
                           >
                             Preview
