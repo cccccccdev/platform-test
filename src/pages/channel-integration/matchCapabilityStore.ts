@@ -38,6 +38,24 @@ const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisio
       description: '',
     };
   });
+  const preprocessFields = (source: 'query' | 'header') => parsedFields
+    .filter((field) => field.source === source)
+    .map((field) => ({
+      id: field.id,
+      name: field.name,
+      type: field.type,
+      required: field.moc === 'yes',
+      description: field.description,
+    }));
+  const preprocessBodyFields = parsedFields
+    .filter((field) => field.source === 'body')
+    .map((field) => ({
+      id: field.id,
+      name: field.name,
+      type: field.type,
+      required: field.moc === 'yes',
+      description: field.description,
+    }));
   const requestFields = endpoint.matchType === 'single'
     ? []
     : endpoint.matchType === 'order_no'
@@ -62,6 +80,9 @@ const legacyVersionFromEndpoint = (endpoint: InboundEndpoint): CapabilityDecisio
     fallbackBehavior: endpoint.fallbackBehavior,
     decryptEnabled: endpoint.decryptEnabled,
     requestMessageFormat: 'JSON',
+    preprocessQueryFields: preprocessFields('query'),
+    preprocessHeaderFields: preprocessFields('header'),
+    preprocessBodyFields,
     badges: endpoint.badges,
     deploymentRecords: (endpoint.badges ?? []).map((badge) => ({
       ...badge,

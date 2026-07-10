@@ -21,7 +21,10 @@ export const mappingOperationOptions = [
   {
     label: 'PHONE NUMER',
     value: 'phone-number',
-    children: [{ label: 'phone number operate', value: 'phone-number-operate' }],
+    children: [
+      { label: 'Remove Front Zero', value: 'remove-front-zero' },
+      { label: 'phone number operate', value: 'phone-number-operate' },
+    ],
   },
   {
     label: 'CUSTOM',

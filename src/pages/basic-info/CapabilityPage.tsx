@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react';
 import { Table, Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate } from 'react-router-dom';
-import { PlusOutlined, CaretRightOutlined, CaretDownOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import { PlusOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons';
+import { useConfigIntegrationStore } from '../channel-integration/configIntegrationStore';
 
 const { Title, Text } = Typography;
 
@@ -37,74 +38,26 @@ const INITIAL_DATA: BusinessTypeItem[] = [
     isExpand: true,
     abilities: [
       {
-        key: 'ab_bank_card_info_payment',
-        name: 'INFO_PAYMENT',
-        operateTime: '2026-07-03 10:00:00',
-        operator: 'admin',
-        isExpand: true,
-        actions: [
-          { key: 'act_bank_card_transaction', name: 'TRANSACTION', operateTime: '2026-07-03 10:00:00', operator: 'admin' },
-          { key: 'act_bank_card_verify', name: 'VERIFY', operateTime: '2026-07-03 10:00:00', operator: 'admin' },
-        ],
-      },
-      {
-        key: 'ab1',
+        key: 'ab_bank_card_refund',
         name: 'REFUND',
         operateTime: '—',
         operator: '—',
-        isExpand: false,
-        actions: [],
-      },
-      {
-        key: 'ab2',
-        name: 'RE_QUERY',
-        operateTime: '2008-08-08 20:08:00',
-        operator: '我爱北京天安门',
         isExpand: true,
         actions: [
-          { key: 'act1', name: 'default_action_01', operateTime: '2008-08-08 20:08:00', operator: '我爱北京天安门' },
-          { key: 'act2', name: 'default_action_02', operateTime: '2008-08-08 20:08:00', operator: '我爱北京天安门' },
+          { key: 'act_bank_card_refund_requery', name: 'RE_QUERY', operateTime: '2025-08-07 06:20:26', operator: 'Bailly' },
+          { key: 'act_bank_card_refund_transaction', name: 'TRANSACTION', operateTime: '2025-08-07 06:20:15', operator: 'Bailly' },
         ],
       },
       {
-        key: 'ab3',
-        name: 'TRANSACTION',
-        operateTime: '2008-08-08 20:08:00',
-        operator: '我爱北京天安门',
-        isExpand: false,
-        actions: [],
-      },
-    ],
-  },
-  {
-    key: 'bt2',
-    name: 'INFO_PAYMENT',
-    isExpand: false,
-    abilities: [
-      {
-        key: 'ab4',
-        name: 'RE_QUERY',
-        operateTime: '2008-08-08 20:08:00',
-        operator: '我爱北京天安门',
-        isExpand: false,
-        actions: [],
-      },
-      {
-        key: 'ab5',
-        name: 'TRANSACTION',
-        operateTime: '2008-08-08 20:08:00',
-        operator: '我爱北京天安门',
-        isExpand: false,
-        actions: [],
-      },
-      {
-        key: 'ab6',
-        name: 'VERIFY',
-        operateTime: '2008-08-08 20:08:00',
-        operator: '我爱北京天安门',
-        isExpand: false,
+        key: 'ab_bank_card_info_payment',
+        name: 'INFO_PAYMENT',
+        operateTime: '—',
+        operator: '—',
+        isExpand: true,
         actions: [
-          { key: 'act3', name: 'default_action_01', operateTime: '2008-08-08 20:08:00', operator: '我爱北京天安门' },
+          { key: 'act_bank_card_info_payment_requery', name: 'RE_QUERY', operateTime: '2025-08-07 06:18:52', operator: 'Bailly' },
+          { key: 'act_bank_card_info_payment_transaction', name: 'TRANSACTION', operateTime: '2025-08-07 06:18:14', operator: 'Bailly' },
+          { key: 'act_bank_card_info_payment_verify', name: 'VERIFY', operateTime: '2025-08-07 06:18:35', operator: 'Bailly' },
         ],
       },
     ],
@@ -123,10 +76,16 @@ const INITIAL_DATA: BusinessTypeItem[] = [
   },
   {
     key: 'bt_sms', name: 'SMS', isExpand: true,
-    abilities: [{
-      key: 'ab_sms_bulk', name: 'BULK_MESSAGE', operateTime: '2026-07-03 10:00:00', operator: 'admin', isExpand: true,
-      actions: [{ key: 'act_sms_transaction', name: 'TRANSACTION', operateTime: '2026-07-03 10:00:00', operator: 'admin' }],
-    }],
+    abilities: [
+      {
+        key: 'ab_sms_single', name: 'SINGLE_MESSAGE', operateTime: '2026-07-03 09:52:37', operator: 'Bailly', isExpand: true,
+        actions: [{ key: 'act_sms_single_transaction', name: 'TRANSACTION', operateTime: '2026-07-03 09:52:37', operator: 'Bailly' }],
+      },
+      {
+        key: 'ab_sms_bulk', name: 'BULK_MESSAGE', operateTime: '2026-07-03 10:00:00', operator: 'admin', isExpand: true,
+        actions: [{ key: 'act_sms_bulk_transaction', name: 'TRANSACTION', operateTime: '2026-07-03 10:00:00', operator: 'admin' }],
+      },
+    ],
   },
   {
     key: 'bt_kyc', name: 'KYC', isExpand: true,
@@ -145,15 +104,16 @@ const INITIAL_DATA: BusinessTypeItem[] = [
 ];
 
 const BUSINESS_TYPE_OPTIONS = INITIAL_DATA.map(({ name }) => ({ label: name, value: name }));
+const BRAND_PURPLE = '#722ed1';
 
 function generateActionName(existingActions: ActionItem[]): string {
   const nums = existingActions
     .map(a => {
-      const m = a.name.match(/^default_action_(\d+)$/);
+      const m = a.name.match(/^ACTION_(\d+)$/);
       return m ? parseInt(m[1]) : 0;
     });
   const max = nums.length > 0 ? Math.max(...nums) : 0;
-  return `default_action_${String(max + 1).padStart(2, '0')}`;
+  return `ACTION_${String(max + 1).padStart(2, '0')}`;
 }
 
 export default function CapabilityPage() {
@@ -182,12 +142,23 @@ export default function CapabilityPage() {
     isNew?: boolean;
   }
 
+  const DEFAULT_LINKED_STATE_MACHINES: LinkedSMRecord[] = [
+    { bt: 'BANK_CARD_DEBIT', ability: 'REFUND', smName: 'Default_Refund_StateMachine', operator: 'admin', operationTime: '2026-05-19 10:00:00' },
+    { bt: 'BANK_CARD_DEBIT', ability: 'INFO_PAYMENT', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
+    { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_StateMachine', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
+  ];
+
+  const mergeBy = <T,>(records: T[], defaults: T[], keyOf: (record: T) => string): T[] => {
+    const keys = new Set(records.map(keyOf));
+    return [...records, ...defaults.filter((record) => !keys.has(keyOf(record)))];
+  };
+
   const getLinkedSM = useCallback((): LinkedSMRecord[] => {
     try {
       const stored = localStorage.getItem(LINKED_SM_KEY);
-      return stored ? JSON.parse(stored) : [];
+      return mergeBy(stored ? JSON.parse(stored) : [], DEFAULT_LINKED_STATE_MACHINES, (item) => `${item.bt}:${item.ability}:${item.smName}`);
     } catch {
-      return [];
+      return DEFAULT_LINKED_STATE_MACHINES;
     }
   }, []);
 
@@ -205,23 +176,41 @@ export default function CapabilityPage() {
     status?: 'DRAFT' | 'SUBMITTED';
   }
 
+  const DEFAULT_STATE_MACHINES: StateMachineItem[] = [
+    { id: 'sm1', name: 'Default_Refund_StateMachine', description: 'REFUND state machine', status: 'SUBMITTED' },
+    { id: 'sm2', name: 'BankCard_Debit_StateMachine', description: 'Bank card debit state machine', status: 'SUBMITTED' },
+    { id: 'sm_sms_single_message', name: 'SMS_Single_Message_StateMachine', description: 'Single SMS lifecycle', status: 'SUBMITTED' },
+  ];
+
+  const DEFAULT_STATE_MACHINE_STATUSES: Record<string, 'DRAFT' | 'SUBMITTED'> = {
+    Default_Refund_StateMachine: 'SUBMITTED',
+    BankCard_Debit_StateMachine: 'SUBMITTED',
+    SMS_Single_Message_StateMachine: 'SUBMITTED',
+  };
+
   const getStateMachineList = useCallback((): StateMachineItem[] => {
     try {
       const stored = localStorage.getItem(SM_LIST_KEY);
-      return stored ? JSON.parse(stored) : [];
+      return mergeBy(stored ? JSON.parse(stored) : [], DEFAULT_STATE_MACHINES, (item) => item.name);
     } catch {
-      return [];
+      return DEFAULT_STATE_MACHINES;
     }
   }, []);
 
   const getStoredStatuses = useCallback((): Record<string, 'DRAFT' | 'SUBMITTED'> => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : {};
+      return { ...DEFAULT_STATE_MACHINE_STATUSES, ...(stored ? JSON.parse(stored) : {}) };
     } catch {
-      return {};
+      return DEFAULT_STATE_MACHINE_STATUSES;
     }
   }, []);
+
+  const abilitiesByChannel = useConfigIntegrationStore((state) => state.abilitiesByChannel);
+
+  const isReferencedByFlowGroup = useCallback((bt: string, ability: string, smName: string) => Object.values(abilitiesByChannel)
+    .flat()
+    .some((item) => item.bt === bt && item.ability === ability && item.stateMachine === smName && item.versions.length > 0), [abilitiesByChannel]);
 
   const getLinkedSMListForAbility = useCallback((bt: string, ability: string): string[] => {
     const records = getLinkedSM();
@@ -345,11 +334,11 @@ export default function CapabilityPage() {
     {
       title: 'Name',
       key: 'name',
+      width: 360,
       render: (_, record) => {
         const isEditing = editingActionKey === record.key;
         return (
-          <Space>
-            <MinusCircleOutlined style={{ color: '#d9d9d9', marginRight: 8 }} />
+          <Space style={{ paddingLeft: 8 }}>
             {isEditing ? (
               <Input
                 value={editingActionName}
@@ -373,7 +362,7 @@ export default function CapabilityPage() {
             ) : (
               <span
                 onDoubleClick={() => startEditAction(record)}
-                style={{ cursor: 'text', padding: '2px 4px', borderRadius: 4 }}
+                style={{ cursor: 'text', padding: '2px 4px', borderRadius: 4, fontWeight: 500 }}
               >
                 {record.name}
               </span>
@@ -401,7 +390,7 @@ export default function CapabilityPage() {
       render: (_, record) => (
         <Button
           type="link"
-          style={{ color: '#ef4444', borderColor: '#ef4444', borderRadius: 6, padding: '4px 12px' }}
+          style={{ color: BRAND_PURPLE, padding: 0, fontWeight: 500 }}
           onClick={() => {
             const ability = data.flatMap(bt => bt.abilities).find(a => a.actions.some(act => act.key === record.key));
             const bt = data.find(b => b.abilities.some(a => a.key === ability?.key));
@@ -410,7 +399,7 @@ export default function CapabilityPage() {
             }
           }}
         >
-          SPI
+          Config
         </Button>
       ),
     },
@@ -449,14 +438,14 @@ export default function CapabilityPage() {
         </Form>
 
         {filteredData.map(bt => (
-          <div key={bt.key} style={{ marginBottom: 16, border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}>
+          <div key={bt.key} style={{ marginBottom: 16, border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '12px 16px',
-                background: bt.isExpand ? '#fff' : '#fafafa',
+                padding: '14px 24px',
+                background: '#fafafa',
                 cursor: 'pointer',
                 borderBottom: bt.isExpand ? '1px solid #f0f0f0' : 'none',
               }}
@@ -486,8 +475,8 @@ export default function CapabilityPage() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    padding: '10px 16px',
-                    background: '#fafafa',
+                    padding: '14px 24px',
+                    background: '#fff',
                     cursor: ab.actions.length > 0 ? 'pointer' : 'default',
                   }}
                   onClick={() => ab.actions.length > 0 && toggleAbility(bt.key, ab.key)}
@@ -497,29 +486,36 @@ export default function CapabilityPage() {
                   ) : (
                     <span style={{ width: 20, marginRight: 8 }} />
                   )}
-                  <Text style={{ flex: 1 }}>{ab.name}</Text>
-                  <Text type="secondary" style={{ marginRight: 16, width: 200 }}>{ab.operateTime}</Text>
-                  <Text type="secondary" style={{ marginRight: 16, width: 150 }}>{ab.operator}</Text>
+                  <Text style={{ flex: 1, fontWeight: 500 }}>{ab.name}</Text>
+                  <Text type="secondary" style={{ marginRight: 16, width: 220 }}>{ab.operateTime}</Text>
+                  <Text type="secondary" style={{ marginRight: 16, width: 160 }}>{ab.operator}</Text>
                   <Space onClick={e => e.stopPropagation()}>
                     <Button
                       type="link"
-                      style={{ color: '#ef4444', borderColor: '#ef4444', borderRadius: 6, padding: '4px 12px' }}
+                      style={{ color: BRAND_PURPLE, padding: '0 8px', fontWeight: 500 }}
+                      onClick={() => message.info('SubOrderMode configuration is not implemented in this demo.')}
+                    >
+                      SubOrderMode
+                    </Button>
+                    <Button
+                      type="link"
+                      style={{ color: BRAND_PURPLE, padding: '0 8px', fontWeight: 500 }}
                       onClick={() => navigate(`/basic-info/capability/features?bt=${bt.name}&ability=${ab.name}`)}
                     >
                       Features
                     </Button>
                     <Button
                       type="link"
-                      style={{ color: '#22c55e', borderColor: '#22c55e', borderRadius: 6, padding: '4px 12px' }}
+                      style={{ color: BRAND_PURPLE, padding: '0 8px', fontWeight: 500 }}
                       onClick={() => navigate(`/basic-info/capability/link-state-machine?bt=${bt.name}&ability=${ab.name}`)}
                     >
-                      linkStateMachine
+                      State Machines
                     </Button>
                   </Space>
                 </div>
 
                 {ab.isExpand && ab.actions.length > 0 && (
-                  <div style={{ paddingLeft: 40, background: '#fff' }}>
+                  <div style={{ paddingLeft: 48, background: '#fff' }}>
                     <Table
                       dataSource={ab.actions}
                       columns={columns}
@@ -530,15 +526,15 @@ export default function CapabilityPage() {
                   </div>
                 )}
 
-                {ab.isExpand && ab.actions.length === 0 && (
-                  <div style={{ paddingLeft: 40, padding: '8px 16px', background: '#fff' }}>
+                {ab.isExpand && (
+                  <div style={{ padding: '12px 24px 14px 48px', background: '#fff' }}>
                     <Button
                       type="dashed"
                       icon={<PlusOutlined />}
                       onClick={() => addAction(bt.key, ab.key)}
                       block
                     >
-                      + Add Action
+                      Add Action
                     </Button>
                   </div>
                 )}
@@ -641,6 +637,8 @@ export default function CapabilityPage() {
                             const queryParams = new URLSearchParams();
                             queryParams.set('sm', record.smName);
                             queryParams.set('mode', 'view');
+                            queryParams.set('bt', record.bt);
+                            queryParams.set('ability', record.ability);
                             navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
                           }}
                         >
@@ -650,7 +648,12 @@ export default function CapabilityPage() {
                           type="link"
                           size="small"
                           danger
+                          disabled={isReferencedByFlowGroup(record.bt, record.ability, record.smName)}
                           onClick={() => {
+                            if (isReferencedByFlowGroup(record.bt, record.ability, record.smName)) {
+                              message.error('Cannot Remove: StateMachine is referenced by Flow Group');
+                              return;
+                            }
                             setLinkSmList(linkSmList.filter((_, i) => i !== idx));
                           }}
                         >

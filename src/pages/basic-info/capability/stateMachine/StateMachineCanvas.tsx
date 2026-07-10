@@ -80,6 +80,27 @@ const initialEdges: AnyEdge[] = [
   { id: 'e10', source: 's5', target: 's7', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'debit_failed' } },
 ];
 
+const smsSingleMessageNodes: AnyNode[] = [
+  { id: 'sms_init', type: 'stateNode', position: { x: 160, y: 120 }, data: { name: 'INIT', description: 'SMS request initialized', businessStatus: 'INIT', nodeType: 'init' } },
+  { id: 'sms_submitted', type: 'stateNode', position: { x: 560, y: 120 }, data: { name: 'SUBMITTED', description: 'Request submitted to channel; waiting for final result', businessStatus: 'PENDING' } },
+  { id: 'sms_failed', type: 'stateNode', position: { x: 160, y: 360 }, data: { name: 'FAILED', description: 'SMS failed, rejected, expired, or invalid', businessStatus: 'FAIL' } },
+  { id: 'sms_delivered', type: 'stateNode', position: { x: 560, y: 360 }, data: { name: 'DELIVERED', description: 'SMS delivered successfully', businessStatus: 'SUCCESS' } },
+];
+
+const smsSingleMessageEdges: AnyEdge[] = [
+  { id: 'sms_e1', source: 'sms_init', target: 'sms_submitted', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'submitted' } },
+  { id: 'sms_e2', source: 'sms_init', target: 'sms_failed', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'submit_failed' } },
+  { id: 'sms_e3', source: 'sms_submitted', target: 'sms_delivered', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'delivered' } },
+  { id: 'sms_e4', source: 'sms_submitted', target: 'sms_failed', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'failed' } },
+];
+
+function getInitialGraph(sm: string): { nodes: AnyNode[]; edges: AnyEdge[] } {
+  if (sm === 'SMS_Single_Message_StateMachine') {
+    return { nodes: smsSingleMessageNodes, edges: smsSingleMessageEdges };
+  }
+  return { nodes: initialNodes, edges: initialEdges };
+}
+
 // Helper: is edge dashed?
 function isEdgeDashed(edge: Edge): boolean {
   const style = edge.style as { strokeDasharray?: string };
@@ -210,8 +231,9 @@ function validateStateMachine(nodes: AnyNode[], edges: AnyEdge[]): ValidationErr
 // ─────────────────────────────────────────────────
 function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string; sm: string; mode: string }) {
   const navigate = useNavigate();
-  const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<AnyEdge>(initialEdges);
+  const initialGraph = useMemo(() => getInitialGraph(sm), [sm]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(initialGraph.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<AnyEdge>(initialGraph.edges);
   const [selectedNode, setSelectedNode] = useState<AnyNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<AnyEdge | null>(null);
   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
@@ -281,9 +303,6 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
         return;
       }
 
-      // Auto-detect line type: dashed only for State → State
-      const isDashed = fromNode.type === 'stateNode' && toNode.type === 'stateNode';
-
       const newEdge: AnyEdge = {
         id: `e-${connection.source}-${connection.target}-${Date.now()}`,
         source: connection.source!,
@@ -293,7 +312,6 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
         style: {
           stroke: '#333',
           strokeWidth: 2,
-          strokeDasharray: isDashed ? '6 3' : '',
         },
         data: { label: '' },
       };
@@ -541,6 +559,18 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
   // ─────────────────────────────────────────────────
   const stateCount = nodes.filter(n => n.type === 'stateNode').length;
   const canSave = stateCount >= 1;
+  const renderedNodes = useMemo(
+    () => mode === 'view'
+      ? nodes.map(node => ({
+          ...node,
+          data: {
+            ...node.data,
+            viewMode: 'detail',
+          },
+        }))
+      : nodes,
+    [mode, nodes],
+  );
 
   // ─────────────────────────────────────────────────
   // Save logic
@@ -712,7 +742,7 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
           tabIndex={0}
         >
           <ReactFlow
-            nodes={nodes}
+            nodes={renderedNodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}

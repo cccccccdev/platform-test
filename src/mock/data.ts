@@ -3,6 +3,7 @@
 
 // 渠道列表
 export const mockChannels = [
+  { code: 'EVEXIN', country: ['NG'], party: ['FLEXI'], status: 'Active', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
   { code: 'GTB_NG', country: ['Nigeria'], party: ['PalmPay NG'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 10:00:00' },
   { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: ['PalmPay NG'], status: 'Inactive', operator: 'admin', operationTime: '2026-05-20 11:00:00' },
   { code: 'PAYSTACK_NG', country: ['Nigeria'], party: ['PalmPay GH'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 12:00:00' },
@@ -10,6 +11,12 @@ export const mockChannels = [
 
 // Credential 列表（按 channelCode 索引）
 export const mockCredentials: Record<string, Array<{ id: string; key: string; description?: string }>> = {
+  EVEXIN: [
+    { id: 'evexin_app_key', key: 'appKey', description: 'EVEXIN credential key' },
+    { id: 'evexin_app_secret', key: 'appSecret', description: 'EVEXIN credential secret' },
+    { id: 'evexin_sender_code', key: 'senderCode', description: 'FLEXIOTP sender account key' },
+    { id: 'evexin_short_link_replace', key: 'shortLinkReplaceFlag', description: 'Short-link replacement flag' },
+  ],
   GTB_NG: [
     { id: 'cred_1', key: 'API_KEY', description: 'Main API key' },
     { id: 'cred_2', key: 'SECRET_KEY', description: 'Secret key for signing' },
@@ -25,6 +32,9 @@ export const mockCredentials: Record<string, Array<{ id: string; key: string; de
 
 // Business Type 列表（按 channelCode 索引）
 export const mockBusinessTypes: Record<string, Array<{ bt: string; mode: 'Config Integration' | 'Code Integration' }>> = {
+  EVEXIN: [
+    { bt: 'SMS', mode: 'Config Integration' },
+  ],
   GTB_NG: [
     { bt: 'COLLECTION', mode: 'Config Integration' },
     { bt: 'DISBURSEMENT', mode: 'Code Integration' },
@@ -84,6 +94,34 @@ export const mockEndpointFields: Record<string, string[]> = {
 // Route Matching 的内置样例数据。
 // 运行期新增和修改只保存在内存中；刷新页面或重启项目后会恢复为这里的样例。
 export const mockInboundEndpointsByChannel = {
+  EVEXIN: [
+    {
+      id: 'evexin_sms_status_callback',
+      name: 'EVEXIN SMS Status Callback',
+      url: '/callback/evexin/sms/status',
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'EVEXIN SMS callback route matching by msgId',
+      fields: ['body.msgId'],
+      matchType: 'order_no' as const,
+      matchFieldSource: 'body' as const,
+      singleNoField: 'body.msgId',
+      referenceField: 'responseReference' as const,
+      matchFields: [],
+      rules: [
+        { id: 'evexin_sms_single_message', fieldValues: {}, bt: 'SMS', ability: 'SINGLE_MESSAGE', action: 'TRANSACTION' },
+        { id: 'evexin_sms_bulk_message', fieldValues: {}, bt: 'SMS', ability: 'BULK_MESSAGE', action: 'TRANSACTION' },
+      ],
+      fallbackBehavior: 'reject' as const,
+      decryptEnabled: false,
+      version: '20260703095237',
+      configStatus: 'DAILY' as const,
+      badges: [{ cloud: 'ALIYUN', env: 'DAILY' }],
+      referenceCount: 1,
+      updatedTime: '2026-07-03 09:52:37',
+      operator: 'Bailly',
+    },
+  ],
   MTN_UG: [
     {
       id: 'mtn_ug_payment_callback',
@@ -381,7 +419,7 @@ export const abilityOptions: Record<string, string[]> = {
   TRANSFER: ['WALLET_TRF'],
   BANK_CARD_DEBIT: ['INFO_PAYMENT'],
   WALLET_DEBIT: ['TRANSFER'],
-  SMS: ['BULK_MESSAGE'],
+  SMS: ['SINGLE_MESSAGE', 'BULK_MESSAGE'],
   KYC: ['FINGERPRINT_VERIFY'],
   FUND_NOTIFICATION: ['CUSTOMER_VALIDATION'],
 }
@@ -390,7 +428,7 @@ export const abilityOptions: Record<string, string[]> = {
 export const countryOptions = ['Nigeria', 'Ghana', 'Kenya', 'Tanzania', 'Uganda', "Côte d'Ivoire"]
 
 // Party 枚举
-export const partyOptions = ['PalmPay NG', 'PalmPay GH', 'PalmPay KE']
+export const partyOptions = ['FLEXI', 'PalmPay NG', 'PalmPay GH', 'PalmPay KE']
 
 // Business Type 枚举
 export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRANSFER', 'BANK_CARD_DEBIT', 'WALLET_DEBIT', 'SMS', 'KYC', 'FUND_NOTIFICATION']
@@ -408,6 +446,7 @@ export const capabilityActionOptions: Record<string, string[]> = {
   'TRANSFER:WALLET_TRF': ['TRANSACTION', 'QUERY', 'REVERSAL'],
   'BANK_CARD_DEBIT:INFO_PAYMENT': ['TRANSACTION', 'VERIFY'],
   'WALLET_DEBIT:TRANSFER': ['TRANSACTION', 'VERIFY'],
+  'SMS:SINGLE_MESSAGE': ['TRANSACTION'],
   'SMS:BULK_MESSAGE': ['TRANSACTION'],
   'KYC:FINGERPRINT_VERIFY': ['QUERY'],
   'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['INBOUND_QUERY'],

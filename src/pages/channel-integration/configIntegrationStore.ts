@@ -65,6 +65,94 @@ const callbackCanvasEdges = [
   { id: 'in_e3', source: 'in_3', target: 'in_4' },
 ];
 
+const evexinSendHttpCallConfig = {
+  method: 'POST',
+  protocol: 'HTTP',
+  path: '/api/msg/v2/sendMsg',
+  requestMappingMode: 'configuration',
+  responseMappingMode: 'configuration',
+  requestFormat: 'JSON',
+  responseFormat: 'JSON',
+  bodyFieldMode: 'all',
+  responseFallback: 'PENDING',
+  responseCodeMode: 'default',
+  responseCodeAssembly: ['httpStatus', 'responseBody.code', 'responseBody.data.status'],
+  responseMessageField: 'msg',
+  timeout: 5000,
+  requestHeaders: [
+    { id: 'evexin_header_app_key', sourceValue: ['Credentials', 'credential.appKey'], name: 'appKey', type: 'String', required: true, description: '' },
+    { id: 'evexin_header_app_secret', sourceValue: ['Credentials', 'credential.appSecret'], name: 'appSecret', type: 'String', required: true, description: '' },
+  ],
+  requestBody: [
+    { id: 'evexin_body_content', name: 'content', type: 'String', required: true, sourceId: ['SPI Request', 'spi.request.content'], description: 'SMS content' },
+    { id: 'evexin_body_to', name: 'to', type: 'String', required: true, sourceId: ['SPI Request', 'spi.request.mobileNumber'], operation: ['phone-number', 'remove-front-zero'], description: 'Recipient mobile number' },
+    { id: 'evexin_body_sender_code', name: 'senderCode', type: 'String', required: true, sourceId: ['Credentials', 'credential.senderCode'], description: 'Sender code' },
+    { id: 'evexin_body_short_link', name: 'shortLinkReplaceFlag', type: 'String', required: true, sourceId: ['Credentials', 'credential.shortLinkReplaceFlag'], description: 'Short-link replacement flag' },
+  ],
+  responseBody: [
+    { id: 'evexin_res_code', name: 'code', type: 'String', required: true, targetValue: 'spi.response.channelResponseCode', description: 'Channel response code' },
+    { id: 'evexin_res_msg', name: 'msg', type: 'String', required: true, targetValue: 'spi.response.responseMessage', description: 'Channel response message' },
+    {
+      id: 'evexin_res_data',
+      name: 'data',
+      type: 'Object',
+      required: true,
+      children: [
+        { id: 'evexin_res_data_msg_id', name: 'msgId', type: 'String', required: true, targetValue: 'spi.response.responseReference', description: 'Message id for callback matching' },
+        { id: 'evexin_res_data_to', name: 'to', type: 'String', required: true, description: 'Recipient mobile number' },
+        { id: 'evexin_res_data_status', name: 'status', type: 'String', required: true, description: 'PENDING or FAILED' },
+      ],
+    },
+  ],
+};
+
+const evexinSendCanvasNodes = [
+  { id: 'evexin_out_1', componentCode: 'initOutboundOrder', x: 320, y: 40, status: 'complete' as const },
+  { id: 'evexin_out_2', componentCode: 'generateRequestReference', x: 320, y: 150, status: 'complete' as const },
+  { id: 'evexin_out_3', componentCode: 'httpCall', x: 320, y: 260, status: 'complete' as const, config: evexinSendHttpCallConfig },
+  { id: 'evexin_out_4', componentCode: 'updateOutboundOrder', x: 320, y: 370, status: 'complete' as const, config: { targetSubState: 'SUBMITTED', failureSubState: 'FAILED' } },
+  { id: 'evexin_out_5', componentCode: 'sendCompleteMQ', x: 320, y: 480, status: 'complete' as const },
+];
+
+const evexinSendCanvasEdges = [
+  { id: 'evexin_out_e1', source: 'evexin_out_1', target: 'evexin_out_2' },
+  { id: 'evexin_out_e2', source: 'evexin_out_2', target: 'evexin_out_3' },
+  { id: 'evexin_out_e3', source: 'evexin_out_3', target: 'evexin_out_4' },
+  { id: 'evexin_out_e4', source: 'evexin_out_4', target: 'evexin_out_5' },
+];
+
+const evexinCallbackCanvasNodes = [
+  {
+    id: 'evexin_in_1',
+    componentCode: 'inboundRequest',
+    x: 320,
+    y: 80,
+    status: 'complete' as const,
+    config: {
+      requestMappingMode: 'configuration',
+      codeMappingEnabled: true,
+      componentInstance: 'PENDING',
+      codeMappingMode: 'default',
+      responseCodeAssembly: ['Request Body'],
+      responseMessageField: '',
+      requestBody: [
+        { id: 'evexin_cb_msg_id', name: 'msgId', type: 'String', required: true, targetValue: 'spi.request.responseReference', description: 'Callback message id' },
+        { id: 'evexin_cb_status', name: 'status', type: 'String', required: true, description: 'Callback delivery status' },
+        { id: 'evexin_cb_to', name: 'to', type: 'String', required: true, description: 'Recipient mobile number' },
+      ],
+    },
+  },
+  { id: 'evexin_in_2', componentCode: 'updateOutboundOrder', x: 320, y: 200, status: 'complete' as const, config: { targetSubStates: ['SUBMITTED', 'DELIVERED', 'FAILED'] } },
+  { id: 'evexin_in_3', componentCode: 'sendCompleteMQ', x: 320, y: 320, status: 'complete' as const },
+  { id: 'evexin_in_4', componentCode: 'inboundResponse', x: 320, y: 440, status: 'complete' as const, config: { responseMappingMode: 'configuration', responseFormat: 'JSON', responseHeaders: [], responseBody: [] } },
+];
+
+const evexinCallbackCanvasEdges = [
+  { id: 'evexin_in_e1', source: 'evexin_in_1', target: 'evexin_in_2' },
+  { id: 'evexin_in_e2', source: 'evexin_in_2', target: 'evexin_in_3' },
+  { id: 'evexin_in_e3', source: 'evexin_in_3', target: 'evexin_in_4' },
+];
+
 const seedDeployRecords: DeployRecord[] = [
   { cloud: 'BD', app: 'omnicore', env: 'DAILY', version: '20260601103000', operator: 'Amina Yusuf', operationTime: '2026-06-01 11:00:00' },
   { cloud: 'BD', app: 'omnicore', env: 'PRE', version: '20260601103000', operator: 'Daniel Chen', operationTime: '2026-06-02 09:00:00' },
@@ -75,6 +163,106 @@ const seedDeployRecords: DeployRecord[] = [
 ];
 
 const seedAbilities: Record<string, ConfigAbility[]> = {
+  EVEXIN: [
+    {
+      bt: 'SMS',
+      ability: 'SINGLE_MESSAGE',
+      actions: ['TRANSACTION'],
+      stateMachine: 'SMS_Single_Message_StateMachine',
+      versions: [
+        {
+          id: 'evexin_sms_single_message_daily',
+          groupId: 526,
+          version: '20260629115053',
+          status: 'DAILY',
+          badges: [{ cloud: 'ALIYUN', env: 'DAILY' }],
+          remark: 'EVEXIN single SMS daily configuration',
+          operator: 'Bailly',
+          operationTime: '2026-06-29 11:50:53',
+          deployRecords: [
+            { cloud: 'ALIYUN', app: 'omnicore', env: 'DAILY', version: '20260629115053', operator: 'Bailly', operationTime: '2026-06-29 12:00:00' },
+          ],
+          flows: [
+            {
+              id: '25',
+              name: 'SMS_SINGLE_MESSAGE_TRANSACTION',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'wait_external',
+              triggerType: 'UPSTREAM_TRIGGERED',
+              template: 'TRANSACTION',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: [],
+              isConfigured: true,
+              status: 'SUBMITTED',
+              canvasNodes: evexinSendCanvasNodes,
+              canvasEdges: evexinSendCanvasEdges,
+            },
+            {
+              id: '26',
+              name: 'SMS_SINGLE_MESSAGE_CALLBACK',
+              executionType: 'single',
+              flowType: 'inbound',
+              endType: 'wait_external',
+              triggerType: 'CALLBACK_TRIGGERED',
+              template: 'CALLBACK',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: ['TRANSACTION'],
+              inboundUriId: 'evexin_sms_status_callback',
+              isConfigured: true,
+              status: 'SUBMITTED',
+              canvasNodes: evexinCallbackCanvasNodes,
+              canvasEdges: evexinCallbackCanvasEdges,
+            },
+          ],
+        },
+        {
+          id: 'evexin_sms_single_message_undeployed',
+          groupId: 527,
+          version: '20260703095237',
+          status: 'UNDEPLOYED',
+          badges: [],
+          remark: 'EVEXIN single SMS callback configuration draft',
+          operator: 'Bailly',
+          operationTime: '2026-07-03 09:52:37',
+          deployRecords: [],
+          flows: [
+            {
+              id: '25',
+              name: 'SMS_SINGLE_MESSAGE_TRANSACTION_DRAFT',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'wait_external',
+              triggerType: 'UPSTREAM_TRIGGERED',
+              template: 'TRANSACTION',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: [],
+              isConfigured: true,
+              status: 'SUBMITTED',
+              canvasNodes: evexinSendCanvasNodes,
+              canvasEdges: evexinSendCanvasEdges,
+            },
+            {
+              id: '26',
+              name: 'SMS_SINGLE_MESSAGE_CALLBACK_DRAFT',
+              executionType: 'single',
+              flowType: 'inbound',
+              endType: 'wait_external',
+              triggerType: 'CALLBACK_TRIGGERED',
+              template: 'CALLBACK',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: ['TRANSACTION'],
+              inboundUriId: 'evexin_sms_status_callback',
+              isConfigured: true,
+              status: 'SUBMITTED',
+              canvasNodes: evexinCallbackCanvasNodes,
+              canvasEdges: evexinCallbackCanvasEdges,
+            },
+          ],
+        },
+      ],
+    },
+  ],
   MTN_UG: [
     {
       bt: 'WALLET_DEBIT',
