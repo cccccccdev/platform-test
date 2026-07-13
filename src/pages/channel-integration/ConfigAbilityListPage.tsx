@@ -3,6 +3,7 @@ import {
   Button,
   Breadcrumb,
   Form,
+  Input,
   message,
   Modal,
   Pagination,
@@ -186,10 +187,62 @@ function ConfigCapabilitiesModal({
   );
 }
 
-function RemarkCell({ remark }: { remark?: string }) {
-  if (!remark) return <span style={{ color: '#999' }}>-</span>;
-  if (remark.length <= 50) return <span>{remark}</span>;
-  return <Tooltip title={remark}><span>{remark.slice(0, 50)}...</span></Tooltip>;
+function DescriptionCell({ description }: { description?: string }) {
+  if (!description) return <span style={{ color: '#999' }}>-</span>;
+  if (description.length <= 50) return <span>{description}</span>;
+  return <Tooltip title={description}><span>{description.slice(0, 50)}...</span></Tooltip>;
+}
+
+function GroupDescriptionModal({
+  open,
+  title,
+  okText,
+  initialDescription,
+  context,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  title: string;
+  okText: string;
+  initialDescription?: string;
+  context?: React.ReactNode;
+  onCancel: () => void;
+  onConfirm: (description: string) => void;
+}) {
+  const [form] = Form.useForm();
+
+  return (
+    <Modal
+      title={title}
+      open={open}
+      okText={okText}
+      onCancel={() => {
+        form.resetFields();
+        onCancel();
+      }}
+      onOk={() => {
+        void form.validateFields().then((values) => {
+          onConfirm(values.description.trim());
+          form.resetFields();
+        });
+      }}
+    >
+      {context && <div style={{ marginBottom: 16 }}>{context}</div>}
+      <Form form={form} layout="vertical" initialValues={{ description: initialDescription }}>
+        <Form.Item
+          name="description"
+          label="Description"
+          rules={[
+            { required: true, whitespace: true, message: 'Description is required' },
+            { max: 200, message: 'Description cannot exceed 200 characters' },
+          ]}
+        >
+          <Input.TextArea rows={4} placeholder="Enter Flow Group description" showCount maxLength={200} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
 }
 
 const statusColors: Record<string, string> = {
@@ -221,6 +274,8 @@ export default function ConfigAbilityListPage() {
   const [previewStateMachine, setPreviewStateMachine] = useState<string | null>(null);
   const [deployStatusGroup, setDeployStatusGroup] = useState<{ ability: ConfigAbility; group: FlowGroupVersion } | null>(null);
   const [deployStatusVersion, setDeployStatusVersion] = useState<string | null>(null);
+  const [createGroupAbility, setCreateGroupAbility] = useState<ConfigAbility | null>(null);
+  const [cloneGroupTarget, setCloneGroupTarget] = useState<{ ability: ConfigAbility; group: FlowGroupVersion } | null>(null);
   const [deployTarget, setDeployTarget] = useState<{
     ability: ConfigAbility;
     group: FlowGroupVersion;
@@ -258,22 +313,24 @@ export default function ConfigAbilityListPage() {
   const groupConfigPath = (ability: ConfigAbility, group: FlowGroupVersion) =>
     `/channel-integration/${channelCode}/integration/config/flow-groups/${ability.bt}/${ability.ability}/versions/${group.id}`;
 
-  const handleCreateFlowGroup = (ability: ConfigAbility) => {
-    const group = createFlowGroup(channelCode, ability.bt, ability.ability);
+  const handleCreateFlowGroup = (ability: ConfigAbility, description: string) => {
+    const group = createFlowGroup(channelCode, ability.bt, ability.ability, description);
     if (!group) {
       message.warning('A non-PROD Flow Group already exists. Resolve or delete it before creating another.');
       return;
     }
+    setCreateGroupAbility(null);
     message.success('Flow Group created');
     navigate(groupConfigPath(ability, group));
   };
 
-  const handleClone = (ability: ConfigAbility, group: FlowGroupVersion) => {
-    const clone = cloneGroup(channelCode, ability.bt, ability.ability, group.groupId);
+  const handleClone = (ability: ConfigAbility, group: FlowGroupVersion, description: string) => {
+    const clone = cloneGroup(channelCode, ability.bt, ability.ability, group.groupId, description);
     if (!clone) {
       message.warning('Only PROD Groups can be cloned, and no non-PROD Group can exist under the same Ability.');
       return;
     }
+    setCloneGroupTarget(null);
     message.success(`Group cloned from ${group.groupId}, Version ${group.version}`);
     navigate(groupConfigPath(ability, clone));
   };
@@ -331,7 +388,7 @@ export default function ConfigAbilityListPage() {
   const confirmDeleteGroup = (ability: ConfigAbility, group: FlowGroupVersion) => {
     Modal.confirm({
       title: 'Confirm Delete',
-      content: `Delete Flow Group ${group.groupId} (current Version ${group.version})? This removes the Group ID from Flow Configuration. This cannot be undone.`,
+      content: `Delete Flow Group ${group.groupId}? This only removes the Group record from Flow Groups. Published deployments are not affected and remain available in the environments where this Group was deployed. This action cannot be undone.`,
       okButtonProps: { danger: true },
       onOk: () => {
         deleteGroup(channelCode, ability.bt, ability.ability, group.groupId);
@@ -357,7 +414,7 @@ export default function ConfigAbilityListPage() {
     }
     if (group.status === 'PROD') {
       items.push(
-        <Button key="clone" type="link" onClick={() => handleClone(ability, group)}>
+        <Button key="clone" type="link" onClick={() => setCloneGroupTarget({ ability, group })}>
           Clone
         </Button>
       );
@@ -413,7 +470,7 @@ export default function ConfigAbilityListPage() {
           ),
         },
         { title: 'Status', width: 120, render: (_value, group) => renderStatus(group) },
-        { title: 'Remark', render: (_value, group) => <RemarkCell remark={group.remark} /> },
+        { title: 'Description', render: (_value, group) => <DescriptionCell description={group.remark} /> },
         { title: 'Operator', dataIndex: 'operator', width: 110 },
         { title: 'Operation Time', dataIndex: 'operationTime', width: 180 },
         { title: 'Operation', width: 430, render: (_value, group) => renderGroupOperations(ability, group) },
@@ -480,7 +537,7 @@ export default function ConfigAbilityListPage() {
           <Button size="small" onClick={() => setConfigAbility(ability)}>
             Config
           </Button>
-          <Button type="primary" size="small" onClick={() => handleCreateFlowGroup(ability)}>
+          <Button type="primary" size="small" onClick={() => setCreateGroupAbility(ability)}>
             Create Flow Group
           </Button>
         </Space>
@@ -584,6 +641,40 @@ export default function ConfigAbilityListPage() {
           }}
         />
       )}
+
+      <GroupDescriptionModal
+        open={Boolean(createGroupAbility)}
+        title="Create Flow Group"
+        okText="Create"
+        context={createGroupAbility && (
+          <Space size={24} wrap>
+            <span><strong>Business Type:</strong> {createGroupAbility.bt}</span>
+            <span><strong>Ability:</strong> {createGroupAbility.ability}</span>
+          </Space>
+        )}
+        onCancel={() => setCreateGroupAbility(null)}
+        onConfirm={(description) => {
+          if (createGroupAbility) handleCreateFlowGroup(createGroupAbility, description);
+        }}
+      />
+
+      <GroupDescriptionModal
+        open={Boolean(cloneGroupTarget)}
+        title="Clone Flow Group"
+        okText="Clone"
+        context={cloneGroupTarget && (
+          <Space size={24} wrap>
+            <span><strong>Source Group ID:</strong> {cloneGroupTarget.group.groupId}</span>
+            <span><strong>Source Version:</strong> {cloneGroupTarget.group.version}</span>
+            <span><strong>Business Type:</strong> {cloneGroupTarget.ability.bt}</span>
+            <span><strong>Ability:</strong> {cloneGroupTarget.ability.ability}</span>
+          </Space>
+        )}
+        onCancel={() => setCloneGroupTarget(null)}
+        onConfirm={(description) => {
+          if (cloneGroupTarget) handleClone(cloneGroupTarget.ability, cloneGroupTarget.group, description);
+        }}
+      />
 
       <StateMachinePreviewModal
         open={Boolean(previewStateMachine)}

@@ -230,8 +230,8 @@ export default function ConfigEditorPage() {
             <Text>Ability: <Text strong>{abilityCode}</Text></Text>
             <Text>Group ID: <Text strong>{version.groupId}</Text></Text>
             <Text>Version: <Text strong>{version.version}</Text></Text>
+            {version.remark && <Text>Description: <Text strong>{version.remark}</Text></Text>}
             <Tag color={statusColors[version.status] || 'default'}>{version.status}</Tag>
-            {version.remark && <Text type="secondary">({version.remark})</Text>}
           </Space>
         </div>
         <Space>

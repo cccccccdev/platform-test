@@ -758,7 +758,7 @@ function computeGroupStatus(deployRecords: DeployRecord[], currentVersion: strin
 interface ConfigIntegrationStore {
   abilitiesByChannel: Record<string, ConfigAbility[]>;
   addAbility: (channelCode: string, ability: ConfigAbility) => void;
-  createFlowGroup: (channelCode: string, bt: string, ability: string) => FlowGroupVersion | null;
+  createFlowGroup: (channelCode: string, bt: string, ability: string, description: string) => FlowGroupVersion | null;
   updateGroup: (
     channelCode: string,
     bt: string,
@@ -767,7 +767,7 @@ interface ConfigIntegrationStore {
     updates: Partial<FlowGroupVersion>
   ) => void;
   deleteGroup: (channelCode: string, bt: string, ability: string, groupId: number) => void;
-  cloneGroup: (channelCode: string, bt: string, ability: string, groupId: number) => FlowGroupVersion | null;
+  cloneGroup: (channelCode: string, bt: string, ability: string, groupId: number, description: string) => FlowGroupVersion | null;
   getDeployPreview: (
     channelCode: string,
     bt: string,
@@ -842,7 +842,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     },
   })),
 
-  createFlowGroup: (channelCode, bt, abilityCode) => {
+  createFlowGroup: (channelCode, bt, abilityCode, description) => {
     const ability = (get().abilitiesByChannel[channelCode] ?? []).find(
       (item) => item.bt === bt && item.ability === abilityCode
     );
@@ -854,7 +854,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       version: timestampVersion(),
       status: 'UNDEPLOYED',
       badges: [],
-      remark: '',
+      remark: description,
       operator: 'admin',
       operationTime: now(),
       flows: [],
@@ -902,7 +902,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     },
   })),
 
-  cloneGroup: (channelCode, bt, abilityCode, groupId) => {
+  cloneGroup: (channelCode, bt, abilityCode, groupId, description) => {
     const state = get();
     const { ability, group } = findGroup(state.abilitiesByChannel, channelCode, bt, abilityCode, groupId);
     if (!ability || !group || group.status !== 'PROD') return null;
@@ -916,7 +916,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       status: 'UNDEPLOYED',
       badges: [],
       deployRecords: [],
-      remark: `Cloned from Flow Group ${group.groupId}, Version ${group.version}.`,
+      remark: description,
       operator: 'admin',
       operationTime: now(),
     };
