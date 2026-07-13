@@ -181,6 +181,9 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
           operationTime: '2026-06-29 11:50:53',
           deployRecords: [
             { cloud: 'ALIYUN', app: 'omnicore', env: 'DAILY', version: '20260629115053', operator: 'Bailly', operationTime: '2026-06-29 12:00:00' },
+            { cloud: 'ALIYUN', app: 'omnicore', env: 'DAILY', version: '20260620103000', operator: 'Amina Yusuf', operationTime: '2026-06-20 10:45:00' },
+            { cloud: 'ALIYUN', app: 'omnicore', env: 'PRE', version: '20260620103000', operator: 'Daniel Chen', operationTime: '2026-06-21 09:30:00' },
+            { cloud: 'PK', app: 'omnicore', env: 'DAILY', version: '20260620103000', operator: 'Sana Khan', operationTime: '2026-06-20 14:15:00' },
           ],
           flows: [
             {
@@ -735,6 +738,14 @@ function getDeployPreviewForGroup(group: FlowGroupVersion, cloud: CloudType): De
   return { currentStatus, targetEnv: null, isComplete: true };
 }
 
+function nextEditableVersion(group: FlowGroupVersion) {
+  return {
+    version: timestampVersion(),
+    status: 'UNDEPLOYED' as const,
+    badges: group.deployRecords.map((record) => ({ cloud: record.cloud, env: record.env })),
+  };
+}
+
 // Compute group status from deploy records
 function computeGroupStatus(deployRecords: DeployRecord[], currentVersion: string): GroupStatus {
   const currentRecords = deployRecords.filter((record) => record.version === currentVersion);
@@ -836,7 +847,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       (item) => item.bt === bt && item.ability === abilityCode
     );
     if (!ability) return null;
-    if (ability.versions.some((v) => v.status === 'UNDEPLOYED')) return null;
+    if (ability.versions.some((v) => v.status !== 'PROD')) return null;
     const group: FlowGroupVersion = {
       id: `flow_group_${Date.now()}`,
       groupId: nextGroupId(get().abilitiesByChannel),
@@ -885,7 +896,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
       ...state.abilitiesByChannel,
       [channelCode]: (state.abilitiesByChannel[channelCode] ?? []).map((item) =>
         item.bt === bt && item.ability === abilityCode
-          ? { ...item, versions: item.versions.filter((g) => g.groupId !== groupId) }
+          ? { ...item, versions: item.versions.filter((g) => g.groupId !== groupId || g.status === 'PROD') }
           : item
       ),
     },
@@ -895,6 +906,7 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     const state = get();
     const { ability, group } = findGroup(state.abilitiesByChannel, channelCode, bt, abilityCode, groupId);
     if (!ability || !group || group.status !== 'PROD') return null;
+    if (ability.versions.some((v) => v.status !== 'PROD')) return null;
 
     const clone: FlowGroupVersion = {
       ...structuredClone(group),
@@ -1001,8 +1013,9 @@ export const useConfigIntegrationStore = create<ConfigIntegrationStore>((set, ge
     const { ability, group } = findGroup(state.abilitiesByChannel, channelCode, bt, abilityCode, groupId);
     if (!ability || !group) return;
     const target = group.flows.find((flow) => flow.id === flowId);
-    if (!target || target.status !== 'DRAFT') return;
+    if (!target || group.status === 'PROD') return;
     get().updateGroup(channelCode, bt, abilityCode, groupId, {
+      ...nextEditableVersion(group),
       flows: group.flows.filter((flow) => flow.id !== flowId),
     });
   },

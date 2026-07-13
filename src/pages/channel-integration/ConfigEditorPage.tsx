@@ -117,7 +117,7 @@ export default function ConfigEditorPage() {
   const handleDeleteFlow = (flow: FlowConfig) => {
     Modal.confirm({
       title: 'Delete Flow',
-      content: `Delete Flow "${flow.name}"? This action cannot be undone.`,
+      content: `Delete Flow "${flow.name}"? The current Group Version will be updated after deletion. This action cannot be undone.`,
       okText: 'Delete',
       okButtonProps: { danger: true },
       cancelText: 'Cancel',
@@ -254,7 +254,7 @@ export default function ConfigEditorPage() {
         dataSource={flows}
         rowKey="id"
         pagination={false}
-        locale={{ emptyText: 'No flows configured for this Version' }}
+        locale={{ emptyText: 'No flows configured. Click "New Flow" to create your first Flow.' }}
         columns={[
           { title: 'Flow ID', dataIndex: 'id', width: 200 },
           { title: 'Flow Name', dataIndex: 'name' },
@@ -314,7 +314,7 @@ export default function ConfigEditorPage() {
                     Copy
                   </Button>
                 )}
-                {!readOnly && flow.status === 'DRAFT' && (
+                {!readOnly && version.status !== 'PROD' && (
                   <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDeleteFlow(flow)}>
                     Delete
                   </Button>
