@@ -2201,7 +2201,7 @@ export default function FlowEditorPage() {
   const groupId = storedVersion?.groupId;
   const parentPath = `/channel-integration/${params.channelCode}/integration/config/flow-groups/${params.bt}/${params.ability}/versions/${params.versionId}`;
 
-  const handleSave = () => {
+  const saveDraft = (showMessage = true) => {
     if (params.channelCode && params.bt && params.ability && groupId && params.flowId) {
       saveDraftFlow(
         params.channelCode,
@@ -2212,7 +2212,11 @@ export default function FlowEditorPage() {
         { isConfigured: false, canvasNodes: serializeNodes(), canvasEdges: serializeEdges() }
       );
     }
-    message.success('Flow saved as Draft');
+    if (showMessage) message.success('Flow saved as Draft');
+  };
+
+  const handleSave = () => {
+    saveDraft();
     navigate(parentPath);
   };
 
@@ -2245,7 +2249,21 @@ export default function FlowEditorPage() {
   };
 
   const performNavigation = () => {
-    navigate(-1);
+    navigate(parentPath);
+  };
+
+  const closeUnsavedModal = () => {
+    setShowUnsavedModal(false);
+  };
+
+  const handleBack = () => {
+    saveDraft(false);
+    setShowUnsavedModal(true);
+  };
+
+  const confirmLeave = () => {
+    setShowUnsavedModal(false);
+    performNavigation();
   };
 
   return (
@@ -2263,7 +2281,7 @@ export default function FlowEditorPage() {
         <Button
           type="text"
           icon={<ArrowLeftOutlined />}
-          onClick={() => readOnly ? performNavigation() : setShowUnsavedModal(true)}
+          onClick={() => readOnly ? performNavigation() : handleBack()}
         >
           Back
         </Button>
@@ -2549,22 +2567,19 @@ export default function FlowEditorPage() {
 
       {/* Unsaved Changes Warning Modal */}
       <Modal
-        title="Unsaved Changes"
+        title="Draft Saved"
         open={showUnsavedModal}
-        onCancel={() => setShowUnsavedModal(false)}
+        onCancel={closeUnsavedModal}
         footer={[
-          <Button key="cancel" onClick={() => performNavigation()}>
+          <Button key="cancelExit" onClick={closeUnsavedModal}>
             Cancel
           </Button>,
-          <Button key="saveDraft" onClick={handleSave}>
-            Save as draft
-          </Button>,
-          <Button key="submit" type="primary" onClick={handleSubmit}>
-            Submit
+          <Button key="confirmExit" type="primary" onClick={confirmLeave}>
+            Leave
           </Button>,
         ]}
       >
-        <p>You have unsaved changes. Please save, submit, or discard your changes before leaving.</p>
+        <p>Your changes have been saved as a draft. Leave this page?</p>
       </Modal>
     </div>
   );
