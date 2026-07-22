@@ -10,6 +10,10 @@ interface NewInboundEndpointForm {
   method: InboundEndpoint['method'];
 }
 
+interface NewMatchingForm {
+  description: string;
+}
+
 const statusMeta: Record<UriConfigStatus, { label: string; color: string }> = {
   UNDEPLOYED: { label: 'UNDEPLOYED', color: 'default' },
   DAILY: { label: 'DAILY', color: 'blue' },
@@ -32,7 +36,11 @@ export default function MatchCapabilityPage() {
   const { channelCode = '' } = useParams<{ channelCode: string }>();
   const navigate = useNavigate();
   const [form] = Form.useForm<NewInboundEndpointForm>();
+  const [matchingForm] = Form.useForm<NewMatchingForm>();
   const [showNewEndpoint, setShowNewEndpoint] = useState(false);
+  const [newMatchingEndpoint, setNewMatchingEndpoint] = useState<InboundEndpoint | null>(null);
+  const [cloneTarget, setCloneTarget] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
+  const [cloneForm] = Form.useForm<NewMatchingForm>();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [inspect, setInspect] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
   const [deploying, setDeploying] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion } | null>(null);
@@ -121,9 +129,14 @@ export default function MatchCapabilityPage() {
     return <Tag color={meta.color}>{meta.label}</Tag>;
   };
 
-  const handleNewMatching = (endpoint: InboundEndpoint) => {
-    const version = createVersion(channelCode, endpoint.id);
+  const handleNewMatching = async () => {
+    if (!newMatchingEndpoint) return;
+    const values = await matchingForm.validateFields();
+    const version = createVersion(channelCode, newMatchingEndpoint.id, values.description);
     if (!version) return void message.warning('An undeployed Route Matching Version already exists.');
+    const endpoint = newMatchingEndpoint;
+    setNewMatchingEndpoint(null);
+    matchingForm.resetFields();
     openEditor(endpoint, version, 'config');
   };
 
@@ -157,6 +170,17 @@ export default function MatchCapabilityPage() {
     });
   };
 
+  const handleClone = async () => {
+    if (!cloneTarget) return;
+    const values = await cloneForm.validateFields();
+    const cloned = cloneVersion(channelCode, cloneTarget.endpoint.id, cloneTarget.version.id, values.description);
+    if (!cloned) return;
+    const endpoint = cloneTarget.endpoint;
+    setCloneTarget(null);
+    cloneForm.resetFields();
+    openEditor(endpoint, cloned, 'config');
+  };
+
   const currentDeployStatus = deployCloud && deploying
     ? environmentOrder.filter((env) => deploying.version.badges?.some((badge) => badge.cloud === deployCloud && badge.env === env)).at(-1) ?? 'UNDEPLOYED'
     : '-';
@@ -169,9 +193,8 @@ export default function MatchCapabilityPage() {
     : [];
 
   const renderOperations = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion) => {
-    const clone = () => { const cloned = cloneVersion(channelCode, endpoint.id, version.id); if (cloned) openEditor(endpoint, cloned, 'config'); };
     return <Space wrap>
-      {version.sourceType === 'v2' && version.configStatus === 'PROD' && <Button type="link" icon={<CopyOutlined />} onClick={clone}>Clone</Button>}
+      {version.sourceType === 'v2' && version.configStatus === 'PROD' && <Button type="link" icon={<CopyOutlined />} onClick={() => setCloneTarget({ endpoint, version })}>Clone</Button>}
       {version.configStatus === 'PROD' && <Button type="link" onClick={() => openEditor(endpoint, version, 'detail')}>Detail</Button>}
       {version.configStatus !== 'PROD' && <Button type="link" onClick={() => openConfig(endpoint, version)}>Config</Button>}
       <Button type="link" onClick={() => openDeploy(endpoint, version)}>Deploy</Button>
@@ -189,7 +212,7 @@ export default function MatchCapabilityPage() {
       columns={[
         { title: 'Matching ID', dataIndex: 'id', width: 190 },
         { title: 'Version', dataIndex: 'version', width: 135 },
-        { title: 'Remark', dataIndex: 'remark', width: 280, render: (remark: string | undefined, version) => <Space>{version.sourceType === 'legacy' && <Tag color="purple">Legacy 1.0</Tag>}<span>{remark || '-'}</span></Space> },
+        { title: 'Description', dataIndex: 'remark', width: 280, render: (remark: string | undefined, version) => <Space>{version.sourceType === 'legacy' && <Tag color="purple">Legacy 1.0</Tag>}<span>{remark || '-'}</span></Space> },
         { title: 'Status', width: 220, render: (_, version) => renderStatus(version) },
         { title: 'Operator', dataIndex: 'operator', width: 110 },
         { title: 'Operation Time', dataIndex: 'updatedTime', width: 190 },
@@ -215,7 +238,7 @@ export default function MatchCapabilityPage() {
           { title: '', width: 50, render: (_, endpoint) => <Button type="text" icon={expandedRows.has(endpoint.id) ? <DownOutlined /> : <RightOutlined />} onClick={() => toggleExpand(endpoint.id)} /> },
           { title: 'URI', dataIndex: 'url', render: (uri) => <strong>{uri.startsWith(pathPrefix) ? uri.slice(pathPrefix.length) : uri}</strong> },
           { title: 'Method', dataIndex: 'method', width: 120, render: (method) => <Tag color="blue">{method}</Tag> },
-          { title: 'Operation', width: 220, render: (_, endpoint) => <Button type="primary" size="small" onClick={() => handleNewMatching(endpoint)}>New Matching</Button> },
+          { title: 'Operation', width: 220, render: (_, endpoint) => <Button type="primary" size="small" onClick={() => setNewMatchingEndpoint(endpoint)}>New Matching</Button> },
         ]}
       />
 
@@ -226,6 +249,53 @@ export default function MatchCapabilityPage() {
           </Form.Item>
           <Form.Item name="method" label="Method" rules={[{ required: true }]}>
             <Select options={['POST', 'GET', 'PUT', 'DELETE'].map((value) => ({ value }))} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="New Matching"
+        open={Boolean(newMatchingEndpoint)}
+        okText="Create and Configure"
+        onOk={() => void handleNewMatching()}
+        onCancel={() => { setNewMatchingEndpoint(null); matchingForm.resetFields(); }}
+      >
+        <Form form={matchingForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="description"
+            label="Description"
+            rules={[
+              { required: true, whitespace: true, message: 'Description is required' },
+              { max: 200, message: 'Description cannot exceed 200 characters' },
+            ]}
+          >
+            <Input.TextArea rows={4} maxLength={200} showCount placeholder="Describe the purpose or configuration of this Matching" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Clone Route Matching"
+        open={Boolean(cloneTarget)}
+        okText="Clone"
+        onOk={() => void handleClone()}
+        onCancel={() => { setCloneTarget(null); cloneForm.resetFields(); }}
+      >
+        {cloneTarget && <Space size={24} wrap style={{ marginBottom: 16 }}>
+          <span><strong>Source Matching ID:</strong> {cloneTarget.version.id}</span>
+          <span><strong>Source Version:</strong> {cloneTarget.version.version}</span>
+          <span><strong>Endpoint:</strong> {cloneTarget.endpoint.method} {cloneTarget.endpoint.url}</span>
+        </Space>}
+        <Form form={cloneForm} layout="vertical">
+          <Form.Item
+            name="description"
+            label="Description"
+            rules={[
+              { required: true, whitespace: true, message: 'Description is required' },
+              { max: 200, message: 'Description cannot exceed 200 characters' },
+            ]}
+          >
+            <Input.TextArea rows={4} maxLength={200} showCount placeholder="Enter a description for the cloned Matching" />
           </Form.Item>
         </Form>
       </Modal>
@@ -261,7 +331,7 @@ export default function MatchCapabilityPage() {
               <Space size={28} wrap style={{ marginBottom: 24 }}>
                 <span><strong>version:</strong><Tag color="green" style={{ marginLeft: 10 }}>{inspect.version.version}</Tag></span>
                 <span><strong>matchingId:</strong><span style={{ marginLeft: 10 }}>{inspect.version.id}</span></span>
-                <span><strong>remark:</strong><span style={{ marginLeft: 10 }}>{inspect.version.remark || '-'}</span></span>
+                <span><strong>description:</strong><span style={{ marginLeft: 10 }}>{inspect.version.remark || '-'}</span></span>
               </Space>
               <Table
                 rowKey="cloud"

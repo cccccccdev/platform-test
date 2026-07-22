@@ -2000,6 +2000,7 @@ export default function FlowEditorPage() {
     ['Channel', params.channelCode],
     ['Business Type', params.bt],
     ['Ability', params.ability],
+    ['Action', actionName],
     ['Trigger Type', storedFlow?.triggerType],
     ...(flowScope === 'inbound' ? [['URI', inboundUri ? `${inboundUri.method} ${inboundUri.url}` : storedFlow?.inboundUriId] as [string, string | undefined]] : []),
     ...(storedFlow?.triggerType === 'REQUERY_TRIGGERED' ? [['Trigger Sub-State', triggerSubState] as [string, string | undefined]] : []),
@@ -2331,7 +2332,7 @@ export default function FlowEditorPage() {
         <CanvasContextPanel
           channelCode={params.channelCode ?? ''}
           mode="flow"
-          actions={actionName === '—' ? [] : [actionName]}
+          action={actionName === '—' ? undefined : actionName}
           readOnly={readOnly}
           isMappingActive={isMappingActive}
           onFieldSelect={handleContextFieldSelect}

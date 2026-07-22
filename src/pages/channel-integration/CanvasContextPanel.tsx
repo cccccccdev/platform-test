@@ -62,7 +62,7 @@ function GlobalVariableRow({
 export default function CanvasContextPanel({
   channelCode,
   mode,
-  actions = [],
+  action,
   readOnly = false,
   isMappingActive = false,
   onFieldSelect,
@@ -70,7 +70,7 @@ export default function CanvasContextPanel({
 }: {
   channelCode: string;
   mode: 'flow' | 'matching';
-  actions?: string[];
+  action?: string;
   readOnly?: boolean;
   isMappingActive?: boolean;
   onFieldSelect?: (fieldPath: string) => void;
@@ -134,23 +134,14 @@ export default function CanvasContextPanel({
     message.success('Order Variable key added; collection version updated');
   };
 
-  const spiItems = [...new Set(actions)].map((action) => ({
-    key: action,
-    label: <strong>{action}</strong>,
-    children: <div style={{ fontSize: 11 }}>
+  const spiFields = action ? <div style={{ fontSize: 11 }}>
       <div style={{ color: '#1677ff', fontWeight: 600, marginBottom: 4 }}>spi.request</div>
       {['amount', 'currency', 'reference'].map((field) => <div key={`request.${field}`} onClick={() => isMappingActive && onFieldSelect?.(`spi.request.${field}`)} style={{ padding: '3px 4px', cursor: isMappingActive ? 'pointer' : 'default' }}>{field} <Tag style={{ fontSize: 9 }}>string</Tag></div>)}
       <div style={{ color: '#722ed1', fontWeight: 600, margin: '8px 0 4px' }}>spi.response</div>
       {['status', 'code', 'message'].map((field) => <div key={`response.${field}`} onClick={() => isMappingActive && onFieldSelect?.(`spi.response.${field}`)} style={{ padding: '3px 4px', cursor: isMappingActive ? 'pointer' : 'default' }}>{field} <Tag style={{ fontSize: 9 }}>string</Tag></div>)}
-    </div>,
-  }));
+    </div> : <EmptyContext>No SPI available.</EmptyContext>;
 
   const channelItems = [
-    ...(mode === 'flow' ? [{
-      key: 'spi',
-      label: <Space><span>🔵</span><span>SPI</span><Tag>Read only</Tag></Space>,
-      children: spiItems.length ? <Collapse ghost items={spiItems} defaultActiveKey={[]} /> : <EmptyContext>No SPI Action available.</EmptyContext>,
-    }] : []),
     {
       key: 'global-variable',
       label: <Space><span>📝</span><span>Global Variable</span><VersionTag version={globalVariables.length ? globalVariableVersion : undefined} /></Space>,
@@ -193,28 +184,13 @@ export default function CanvasContextPanel({
         {!readOnly && <EnterHint />}
       </div>,
     },
-    {
-      key: 'authentication',
-      label: <Space><span>🛡️</span><span>Authentication</span></Space>,
-      children: <div>
-        {authentications.length ? authentications.map((item) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, gap: 6 }}>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 600, color: '#262626', fontSize: 11 }}>{item.name}</span>
-              <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>{authTypeLabels[item.type]}</Tag>
-            </div>
-            <div style={{ color: '#8c8c8c', marginTop: 2 }}>v{item.version}</div>
-          </div>
-          <Button type="text" size="small" icon={<EditOutlined />} aria-label={`${readOnly ? 'View' : 'Edit'} ${item.name}`} onClick={() => { setEditingAuthentication(item); setShowAuthenticationDrawer(true); }} />
-        </div>) : <EmptyContext>No Authentication configured.</EmptyContext>}
-        {!readOnly && <div style={{ padding: '8px 4px 0' }}>
-          <Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingAuthentication(null); setShowAuthenticationDrawer(true); }}>Create Scheme</Button>
-        </div>}
-      </div>,
-    },
   ];
 
   const orderItems = mode === 'flow' ? [{
+    key: 'spi',
+    label: <Space><span>🔵</span><span>SPI</span><Tag>Read only</Tag></Space>,
+    children: spiFields,
+  }, {
     key: 'order-variable',
     label: <Space><span>📦</span><span>Order Variable</span><VersionTag version={orderVariables.length ? orderVariableVersion : undefined} /></Space>,
     children: <div>
@@ -234,18 +210,36 @@ export default function CanvasContextPanel({
     </div>,
   }] : [];
 
-  const runtimeItems = channelMerchantInfoAvailable ? [{
-    key: 'channel-merchant-info',
-    label: <Space><span>⚡</span><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
-    children: <div style={{ padding: '4px 0' }}>
-      <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>channelMerchantId</div>
+  const runtimeItems = [{
+    key: 'authentication',
+    label: <Space><span>🛡️</span><span>Authentication</span></Space>,
+    children: <div>
+      {authentications.length ? authentications.map((item) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, gap: 6 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: '#262626', fontSize: 11 }}>{item.name}</span>
+            <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>{authTypeLabels[item.type]}</Tag>
+          </div>
+          <div style={{ color: '#8c8c8c', marginTop: 2 }}>v{item.version}</div>
+        </div>
+        <Button type="text" size="small" icon={<EditOutlined />} aria-label={`${readOnly ? 'View' : 'Edit'} ${item.name}`} onClick={() => { setEditingAuthentication(item); setShowAuthenticationDrawer(true); }} />
+      </div>) : <EmptyContext>No Authentication configured.</EmptyContext>}
+      {!readOnly && <div style={{ padding: '8px 4px 0' }}>
+        <Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingAuthentication(null); setShowAuthenticationDrawer(true); }}>Create Scheme</Button>
+      </div>}
     </div>,
-  }] : [];
+  }, ...(channelMerchantInfoAvailable ? [{
+      key: 'channel-merchant-info',
+      label: <Space><span>⚡</span><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
+      children: <div style={{ padding: '4px 0' }}>
+        <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>channelMerchantId</div>
+      </div>,
+    }] : [])];
 
   const scopeItems = [
     { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
     { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={[]} /> : <EmptyContext>Not available in Route Matching.</EmptyContext> },
-    { key: 'runtime-context', label: <strong>Runtime Context</strong>, children: runtimeItems.length ? <Collapse ghost items={runtimeItems} defaultActiveKey={[]} /> : <EmptyContext>Available after Load Channel Merchant Info is configured.</EmptyContext> },
+    { key: 'runtime-context', label: <strong>Runtime Context</strong>, children: <Collapse ghost items={runtimeItems} defaultActiveKey={[]} /> },
   ];
 
   return <>

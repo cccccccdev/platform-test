@@ -136,8 +136,8 @@ interface MatchCapabilityStore {
   addEndpoint: (channelCode: string, endpoint: InboundEndpoint) => void;
   updateEndpoint: (channelCode: string, endpointId: string, updates: Partial<InboundEndpoint>) => void;
   updateDecisionVersion: (channelCode: string, endpointId: string, versionId: string, updates: Partial<CapabilityDecisionVersion>) => void;
-  createVersion: (channelCode: string, endpointId: string) => CapabilityDecisionVersion | null;
-  cloneVersion: (channelCode: string, endpointId: string, versionId: string) => CapabilityDecisionVersion | null;
+  createVersion: (channelCode: string, endpointId: string, description: string) => CapabilityDecisionVersion | null;
+  cloneVersion: (channelCode: string, endpointId: string, versionId: string, description: string) => CapabilityDecisionVersion | null;
   deployVersion: (channelCode: string, endpointId: string, versionId: string, cloud: string, env: string) => void;
   discardVersionDraft: (channelCode: string, endpointId: string, versionId: string) => void;
   deleteVersion: (channelCode: string, endpointId: string, versionId: string) => void;
@@ -192,7 +192,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
     dirtyByChannel: { ...state.dirtyByChannel, [channelCode]: true },
   })),
 
-  createVersion: (channelCode, endpointId) => {
+  createVersion: (channelCode, endpointId, description) => {
     const endpoint = get().getEndpoints(channelCode).find((item) => item.id === endpointId);
     if (!endpoint) return null;
     const source = endpoint.versions[0];
@@ -201,7 +201,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       id: matchingId,
       version: timestampVersion(),
       name: `Matching ${matchingId}`,
-      remark: '',
+      remark: description.trim(),
       sourceType: 'v2',
       configStatus: 'UNDEPLOYED',
       fields: [],
@@ -223,7 +223,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       id: matchingId,
       version: timestampVersion(),
       name: `Matching ${matchingId}`,
-      remark: '',
+      remark: description.trim(),
       sourceType: 'v2',
       configStatus: 'UNDEPLOYED',
       badges: [],
@@ -242,7 +242,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
     return version;
   },
 
-  cloneVersion: (channelCode, endpointId, versionId) => {
+  cloneVersion: (channelCode, endpointId, versionId, description) => {
     const endpoint = get().getEndpoints(channelCode).find((item) => item.id === endpointId);
     const source = endpoint?.versions.find((version) => version.id === versionId);
     if (!endpoint || !source || source.sourceType === 'legacy') return null;
@@ -251,7 +251,7 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       id: nextMatchingId(get().endpointsByChannel),
       version: timestampVersion(),
       name: `Matching ${nextMatchingId(get().endpointsByChannel)}`,
-      remark: `Cloned from Route Matching ${source.id}, Version ${source.version}.`,
+      remark: description.trim(),
       configStatus: 'UNDEPLOYED',
       badges: [],
       hasUnsubmittedDraft: false,

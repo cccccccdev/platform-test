@@ -247,9 +247,9 @@ export default function MatchCapabilityEditorPage() {
       </div>
 
       <Drawer title="Submit Route Matching" width={520} open={showSubmitRemark} onClose={() => setShowSubmitRemark(false)} extra={<Space><Button onClick={() => setShowSubmitRemark(false)}>Cancel</Button><Button type="primary" onClick={confirmSubmit}>Submit</Button></Space>}>
-        <Alert type="info" showIcon message="Remark is optional and will be shown in the Route Matching list." style={{ marginBottom: 16 }} />
-        <div style={{ color: '#595959', marginBottom: 6 }}>Remark</div>
-        <Input.TextArea value={submitRemark} maxLength={160} showCount rows={5} placeholder="Describe this Matching record or configuration change" onChange={(event) => setSubmitRemark(event.target.value)} />
+        <Alert type="info" showIcon message="Description will be shown in the Route Matching list." style={{ marginBottom: 16 }} />
+        <div style={{ color: '#595959', marginBottom: 6 }}>Description</div>
+        <Input.TextArea value={submitRemark} maxLength={200} showCount rows={5} placeholder="Describe this Matching record or configuration change" onChange={(event) => setSubmitRemark(event.target.value)} />
       </Drawer>
 
       <InboundPreprocessDrawer
@@ -469,7 +469,7 @@ function LegacyInboundFlowEditor({
       <div style={{ padding: '12px 16px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
           {[
-            ['URI', endpoint.url], ['Remark', configuration.remark || '-'], ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus],
+              ['URI', endpoint.url], ['Description', configuration.remark || '-'], ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus],
           ].map(([label, value], index, items) => <div key={label} style={{ padding: '0 14px', borderRight: index === items.length - 1 ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
         </div>
       </div>
@@ -510,9 +510,9 @@ function LegacyInboundFlowEditor({
       </div>
 
       <Drawer title="Submit Route Matching" width={520} open={showSubmitRemark} onClose={() => setShowSubmitRemark(false)} extra={<Space><Button onClick={() => setShowSubmitRemark(false)}>Cancel</Button><Button type="primary" onClick={confirmSubmit}>Submit</Button></Space>}>
-        <Alert type="info" showIcon message="Remark is optional and will be shown in the Route Matching list." style={{ marginBottom: 16 }} />
-        <div style={{ color: '#595959', marginBottom: 6 }}>Remark</div>
-        <Input.TextArea value={submitRemark} maxLength={160} showCount rows={5} placeholder="Describe this Matching record or configuration change" onChange={(event) => setSubmitRemark(event.target.value)} />
+        <Alert type="info" showIcon message="Description will be shown in the Route Matching list." style={{ marginBottom: 16 }} />
+        <div style={{ color: '#595959', marginBottom: 6 }}>Description</div>
+        <Input.TextArea value={submitRemark} maxLength={200} showCount rows={5} placeholder="Describe this Matching record or configuration change" onChange={(event) => setSubmitRemark(event.target.value)} />
       </Drawer>
 
       <Drawer title={selected ? `${selected.code} Configuration` : 'Legacy Component Configuration'} width={560} open={Boolean(selected)} onClose={() => setSelectedId(null)}>

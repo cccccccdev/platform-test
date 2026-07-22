@@ -1287,7 +1287,7 @@ export default function ChannelInfoPage() {
         <CanvasContextPanel
           channelCode={channelCode}
           mode="flow"
-          actions={flow.triggerEvents?.length ? flow.triggerEvents : flow.contextActions ?? []}
+          action={flow.triggerEvents?.[0] ?? flow.contextActions?.[0]}
           readOnly
         />
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
