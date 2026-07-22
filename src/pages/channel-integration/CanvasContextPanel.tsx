@@ -66,6 +66,7 @@ export default function CanvasContextPanel({
   readOnly = false,
   isMappingActive = false,
   onFieldSelect,
+  channelMerchantInfoAvailable = false,
 }: {
   channelCode: string;
   mode: 'flow' | 'matching';
@@ -73,6 +74,7 @@ export default function CanvasContextPanel({
   readOnly?: boolean;
   isMappingActive?: boolean;
   onFieldSelect?: (fieldPath: string) => void;
+  channelMerchantInfoAvailable?: boolean;
 }) {
   const globalVariables = useChannelScopeStore((state) => state.globalVariablesByChannel[channelCode]) ?? EMPTY_VARIABLES;
   const globalVariableVersion = useChannelScopeStore((state) => state.globalVariableVersionByChannel[channelCode]);
@@ -232,9 +234,18 @@ export default function CanvasContextPanel({
     </div>,
   }] : [];
 
+  const runtimeItems = channelMerchantInfoAvailable ? [{
+    key: 'channel-merchant-info',
+    label: <Space><span>⚡</span><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
+    children: <div style={{ padding: '4px 0' }}>
+      <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>channelMerchantId</div>
+    </div>,
+  }] : [];
+
   const scopeItems = [
     { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
     { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={[]} /> : <EmptyContext>Not available in Route Matching.</EmptyContext> },
+    { key: 'runtime-context', label: <strong>Runtime Context</strong>, children: runtimeItems.length ? <Collapse ghost items={runtimeItems} defaultActiveKey={[]} /> : <EmptyContext>Available after Load Channel Merchant Info is configured.</EmptyContext> },
   ];
 
   return <>

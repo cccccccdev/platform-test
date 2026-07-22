@@ -119,11 +119,12 @@ type Props = {
   channelCode: string;
   initialValues?: Record<string, unknown>;
   readOnly?: boolean;
+  channelMerchantInfoAvailable?: boolean;
   onClose: () => void;
   onSave: (config: Record<string, unknown>) => void;
 };
 
-export default function HttpCallDrawer({ open, channelCode, initialValues = {}, readOnly = false, onClose, onSave }: Props) {
+export default function HttpCallDrawer({ open, channelCode, initialValues = {}, readOnly = false, channelMerchantInfoAvailable = false, onClose, onSave }: Props) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('request');
   const [, force] = useState(0);
@@ -145,6 +146,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
     { label: 'Global Variables', options: globals.map(v => ({ label: v.name, value: `global.${v.name}`, type: 'String' })) },
     { label: 'Order Variables', options: orders.map(v => ({ label: v.name, value: `order.${v.name}`, type: 'String' })) },
     { label: 'Credentials', options: credentials.map(v => ({ label: v.key, value: `credential.${v.key}`, type: 'String' })) },
+    ...(channelMerchantInfoAvailable ? [{ label: 'Channel Merchant Info', options: [{ label: 'channelMerchantId', value: 'channelMerchantInfo.channelMerchantId', type: 'String' }] }] : []),
   ];
   const requestValueOptions = [
     ...requestContextOptions,

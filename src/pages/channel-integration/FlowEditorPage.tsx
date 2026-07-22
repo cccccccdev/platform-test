@@ -14,6 +14,7 @@ import CredentialDrawer from './sharedCredentialDrawer';
 import AuthenticationDrawer from './sharedAuthenticationDrawer';
 import CanvasContextPanel from './CanvasContextPanel';
 import HttpCallDrawer from './HttpCallDrawer';
+import LoadChannelMerchantInfoDrawer from './LoadChannelMerchantInfoDrawer';
 import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
 import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
 import StateMachinePreviewModal from './StateMachinePreviewModal';
@@ -48,6 +49,7 @@ const COMPONENT_LIBRARY = [
   { code: 'updateOutboundBatchOrder', name: 'Update Outbound Batch Order', group: 'Inbound', usage: 'multiple', scopes: ['inbound'] },
   { code: 'generateRequestReference', name: 'Generate Request Reference', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
   { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
+  { code: 'loadChannelMerchantInfo', name: 'Load Channel Merchant Info', group: 'Runtime', usage: 'single', scopes: ['outbound', 'inbound'] },
   { code: 'sendCompleteMQ', name: 'Send Complete MQ', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
   { code: 'condition', name: 'Condition Check', group: 'Common', usage: 'multiple', scopes: ['match', 'outbound', 'inbound'] },
   { code: 'asyncTriggerFlow', name: 'Async Trigger Flow', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
@@ -1883,6 +1885,7 @@ export default function FlowEditorPage() {
 
   // Network drawer state
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
+  const [showLoadChannelMerchantInfoDrawer, setShowLoadChannelMerchantInfoDrawer] = useState(false);
   const [showInboundRequestDrawer, setShowInboundRequestDrawer] = useState(false);
   const [showInboundResponseDrawer, setShowInboundResponseDrawer] = useState(false);
   const [showConditionNodeDrawer, setShowConditionNodeDrawer] = useState(false);
@@ -2108,12 +2111,14 @@ export default function FlowEditorPage() {
   const openComponentConfig = useCallback((code: string, nodeId?: string) => {
     setSelectedConfigNodeId(nodeId ?? null);
     if (code === 'httpCall') setShowNetworkDrawer(true);
+    if (code === 'loadChannelMerchantInfo') setShowLoadChannelMerchantInfoDrawer(true);
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
   const selectedConfig = selectedConfigNode?.data.config as Record<string, unknown> | undefined;
+  const channelMerchantInfoAvailable = nodes.some((node) => node.data.code === 'loadChannelMerchantInfo' && node.data.isConfigured);
 
   const toRuntimeNode = useCallback((item: FlowCanvasNode): Node => {
     const info = COMPONENT_LIBRARY.find((component) => component.code === item.componentCode);
@@ -2173,6 +2178,10 @@ export default function FlowEditorPage() {
       status: 'not_started',
     };
     setNodes((current) => [...current, toRuntimeNode(canvasNode)]);
+    if (code === 'loadChannelMerchantInfo') {
+      setSelectedConfigNodeId(id);
+      setShowLoadChannelMerchantInfoDrawer(true);
+    }
   }, [nodes, toRuntimeNode]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -2326,6 +2335,7 @@ export default function FlowEditorPage() {
           readOnly={readOnly}
           isMappingActive={isMappingActive}
           onFieldSelect={handleContextFieldSelect}
+          channelMerchantInfoAvailable={channelMerchantInfoAvailable}
         />
 
         {/* 组件面板 */}
@@ -2393,6 +2403,7 @@ export default function FlowEditorPage() {
         channelCode={params.channelCode ?? ''}
         initialValues={selectedConfig}
         readOnly={readOnly}
+        channelMerchantInfoAvailable={channelMerchantInfoAvailable}
         onClose={() => setShowNetworkDrawer(false)}
         onSave={(config) => {
           console.log('HTTP Call config saved:', config);
@@ -2403,6 +2414,20 @@ export default function FlowEditorPage() {
             return n;
           }));
           setShowNetworkDrawer(false);
+        }}
+      />
+
+      <LoadChannelMerchantInfoDrawer
+        open={showLoadChannelMerchantInfoDrawer}
+        initialValues={selectedConfig}
+        readOnly={readOnly}
+        onClose={() => setShowLoadChannelMerchantInfoDrawer(false)}
+        onSave={(config) => {
+          setNodes((current) => current.map((node) => node.id === selectedConfigNodeId
+            ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config } }
+            : node));
+          setShowLoadChannelMerchantInfoDrawer(false);
+          message.success('Channel Merchant Info configuration saved');
         }}
       />
 
