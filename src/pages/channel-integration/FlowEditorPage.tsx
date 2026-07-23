@@ -49,7 +49,7 @@ const COMPONENT_LIBRARY = [
   { code: 'updateOutboundBatchOrder', name: 'Update Outbound Batch Order', group: 'Inbound', usage: 'multiple', scopes: ['inbound'] },
   { code: 'generateRequestReference', name: 'Generate Request Reference', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
   { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
-  { code: 'loadChannelMerchantInfo', name: 'Load Channel Merchant Info', group: 'Runtime', usage: 'single', scopes: ['outbound', 'inbound'] },
+  { code: 'loadChannelMerchantInfo', name: 'Load Channel Merchant Info', group: 'Runtime', usage: 'single', scopes: ['outbound'] },
   { code: 'sendCompleteMQ', name: 'Send Complete MQ', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
   { code: 'condition', name: 'Condition Check', group: 'Common', usage: 'multiple', scopes: ['match', 'outbound', 'inbound'] },
   { code: 'asyncTriggerFlow', name: 'Async Trigger Flow', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
@@ -2119,7 +2119,7 @@ export default function FlowEditorPage() {
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
   const selectedConfig = selectedConfigNode?.data.config as Record<string, unknown> | undefined;
-  const channelMerchantInfoAvailable = nodes.some((node) => node.data.code === 'loadChannelMerchantInfo' && node.data.isConfigured);
+  const channelMerchantInfoAvailable = nodes.some((node) => node.data.code === 'loadChannelMerchantInfo');
 
   const toRuntimeNode = useCallback((item: FlowCanvasNode): Node => {
     const info = COMPONENT_LIBRARY.find((component) => component.code === item.componentCode);

@@ -249,7 +249,7 @@ export default function CanvasContextPanel({
         <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Context" onClick={() => message.success('Context references are up to date')} />
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 6 }}>
-        <Collapse ghost items={scopeItems} defaultActiveKey={['channel-context', 'order-context']} />
+        <Collapse ghost items={scopeItems} defaultActiveKey={['channel-context', 'order-context', 'runtime-context']} />
       </div>
     </div>
 
