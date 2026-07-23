@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { ArrowRightOutlined, DeleteOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Cascader, Input, Select, Space, Switch, Tag, Tooltip, Typography } from 'antd';
+import TargetMappingList, { createTargetMapping, normalizeTargetMappings, TargetMappingColumnHeaders } from './TargetMappingList';
+import type { TargetMapping } from './TargetMappingList';
 
 const { Text } = Typography;
 
@@ -13,6 +15,7 @@ export interface FlatMappingField {
   required?: boolean;
   description?: string;
   targetValue?: string;
+  targetMappings?: TargetMapping[];
 }
 
 interface ValueOption {
@@ -47,13 +50,14 @@ interface Props {
 }
 
 const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 36px';
-const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 20px 115px 20px minmax(135px, .8fr) 80px 36px';
+const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(140px, .8fr) minmax(460px, 2.2fr)';
 
-const createField = (): FlatMappingField => ({
+const createField = (withTargetMapping = false): FlatMappingField => ({
   id: `mapping_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
   type: 'String',
   required: false,
   description: '',
+  targetMappings: withTargetMapping ? [createTargetMapping()] : undefined,
 });
 
 const optionType = (options: MappingOption[], selected?: string | string[]): string => {
@@ -106,7 +110,7 @@ export default function FlatFieldMappingEditor({
     <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#fafafa', borderBottom: '1px solid #e8e8e8' }}>
         <Space size={8}><Text strong>{title}</Text><Tag style={{ margin: 0 }}>{value.length} fields</Tag></Space>
-        <Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => emit([...value, createField()])}>{addLabel}</Button>
+        <Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => emit([...value, createField(direction === 'response' && !schemaOnly)])}>{addLabel}</Button>
       </div>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: 960 }}>
@@ -116,7 +120,7 @@ export default function FlatFieldMappingEditor({
             </> : direction === 'request' ? <>
               <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
             </> : <>
-              <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span /><span>OPERATION</span><span /><span>TARGET VALUE</span><span>TARGET TYPE</span><span />
+              <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><TargetMappingColumnHeaders />
             </>}
           </div>
           <div style={{ maxHeight: 480, overflowY: 'auto' }}>
@@ -147,16 +151,20 @@ export default function FlatFieldMappingEditor({
                 <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!item.required} onChange={(required) => update(index, { required })} /></div>
                 <Input value={item.description} placeholder="Optional" onChange={(event) => update(index, { description: event.target.value })} />
                 {!schemaOnly && direction === 'response' ? <>
-                  <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                  <Cascader allowClear value={item.operation as string[] | undefined} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(operation) => update(index, { operation: operation as string[] })} />
-                  <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                  <Select value={item.targetValue} placeholder={targetPlaceholder} options={targetOptions} onChange={(targetValue) => update(index, { targetValue })} />
-                  <Text style={{ fontSize: 12 }}>{optionType(targetOptions, item.targetValue)}</Text>
+                  <TargetMappingList
+                    value={normalizeTargetMappings(item)}
+                    targetOptions={targetOptions}
+                    operationOptions={operationOptions}
+                    targetPlaceholder={targetPlaceholder}
+                    reservedTargetValues={value.flatMap((other, otherIndex) => otherIndex === index ? [] : normalizeTargetMappings(other).map((mapping) => mapping.targetValue).filter((target): target is string => Boolean(target)))}
+                    onChange={(targetMappings) => update(index, { targetMappings, operation: undefined, targetValue: undefined })}
+                    onRemoveLast={() => remove(index)}
+                  />
                 </> : null}
-                <Tooltip title="Delete field"><Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => remove(index)} /></Tooltip>
+                {(schemaOnly || direction !== 'response') && <Tooltip title="Delete field"><Button type="text" size="small" danger aria-label={`Delete field ${item.name || index + 1}`} icon={<DeleteOutlined />} onClick={() => remove(index)} /></Tooltip>}
               </div>
             ))}
-            {value.length === 0 && <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>No fields defined. <Button type="link" size="small" onClick={() => emit([createField()])}>{addLabel}</Button></div>}
+            {value.length === 0 && <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>No fields defined. <Button type="link" size="small" onClick={() => emit([createField(direction === 'response' && !schemaOnly)])}>{addLabel}</Button></div>}
           </div>
         </div>
       </div>

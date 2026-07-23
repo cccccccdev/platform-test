@@ -12,6 +12,8 @@ import {
   PlusOutlined,
   PlusSquareOutlined,
 } from '@ant-design/icons';
+import TargetMappingList, { createTargetMapping, normalizeTargetMappings, TargetMappingColumnHeaders } from './TargetMappingList';
+import type { TargetMapping } from './TargetMappingList';
 
 const { Text } = Typography;
 
@@ -24,6 +26,7 @@ export interface BodySchemaNode {
   sourceId?: string | string[];
   operation?: string | string[];
   targetValue?: string;
+  targetMappings?: TargetMapping[];
   children?: BodySchemaNode[];
 }
 
@@ -55,20 +58,21 @@ interface Props {
 
 type DragState = { parentPath: number[]; index: number } | null;
 
-const createNode = (): BodySchemaNode => ({
+const createNode = (withTargetMapping = false): BodySchemaNode => ({
   id: `body_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
   name: '',
   type: 'String',
   required: false,
   description: '',
+  targetMappings: withTargetMapping ? [createTargetMapping()] : undefined,
 });
 
-const createArrayItem = (type = 'String', sample?: unknown): BodySchemaNode => ({
-  ...createNode(),
+const createArrayItem = (type = 'String', sample?: unknown, withTargetMapping = false): BodySchemaNode => ({
+  ...createNode(withTargetMapping && !['Object', 'Array'].includes(type)),
   name: '_items',
   type,
   children: type === 'Object' && sample && typeof sample === 'object' && !Array.isArray(sample)
-    ? jsonObjectToNodes(sample as Record<string, unknown>)
+    ? jsonObjectToNodes(sample as Record<string, unknown>, withTargetMapping)
     : undefined,
 });
 
@@ -83,17 +87,17 @@ const inferJsonType = (value: unknown): string => {
   return 'String';
 };
 
-const jsonObjectToNodes = (record: Record<string, unknown>): BodySchemaNode[] =>
+const jsonObjectToNodes = (record: Record<string, unknown>, withTargetMapping = false): BodySchemaNode[] =>
   Object.entries(record).map(([name, value]) => {
     const type = inferJsonType(value);
     return {
-      ...createNode(),
+      ...createNode(withTargetMapping && !['Object', 'Array'].includes(type)),
       name,
       type,
       children: type === 'Object'
-        ? jsonObjectToNodes(value as Record<string, unknown>)
+        ? jsonObjectToNodes(value as Record<string, unknown>, withTargetMapping)
         : type === 'Array'
-          ? [createArrayItem((value as unknown[]).length ? inferJsonType((value as unknown[])[0]) : 'String', (value as unknown[])[0])]
+          ? [createArrayItem((value as unknown[]).length ? inferJsonType((value as unknown[])[0]) : 'String', (value as unknown[])[0], withTargetMapping)]
           : undefined,
     };
   });
@@ -139,7 +143,12 @@ const replaceSiblings = (nodes: BodySchemaNode[], parentPath: number[], siblings
 };
 
 const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 52px';
-const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 20px 115px 20px minmax(135px, .8fr) 80px 52px';
+const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(140px, .8fr) minmax(460px, 2.2fr)';
+
+const collectTargetValues = (nodes: BodySchemaNode[], excludeId?: string): string[] => nodes.flatMap((node) => [
+  ...(node.id === excludeId ? [] : normalizeTargetMappings(node).map((mapping) => mapping.targetValue).filter((target): target is string => Boolean(target))),
+  ...collectTargetValues(node.children ?? [], excludeId),
+]);
 
 export default function BodySchemaMappingEditor({ value = [], onChange, sourceOptions, dataTypeOptions, operationOptions, direction = 'request', targetOptions = [], sourcePlaceholder = 'Credential or generated data', targetPlaceholder = 'Token or Expiry', schemaOnly = false }: Props) {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
@@ -147,7 +156,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
   const [rootType, setRootType] = useState('Object');
   const [rootSourceId, setRootSourceId] = useState<string[]>([]);
   const [rootOperation, setRootOperation] = useState<string[]>([]);
-  const [rootTargetValue, setRootTargetValue] = useState<string>();
+  const [rootTargetMappings, setRootTargetMappings] = useState<TargetMapping[]>([]);
   const [dragState, setDragState] = useState<DragState>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [jsonDraft, setJsonDraft] = useState('');
@@ -160,10 +169,11 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
     : option);
 
   const emit = (next: BodySchemaNode[]) => onChange?.(next);
+  const withDefaultTargetMapping = direction === 'response' && !schemaOnly;
 
   const addAt = (parentPath: number[]) => {
     const siblings = getSiblings(value, parentPath);
-    emit(replaceSiblings(value, parentPath, [...siblings, createNode()]));
+    emit(replaceSiblings(value, parentPath, [...siblings, createNode(withDefaultTargetMapping)]));
     if (parentPath.length > 0) {
       const parent = getSiblings(value, parentPath.slice(0, -1))[parentPath[parentPath.length - 1]];
       if (parent) setCollapsedIds((current) => {
@@ -192,23 +202,32 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
         content: 'Changing this container to a scalar type will remove all child fields.',
         okText: 'Change Type',
         okButtonProps: { danger: true },
-        onOk: () => updateNode(path, { type: nextType, children: [] }),
+        onOk: () => updateNode(path, {
+          type: nextType,
+          children: [],
+          targetMappings: withDefaultTargetMapping ? [createTargetMapping()] : undefined,
+        }),
       });
       return;
     }
     updateNode(path, {
       type: nextType,
+      targetMappings: ['Object', 'Array'].includes(nextType)
+        ? undefined
+        : normalizeTargetMappings(node ?? {}).length > 0
+          ? normalizeTargetMappings(node ?? {})
+          : withDefaultTargetMapping ? [createTargetMapping()] : undefined,
       children: nextType === 'Object'
         ? (node?.type === 'Object' ? node.children ?? [] : [])
         : nextType === 'Array'
-          ? [createArrayItem()]
+          ? [createArrayItem('String', undefined, withDefaultTargetMapping)]
           : undefined,
     });
   };
 
   const changeRootType = (nextType: string) => {
     setRootType(nextType);
-    if (nextType === 'Array') emit([createArrayItem()]);
+    if (nextType === 'Array') emit([createArrayItem('String', undefined, withDefaultTargetMapping)]);
     else if (nextType !== 'Object') emit([]);
     else if (rootType !== 'Object') emit([]);
     setRootCollapsed(false);
@@ -238,10 +257,10 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
       }
       if (Array.isArray(parsed)) {
         setRootType('Array');
-        emit([createArrayItem(parsed.length ? inferJsonType(parsed[0]) : 'String', parsed[0])]);
+        emit([createArrayItem(parsed.length ? inferJsonType(parsed[0]) : 'String', parsed[0], withDefaultTargetMapping)]);
       } else {
         setRootType('Object');
-        emit(jsonObjectToNodes(parsed as Record<string, unknown>));
+        emit(jsonObjectToNodes(parsed as Record<string, unknown>, withDefaultTargetMapping));
       }
       setCollapsedIds(new Set());
       setRootCollapsed(false);
@@ -305,17 +324,24 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
           <Select value={node.type} options={isArrayItem ? dataTypeOptions.filter(option => option.value !== 'Array') : dataTypeOptions} onChange={(nextType) => changeType(path, nextType)} />
           <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!node.required} onChange={(required) => updateNode(path, { required })} /></div>
           <Input value={node.description} placeholder="Optional" onChange={(event) => updateNode(path, { description: event.target.value })} />
-          {!schemaOnly && direction === 'response' && (isContainer ? <><span /><span /><span /><span /><span /></> : <>
-            <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-            <Cascader allowClear value={node.operation as string[] | undefined} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(operation) => updateNode(path, { operation: operation as string[] })} />
-            <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-            <Select value={node.targetValue} placeholder={targetPlaceholder} options={targetOptions} onChange={(targetValue) => updateNode(path, { targetValue })} />
-            <Text style={{ fontSize: 12 }}>{optionType(targetOptions, node.targetValue)}</Text>
-          </>)}
-          <Space size={0}>
+          {!schemaOnly && direction === 'response' && (isContainer
+            ? <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+              {isObject && <Tooltip title="Add child field"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt(path)} /></Tooltip>}
+              {!isArrayItem && <Tooltip title="Delete field"><Button type="text" size="small" danger aria-label={`Delete field ${node.name || node.id}`} icon={<DeleteOutlined />} onClick={() => removeAt(path)} /></Tooltip>}
+            </div>
+            : <TargetMappingList
+              value={normalizeTargetMappings(node)}
+              targetOptions={targetOptions}
+              operationOptions={operationOptions}
+              targetPlaceholder={targetPlaceholder}
+              reservedTargetValues={collectTargetValues(value, node.id)}
+              onChange={(targetMappings) => updateNode(path, { targetMappings, operation: undefined, targetValue: undefined })}
+              onRemoveLast={() => removeAt(path)}
+            />)}
+          {(schemaOnly || direction !== 'response') && <Space size={0}>
             {isObject && <Tooltip title="Add child field"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt(path)} /></Tooltip>}
-            {!isArrayItem && <Tooltip title="Delete field"><Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => removeAt(path)} /></Tooltip>}
-          </Space>
+            {!isArrayItem && <Tooltip title="Delete field"><Button type="text" size="small" danger aria-label={`Delete field ${node.name || node.id}`} icon={<DeleteOutlined />} onClick={() => removeAt(path)} /></Tooltip>}
+          </Space>}
         </div>
         {isContainer && !collapsed && (node.children ?? []).map((child, index) => renderNode(child, [...path, index], depth + 1, isArray))}
         {isObject && !collapsed && (node.children?.length ?? 0) === 0 && (
@@ -349,7 +375,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             </> : direction === 'request' ? <>
               <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
             </> : <>
-              <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span /><span>OPERATION</span><span /><span>TARGET VALUE</span><span>TARGET TYPE</span><span />
+              <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><TargetMappingColumnHeaders />
             </>}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', minHeight: 44, padding: '5px 8px', background: '#f5f7ff', borderBottom: '1px solid #e8e8e8' }}>
@@ -366,14 +392,19 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             </div>
             <Select value={rootType} options={dataTypeOptions} onChange={changeRootType} />
             <Text type="secondary" style={{ textAlign: 'center' }}>—</Text><Text type="secondary">—</Text>
-            {!schemaOnly && direction === 'response' && (['Object', 'Array'].includes(rootType) ? <><span /><span /><span /><span /><span /></> : <>
-              <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-              <Cascader allowClear value={rootOperation} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(next) => setRootOperation(next as string[])} />
-              <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-              <Select value={rootTargetValue} placeholder={targetPlaceholder} options={targetOptions} onChange={setRootTargetValue} />
-              <Text style={{ fontSize: 12 }}>{optionType(targetOptions, rootTargetValue)}</Text>
-            </>)}
-            {rootType === 'Object' ? <Tooltip title="Add child field under ROOT"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt([])} /></Tooltip> : <span />}
+            {!schemaOnly && direction === 'response' && (['Object', 'Array'].includes(rootType)
+              ? <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                {rootType === 'Object' && <Tooltip title="Add child field under ROOT"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt([])} /></Tooltip>}
+              </div>
+              : <TargetMappingList
+                value={rootTargetMappings}
+                targetOptions={targetOptions}
+                operationOptions={operationOptions}
+                targetPlaceholder={targetPlaceholder}
+                reservedTargetValues={collectTargetValues(value)}
+                onChange={setRootTargetMappings}
+              />)}
+            {(schemaOnly || direction !== 'response') && (rootType === 'Object' ? <Tooltip title="Add child field under ROOT"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt([])} /></Tooltip> : <span />)}
           </div>
           {!rootCollapsed && (
             <div style={{ maxHeight: 480, overflowY: 'auto' }}>

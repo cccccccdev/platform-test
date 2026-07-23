@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { Alert, Button, Card, Cascader, Checkbox, ConfigProvider, Drawer, Form, Input, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
-import { ArrowRightOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
 import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappingEditor';
 import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
 import EndpointPathVariablesReference from './EndpointPathVariablesReference';
+import TargetMappingList, { collectFieldTargetMappings, normalizeTargetMappings, TargetMappingColumnHeaders, validateTargetMappings } from './TargetMappingList';
+import type { TargetMapping } from './TargetMappingList';
 
 const { Text } = Typography;
 const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -30,12 +31,12 @@ const mergeTabStates = (states: TabState[]): TabState => {
 };
 const flatSchemaState = (fields: unknown): TabState => {
   if (!hasRows(fields)) return 'empty';
-  return fields.every((field) => hasValue(field.name) && hasValue(field.type)) ? 'ok' : 'error';
+  return fields.every((field) => hasValue(field.name) && hasValue(field.type) && normalizeTargetMappings(field).every((mapping) => hasValue(mapping.targetValue))) ? 'ok' : 'error';
 };
 const bodySchemaNodeComplete = (node: BodySchemaNode): boolean => {
   if (!hasValue(node.name) || !hasValue(node.type)) return false;
   if (['Object', 'Array'].includes(node.type)) return (node.children ?? []).every(bodySchemaNodeComplete);
-  return true;
+  return normalizeTargetMappings(node).every((mapping) => hasValue(mapping.targetValue));
 };
 const bodySchemaState = (nodes: unknown): TabState => {
   if (!Array.isArray(nodes) || nodes.length === 0) return 'empty';
@@ -65,7 +66,11 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
     if (key === 'format') return 'ok';
     if (key === 'path') {
       if (pathVariables.length === 0) return 'empty';
-      return pathVariables.every((variable) => hasValue(allValues.pathVariableMappings?.[variable]?.target)) ? 'ok' : 'error';
+      return pathVariables.every((variable) => {
+        const mapping = allValues.pathVariableMappings?.[variable] ?? {};
+        const targets = normalizeTargetMappings({ id: variable, targetMappings: mapping.targetMappings, targetValue: mapping.target, operation: mapping.operation });
+        return targets.length > 0 && targets.every((target) => hasValue(target.targetValue));
+      }) ? 'ok' : 'error';
     }
     if (key === 'query') return flatSchemaState(allValues.queryParameters);
     if (key === 'header') return flatSchemaState(allValues.requestHeaders);
@@ -87,7 +92,26 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
     }
     return 'empty';
   };
-  return <Drawer title={<Space><span>Configure Inbound Request</span><Tag color="cyan">inboundRequest</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(onSave)}>Save</Button></Space>}>
+  const handleSave = async () => {
+    const values = await form.validateFields();
+    const pathTargets = pathVariables.flatMap((variable) => {
+      const mapping = values.pathVariableMappings?.[variable] ?? {};
+      return normalizeTargetMappings({ id: variable, targetMappings: mapping.targetMappings, targetValue: mapping.target, operation: mapping.operation });
+    });
+    if (effectiveRequestMappingMode !== 'script' && pathVariables.some((variable) => {
+      const mapping = values.pathVariableMappings?.[variable] ?? {};
+      return normalizeTargetMappings({ id: variable, targetMappings: mapping.targetMappings, targetValue: mapping.target, operation: mapping.operation }).length === 0;
+    })) return void message.error('Add at least one Target Mapping for every Path Variable.');
+    const mappingError = validateTargetMappings([
+      ...pathTargets,
+      ...collectFieldTargetMappings(values.queryParameters),
+      ...collectFieldTargetMappings(values.requestHeaders),
+      ...collectFieldTargetMappings(values.requestBody),
+    ]);
+    if (mappingError) return void message.error(mappingError);
+    onSave(values);
+  };
+  return <Drawer title={<Space><span>Configure Inbound Request</span><Tag color="cyan">inboundRequest</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void handleSave()}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ components: { Form: { itemMarginBottom: 10 } } }}>
       <Form form={form} disabled={readOnly} layout="vertical" initialValues={{ requestMappingMode: 'configuration', codeMappingEnabled: false, codeMappingMode: 'default', ...initialValues }}>
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
@@ -118,24 +142,47 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
 
 function InboundPathVariableMapping({ variables, endpointPath }: { variables: string[]; endpointPath?: string }) {
   if (variables.length === 0) return <EndpointPathVariablesReference variables={variables} endpointPath={endpointPath} />;
-  const columns = 'minmax(180px,1fr) 80px 24px 150px 24px minmax(200px,1fr) 90px';
+  const columns = 'minmax(180px,1fr) 80px minmax(460px,2fr)';
   return <div>
     <EndpointPathVariablesReference variables={variables} endpointPath={endpointPath} />
     <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', marginTop: 10 }}>
       <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '7px 10px', color: '#8c8c8c', fontSize: 11, background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
-        <span>PATH VARIABLE</span><span>TYPE</span><span /><span>OPERATION</span><span /><span>SPI REQUEST FIELD</span><span>TYPE</span>
+        <span>PATH VARIABLE</span><span>TYPE</span><TargetMappingColumnHeaders />
       </div>
       {variables.map((variable) => <div key={variable} style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
         <Input value={`{${variable}}`} disabled />
         <Text>String</Text>
-        <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-        <Form.Item name={['pathVariableMappings', variable, 'operation']} style={{ margin: 0 }}><Cascader allowClear placeholder="Optional" options={mappingOperationOptions} expandTrigger="click" /></Form.Item>
-        <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-        <Form.Item name={['pathVariableMappings', variable, 'target']} rules={[{ required: true, message: 'Select SPI request field' }]} style={{ margin: 0 }}><Select placeholder="Select SPI request field" options={spiRequestOptions} /></Form.Item>
-        <Text>String</Text>
+        <InboundPathVariableTargetMappings variable={variable} variables={variables} />
       </div>)}
     </div>
   </div>;
+}
+
+function InboundPathVariableTargetMappings({ variable, variables }: { variable: string; variables: string[] }) {
+  const form = Form.useFormInstance();
+  const allPathMappings = Form.useWatch('pathVariableMappings', form) ?? {};
+  const current = allPathMappings[variable] ?? {};
+  const mappings = normalizeTargetMappings({ id: variable, targetMappings: current.targetMappings, targetValue: current.target, operation: current.operation });
+  const reservedTargetValues = variables.flatMap((otherVariable) => {
+    if (otherVariable === variable) return [];
+    const other = allPathMappings[otherVariable] ?? {};
+    return normalizeTargetMappings({ id: otherVariable, targetMappings: other.targetMappings, targetValue: other.target, operation: other.operation })
+      .map((mapping) => mapping.targetValue)
+      .filter((target): target is string => Boolean(target));
+  });
+  const update = (targetMappings: TargetMapping[]) => {
+    form.setFieldValue(['pathVariableMappings', variable, 'targetMappings'], targetMappings);
+    form.setFieldValue(['pathVariableMappings', variable, 'target'], undefined);
+    form.setFieldValue(['pathVariableMappings', variable, 'operation'], undefined);
+  };
+  return <TargetMappingList
+    value={mappings}
+    targetOptions={spiRequestOptions}
+    operationOptions={mappingOperationOptions}
+    targetPlaceholder="SPI request field"
+    reservedTargetValues={reservedTargetValues}
+    onChange={update}
+  />;
 }
 
 export function InboundResponseDrawer({ open, initialValues = {}, readOnly = false, onClose, onSave }: Props) {
