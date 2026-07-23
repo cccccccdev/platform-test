@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Cascader, Checkbox, ConfigProvider, Drawer, Form, Input, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
+import { Button, Card, Cascader, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useChannelScopeStore } from './channelScopeStore';
 import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappingEditor';
@@ -7,6 +7,7 @@ import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import PathVariableMappingEditor from './PathVariableMappingEditor';
+import { collectFieldTargetMappings, normalizeTargetMappings, validateTargetMappings } from './TargetMappingList';
 
 const { Text } = Typography;
 const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -72,14 +73,17 @@ const flatFieldState = (fields: unknown, direction: 'request' | 'response' = 're
   if (!hasRows(fields)) return 'empty';
   return fields.every((field) => {
     const hasMapping = direction === 'request' ? hasCascaderValue(field.sourceValue) : true;
-    return hasValue(field.name) && hasValue(field.type) && hasMapping;
+    const targetsComplete = direction === 'response' ? normalizeTargetMappings(field).every((mapping) => hasValue(mapping.targetValue)) : true;
+    return hasValue(field.name) && hasValue(field.type) && hasMapping && targetsComplete;
   }) ? 'ok' : 'error';
 };
 
 const bodyNodeComplete = (node: BodySchemaNode, direction: 'request' | 'response'): boolean => {
   if (!hasValue(node.name) || !hasValue(node.type)) return false;
   if (['Object', 'Array'].includes(node.type)) return (node.children ?? []).every((child) => bodyNodeComplete(child, direction));
-  return direction === 'request' ? hasCascaderValue(node.sourceId) : true;
+  return direction === 'request'
+    ? hasCascaderValue(node.sourceId)
+    : normalizeTargetMappings(node).every((mapping) => hasValue(mapping.targetValue));
 };
 
 const bodySchemaState = (nodes: unknown, direction: 'request' | 'response' = 'request'): TabState => {
@@ -248,7 +252,17 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
     { key: 'decryption', label: <Space><Form.Item name="decryptionEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Decryption</Space>, children: decryptionEnabled ? <><Form.Item name="decryptionAlgorithm" label="Algorithm" rules={[{ required: true }]}><Select options={encryption} /></Form.Item><Form.Item name="encryptedField" label="Response Encrypted Field"><Input placeholder="Response field path" /></Form.Item><Form.Item name="decryptionSources" label="Decryption Source Fields"><Checkbox.Group options={['Response Header', 'Response Body']} /></Form.Item></> : <Text type="secondary">Enable response decryption.</Text> },
   ];
 
-  return <Drawer title={<Space><span>Configure HTTP Call</span><Tag color="blue">httpCall</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(v => onSave({ ...v, protocol: 'HTTP' }))}>Save</Button></Space>}>
+  const handleSave = async () => {
+    const values = await form.validateFields();
+    const mappingError = validateTargetMappings([
+      ...collectFieldTargetMappings(values.responseHeaders),
+      ...collectFieldTargetMappings(values.responseBody),
+    ]);
+    if (mappingError) return void message.error(mappingError);
+    onSave({ ...values, protocol: 'HTTP' });
+  };
+
+  return <Drawer title={<Space><span>Configure HTTP Call</span><Tag color="blue">httpCall</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void handleSave()}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ token: { fontSize: 14, controlHeight: 32, borderRadius: 5, paddingSM: 10, marginSM: 10, marginXS: 6 }, components: { Form: { itemMarginBottom: 10 }, Card: { bodyPadding: 12, headerHeight: 36 }, Tabs: { horizontalMargin: '0 0 10px 0' } } }}>
     <div style={{ fontSize: 14 }}><Form form={form} disabled={readOnly} layout="vertical" initialValues={{ protocol: 'HTTP', requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all', ...initialValues }} onValuesChange={() => force(v => v + 1)}>
       <Card size="small" style={{ marginBottom: 14 }}>

@@ -15,6 +15,8 @@ import AuthenticationDrawer from './sharedAuthenticationDrawer';
 import CanvasContextPanel from './CanvasContextPanel';
 import HttpCallDrawer from './HttpCallDrawer';
 import LoadChannelMerchantInfoDrawer from './LoadChannelMerchantInfoDrawer';
+import ReferenceGenerationDrawer from './ReferenceGenerationDrawer';
+import type { ReferenceConfigTarget } from './ReferenceGenerationDrawer';
 import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
 import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
 import StateMachinePreviewModal from './StateMachinePreviewModal';
@@ -56,6 +58,7 @@ const COMPONENT_LIBRARY = [
   { code: 'inboundRequest', name: 'Inbound Request', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
   { code: 'inboundResponse', name: 'Inbound Response', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
   { code: 'initInboundOrder', name: 'Initialize Inbound Order', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
+  { code: 'generateResponseReference', name: 'Generate Response Reference', group: 'Inbound', usage: 'multiple', scopes: ['inbound'] },
   { code: 'updateInboundOrder', name: 'Update Inbound Order', group: 'Inbound', usage: 'multiple', scopes: ['outbound', 'inbound'] },
   { code: 'queryInboundOrder', name: 'Query Inbound Order', group: 'Query', usage: 'multiple', scopes: ['inbound'] },
   { code: 'queryOutboundOrder', name: 'Query Outbound Order', group: 'Query', usage: 'multiple', scopes: ['outbound', 'inbound'] },
@@ -1886,6 +1889,7 @@ export default function FlowEditorPage() {
   // Network drawer state
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
   const [showLoadChannelMerchantInfoDrawer, setShowLoadChannelMerchantInfoDrawer] = useState(false);
+  const [referenceConfigTarget, setReferenceConfigTarget] = useState<ReferenceConfigTarget | null>(null);
   const [showInboundRequestDrawer, setShowInboundRequestDrawer] = useState(false);
   const [showInboundResponseDrawer, setShowInboundResponseDrawer] = useState(false);
   const [showConditionNodeDrawer, setShowConditionNodeDrawer] = useState(false);
@@ -2113,6 +2117,10 @@ export default function FlowEditorPage() {
     setSelectedConfigNodeId(nodeId ?? null);
     if (code === 'httpCall') setShowNetworkDrawer(true);
     if (code === 'loadChannelMerchantInfo') setShowLoadChannelMerchantInfoDrawer(true);
+    if (code === 'initOutboundOrder') setReferenceConfigTarget({ direction: 'outbound', placement: 'init-order' });
+    if (code === 'initInboundOrder') setReferenceConfigTarget({ direction: 'inbound', placement: 'init-order' });
+    if (code === 'generateRequestReference') setReferenceConfigTarget({ direction: 'outbound', placement: 'standalone' });
+    if (code === 'generateResponseReference') setReferenceConfigTarget({ direction: 'inbound', placement: 'standalone' });
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
@@ -2429,6 +2437,21 @@ export default function FlowEditorPage() {
             : node));
           setShowLoadChannelMerchantInfoDrawer(false);
           message.success('Channel Merchant Info configuration saved');
+        }}
+      />
+
+      <ReferenceGenerationDrawer
+        open={referenceConfigTarget !== null}
+        target={referenceConfigTarget ?? { direction: 'outbound', placement: 'standalone' }}
+        initialValues={selectedConfig}
+        readOnly={readOnly}
+        onClose={() => setReferenceConfigTarget(null)}
+        onSave={(config) => {
+          setNodes((current) => current.map((node) => node.id === selectedConfigNodeId
+            ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config } }
+            : node));
+          setReferenceConfigTarget(null);
+          message.success('Reference configuration saved');
         }}
       />
 
