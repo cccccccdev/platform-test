@@ -25,7 +25,6 @@ import FlowEditorPage from '../pages/channel-integration/FlowEditorPage';
 import TestPage from '../pages/channel-integration/TestPage';
 
 // Basic Info pages (has sidebar)
-import BasicInfoIndex from '../pages/basic-info/BasicInfoIndex';
 import BasicInfoBusinessTypePage from '../pages/basic-info/BusinessTypePage';
 import CurrencyPage from '../pages/basic-info/CurrencyPage';
 import CountryPage from '../pages/basic-info/CountryPage';
@@ -86,6 +85,7 @@ const router = createHashRouter(
 [
   { index: true, element: <Navigate to="/home" replace /> },
   { path: '/home', element: <HomePage /> },
+  { path: '/operation-config', element: <ComingSoonPage title="Operation Config" /> },
   { path: '/channel', element: <Navigate to="/channel-integration" replace /> },
   { path: '/actions', element: <ComingSoonPage title="Action Library" /> },
   { path: '/tests', element: <TestCenterPage /> },
@@ -186,7 +186,7 @@ const router = createHashRouter(
       {
         path: 'basic-info',
         children: [
-          { index: true, element: <BasicInfoIndex /> },
+          { index: true, element: <Navigate to="country" replace /> },
           { path: 'business-type', element: <BasicInfoBusinessTypePage /> },
           { path: 'currency', element: <CurrencyPage /> },
           { path: 'country', element: <CountryPage /> },

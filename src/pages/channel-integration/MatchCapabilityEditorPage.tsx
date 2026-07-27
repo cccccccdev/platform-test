@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DragEvent } from 'react';
-import { Alert, Button, Cascader, Divider, Drawer, Input, message, Select, Space, Switch, Tag, Typography } from 'antd';
+import { Alert, Button, Cascader, Divider, Drawer, Input, message, Select, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, CheckCircleOutlined, CloudUploadOutlined, DeleteOutlined, LockOutlined, SaveOutlined } from '@ant-design/icons';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
 import type { Connection, Edge, Node } from '@xyflow/react';
@@ -17,6 +17,46 @@ import InboundPreprocessDrawer from './InboundPreprocessDrawer';
 const { Text } = Typography;
 
 const EMPTY_ABILITIES: ConfigAbility[] = [];
+
+function RouteMatchingSummary({
+  channelCode,
+  endpoint,
+  configuration,
+}: {
+  channelCode: string;
+  endpoint: InboundEndpoint;
+  configuration: CapabilityDecisionVersion;
+}) {
+  const items = [
+    ['Channel', channelCode],
+    ['URI', endpoint.url],
+    ['Method', endpoint.method],
+    ['Matching ID', configuration.id],
+    ['Version', configuration.version],
+    ['Description', configuration.remark || '-'],
+  ];
+
+  return (
+    <div className="route-matching-summary-wrap">
+      <section className="route-matching-summary" aria-label="Route Matching context">
+        {items.map(([label, value]) => (
+          <div key={label} className="route-matching-summary-item">
+            <div className="route-matching-summary-label">{label}</div>
+            <Tooltip title={String(value)}>
+              <div className="route-matching-summary-value">{value}</div>
+            </Tooltip>
+          </div>
+        ))}
+        <div className="route-matching-summary-item">
+          <div className="route-matching-summary-label">Status</div>
+          <Tag color={configuration.configStatus === 'PROD' ? 'green' : configuration.configStatus === 'PRE' ? 'orange' : configuration.configStatus === 'DAILY' ? 'blue' : 'default'}>
+            {configuration.configStatus}
+          </Tag>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 type MatchLibraryComponent = { code: 'inboundPreprocess' | 'condition' | 'specifyCapability' | 'matchCapabilityByOrder'; description: string; usage: 'single' | 'multiple'; scopes: Array<'Route Matching' | 'Outbound' | 'Inbound'> };
 const MATCH_COMPONENTS: MatchLibraryComponent[] = [
@@ -226,14 +266,7 @@ export default function MatchCapabilityEditorPage() {
         {!readOnly && <Space><Button icon={<SaveOutlined />} onClick={handleSave}>Save Draft</Button><Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>Submit</Button></Space>}
       </div>
 
-      <div style={{ padding: '12px 16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
-            {[
-              ['URI', endpoint.url], ['Method', endpoint.method],
-              ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus],
-            ].map(([label, value], index, items) => <div key={label} style={{ padding: '0 14px', borderRight: index === items.length - 1 ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
-          </div>
-      </div>
+      <RouteMatchingSummary channelCode={channelCode} endpoint={endpoint} configuration={configuration} />
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
         <CanvasContextPanel channelCode={channelCode} mode="matching" readOnly={readOnly} />
@@ -466,13 +499,7 @@ function LegacyInboundFlowEditor({
         </Space>}
       </div>
 
-      <div style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr repeat(4, 1fr)', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: 14 }}>
-          {[
-              ['URI', endpoint.url], ['Description', configuration.remark || '-'], ['Matching ID', configuration.id], ['Version', configuration.version], ['Status', configuration.configStatus],
-          ].map(([label, value], index, items) => <div key={label} style={{ padding: '0 14px', borderRight: index === items.length - 1 ? 'none' : '1px solid #f0f0f0' }}><div style={{ color: '#8c8c8c', fontSize: 10 }}>{label}</div><div style={{ marginTop: 4, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div></div>)}
-        </div>
-      </div>
+      <RouteMatchingSummary channelCode={channelCode} endpoint={endpoint} configuration={configuration} />
 
       <Alert
         type="info"

@@ -3,6 +3,7 @@ import { Table, Button, Input, Space, Modal, Form, Breadcrumb, Card, message } f
 import { useNavigate } from 'react-router-dom';
 import { mockChannels } from '../../mock/data';
 import type { Channel } from './types';
+import { Brand, UserProfile } from '../../components/PlatformChrome';
 
 export default function ChannelListPage() {
   const navigate = useNavigate();
@@ -117,18 +118,28 @@ export default function ChannelListPage() {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="channel-list-shell">
+      <aside className="channel-list-sidebar">
+        <div className="legacy-sidebar-brand" onClick={() => navigate('/home')}><Brand /></div>
+        <div className="legacy-sidebar-section">Channel Integration <span>⌃</span></div>
+        <div className="channel-list-active">Channel List</div>
+      </aside>
+      <div className="channel-list-main">
+        <header className="legacy-header"><UserProfile /></header>
+        <div className="legacy-page-heading">
       {/* Breadcrumb */}
       <Breadcrumb
-        style={{ marginBottom: 16 }}
         items={[
-          { title: 'Omnicore Solution' },
           { title: 'Channel Integration' },
+          { title: 'Channel List' },
         ]}
       />
+          <h1>Channel List</h1>
+        </div>
+        <main className="channel-list-content">
 
       {/* Filter area */}
-      <Card size="small" style={{ marginBottom: 16, background: '#fafafa' }}>
+      <Card size="small" className="legacy-filter-card">
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
           <div style={{ flex: 1 }}>
             <div style={{ marginBottom: 4, color: '#666', fontSize: 12 }}>Channel</div>
@@ -148,8 +159,9 @@ export default function ChannelListPage() {
       </Card>
 
       {/* Action buttons */}
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-        <Button onClick={() => setIsModalOpen(true)}>
+      <div className="legacy-table-card">
+      <div className="legacy-table-actions">
+        <Button type="primary" onClick={() => setIsModalOpen(true)}>
           Create
         </Button>
       </div>
@@ -164,6 +176,8 @@ export default function ChannelListPage() {
         rowClassName={(record) => (highlightedRow === record.code ? 'ant-table-row-highlight' : '')}
         locale={{ emptyText: 'No Data' }}
       />
+      </div>
+      </main>
 
       {/* Create Channel modal */}
       <Modal
@@ -188,6 +202,7 @@ export default function ChannelListPage() {
           </Form.Item>
         </Form>
       </Modal>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Table, Button, Input, Modal, Form, Typography, Breadcrumb, Popconfirm, Space, Tag, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { PlusOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
+import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../../channel-integration/configIntegrationStore';
 
 const { Title, Text } = Typography;
@@ -211,32 +211,14 @@ export default function StateMachineListPage() {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      render: (name, record) => {
-        const isExpanded = expandedRowKeys.includes(record.id);
-        return (
-          <Space>
-            <span
-              style={{ cursor: 'pointer', color: '#1890ff', fontSize: 12 }}
-              onClick={() => {
-                if (isExpanded) {
-                  setExpandedRowKeys(expandedRowKeys.filter(k => k !== record.id));
-                } else {
-                  setExpandedRowKeys([...expandedRowKeys, record.id]);
-                }
-              }}
-            >
-              {isExpanded ? <DownOutlined /> : <RightOutlined />}
-            </span>
-            <Text>{name}</Text>
-          </Space>
-        );
-      },
+      width: '23%',
+      render: (name) => <Text>{name}</Text>,
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      width: 120,
+      width: '10%',
       render: (status: 'DRAFT' | 'SUBMITTED') => (
         <Tag color={status === 'SUBMITTED' ? 'success' : 'default'}>
           {status}
@@ -247,23 +229,25 @@ export default function StateMachineListPage() {
       title: 'Description',
       dataIndex: 'description',
       key: 'description',
+      width: '25%',
+      ellipsis: true,
     },
     {
       title: 'Operator',
       dataIndex: 'operator',
       key: 'operator',
-      width: 120,
+      width: '10%',
     },
     {
       title: 'Operation Time',
       dataIndex: 'operationTime',
       key: 'operationTime',
-      width: 180,
+      width: '16%',
     },
     {
       title: 'Operation',
       key: 'operation',
-      width: 200,
+      width: '16%',
       render: (_, record) => {
         const linked = isStateMachineLinked(record.name);
         const referenced = isStateMachineReferenced(record.name);
@@ -304,22 +288,20 @@ export default function StateMachineListPage() {
   const isStandalone = !bt && !ability;
 
   return (
-    <div style={{ padding: '0 24px' }}>
-      <Breadcrumb
-        style={{ margin: '16px 0' }}
-        items={[
-          { title: 'Basic Info', href: '/basic-info' },
-          ...(isStandalone ? [{ title: 'State Machine' }] : [
-            { title: 'Capability', href: '/basic-info/capability' },
-            { title: 'State Machine' },
-          ]),
-        ]}
-      />
-
-      <div style={{ background: '#fff', padding: 24, borderRadius: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <Title level={4} style={{ marginTop: 0, marginBottom: 4 }}>State Machine</Title>
+    <div className="state-machine-page">
+      <section className="state-machine-heading">
+        <Breadcrumb
+          items={[
+            { title: 'Basic Info', href: '/basic-info' },
+            ...(isStandalone ? [{ title: 'State Machine' }] : [
+              { title: 'Capability', href: '/basic-info/capability' },
+              { title: 'State Machine' },
+            ]),
+          ]}
+        />
+        <div className="state-machine-title-line">
+          <Title level={4}>State Machine</Title>
+          <div className="state-machine-description">
             {isStandalone ? (
               <Text type="secondary">Create and manage state machines</Text>
             ) : (
@@ -331,12 +313,15 @@ export default function StateMachineListPage() {
               </Space>
             )}
           </div>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
-            Create
-          </Button>
         </div>
+      </section>
 
+      <main className="state-machine-content">
+        <div className="state-machine-actions">
+          <Button type="primary" onClick={() => setCreateModalOpen(true)}>Create</Button>
+        </div>
         <Table
+          className="state-machine-table"
           dataSource={stateMachineList}
           columns={columns}
           rowKey="id"
@@ -344,27 +329,35 @@ export default function StateMachineListPage() {
           expandable={{
             expandedRowKeys,
             onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as string[]),
+            expandIcon: ({ expanded, onExpand, record }) => (
+              <button
+                type="button"
+                className="state-machine-expand-button"
+                aria-label={expanded ? 'Collapse row' : 'Expand row'}
+                onClick={(event) => onExpand(record, event)}
+              >
+                {expanded ? <DownOutlined /> : <RightOutlined />}
+              </button>
+            ),
             expandedRowRender: (record) => {
               const linkedRecords = getLinkedRecordsForSM(record.name);
               return (
-                <div style={{ padding: '8px 0' }}>
+                <div className="state-machine-expanded">
                   {linkedRecords.length === 0 ? (
-                    <div style={{ color: '#999' }}>No linked Business Type & Ability</div>
+                    <div className="state-machine-empty-link">No linked Business Type & Ability</div>
                   ) : (
                      <Table
+                      className="state-machine-linked-table"
                       dataSource={linkedRecords}
                       rowKey={(r) => `${r.bt}-${r.ability}-${r.smName}`}
                       pagination={false}
                       size="small"
-                      style={{ marginTop: 8, background: '#fafafa' }}
                     >
                       <Table.Column title="Business Type" dataIndex="bt" render={(bt) => <Tag color="blue">{bt}</Tag>} />
                       <Table.Column title="Ability" dataIndex="ability" render={(ability) => <Tag color="purple">{ability}</Tag>} />
-                      <Table.Column title="Operator" dataIndex="operator" />
-                      <Table.Column title="Operation Time" dataIndex="operationTime" />
                       <Table.Column
                         title="Operation"
-                        width={100}
+                        width="30%"
                         render={(_, r) => (
                           <Button
                             type="link"
@@ -373,7 +366,7 @@ export default function StateMachineListPage() {
                               navigate(`/basic-info/capability/link-state-machine?bt=${r.bt}&ability=${r.ability}`);
                             }}
                           >
-                            Preview
+                            Open in Capability
                           </Button>
                         )}
                       />
@@ -385,7 +378,7 @@ export default function StateMachineListPage() {
           }}
           locale={{ emptyText: '暂无 State Machine' }}
         />
-      </div>
+      </main>
 
       {/* Create Modal */}
       <Modal
