@@ -1,75 +1,52 @@
-import { useState } from 'react';
 import { Layout, Menu } from 'antd';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import {
-  HomeOutlined,
-  DashboardOutlined,
-} from '@ant-design/icons';
+import { Brand, UserProfile } from './PlatformChrome';
 
-const { Sider, Content } = Layout;
+const { Sider, Content, Header } = Layout;
 
 const menuItems = [
-  { key: '/home', icon: <HomeOutlined />, label: '首页' },
-  {
-    key: '/channel-integration',
-    icon: <DashboardOutlined />,
-    label: 'Channel Integration',
-  },
+  { key: '/basic-info/country', label: 'Country' },
+  { key: '/basic-info/party', label: 'Party' },
+  { key: '/basic-info/card-bin', label: 'Card Bin' },
+  { key: '/basic-info/party-tenant', label: 'Party&Tenant' },
+  { key: '/basic-info/business-type', label: 'Business Type' },
+  { key: '/basic-info/capability', label: 'Capability' },
+  { key: '/basic-info/institution-type', label: 'Institution Type' },
+  { key: '/basic-info/institution', label: 'Institution' },
+  { key: '/basic-info/segment', label: 'Segment' },
+  { key: '/basic-info/response-code', label: 'Response Code' },
+  { key: '/basic-info/application', label: 'Application' },
+  { key: '/basic-info/service', label: 'Service' },
+  { key: '/basic-info/stateMachine', label: 'State Machine' },
 ];
 
 export default function AppShell() {
-  const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-
-  const selectedKey = '/' + location.pathname.split('/')[1];
+  const selectedKey = location.pathname === '/basic-info' ? '/basic-info/country' : location.pathname;
 
   return (
-    <Layout style={{ width: '100vw', height: '100vh' }}>
+    <Layout className="legacy-app-shell">
       <Sider
-        collapsible
-        collapsed={collapsed}
-        onCollapse={setCollapsed}
         theme="dark"
-        width={200}
-        style={{
-          height: '100vh',
-          position: 'fixed',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          overflow: 'auto',
-        }}
+        width={202}
+        className="legacy-sidebar"
       >
-        <div
-          onClick={() => navigate('/home')}
-          style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: collapsed ? 14 : 16,
-            fontWeight: 'bold',
-            letterSpacing: 1,
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
-            cursor: 'pointer',
-          }}
-        >
-          {collapsed ? '2.0' : '接入平台 2.0'}
-        </div>
+        <div onClick={() => navigate('/home')} className="legacy-sidebar-brand"><Brand /></div>
+        <div className="legacy-sidebar-section">Basic Info <span>⌃</span></div>
         <Menu
           theme="dark"
           mode="inline"
           selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ borderRight: 0 }}
+          className="legacy-menu"
         />
       </Sider>
-      <Layout style={{ marginLeft: collapsed ? 80 : 200, transition: 'margin-left 0.2s', height: '100vh', overflow: 'hidden' }}>
-        <Content style={{ height: '100vh', overflow: 'hidden', background: '#f5f5f5' }}>
-          <div style={{ height: '100%', overflow: 'auto', padding: 16 }}>
+      <Layout className="legacy-main">
+        <Header className="legacy-header"><UserProfile /></Header>
+        <Content className="legacy-content">
+          <div className="legacy-content-scroll">
             <Outlet />
           </div>
         </Content>

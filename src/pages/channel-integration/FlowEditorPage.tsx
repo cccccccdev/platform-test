@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio, Switch } from 'antd';
+import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio, Switch, Tooltip } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { ReactFlow, Background, Controls, MiniMap, Handle, Position, addEdge, MarkerType } from '@xyflow/react';
 import type { Node, Edge, Connection } from '@xyflow/react';
@@ -2000,17 +2000,29 @@ export default function FlowEditorPage() {
     ? 'inbound'
     : 'outbound';
   const availableComponents = ADDABLE_COMPONENTS.filter((component) => component.scopes.includes(flowScope));
-  const contextItems: Array<[string, string | number | undefined]> = [
+  const capabilityContextItems: Array<[string, string | number | undefined]> = [
     ['Channel', params.channelCode],
     ['Business Type', params.bt],
     ['Ability', params.ability],
-    ['Action', actionName],
-    ['Trigger Type', storedFlow?.triggerType],
-    ...(flowScope === 'inbound' ? [['URI', inboundUri ? `${inboundUri.method} ${inboundUri.url}` : storedFlow?.inboundUriId] as [string, string | undefined]] : []),
-    ...(storedFlow?.triggerType === 'REQUERY_TRIGGERED' ? [['Trigger Sub-State', triggerSubState] as [string, string | undefined]] : []),
-    ['Flow Group Version', storedVersion?.version],
-    ['Flow ID', params.flowId],
+    ['Group ID', storedVersion?.groupId],
+    ['Group Version', storedVersion?.version],
   ];
+  const flowContextItems: Array<[string, string | number | undefined]> = [
+    ['Flow ID', params.flowId],
+    ['Flow Name', storedFlow?.name],
+    ['Trigger Type', storedFlow?.triggerType],
+    ['Action (Triggered By)', actionName],
+  ];
+  const triggerConditionLabel = flowScope === 'inbound'
+    ? 'Inbound URI'
+    : storedFlow?.triggerType === 'REQUERY_TRIGGERED'
+      ? 'Sub-state'
+      : null;
+  const triggerConditionValue = flowScope === 'inbound'
+    ? inboundUri ? `${inboundUri.method} ${inboundUri.url}` : storedFlow?.inboundUriId
+    : storedFlow?.triggerType === 'REQUERY_TRIGGERED'
+      ? triggerSubState
+      : 'N/A';
 
   const mockEndpoints = [
     {
@@ -2317,21 +2329,50 @@ export default function FlowEditorPage() {
         )}
       </div>
 
-      <div style={{ padding: '12px 16px', background: '#f5f7fa' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${contextItems.length}, minmax(110px, 1fr))`, background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, padding: '12px 16px' }}>
-          {contextItems.map(([label, value], index) => (
-            <div key={label} style={{ minWidth: 0, padding: '0 14px', borderRight: index === contextItems.length - 1 ? 'none' : '1px solid #f0f0f0' }}>
-              <div style={{ color: '#8c8c8c', fontSize: 10, marginBottom: 4 }}>{label}</div>
-              {label === 'Trigger Sub-State' ? (
-                <Button type="link" size="small" style={{ height: 'auto', padding: 0, fontSize: 12, fontWeight: 500 }} onClick={() => setShowStateMachinePreview(true)}>
-                  {value ?? '—'}
-                </Button>
-              ) : (
-                <div title={value == null ? undefined : String(value)} style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value ?? '—'}</div>
-              )}
+      <div className="config-flow-context-wrap">
+        <section className="config-flow-context-card" aria-label="Flow context">
+          <div className="config-flow-context-row config-flow-capability-row">
+            <div className="config-flow-context-group">Group Info</div>
+            <div className="config-flow-context-grid">
+              {capabilityContextItems.map(([label, value]) => (
+                <div key={label} className="config-flow-context-item">
+                  <div className="config-flow-context-label">{label}</div>
+                  <Tooltip title={value == null ? undefined : String(value)}>
+                    <div className="config-flow-context-value">{value ?? '—'}</div>
+                  </Tooltip>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+          <div className="config-flow-context-row config-flow-trigger-row">
+            <div className="config-flow-context-group">Flow Info</div>
+            <div className="config-flow-context-grid">
+              {flowContextItems.map(([label, value]) => (
+                <div key={label} className="config-flow-context-item">
+                  <div className="config-flow-context-label">{label}</div>
+                  <Tooltip title={value == null ? undefined : String(value)}>
+                    <div className="config-flow-context-value">{value ?? '—'}</div>
+                  </Tooltip>
+                </div>
+              ))}
+              <div className="config-flow-context-item config-flow-trigger-condition">
+                <div className="config-flow-context-label">Trigger Condition</div>
+                <div className="config-flow-context-condition-value">
+                  {triggerConditionLabel && <Tag>{triggerConditionLabel}</Tag>}
+                  <Tooltip title={triggerConditionValue == null ? undefined : String(triggerConditionValue)}>
+                    {triggerConditionLabel === 'Sub-state' ? (
+                      <Button type="link" size="small" onClick={() => setShowStateMachinePreview(true)}>
+                        {triggerConditionValue ?? '—'}
+                      </Button>
+                    ) : (
+                      <span>{triggerConditionValue ?? '—'}</span>
+                    )}
+                  </Tooltip>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       {/* 内容区域 */}

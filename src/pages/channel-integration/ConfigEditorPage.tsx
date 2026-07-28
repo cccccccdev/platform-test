@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Badge, Breadcrumb, Button, Form, Input, message, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+import { Badge, Breadcrumb, Button, Form, Input, message, Modal, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import { CopyOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import FlowConfigModal from './FlowConfigModal';
 import FlowSettingsModal from './FlowSettingsModal';
 import { useConfigIntegrationStore } from './configIntegrationStore';
+import { useMatchCapabilityStore } from './matchCapabilityStore';
 import { getActionsForTrigger } from './flowTemplates';
 import type { FlowConfig, TriggerType } from './types';
 import StateMachinePreviewModal, { isNoStateMachine, stateMachineDisplayName } from './StateMachinePreviewModal';
@@ -88,6 +89,7 @@ export default function ConfigEditorPage() {
   const addFlow = useConfigIntegrationStore((state) => state.addFlow);
   const deleteFlow = useConfigIntegrationStore((state) => state.deleteFlow);
   const updateFlow = useConfigIntegrationStore((state) => state.updateFlow);
+  const inboundEndpoints = useMatchCapabilityStore((state) => state.endpointsByChannel[channelCode] ?? []);
 
   if (!ability || !version) {
     return (
@@ -104,6 +106,10 @@ export default function ConfigEditorPage() {
   const groupId = version.groupId;
   const noStateMachine = isNoStateMachine(ability.stateMachine);
   const availableSubStates = stateMachineSubStates[ability.stateMachine] ?? [];
+  const inboundUriValue = (flow: FlowConfig) => {
+    if (!flow.inboundUriId) return 'N/A';
+    return inboundEndpoints.find((endpoint) => endpoint.id === flow.inboundUriId)?.url ?? flow.inboundUriId;
+  };
 
   const handleFlowSave = (flow: FlowConfig) => {
     addFlow(channelCode, bt, abilityCode, groupId, flow);
@@ -201,9 +207,9 @@ export default function ConfigEditorPage() {
     : [];
 
   return (
-    <div style={{ padding: 24 }}>
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
+    <div className="flow-configuration-page">
+      <section className="flow-configuration-heading">
+        <Breadcrumb
         items={runtimeDetail
           ? [
               { title: channelCode, onClick: () => navigate(`/channel-integration/${channelCode}/channel-info`) },
@@ -213,28 +219,26 @@ export default function ConfigEditorPage() {
               { title: readOnly ? 'Flow Configuration Detail' : 'Flow Configuration' },
             ]
           : [
-              { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
-              { title: channelCode, onClick: () => navigate(`/channel-integration/${channelCode}/integration/config/flow-groups`) },
+              { title: 'Channel List', onClick: () => navigate('/channel-integration') },
               { title: 'Config Integration' },
               { title: 'Flow Groups', onClick: () => navigate(`/channel-integration/${channelCode}/integration/config/flow-groups`) },
-              { title: readOnly ? 'Flow Configuration Detail' : 'Flow Configuration' },
             ]}
-      />
+        />
+        <Title level={4}>{readOnly ? 'Flow Configuration Detail' : 'Flow Configuration'}</Title>
+      </section>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div>
-          <Title level={4} style={{ margin: 0 }}>{readOnly ? 'Flow Configuration Detail' : 'Flow Configuration'}</Title>
-          <Space wrap style={{ marginTop: 8 }}>
+      <main className="flow-configuration-content">
+        <div className="flow-configuration-toolbar">
+          <Space wrap className="flow-configuration-context">
             <Text>Channel: <Text strong>{channelCode}</Text></Text>
-            <Text>BT: <Text strong>{bt}</Text></Text>
+            <Text>Business Type: <Text strong>{bt}</Text></Text>
             <Text>Ability: <Text strong>{abilityCode}</Text></Text>
             <Text>Group ID: <Text strong>{version.groupId}</Text></Text>
-            <Text>Version: <Text strong>{version.version}</Text></Text>
+            <Text>Group Version: <Text strong>{version.version}</Text></Text>
             {version.remark && <Text>Description: <Text strong>{version.remark}</Text></Text>}
-            <Tag color={statusColors[version.status] || 'default'}>{version.status}</Tag>
+            <Text>Status: <Tag color={statusColors[version.status] || 'default'}>{version.status}</Tag></Text>
           </Space>
-        </div>
-        <Space>
+          <Space className="flow-configuration-actions">
           {noStateMachine ? (
             <Tag color="default" style={{ padding: '4px 8px' }}>
               {stateMachineDisplayName(ability.stateMachine)}
@@ -245,19 +249,21 @@ export default function ConfigEditorPage() {
             </Button>
           )}
           {!readOnly && (
-            <Button icon={<PlusOutlined />} onClick={() => setShowFlowConfigModal(true)}>New Flow</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowFlowConfigModal(true)}>New Flow</Button>
           )}
-        </Space>
-      </div>
+          </Space>
+        </div>
 
       <Table<FlowConfig>
+        className="flow-configuration-table"
         dataSource={flows}
         rowKey="id"
         pagination={false}
+        scroll={{ x: 1500 }}
         locale={{ emptyText: 'No flows configured. Click "New Flow" to create your first Flow.' }}
         columns={[
           { title: 'Flow ID', dataIndex: 'id', width: 200 },
-          { title: 'Flow Name', dataIndex: 'name' },
+          { title: 'Flow Name', dataIndex: 'name', width: 240 },
           {
             title: 'Trigger Type',
             dataIndex: 'triggerType',
@@ -272,11 +278,30 @@ export default function ConfigEditorPage() {
             render: (_value, flow) => flow.triggerEvents?.[0] ?? flow.contextActions?.[0] ?? '-',
           },
           {
-            title: 'Trigger Sub-State',
+            title: 'Trigger Condition',
             width: 240,
             render: (_value, flow) => {
               const triggerSubState = flow.stateConditions?.find((condition) => condition.field === 'subState')?.value;
-              return flow.triggerType === 'REQUERY_TRIGGERED' && triggerSubState ? <Tag color="gold">{triggerSubState}</Tag> : <span style={{ color: '#999' }}>N/A</span>;
+              if (flow.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || flow.triggerType === 'CALLBACK_TRIGGERED') {
+                const uri = inboundUriValue(flow);
+                return (
+                  <Space size={6} className="flow-trigger-condition">
+                    <Tag>Inbound URI</Tag>
+                    <Tooltip title={uri}>
+                      <Text className="flow-trigger-condition-value">{uri}</Text>
+                    </Tooltip>
+                  </Space>
+                );
+              }
+              if (flow.triggerType === 'REQUERY_TRIGGERED' && triggerSubState) {
+                return (
+                  <Space size={6} className="flow-trigger-condition">
+                    <Tag>Sub-state</Tag>
+                    <Text>{triggerSubState}</Text>
+                  </Space>
+                );
+              }
+              return <span style={{ color: '#999' }}>N/A</span>;
             },
           },
           {
@@ -289,8 +314,9 @@ export default function ConfigEditorPage() {
           {
             title: 'Operation',
             width: 340,
+            fixed: 'right',
             render: (_value, flow) => (
-              <Space>
+              <Space className="flow-configuration-operation">
                 {!readOnly && version.status !== 'PROD' && (
                   <Button
                     type="text"
@@ -324,6 +350,7 @@ export default function ConfigEditorPage() {
           },
         ]}
       />
+      </main>
 
       <FlowConfigModal
         visible={showFlowConfigModal}

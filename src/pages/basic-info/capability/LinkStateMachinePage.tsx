@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Table, Button, Space, message, Breadcrumb, Select, Form, Typography, Tag, Card, Empty, Tooltip, Modal } from 'antd';
+import { Table, Button, Space, message, Breadcrumb, Select, Form, Typography, Empty, Modal, Badge } from 'antd';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { LeftOutlined, EyeOutlined, DeleteOutlined, PlusOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
+import { LeftOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../../channel-integration/configIntegrationStore';
 
 const { Title, Text } = Typography;
@@ -79,6 +79,13 @@ function getStoredStatuses(): Record<string, 'DRAFT' | 'SUBMITTED'> {
   }
 }
 
+function formatOperationTime(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 export default function LinkStateMachinePage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -88,22 +95,20 @@ export default function LinkStateMachinePage() {
   const [form] = Form.useForm();
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [, setRefreshKey] = useState(0);
-  const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [unLinkModalOpen, setUnLinkModalOpen] = useState(false);
+  const [referenceStateMachineName, setReferenceStateMachineName] = useState<string | null>(null);
   const abilitiesByChannel = useConfigIntegrationStore((state) => state.abilitiesByChannel);
 
   const linkedRecords = getLinkedSM().filter(r => r.bt === bt && r.ability === ability);
 
   interface ChannelRef {
     channelCode: string;
-    version: string;
   }
   const getReferencingChannels = (smName: string): ChannelRef[] => Object.entries(abilitiesByChannel)
     .flatMap(([channelCode, abilities]) => abilities
       .filter((item) => item.bt === bt && item.ability === ability && item.stateMachine === smName && item.versions.length > 0)
-      .map((item) => ({
+      .map(() => ({
         channelCode,
-        version: item.versions.map((version) => version.version).join(', '),
       })));
 
   const availableStateMachines = () => {
@@ -114,6 +119,9 @@ export default function LinkStateMachinePage() {
       .filter(sm => statuses[sm.name] === 'SUBMITTED' && !linkedNames.includes(sm.name))
       .map(sm => ({ label: sm.name, value: sm.name }));
   };
+
+  const getStateMachineDescription = (smName: string) =>
+    getStateMachineList().find(item => item.name === smName)?.description || '—';
 
   const handleAdd = () => {
     const values = form.getFieldsValue();
@@ -140,7 +148,7 @@ export default function LinkStateMachinePage() {
         ability,
         smName,
         operator: 'admin',
-        operationTime: new Date().toLocaleString(),
+        operationTime: formatOperationTime(new Date()),
       });
     });
 
@@ -166,62 +174,28 @@ export default function LinkStateMachinePage() {
   };
 
   return (
-    <div style={{ padding: '0 24px', minHeight: '100vh', background: '#f5f5f5' }}>
-      <Breadcrumb
-        style={{ margin: '16px 0' }}
-        items={[
+    <div className="linked-state-machine-page">
+      <section className="linked-state-machine-heading">
+        <Breadcrumb items={[
           { title: 'Basic Info', href: '/basic-info' },
           { title: 'Capability', href: '/basic-info/capability' },
-          { title: 'Link StateMachine' },
-        ]}
-      />
+          { title: 'Linked State Machine' },
+        ]} />
+        <button className="linked-state-machine-back" type="button" onClick={() => navigate('/basic-info/capability')}>
+          <LeftOutlined /><Title level={4}>Linked State Machine</Title>
+        </button>
+      </section>
 
-      {/* Header Card */}
-      <Card
-        bordered={false}
-        style={{ marginBottom: 16, borderRadius: 8 }}
-        bodyStyle={{ padding: '20px 24px' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
-            <Space size="large" style={{ marginBottom: 8 }}>
-              <Button
-                icon={<LeftOutlined />}
-                onClick={() => navigate(`/basic-info/capability`)}
-              >
-                Back
-              </Button>
-              <Title level={4} style={{ marginTop: 0, marginBottom: 0 }}>Link StateMachine</Title>
-            </Space>
-            <div>
-              <Space size={16}>
-                <Text type="secondary">Business Type:</Text>
-                <Tag color="blue" style={{ margin: 0, fontSize: 13, padding: '4px 12px' }}>{bt}</Tag>
-              </Space>
-              <Space size={16}>
-                <Text type="secondary">Ability:</Text>
-                <Tag color="purple" style={{ margin: 0, fontSize: 13, padding: '4px 12px' }}>{ability}</Tag>
-              </Space>
-            </div>
-          </div>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setAddModalOpen(true)}
-          >
-            Link
-          </Button>
+      <main className="linked-state-machine-content">
+        <div className="linked-state-machine-meta">
+          <span><strong>Business Type:</strong> {bt}</span>
+          <span><strong>Ability:</strong> {ability}</span>
         </div>
-      </Card>
+        <div className="linked-state-machine-actions">
+          <Button type="primary" onClick={() => setAddModalOpen(true)}>Link</Button>
+        </div>
 
-      {/* Main Content */}
-      <Card
-        bordered={false}
-        style={{ borderRadius: 8 }}
-        bodyStyle={{ padding: 0 }}
-      >
-        {/* Linked State Machines Section */}
-        <div style={{ padding: 24 }}>
+        <div className="linked-state-machine-table-wrap">
           {linkedRecords.length === 0 ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -237,160 +211,92 @@ export default function LinkStateMachinePage() {
             />
           ) : (
             <Table
+              className="linked-state-machine-table"
               dataSource={linkedRecords}
               rowKey={(record) => `${record.smName}-${record.operationTime}`}
               pagination={false}
               size="middle"
-              bordered
-              expandable={{
-                expandedRowKeys,
-                onExpandedRowsChange: (keys) => setExpandedRowKeys(keys as string[]),
-                expandedRowRender: (record) => {
-                  const channels = getReferencingChannels(record.smName);
-                  return (
-                    <div style={{ padding: '8px 16px', background: '#fafafa', borderRadius: 6, marginLeft: 40 }}>
-                      {channels.length > 0 ? (
-                        <Table
-                          dataSource={channels}
-                          rowKey={(r) => r.channelCode}
-                          pagination={false}
-                          size="small"
-                          bordered={false}
-                        >
-                          <Table.Column title="Channel Code" dataIndex="channelCode" render={(code) => <Tag color="green">{code}</Tag>} />
-                          <Table.Column title="Version" dataIndex="version" />
-                          <Table.Column
-                            title="Operation"
-                            width={100}
-                            render={(_, r) => (
-                              <Button
-                                type="link"
-                                size="small"
-                                onClick={() => navigate(`/channel-integration/${r.channelCode}/integration/config/flow-groups`)}
-                              >
-                                Preview
-                              </Button>
-                            )}
-                          />
-                        </Table>
-                      ) : (
-                        <Text type="secondary">No channel references</Text>
-                      )}
-                    </div>
-                  );
-                },
-              }}
             >
               <Table.Column
-                title=""
-                key="expand"
-                width={40}
-                render={(_, record) => {
-                  const key = `${record.smName}-${record.operationTime}`;
-                  const isExpanded = expandedRowKeys.includes(key);
-                  return (
-                    <span
-                      style={{ cursor: 'pointer', color: '#1890ff', fontSize: 12 }}
-                      onClick={() => {
-                        if (isExpanded) {
-                          setExpandedRowKeys(expandedRowKeys.filter(k => k !== key));
-                        } else {
-                          setExpandedRowKeys([...expandedRowKeys, key]);
-                        }
-                      }}
-                    >
-                      {isExpanded ? <DownOutlined /> : <RightOutlined />}
-                    </span>
-                  );
-                }}
+                title="State Machine Name"
+                dataIndex="smName"
+                width="20%"
+                render={(smName) => <Text>{smName}</Text>}
               />
               <Table.Column
-                title="StateMachine Name"
-                dataIndex="smName"
-                width="35%"
-                render={(smName) => (
-                  <Tag color="blue" style={{ fontSize: 13, padding: '4px 12px' }}>{smName}</Tag>
-                )}
+                title="Description"
+                width="24%"
+                render={(_, record) => <Text>{getStateMachineDescription(record.smName)}</Text>}
               />
               <Table.Column
                 title="Operator"
                 dataIndex="operator"
-                width="20%"
+                width="15%"
                 render={(operator) => <Text type="secondary">{operator}</Text>}
               />
               <Table.Column
                 title="Operation Time"
                 dataIndex="operationTime"
-                width="30%"
-                render={(time) => <Text type="secondary">{time}</Text>}
+                width="19%"
+                render={(time) => <Text type="secondary">{formatOperationTime(time)}</Text>}
               />
               <Table.Column
                 title="Operation"
-                width="15%"
-                render={(_, record) => (
-                  <Space size="small">
-                    <Tooltip title="Preview">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<EyeOutlined />}
-                        onClick={() => {
-                          const queryParams = new URLSearchParams();
-                          queryParams.set('sm', record.smName);
-                          queryParams.set('mode', 'view');
-                          queryParams.set('bt', bt);
-                          queryParams.set('ability', ability);
-                          navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
-                        }}
-                      >
-                        Preview
-                      </Button>
-                    </Tooltip>
-                    <Tooltip title="UnLink">
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        disabled={getReferencingChannels(record.smName).length > 0}
-                        onClick={() => handleUnLink(record.smName)}
-                      >
-                        UnLink
-                      </Button>
-                    </Tooltip>
+                width="22%"
+                render={(_, record) => {
+                  const hasReferences = getReferencingChannels(record.smName).length > 0;
+                  return (
+                  <Space size="middle" className="linked-state-machine-operation">
+                    <Button type="link" onClick={() => {
+                      const queryParams = new URLSearchParams();
+                      queryParams.set('sm', record.smName);
+                      queryParams.set('mode', 'view');
+                      queryParams.set('bt', bt);
+                      queryParams.set('ability', ability);
+                      navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
+                    }}>Preview</Button>
+                    <Badge dot={hasReferences} color="#52c41a" offset={[-2, 4]}>
+                      <Button type="link" onClick={() => setReferenceStateMachineName(record.smName)}>References</Button>
+                    </Badge>
+                    <Button
+                      type="link"
+                      danger
+                      disabled={hasReferences}
+                      onClick={() => handleUnLink(record.smName)}
+                    >Unlink</Button>
                   </Space>
-                )}
+                  );
+                }}
               />
             </Table>
           )}
         </div>
-      </Card>
+      </main>
 
       {/* Link StateMachine Modal */}
       <Modal
-        title="Link StateMachine"
+        className="linked-state-machine-modal"
+        title="Link State Machine"
         open={addModalOpen}
         onCancel={() => {
           setAddModalOpen(false);
           form.resetFields();
         }}
         onOk={handleAdd}
-        okText="Confirm"
+        okText="Link"
         cancelText="Cancel"
-        width={500}
+        width={560}
       >
-        <div style={{ padding: '16px 0' }}>
-          <div style={{ marginBottom: 16, padding: 12, background: '#fafafa', borderRadius: 6 }}>
-            <Space size="large">
-              <Text><Text strong>Business Type:</Text> <Tag color="blue">{bt}</Tag></Text>
-              <Text><Text strong>Ability:</Text> <Tag color="purple">{ability}</Tag></Text>
-            </Space>
+        <div className="linked-state-machine-modal-body">
+          <div className="state-machine-modal-context">
+            <span><strong>Business Type:</strong> {bt}</span>
+            <span><strong>Ability:</strong> {ability}</span>
           </div>
 
           <Form form={form} layout="vertical">
             <Form.Item
               name="smName"
-              label="Select StateMachines"
+              label="Select State Machine"
               rules={[{ required: true, message: 'Please select at least one StateMachine' }]}
             >
               <Select
@@ -411,6 +317,33 @@ export default function LinkStateMachinePage() {
             Only SUBMITTED state machines are available for selection
           </Text>
         </div>
+      </Modal>
+
+      <Modal
+        className="reference-relationship-modal state-machine-context-modal"
+        title="View Reference Relationship"
+        open={referenceStateMachineName !== null}
+        onCancel={() => setReferenceStateMachineName(null)}
+        footer={null}
+        width={640}
+      >
+        <div className="state-machine-modal-context reference-relationship-context">
+          <span><strong>Business Type:</strong> {bt}</span>
+          <span><strong>Ability:</strong> {ability}</span>
+          <span><strong>State Machine Name:</strong> {referenceStateMachineName}</span>
+        </div>
+        <Table
+          className="reference-relationship-table"
+          dataSource={referenceStateMachineName ? getReferencingChannels(referenceStateMachineName) : []}
+          rowKey="channelCode"
+          pagination={false}
+          size="small"
+          locale={{
+            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No Channel Integration references yet." />,
+          }}
+        >
+          <Table.Column title="Channel" dataIndex="channelCode" />
+        </Table>
       </Modal>
 
       {/* UnLink Error Modal */}

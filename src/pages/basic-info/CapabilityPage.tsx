@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Table, Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../channel-integration/configIntegrationStore';
@@ -104,8 +103,6 @@ const INITIAL_DATA: BusinessTypeItem[] = [
 ];
 
 const BUSINESS_TYPE_OPTIONS = INITIAL_DATA.map(({ name }) => ({ label: name, value: name }));
-const BRAND_PURPLE = '#722ed1';
-
 function generateActionName(existingActions: ActionItem[]): string {
   const nums = existingActions
     .map(a => {
@@ -330,183 +327,93 @@ export default function CapabilityPage() {
     setEditingActionName('');
   }, []);
 
-  const columns: ColumnsType<ActionItem> = [
-    {
-      title: 'Name',
-      key: 'name',
-      width: 360,
-      render: (_, record) => {
-        const isEditing = editingActionKey === record.key;
-        return (
-          <Space style={{ paddingLeft: 8 }}>
-            {isEditing ? (
-              <Input
-                value={editingActionName}
-                onChange={e => setEditingActionName(e.target.value)}
-                onPressEnter={() => {
-                  const ability = data.flatMap(bt => bt.abilities).find(a => a.actions.some(act => act.key === editingActionKey));
-                  const btItem = data.find(bt => bt.abilities.some(a => a.key === ability?.key));
-                  if (btItem && ability) saveEditAction(btItem.key, ability.key);
-                }}
-                onBlur={() => {
-                  const ability = data.flatMap(bt => bt.abilities).find(a => a.actions.some(act => act.key === editingActionKey));
-                  const btItem = data.find(bt => bt.abilities.some(a => a.key === ability?.key));
-                  if (btItem && ability) saveEditAction(btItem.key, ability.key);
-                }}
-                autoFocus
-                style={{ width: 160 }}
-                onKeyDown={e => {
-                  if (e.key === 'Escape') cancelEditAction();
-                }}
-              />
-            ) : (
-              <span
-                onDoubleClick={() => startEditAction(record)}
-                style={{ cursor: 'text', padding: '2px 4px', borderRadius: 4, fontWeight: 500 }}
-              >
-                {record.name}
-              </span>
-            )}
-          </Space>
-        );
-      },
-    },
-    {
-      title: 'Operate Time',
-      dataIndex: 'operateTime',
-      key: 'operateTime',
-      width: 200,
-    },
-    {
-      title: 'Operator',
-      dataIndex: 'operator',
-      key: 'operator',
-      width: 150,
-    },
-    {
-      title: 'Operation',
-      key: 'operation',
-      width: 100,
-      render: (_, record) => (
-        <Button
-          type="link"
-          style={{ color: BRAND_PURPLE, padding: 0, fontWeight: 500 }}
-          onClick={() => {
-            const ability = data.flatMap(bt => bt.abilities).find(a => a.actions.some(act => act.key === record.key));
-            const bt = data.find(b => b.abilities.some(a => a.key === ability?.key));
-            if (bt && ability) {
-              navigate(`/basic-info/capability/spi?bt=${bt.name}&ability=${ability.name}&action=${record.name}`);
-            }
-          }}
-        >
-          Config
-        </Button>
-      ),
-    },
-  ];
-
   return (
-    <div style={{ padding: '0 24px' }}>
-      <Breadcrumb
-        style={{ margin: '16px 0' }}
-        items={[
-          { title: 'Basic Info' },
-          { title: 'Capability' },
-        ]}
-      />
+    <div className="capability-page">
+      <section className="capability-heading">
+        <Breadcrumb items={[{ title: 'Basic Info' }, { title: 'Capability' }]} />
+        <Title level={4}>Capability</Title>
+      </section>
 
-      <div style={{ background: '#fff', padding: 24, borderRadius: 8 }}>
-        <Title level={4} style={{ marginTop: 0, marginBottom: 16 }}>Capability</Title>
-
-        <Form layout="inline" style={{ marginBottom: 16 }}>
+      <section className="capability-filter-section">
+        <Form layout="inline" className="capability-filter-form">
           <Form.Item label="Business Type">
             <Select
               allowClear
               placeholder="Select Business Type"
-              style={{ width: 240 }}
+              className="capability-business-type-select"
               options={BUSINESS_TYPE_OPTIONS}
               value={filteredBt || undefined}
               onChange={v => setFilteredBt(v || '')}
             />
           </Form.Item>
           <Form.Item>
-            <Space>
+            <Space className="capability-filter-actions">
               <Button onClick={() => setFilteredBt('')}>Reset</Button>
               <Button type="primary" onClick={() => {}}>Query</Button>
             </Space>
           </Form.Item>
         </Form>
+      </section>
 
+      <main className="capability-groups">
         {filteredData.map(bt => (
-          <div key={bt.key} style={{ marginBottom: 16, border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>
+          <section key={bt.key} className="capability-group">
             <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '14px 24px',
-                background: '#fafafa',
-                cursor: 'pointer',
-                borderBottom: bt.isExpand ? '1px solid #f0f0f0' : 'none',
-              }}
+              className="capability-group-header"
               onClick={() => toggleBusinessType(bt.key)}
             >
               <Space>
                 {bt.isExpand ? <CaretDownOutlined /> : <CaretRightOutlined />}
-                <Text strong style={{ fontSize: 15 }}>{bt.name}</Text>
+                <Text strong>{bt.name}</Text>
               </Space>
               <Button
-                type="primary"
-                ghost
+                type="text"
                 icon={<PlusOutlined />}
                 onClick={e => {
                   e.stopPropagation();
                   openAddAbility(bt.name);
                 }}
-                style={{ borderColor: '#ef4444', color: '#ef4444', borderRadius: 6 }}
+                className="capability-add-button"
               >
                 Add Capability
               </Button>
             </div>
 
+            {bt.isExpand && (
+              <div className="capability-column-header">
+                <span>Name</span><span>Operate Time</span><span>Operator</span><span>Operation</span>
+              </div>
+            )}
+
             {bt.isExpand && bt.abilities.map(ab => (
-              <div key={ab.key} style={{ borderTop: '1px solid #f0f0f0' }}>
+              <div key={ab.key} className="capability-ability-block">
                 <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '14px 24px',
-                    background: '#fff',
-                    cursor: ab.actions.length > 0 ? 'pointer' : 'default',
-                  }}
+                  className="capability-ability-row"
                   onClick={() => ab.actions.length > 0 && toggleAbility(bt.key, ab.key)}
                 >
-                  {ab.actions.length > 0 ? (
-                    ab.isExpand ? <CaretDownOutlined style={{ marginRight: 8 }} /> : <CaretRightOutlined style={{ marginRight: 8 }} />
-                  ) : (
-                    <span style={{ width: 20, marginRight: 8 }} />
-                  )}
-                  <Text style={{ flex: 1, fontWeight: 500 }}>{ab.name}</Text>
-                  <Text type="secondary" style={{ marginRight: 16, width: 220 }}>{ab.operateTime}</Text>
-                  <Text type="secondary" style={{ marginRight: 16, width: 160 }}>{ab.operator}</Text>
-                  <Space onClick={e => e.stopPropagation()}>
+                  <div className="capability-ability-name">
+                    {ab.actions.length > 0 ? (
+                      ab.isExpand ? <CaretDownOutlined /> : <CaretRightOutlined />
+                    ) : <span className="capability-icon-placeholder" />}
+                    <Text>{ab.name}</Text>
+                  </div>
+                  <Text type="secondary">{ab.operateTime}</Text>
+                  <Text type="secondary">{ab.operator}</Text>
+                  <Space className="capability-operation-links" onClick={e => e.stopPropagation()}>
                     <Button
                       type="link"
-                      style={{ color: BRAND_PURPLE, padding: '0 8px', fontWeight: 500 }}
                       onClick={() => message.info('SubOrderMode configuration is not implemented in this demo.')}
                     >
                       SubOrderMode
                     </Button>
                     <Button
                       type="link"
-                      style={{ color: BRAND_PURPLE, padding: '0 8px', fontWeight: 500 }}
                       onClick={() => navigate(`/basic-info/capability/features?bt=${bt.name}&ability=${ab.name}`)}
                     >
                       Features
                     </Button>
                     <Button
                       type="link"
-                      style={{ color: BRAND_PURPLE, padding: '0 8px', fontWeight: 500 }}
                       onClick={() => navigate(`/basic-info/capability/link-state-machine?bt=${bt.name}&ability=${ab.name}`)}
                     >
                       State Machines
@@ -515,19 +422,43 @@ export default function CapabilityPage() {
                 </div>
 
                 {ab.isExpand && ab.actions.length > 0 && (
-                  <div style={{ paddingLeft: 48, background: '#fff' }}>
-                    <Table
-                      dataSource={ab.actions}
-                      columns={columns}
-                      rowKey="key"
-                      pagination={false}
-                      size="small"
-                    />
+                  <div className="capability-action-table">
+                    {ab.actions.map(action => {
+                      const isEditing = editingActionKey === action.key;
+                      return (
+                        <div className="capability-action-row" key={action.key}>
+                          <div className="capability-action-name">
+                            {isEditing ? (
+                              <Input
+                                value={editingActionName}
+                                onChange={event => setEditingActionName(event.target.value)}
+                                onPressEnter={() => saveEditAction(bt.key, ab.key)}
+                                onBlur={() => saveEditAction(bt.key, ab.key)}
+                                autoFocus
+                                onKeyDown={event => {
+                                  if (event.key === 'Escape') cancelEditAction();
+                                }}
+                              />
+                            ) : (
+                              <span onDoubleClick={() => startEditAction(action)}>{action.name}</span>
+                            )}
+                          </div>
+                          <span>{action.operateTime}</span>
+                          <span>{action.operator}</span>
+                          <Button
+                            type="link"
+                            onClick={() => navigate(`/basic-info/capability/spi?bt=${bt.name}&ability=${ab.name}&action=${action.name}`)}
+                          >
+                            Config
+                          </Button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
                 {ab.isExpand && (
-                  <div style={{ padding: '12px 24px 14px 48px', background: '#fff' }}>
+                  <div className="capability-add-action-row">
                     <Button
                       type="dashed"
                       icon={<PlusOutlined />}
@@ -540,17 +471,9 @@ export default function CapabilityPage() {
                 )}
               </div>
             ))}
-
-            {bt.isExpand && (
-              <div style={{ padding: '8px 16px', background: '#fff', borderTop: '1px solid #f0f0f0' }}>
-                <Text type="secondary">
-                  共 {bt.abilities.length} 个 Ability
-                </Text>
-              </div>
-            )}
-          </div>
+          </section>
         ))}
-      </div>
+      </main>
 
       <Modal
         title="Add Capability"

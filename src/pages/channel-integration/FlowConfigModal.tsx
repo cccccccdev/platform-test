@@ -329,6 +329,7 @@ export default function FlowConfigModal({
 
   return (
     <Modal
+      className="new-flow-modal"
       title="New Flow"
       open={visible}
       onCancel={handleClose}
@@ -341,12 +342,11 @@ export default function FlowConfigModal({
         </Button>,
       ]}
       width={600}
-      closeIcon={<span />}
     >
       <Form
+        className="new-flow-form"
         form={form}
         layout="vertical"
-        style={{ marginTop: 16 }}
         onValuesChange={handleValuesChange}
       >
         {/* Flow Name */}
@@ -371,12 +371,12 @@ export default function FlowConfigModal({
           }
         >
           <Radio.Group
+            className="new-flow-trigger-types"
             value={triggerType}
             onChange={handleTriggerTypeChange}
-            style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
           >
             {triggerTypeOptions.map(opt => (
-              <Radio key={opt.value} value={opt.value} style={{ height: 'auto', padding: '8px 0' }}>
+              <Radio key={opt.value} value={opt.value}>
                 <Space>
                   <Text>{opt.label}</Text>
                   <Tooltip title={opt.description}>

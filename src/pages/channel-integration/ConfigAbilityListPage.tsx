@@ -66,6 +66,7 @@ function AddCapabilitiesModal({
 
   return (
     <Modal
+      className="add-capabilities-modal"
       title="Add Capabilities"
       open={open}
       okText="Confirm"
@@ -76,6 +77,7 @@ function AddCapabilitiesModal({
           form.resetFields();
         });
       }}
+      width={520}
     >
       <Form form={form} layout="vertical">
         <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}>
@@ -461,19 +463,15 @@ export default function ConfigAbilityListPage() {
       columns={[
         {
           title: 'Group ID',
-          width: 210,
-          render: (_value, group) => (
-            <Space size={8} wrap>
-              <Text strong>{group.groupId}</Text>
-              <Tag color="processing">Version {group.version}</Tag>
-            </Space>
-          ),
+          width: 120,
+          render: (_value, group) => <Text strong>{group.groupId}</Text>,
         },
+        { title: 'Version', dataIndex: 'version', width: 160 },
         { title: 'Status', width: 120, render: (_value, group) => renderStatus(group) },
         { title: 'Description', render: (_value, group) => <DescriptionCell description={group.remark} /> },
-        { title: 'Operator', dataIndex: 'operator', width: 110 },
-        { title: 'Operation Time', dataIndex: 'operationTime', width: 180 },
-        { title: 'Operation', width: 430, render: (_value, group) => renderGroupOperations(ability, group) },
+        { title: 'Operator', dataIndex: 'operator', width: 90 },
+        { title: 'Operation Time', dataIndex: 'operationTime', width: 160 },
+        { title: 'Operation', width: 300, render: (_value, group) => renderGroupOperations(ability, group) },
       ]}
     />
   );
@@ -502,6 +500,7 @@ export default function ConfigAbilityListPage() {
         const key = `${ability.bt}-${ability.ability}`;
         return (
           <Button
+            className="flow-group-expand"
             type="text"
             icon={expandedRows.has(key) ? <DownOutlined /> : <RightOutlined />}
             onClick={() => toggleExpand(key)}
@@ -533,11 +532,11 @@ export default function ConfigAbilityListPage() {
       title: 'Operation',
       width: 280,
       render: (_value: unknown, ability: ConfigAbility) => (
-        <Space>
-          <Button size="small" onClick={() => setConfigAbility(ability)}>
+        <Space size="middle" className="flow-group-operation">
+          <Button type="link" onClick={() => setConfigAbility(ability)}>
             Config
           </Button>
-          <Button type="primary" size="small" onClick={() => setCreateGroupAbility(ability)}>
+          <Button type="link" onClick={() => setCreateGroupAbility(ability)}>
             Create Flow Group
           </Button>
         </Space>
@@ -556,40 +555,45 @@ export default function ConfigAbilityListPage() {
     : null;
 
   return (
-    <div style={{ padding: 24 }}>
-      <Breadcrumb style={{ marginBottom: 16 }} items={[{ title: 'Channel Integration' }, { title: 'Flow Groups' }]} />
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between' }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Flow Groups</h2>
-          <Text type="secondary">Channel: {channelCode}</Text>
+    <div className="flow-groups-page">
+      <section className="flow-groups-heading">
+        <Breadcrumb items={[{ title: 'Channel List' }, { title: 'Config Integration' }, { title: 'Flow Groups' }]} />
+        <div className="flow-groups-title-line">
+          <h2>Flow Groups</h2>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddCapabilities(true)}>
-          Add Capabilities
-        </Button>
-      </div>
+      </section>
 
-      <Table<ConfigAbility>
-        dataSource={paginatedAbilities}
-        columns={columns}
-        rowKey={(ability) => `${ability.bt}-${ability.ability}`}
-        pagination={false}
-        expandable={{
-          expandedRowRender,
-          expandedRowKeys: Array.from(expandedRows),
-          showExpandColumn: false,
-        }}
-      />
-      {abilities.length > pageSize && (
-        <div style={{ marginTop: 16, textAlign: 'right' }}>
-          <Pagination
-            current={currentPage}
-            total={abilities.length}
-            pageSize={pageSize}
-            onChange={setCurrentPage}
-            showSizeChanger={false}
-          />
+      <main className="flow-groups-content">
+        <div className="flow-groups-toolbar">
+          <Text className="flow-groups-channel">Channel: {channelCode}</Text>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setShowAddCapabilities(true)}>
+            Add Capabilities
+          </Button>
         </div>
-      )}
+        <Table<ConfigAbility>
+          className="flow-groups-table"
+          dataSource={paginatedAbilities}
+          columns={columns}
+          rowKey={(ability) => `${ability.bt}-${ability.ability}`}
+          pagination={false}
+          expandable={{
+            expandedRowRender,
+            expandedRowKeys: Array.from(expandedRows),
+            showExpandColumn: false,
+          }}
+        />
+        {abilities.length > pageSize && (
+          <div className="flow-groups-pagination">
+            <Pagination
+              current={currentPage}
+              total={abilities.length}
+              pageSize={pageSize}
+              onChange={setCurrentPage}
+              showSizeChanger={false}
+            />
+          </div>
+        )}
+      </main>
 
       <AddCapabilitiesModal
         open={showAddCapabilities}
@@ -739,6 +743,7 @@ export default function ConfigAbilityListPage() {
       </Modal>
 
       <Modal
+        className="flow-group-deploy-status-modal"
         title="Deploy Status"
         open={Boolean(deployStatusGroup)}
         footer={null}
@@ -755,21 +760,26 @@ export default function ConfigAbilityListPage() {
           const clouds = (Object.keys(CLOUD_DEPLOY_SEQUENCES) as CloudType[])
             .filter((cloud) => selectedRecords.some((record) => record.cloud === cloud));
           return <>
-            <div style={{ padding: '8px 4px 20px' }}>
-              <div style={{ marginBottom: 22 }}><strong>Channel:</strong> {channelCode}</div>
-              <Space size={28} wrap style={{ marginBottom: 18 }}>
-                <span><strong>Group ID:</strong> {deployStatusGroup.group.groupId}</span>
+            <div className="flow-group-deploy-status-context">
+              <Space size={28} wrap className="flow-group-deploy-status-line">
+                <span><strong>Channel:</strong> {channelCode}</span>
                 <span><strong>Business Type:</strong> {deployStatusGroup.ability.bt}</span>
                 <span><strong>Ability:</strong> {deployStatusGroup.ability.ability}</span>
+                <span><strong>Group ID:</strong> {deployStatusGroup.group.groupId}</span>
               </Space>
               <div style={{ display: 'grid', gridTemplateColumns: '120px minmax(260px, 420px)', gap: 16, alignItems: 'center' }}>
-                <Text strong>Version</Text>
+                <Text strong>Group Version</Text>
                 <Select
                   value={selectedVersion}
                   onChange={setDeployStatusVersion}
                   options={versions.map((version) => ({
                     value: version,
-                    label: `${version} (${getVersionStatus(deployStatusGroup.group.deployRecords, version)})`,
+                    label: (
+                      <Space size={6}>
+                        <span>{version} ({getVersionStatus(deployStatusGroup.group.deployRecords, version)})</span>
+                        {version === deployStatusGroup.group.version && <Tag color="blue">Current</Tag>}
+                      </Space>
+                    ),
                   }))}
                 />
               </div>

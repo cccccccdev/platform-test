@@ -1,191 +1,34 @@
-import { Card, Row, Col, Typography } from 'antd';
+import { Avatar } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
-  DashboardOutlined,
+  ProfileOutlined,
   ForkOutlined,
-  ApiOutlined,
-  ArrowRightOutlined,
-  BankOutlined,
-  GlobalOutlined,
-  AppstoreOutlined,
-  CreditCardOutlined,
-  UserSwitchOutlined,
-  BuildOutlined,
-  ApartmentOutlined,
-  FileTextOutlined,
-  MessageOutlined,
   ControlOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 
-const { Title, Text } = Typography;
-
-interface ModuleEntryProps {
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  path: string;
-  subItems?: { name: string; path: string; icon: React.ReactNode }[];
-}
-
-function ModuleEntry({ title, description, icon, color, path, subItems }: ModuleEntryProps) {
-  const navigate = useNavigate();
-
-  return (
-    <Card
-      style={{
-        height: '100%',
-        borderTop: `4px solid ${color}`,
-        borderRadius: 12,
-      }}
-      bodyStyle={{ padding: 0 }}
-    >
-      <div
-        style={{
-          padding: '24px 24px 16px',
-          cursor: 'pointer',
-        }}
-        onClick={() => navigate(path)}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 12,
-              background: `${color}15`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 28,
-            }}
-          >
-            {icon}
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 20, fontWeight: 600 }}>{title}</span>
-            </div>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>{description}</div>
-          </div>
-          <ArrowRightOutlined style={{ color: '#999', fontSize: 18 }} />
-        </div>
-      </div>
-
-      {subItems && subItems.length > 0 && (
-        <div
-          style={{
-            borderTop: '1px solid #f0f0f0',
-            padding: '16px 24px',
-            background: '#fafafa',
-            borderRadius: '0 0 12px 12px',
-          }}
-        >
-          <Row gutter={[12, 12]}>
-            {subItems.map((item) => (
-              <Col key={item.path} xs={12} sm={8} md={6}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    background: '#fff',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                    border: '1px solid #e8e8e8',
-                    transition: 'all 0.2s',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(item.path);
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = color;
-                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e8e8e8';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <span style={{ fontSize: 16, color }}>{item.icon}</span>
-                  <Text style={{ fontSize: 13 }}>{item.name}</Text>
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
-      )}
-    </Card>
-  );
-}
-
 export default function HomePage() {
+  const navigate = useNavigate();
   const modules = [
-    {
-      title: '基础信息',
-      description: '管理国家、Party、卡Bin、业务类型、能力、机构类型、机构、段、响应码、应用、服务等基础配置',
-      icon: <DashboardOutlined style={{ color: '#1890ff' }} />,
-      color: '#1890ff',
-      path: '/basic-info',
-      subItems: [
-        { name: 'Country', path: '/basic-info/country', icon: <GlobalOutlined /> },
-        { name: 'Party', path: '/basic-info/party', icon: <UserSwitchOutlined /> },
-        { name: 'Card Bin', path: '/basic-info/card-bin', icon: <CreditCardOutlined /> },
-        { name: 'Party&Tenant', path: '/basic-info/party-tenant', icon: <ApartmentOutlined /> },
-        { name: 'Business Type', path: '/basic-info/business-type', icon: <AppstoreOutlined /> },
-        { name: 'Capability', path: '/basic-info/capability', icon: <BuildOutlined /> },
-        { name: 'Institution Type', path: '/basic-info/institution-type', icon: <ApartmentOutlined /> },
-        { name: 'Institution', path: '/basic-info/institution', icon: <BankOutlined /> },
-        { name: 'Segment', path: '/basic-info/segment', icon: <FileTextOutlined /> },
-        { name: 'Response Code', path: '/basic-info/response-code', icon: <MessageOutlined /> },
-        { name: 'Application', path: '/basic-info/application', icon: <AppstoreOutlined /> },
-        { name: 'Service', path: '/basic-info/service', icon: <ApiOutlined /> },
-        { name: 'StateMachine', path: '/basic-info/stateMachine', icon: <ControlOutlined /> },
-      ],
-    },
-    {
-      title: 'Channel Integration',
-      description: '渠道管理 → 场景配置 → 场景编辑/详情/流量控制/发布管理',
-      icon: <ForkOutlined style={{ color: '#52c41a' }} />,
-      color: '#52c41a',
-      path: '/channel-integration',
-      subItems: [
-        { name: '渠道列表', path: '/channel-integration', icon: <BankOutlined /> },
-      ],
-    },
+    { title: 'Basic Info', icon: <ProfileOutlined />, tone: 'violet', path: '/basic-info/country' },
+    { title: 'Channel Integration', icon: <ForkOutlined />, tone: 'indigo', path: '/channel-integration' },
+    { title: 'Operation Config', icon: <ControlOutlined />, tone: 'cyan', path: '/operation-config' },
   ];
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px' }}>
-      {/* Welcome Section */}
-      <Card
-        style={{
-          margin: '24px 0',
-          background: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
-          border: 'none',
-          borderRadius: 12,
-        }}
-        bodyStyle={{ padding: '32px 40px' }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Title level={2} style={{ color: '#fff', marginBottom: 8, fontWeight: 600 }}>
-              接入平台 2.0
-            </Title>
-          </div>
-        </div>
-      </Card>
-
-      {/* Module Entries */}
-      <Row gutter={[24, 24]}>
+    <div className="legacy-home">
+      <header className="legacy-home-header">
+        <strong>Omnicore Solution</strong>
+        <div className="legacy-home-user"><Avatar size={28} icon={<UserOutlined />} />我爱北京天安门</div>
+      </header>
+      <main className="legacy-home-modules">
         {modules.map((module) => (
-          <Col key={module.path} xs={24}>
-            <ModuleEntry {...module} />
-          </Col>
+          <button key={module.path} className="legacy-module" onClick={() => navigate(module.path)}>
+            <span className={`legacy-module-icon ${module.tone}`}>{module.icon}</span>
+            <strong>{module.title}</strong>
+          </button>
         ))}
-      </Row>
+      </main>
     </div>
   );
 }
