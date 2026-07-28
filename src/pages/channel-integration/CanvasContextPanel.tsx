@@ -144,7 +144,7 @@ export default function CanvasContextPanel({
   const channelItems = [
     {
       key: 'global-variable',
-      label: <Space><span>📝</span><span>Global Variable</span><VersionTag version={globalVariables.length ? globalVariableVersion : undefined} /></Space>,
+      label: <Space><span>Global Variables</span><VersionTag version={globalVariables.length ? globalVariableVersion : undefined} /></Space>,
       children: <div>
         {globalVariables.length
           ? globalVariables.map((item) => <GlobalVariableRow
@@ -167,7 +167,7 @@ export default function CanvasContextPanel({
     },
     {
       key: 'credential',
-      label: <Space><span>🔐</span><span>Credential</span><VersionTag version={credentialVersion} /><Button type="text" size="small" aria-label="Credential Guidance" icon={<QuestionCircleOutlined />} onClick={(event) => { event.stopPropagation(); setShowCredentialGuidance(true); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
+      label: <Space><span>Credentials</span><VersionTag version={credentialVersion} /><Button type="text" size="small" aria-label="Credential Guidance" icon={<QuestionCircleOutlined />} onClick={(event) => { event.stopPropagation(); setShowCredentialGuidance(true); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
       children: <div>
         {credentials.length
           ? credentials.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.key}</div>)
@@ -188,11 +188,11 @@ export default function CanvasContextPanel({
 
   const orderItems = mode === 'flow' ? [{
     key: 'spi',
-    label: <Space><span>🔵</span><span>SPI</span><Tag>Read only</Tag></Space>,
+    label: <Space><span>SPI</span><Tag>Read only</Tag></Space>,
     children: spiFields,
   }, {
     key: 'order-variable',
-    label: <Space><span>📦</span><span>Order Variable</span><VersionTag version={orderVariables.length ? orderVariableVersion : undefined} /></Space>,
+    label: <Space><span>Order Variables</span><VersionTag version={orderVariables.length ? orderVariableVersion : undefined} /></Space>,
     children: <div>
       {orderVariables.length
         ? orderVariables.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.name}</div>)
@@ -210,9 +210,9 @@ export default function CanvasContextPanel({
     </div>,
   }] : [];
 
-  const runtimeItems = [{
+  const authenticationItem = {
     key: 'authentication',
-    label: <Space><span>🛡️</span><span>Authentication</span></Space>,
+    label: <Space><span>Authentication Schemes</span></Space>,
     children: <div>
       {authentications.length ? authentications.map((item) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, gap: 6 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -228,28 +228,37 @@ export default function CanvasContextPanel({
         <Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingAuthentication(null); setShowAuthenticationDrawer(true); }}>Create Scheme</Button>
       </div>}
     </div>,
-  }, ...(channelMerchantInfoAvailable ? [{
-      key: 'channel-merchant-info',
-      label: <Space><span>⚡</span><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
-      children: <div style={{ padding: '4px 0' }}>
-        <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>channelMerchantId</div>
-      </div>,
-    }] : [])];
+  };
 
-  const scopeItems = [
-    { key: 'channel-context', label: <strong>Channel Context</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
-    { key: 'order-context', label: <strong>Order Context</strong>, children: orderItems.length ? <Collapse ghost items={orderItems} defaultActiveKey={[]} /> : <EmptyContext>Not available in Route Matching.</EmptyContext> },
-    { key: 'runtime-context', label: <strong>Runtime Context</strong>, children: <Collapse ghost items={runtimeItems} defaultActiveKey={[]} /> },
-  ];
+  const loadedDataItems = channelMerchantInfoAvailable ? [{
+    key: 'channel-merchant-info',
+    label: <Space><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
+    children: <div style={{ padding: '4px 0' }}>
+      <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>channelMerchantId</div>
+    </div>,
+  }] : [];
+
+  const resourceItems = mode === 'flow'
+    ? [
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={[...channelItems, authenticationItem]} defaultActiveKey={[]} /> },
+        { key: 'order-resources', label: <strong>Order Resources</strong>, children: <Collapse ghost items={orderItems} defaultActiveKey={[]} /> },
+        ...(loadedDataItems.length ? [{ key: 'loaded-data', label: <strong>Loaded Data</strong>, children: <Collapse ghost items={loadedDataItems} defaultActiveKey={[]} /> }] : []),
+      ]
+    : [
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
+      ];
+  const defaultResourceKeys = mode === 'flow'
+    ? ['channel-resources', 'order-resources', ...(loadedDataItems.length ? ['loaded-data'] : [])]
+    : ['channel-resources'];
 
   return <>
     <div style={{ width: 292, height: '100%', borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>Context</span>
-        <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Context" onClick={() => message.success('Context references are up to date')} />
+        <span>Resources</span>
+        <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Resources" onClick={() => message.success('Resource references are up to date')} />
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 6 }}>
-        <Collapse ghost items={scopeItems} defaultActiveKey={['channel-context', 'order-context']} />
+        <Collapse ghost items={resourceItems} defaultActiveKey={defaultResourceKeys} />
       </div>
     </div>
 
