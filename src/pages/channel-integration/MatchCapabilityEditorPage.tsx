@@ -386,10 +386,10 @@ function MatchFlowNode({ data }: { data: Record<string, any> }) {
 const matchNodeTypes = { flowNode: MatchFlowNode };
 
 function seedMatchGraph(configuration: CapabilityDecisionVersion, onOpenDrawer: (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string, nodeId?: string) => void, onDelete: (nodeId: string, ruleId?: string) => void): { nodes: Node[]; edges: Edge[] } {
-  const makeNode = (id: string, code: MatchLibraryComponent['code'], x: number, y: number, description: string, drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string): Node => ({ id, type: 'flowNode', position: { x, y }, data: { code, description, isConfigured: true, ruleId, onConfig: () => onOpenDrawer(drawer, ruleId, id), onDelete: () => onDelete(id, ruleId) } });
-  const preprocess = makeNode('preprocess', 'inboundPreprocess', 320, 50, `Prepare matching fields · ${configuration.requestMessageFormat ?? 'JSON'}`, 'preprocess');
+  const makeNode = (id: string, code: MatchLibraryComponent['code'], x: number, y: number, description: string, drawer: 'preprocess' | 'condition' | 'capability' | 'order', isConfigured: boolean, ruleId?: string): Node => ({ id, type: 'flowNode', position: { x, y }, data: { code, description, isConfigured, ruleId, onConfig: () => onOpenDrawer(drawer, ruleId, id), onDelete: () => onDelete(id, ruleId) } });
+  const preprocess = makeNode('preprocess', 'inboundPreprocess', 320, 50, configuration.requestMessageFormat ? `Prepare matching fields · ${configuration.requestMessageFormat}` : 'Configure request fields used for matching', 'preprocess', Boolean(configuration.requestMessageFormat));
   if (configuration.matchType === 'order_no') {
-    const orderNode = makeNode('order', 'matchCapabilityByOrder', 320, 210, configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Configure order reference comparison', 'order');
+    const orderNode = makeNode('order', 'matchCapabilityByOrder', 320, 210, configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Configure order reference comparison', 'order', Boolean(configuration.referenceField && configuration.singleNoField));
     return {
       nodes: [preprocess, orderNode],
       edges: [
@@ -399,10 +399,11 @@ function seedMatchGraph(configuration: CapabilityDecisionVersion, onOpenDrawer: 
   }
   if (configuration.matchType === 'single') {
     const rule = configuration.rules[0];
-    return { nodes: [makeNode(`cap_${rule?.id ?? 'single'}`, 'specifyCapability', 320, 120, rule?.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify one Capability Result', 'capability', rule?.id)], edges: [] };
+    if (!rule) return { nodes: [], edges: [] };
+    return { nodes: [makeNode(`cap_${rule.id}`, 'specifyCapability', 320, 120, rule.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify one Capability Result', 'capability', Boolean(rule.bt && rule.ability && rule.action), rule.id)], edges: [] };
   }
-  const condition = makeNode('condition', 'condition', 320, 200, 'Branch by field rules or Groovy script', 'condition');
-  const resultNodes = configuration.rules.map((rule, index) => makeNode(`cap_${rule.id}`, 'specifyCapability', 80 + index * 300, 380, rule.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify Capability Result', 'capability', rule.id));
+  const condition = makeNode('condition', 'condition', 320, 200, 'Branch by field rules or Groovy script', 'condition', configuration.rules.some((rule) => Object.keys(rule.fieldValues ?? {}).length > 0));
+  const resultNodes = configuration.rules.map((rule, index) => makeNode(`cap_${rule.id}`, 'specifyCapability', 80 + index * 300, 380, rule.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify Capability Result', 'capability', Boolean(rule.bt && rule.ability && rule.action), rule.id));
   return { nodes: [preprocess, condition, ...resultNodes], edges: [{ id: 'match_e1', source: 'preprocess', target: 'condition', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }, ...resultNodes.map((node, index) => ({ id: `match_branch_${index}`, source: 'condition', target: node.id, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }))] };
 }
 

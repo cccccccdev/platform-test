@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { mockInboundEndpointsByChannel } from '../../mock/data';
-import type { CapabilityDecisionVersion, InboundEndpoint } from './types';
+import type { CapabilityDecisionVersion, InboundEndpoint, RouteMatchingTemplateCode } from './types';
 
 const timestampVersion = () => {
   const date = new Date();
@@ -136,7 +136,7 @@ interface MatchCapabilityStore {
   addEndpoint: (channelCode: string, endpoint: InboundEndpoint) => void;
   updateEndpoint: (channelCode: string, endpointId: string, updates: Partial<InboundEndpoint>) => void;
   updateDecisionVersion: (channelCode: string, endpointId: string, versionId: string, updates: Partial<CapabilityDecisionVersion>) => void;
-  createVersion: (channelCode: string, endpointId: string, description: string) => CapabilityDecisionVersion | null;
+  createVersion: (channelCode: string, endpointId: string, description: string, templateCode: RouteMatchingTemplateCode) => CapabilityDecisionVersion | null;
   cloneVersion: (channelCode: string, endpointId: string, versionId: string, description: string) => CapabilityDecisionVersion | null;
   deployVersion: (channelCode: string, endpointId: string, versionId: string, cloud: string, env: string) => void;
   discardVersionDraft: (channelCode: string, endpointId: string, versionId: string) => void;
@@ -192,12 +192,28 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
     dirtyByChannel: { ...state.dirtyByChannel, [channelCode]: true },
   })),
 
-  createVersion: (channelCode, endpointId, description) => {
+  createVersion: (channelCode, endpointId, description, templateCode) => {
     const endpoint = get().getEndpoints(channelCode).find((item) => item.id === endpointId);
     if (!endpoint) return null;
-    const source = endpoint.versions[0];
     const matchingId = nextMatchingId(get().endpointsByChannel);
-    const version: CapabilityDecisionVersion = source.sourceType === 'legacy' ? {
+    const blankRule = (): CapabilityDecisionVersion['rules'][number] => ({
+      id: `result_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      fieldValues: {},
+      bt: '',
+      ability: '',
+      action: '',
+    });
+    const rules = templateCode === 'FIXED_CAPABILITY'
+      ? [blankRule()]
+      : templateCode === 'FIELD_BASED_CAPABILITY'
+        ? [blankRule(), blankRule()]
+        : [];
+    const matchType: CapabilityDecisionVersion['matchType'] = templateCode === 'FIELD_BASED_CAPABILITY'
+      ? 'type_field'
+      : templateCode === 'ORDER_BASED_CAPABILITY'
+        ? 'order_no'
+        : 'single';
+    const version: CapabilityDecisionVersion = {
       id: matchingId,
       version: timestampVersion(),
       name: `Matching ${matchingId}`,
@@ -206,29 +222,15 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       configStatus: 'UNDEPLOYED',
       fields: [],
       requestFields: [],
-      matchType: 'single',
+      matchType,
       singleNoField: '',
       matchFields: [],
-      rules: [{ id: `result_${Date.now()}`, fieldValues: {}, bt: '', ability: '', action: '' }],
+      rules,
       customScript: 'def execute(request) {\n  return null\n}',
       fallbackBehavior: 'alert_and_reject',
       decryptEnabled: false,
-      requestMessageFormat: 'JSON',
       badges: [],
       hasUnsubmittedDraft: false,
-      updatedTime: new Date().toLocaleString(),
-      operator: 'admin',
-    } : {
-      ...structuredClone(source),
-      id: matchingId,
-      version: timestampVersion(),
-      name: `Matching ${matchingId}`,
-      remark: description.trim(),
-      sourceType: 'v2',
-      configStatus: 'UNDEPLOYED',
-      badges: [],
-      hasUnsubmittedDraft: false,
-      draftBaseline: undefined,
       updatedTime: new Date().toLocaleString(),
       operator: 'admin',
     };

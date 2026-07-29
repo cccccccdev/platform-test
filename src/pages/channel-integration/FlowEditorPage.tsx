@@ -2139,7 +2139,7 @@ export default function FlowEditorPage() {
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
   const selectedConfig = selectedConfigNode?.data.config as Record<string, unknown> | undefined;
-  const channelMerchantInfoAvailable = nodes.some((node) => node.data.code === 'loadChannelMerchantInfo' && node.data.isConfigured);
+  const channelMerchantInfoAvailable = nodes.some((node) => node.data.code === 'loadChannelMerchantInfo');
 
   const toRuntimeNode = useCallback((item: FlowCanvasNode): Node => {
     const info = COMPONENT_LIBRARY.find((component) => component.code === item.componentCode);

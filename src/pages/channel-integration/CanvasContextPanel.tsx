@@ -144,7 +144,7 @@ export default function CanvasContextPanel({
   const channelItems = [
     {
       key: 'global-variable',
-      label: <Space><span>Global Variables</span><VersionTag version={globalVariables.length ? globalVariableVersion : undefined} /></Space>,
+      label: <Space><span>📝</span><span>Global Variables</span><VersionTag version={globalVariables.length ? globalVariableVersion : undefined} /></Space>,
       children: <div>
         {globalVariables.length
           ? globalVariables.map((item) => <GlobalVariableRow
@@ -167,7 +167,7 @@ export default function CanvasContextPanel({
     },
     {
       key: 'credential',
-      label: <Space><span>Credentials</span><VersionTag version={credentialVersion} /><Button type="text" size="small" aria-label="Credential Guidance" icon={<QuestionCircleOutlined />} onClick={(event) => { event.stopPropagation(); setShowCredentialGuidance(true); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
+      label: <Space><span>🔐</span><span>Credentials</span><VersionTag version={credentialVersion} /><Button type="text" size="small" aria-label="Credential Guidance" icon={<QuestionCircleOutlined />} onClick={(event) => { event.stopPropagation(); setShowCredentialGuidance(true); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
       children: <div>
         {credentials.length
           ? credentials.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.key}</div>)
@@ -188,11 +188,11 @@ export default function CanvasContextPanel({
 
   const orderItems = mode === 'flow' ? [{
     key: 'spi',
-    label: <Space><span>SPI</span><Tag>Read only</Tag></Space>,
+    label: <Space><span>🔵</span><span>SPI</span><Tag>Read only</Tag></Space>,
     children: spiFields,
   }, {
     key: 'order-variable',
-    label: <Space><span>Order Variables</span><VersionTag version={orderVariables.length ? orderVariableVersion : undefined} /></Space>,
+    label: <Space><span>📦</span><span>Order Variables</span><VersionTag version={orderVariables.length ? orderVariableVersion : undefined} /></Space>,
     children: <div>
       {orderVariables.length
         ? orderVariables.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.name}</div>)
@@ -212,7 +212,7 @@ export default function CanvasContextPanel({
 
   const authenticationItem = {
     key: 'authentication',
-    label: <Space><span>Authentication Schemes</span></Space>,
+    label: <Space><span>🛡️</span><span>Authentication</span></Space>,
     children: <div>
       {authentications.length ? authentications.map((item) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, gap: 6 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -242,13 +242,13 @@ export default function CanvasContextPanel({
     ? [
         { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={[...channelItems, authenticationItem]} defaultActiveKey={[]} /> },
         { key: 'order-resources', label: <strong>Order Resources</strong>, children: <Collapse ghost items={orderItems} defaultActiveKey={[]} /> },
-        ...(loadedDataItems.length ? [{ key: 'loaded-data', label: <strong>Loaded Data</strong>, children: <Collapse ghost items={loadedDataItems} defaultActiveKey={[]} /> }] : []),
+        { key: 'loaded-data', label: <strong>Loaded Data</strong>, children: loadedDataItems.length ? <Collapse ghost items={loadedDataItems} defaultActiveKey={[]} /> : <EmptyContext>No data loaded.</EmptyContext> },
       ]
     : [
         { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
       ];
   const defaultResourceKeys = mode === 'flow'
-    ? ['channel-resources', 'order-resources', ...(loadedDataItems.length ? ['loaded-data'] : [])]
+    ? ['channel-resources', 'order-resources', 'loaded-data']
     : ['channel-resources'];
 
   return <>
