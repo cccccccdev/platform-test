@@ -463,8 +463,6 @@ export default function ChannelInfoPage() {
   const searchEndpoint = Form.useWatch('endpoint', searchForm);
   const searchBt = Form.useWatch('bt', searchForm);
   const searchAbility = Form.useWatch('ability', searchForm);
-  const searchSubState = Form.useWatch('subState', searchForm);
-  const selectedSearchMainState = Form.useWatch('mainState', searchForm);
   const bulkEndpoint = Form.useWatch('endpoint', bulkForm);
   const bulkBt = Form.useWatch('bt', bulkForm);
   const selectedRequerySubState = Form.useWatch('subState', requeryForm);
@@ -495,7 +493,6 @@ export default function ChannelInfoPage() {
   const searchSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', searchBt, searchAbility).map((item) => ({ label: item.value, value: item.value })), [channelCode, searchAbility, searchBt]);
   const bulkBtOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === bulkEndpoint).map((item) => item.bt)).map((value) => ({ label: value, value })), [bulkEndpoint, isExternal]);
   const bulkAbilityOptions = useMemo(() => unique(pathCapabilities.filter((item) => item.path === bulkEndpoint && item.bt === bulkBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [bulkBt, bulkEndpoint]);
-  const searchMainState = searchSubState ? mainStateForSubState(searchSubState) : selectedSearchMainState;
   const modalSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', selectedBt, selectedAbility).map((item) => ({ label: item.value, value: item.value })), [channelCode, selectedAbility, selectedBt]);
   const requeryBtOptions = useMemo(() => {
     const fromGroups = flowGroupAbilities.map((item) => item.bt);
@@ -1073,24 +1070,21 @@ export default function ChannelInfoPage() {
               onChange={() => searchForm.setFieldsValue({ subState: undefined, mainState: undefined })}
             />
           </Form.Item>
-          <Form.Item name="mainState" label="Main State">
-            <Select
-              allowClear
-              options={valueOptions(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'])}
-              placeholder="Select Main State"
-              onChange={() => searchForm.setFieldsValue({ subState: undefined })}
-            />
-          </Form.Item>
           <Form.Item name="subState" label="Gateway Sub State">
             <Select
               allowClear
               disabled={!searchAbility}
               options={searchSubStateOptions}
               placeholder="Loaded by Channel + BT + Ability"
-              onChange={(value) => searchForm.setFieldsValue({ mainState: mainStateForSubState(value) })}
             />
           </Form.Item>
-          <Form.Item label="Current Main State"><Input disabled value={searchMainState ?? ''} placeholder="Auto-filled or selected above" /></Form.Item>
+          <Form.Item name="mainState" label="Main State">
+            <Select
+              allowClear
+              options={valueOptions(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'])}
+              placeholder="Select Main State"
+            />
+          </Form.Item>
           <Form.Item label="Response Code"><Input placeholder="Response Code" /></Form.Item>
           {isExternal ? <Form.Item label="Channel Response Code"><Input placeholder="Channel Response Code" /></Form.Item> : <Form.Item label="Channel Status"><Input placeholder="Channel Status" /></Form.Item>}
         </div>
