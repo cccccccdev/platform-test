@@ -216,15 +216,16 @@ export default function ConfigEditorPage() {
               { title: 'Channel Info', onClick: () => navigate(`/channel-integration/${channelCode}/channel-info`) },
               { title: 'Runtime Control' },
               { title: 'Flow Groups' },
-              { title: readOnly ? 'Flow Configuration Detail' : 'Flow Configuration' },
+              { title: readOnly ? 'Flow Group Detail' : 'Flow Configuration' },
             ]
           : [
               { title: 'Channel List', onClick: () => navigate('/channel-integration') },
               { title: 'Config Integration' },
               { title: 'Flow Groups', onClick: () => navigate(`/channel-integration/${channelCode}/integration/config/flow-groups`) },
+              { title: readOnly ? 'Flow Group Detail' : 'Flow Group Config' },
             ]}
         />
-        <Title level={4}>{readOnly ? 'Flow Configuration Detail' : 'Flow Configuration'}</Title>
+        <Title level={4}>{readOnly ? 'Flow Group Detail' : 'Flow Group Config'}</Title>
       </section>
 
       <main className="flow-configuration-content">

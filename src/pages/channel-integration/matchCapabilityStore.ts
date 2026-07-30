@@ -124,7 +124,14 @@ const cloneSeedData = (): Record<string, InboundEndpoint[]> => {
             { ...structuredClone(seedVersion), id: String(matchingId++), version: '20260122035216', name: 'Legacy Callback Undeployed', remark: 'Legacy Callback Undeployed', configStatus: 'UNDEPLOYED' as const, badges: [] },
           ]
         : [seedVersion];
-    return { ...endpoint, versions };
+    const resourceVersions = { globalVariables: '20260628110000', credentials: '20260628111000' };
+    return {
+      ...endpoint,
+      versions: versions.map((version) => ({
+        ...version,
+        resourceVersions: version.resourceVersions ?? resourceVersions,
+      })),
+    };
   })]));
 };
 
