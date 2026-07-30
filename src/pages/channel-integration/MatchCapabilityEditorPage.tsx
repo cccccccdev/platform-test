@@ -259,8 +259,8 @@ export default function MatchCapabilityEditorPage() {
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f7fa' }}>
       <div style={{ height: 58, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
-        <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => readOnly ? navigate(-1) : navigate(`/channel-integration/${channelCode}/integration/config/route-matching`)}>Back</Button>
-        <Divider type="vertical" />
+        {!readOnly && <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate(`/channel-integration/${channelCode}/integration/config/route-matching`)}>Back</Button>}
+        {!readOnly && <Divider type="vertical" />}
         <strong>{runtimeDetail ? 'Runtime Control / Route Matching Detail' : readOnly ? 'Route Matching Detail' : 'Configure Route Matching'}</strong>
         <div style={{ flex: 1 }} />
         {!readOnly && <Space><Button icon={<SaveOutlined />} onClick={handleSave}>Save Draft</Button><Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSubmit}>Submit</Button></Space>}
@@ -269,7 +269,15 @@ export default function MatchCapabilityEditorPage() {
       <RouteMatchingSummary channelCode={channelCode} endpoint={endpoint} configuration={configuration} />
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
-        <CanvasContextPanel channelCode={channelCode} mode="matching" readOnly={readOnly} />
+        <CanvasContextPanel
+          channelCode={channelCode}
+          mode="matching"
+          readOnly={readOnly}
+          resourceVersions={readOnly ? {
+            globalVariables: configuration.resourceVersions?.globalVariables ?? configuration.version,
+            credentials: configuration.resourceVersions?.credentials ?? configuration.version,
+          } : undefined}
+        />
         <MatchCapabilityCanvas
           configuration={configuration}
           readOnly={readOnly}
@@ -511,7 +519,15 @@ function LegacyInboundFlowEditor({
       />
 
       <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: readOnly ? '292px minmax(430px, 1fr)' : '292px 304px minmax(430px, 1fr)', margin: '0 16px 16px', background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
-        <CanvasContextPanel channelCode={channelCode} mode="matching" readOnly={readOnly} />
+        <CanvasContextPanel
+          channelCode={channelCode}
+          mode="matching"
+          readOnly={readOnly}
+          resourceVersions={readOnly ? {
+            globalVariables: configuration.resourceVersions?.globalVariables ?? configuration.version,
+            credentials: configuration.resourceVersions?.credentials ?? configuration.version,
+          } : undefined}
+        />
 
         {!readOnly && <div style={{ borderRight: '1px solid #f0f0f0', overflow: 'auto' }}>
           <div style={{ padding: 14, fontWeight: 600, borderBottom: '1px solid #f0f0f0' }}>Component Library</div>

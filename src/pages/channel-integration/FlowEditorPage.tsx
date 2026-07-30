@@ -2308,16 +2308,16 @@ export default function FlowEditorPage() {
         padding: '0 24px',
         gap: 16,
       }}>
-        <Button
+        {!readOnly && <Button
           type="text"
           icon={<ArrowLeftOutlined />}
-          onClick={() => readOnly ? performNavigation() : handleBack()}
+          onClick={handleBack}
         >
           Back
-        </Button>
-        <Divider type="vertical" style={{ height: 24 }} />
+        </Button>}
+        {!readOnly && <Divider type="vertical" style={{ height: 24 }} />}
         <Space size={8}>
-          <Title level={5} style={{ margin: 0 }}>Config Flow</Title>
+          <Title level={5} style={{ margin: 0 }}>{readOnly ? 'Flow Detail' : 'Config Flow'}</Title>
           <Tag color="blue" style={{ margin: 0 }}>{storedFlow?.name ?? '—'}</Tag>
         </Space>
         <div style={{ flex: 1 }} />
@@ -2386,6 +2386,11 @@ export default function FlowEditorPage() {
           isMappingActive={isMappingActive}
           onFieldSelect={handleContextFieldSelect}
           channelMerchantInfoAvailable={channelMerchantInfoAvailable}
+          resourceVersions={readOnly ? {
+            globalVariables: storedVersion?.resourceVersions?.globalVariables ?? storedVersion?.version,
+            credentials: storedVersion?.resourceVersions?.credentials ?? storedVersion?.version,
+            orderVariables: storedVersion?.resourceVersions?.orderVariables ?? storedVersion?.version,
+          } : undefined}
         />
 
         {/* 组件面板 */}

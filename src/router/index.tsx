@@ -22,6 +22,7 @@ import SceneListPage from '../pages/channel-integration/SceneListPage';
 import SceneEditPage from '../pages/channel-integration/SceneEditPage';
 import SceneDetailPage from '../pages/channel-integration/SceneDetailPage';
 import FlowEditorPage from '../pages/channel-integration/FlowEditorPage';
+import IntegrationDetailLayout from '../components/IntegrationDetailLayout';
 import TestPage from '../pages/channel-integration/TestPage';
 
 // Basic Info pages (has sidebar)
@@ -153,20 +154,25 @@ const router = createHashRouter(
 
       // Flow Editor page (without sidebar - uses NoSidebarLayout)
       {
-        path: 'channel-integration/:channelCode/integration/config/:bt/:ability/versions/:versionId/flows/:flowId',
-        element: <LegacyFlowDetailRedirect />,
-      },
-      {
-        path: 'channel-integration/:channelCode/integration/config/flow-groups/:bt/:ability/versions/:versionId/flows/:flowId',
-        element: <FlowEditorPage />,
-      },
-      {
-        path: 'channel-integration/:channelCode/integration/match-capability/:uriId/versions/:decisionVersionId',
-        element: <LegacyRouteMatchingDetailRedirect />,
-      },
-      {
-        path: 'channel-integration/:channelCode/integration/config/route-matching/:uriId/versions/:decisionVersionId',
-        element: <MatchCapabilityEditorPage />,
+        element: <IntegrationDetailLayout />,
+        children: [
+          {
+            path: 'channel-integration/:channelCode/integration/config/:bt/:ability/versions/:versionId/flows/:flowId',
+            element: <LegacyFlowDetailRedirect />,
+          },
+          {
+            path: 'channel-integration/:channelCode/integration/config/flow-groups/:bt/:ability/versions/:versionId/flows/:flowId',
+            element: <FlowEditorPage />,
+          },
+          {
+            path: 'channel-integration/:channelCode/integration/match-capability/:uriId/versions/:decisionVersionId',
+            element: <LegacyRouteMatchingDetailRedirect />,
+          },
+          {
+            path: 'channel-integration/:channelCode/integration/config/route-matching/:uriId/versions/:decisionVersionId',
+            element: <MatchCapabilityEditorPage />,
+          },
+        ],
       },
 
       // Scene pages (existing)

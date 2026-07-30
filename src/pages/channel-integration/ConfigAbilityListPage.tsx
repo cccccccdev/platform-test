@@ -703,8 +703,9 @@ export default function ConfigAbilityListPage() {
           <div style={{ padding: '12px 20px 4px' }}>
             <Space size={20} wrap style={{ marginBottom: 28 }}>
               <span><strong>Group ID:</strong> {deployTarget.group.groupId}</span>
-              <span><strong>Version:</strong> <Tag color="green">{deployTarget.group.version}</Tag></span>
-              <span><strong>Ability:</strong> {deployTarget.ability.bt} / {deployTarget.ability.ability}</span>
+              <span><strong>Group Version:</strong> <Tag color="green">{deployTarget.group.version}</Tag></span>
+              <span><strong>Business Type:</strong> {deployTarget.ability.bt}</span>
+              <span><strong>Ability:</strong> {deployTarget.ability.ability}</span>
             </Space>
 
             <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', rowGap: 24, alignItems: 'center' }}>

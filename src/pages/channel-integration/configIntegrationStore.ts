@@ -685,7 +685,25 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
   PAYSTACK_NG: [],
 };
 
-const cloneSeed = () => structuredClone(seedAbilities);
+const seedResourceVersions: Record<string, { globalVariables: string; credentials: string; orderVariables: string }> = {
+  EVEXIN: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+  GTB_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+  ZENITH_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+  PAYSTACK_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+};
+
+const cloneSeed = () => Object.fromEntries(
+  Object.entries(structuredClone(seedAbilities)).map(([channelCode, abilities]) => [
+    channelCode,
+    abilities.map((ability) => ({
+      ...ability,
+      versions: ability.versions.map((version) => ({
+        ...version,
+        resourceVersions: version.resourceVersions ?? seedResourceVersions[channelCode],
+      })),
+    })),
+  ]),
+);
 
 // Helper to create a submitted snapshot from a flow
 function snapshotFlow(flow: FlowConfig): SubmittedFlowContent {
