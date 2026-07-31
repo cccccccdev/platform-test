@@ -14,6 +14,7 @@ import CredentialDrawer from './sharedCredentialDrawer';
 import AuthenticationDrawer from './sharedAuthenticationDrawer';
 import CanvasContextPanel from './CanvasContextPanel';
 import HttpCallDrawer from './HttpCallDrawer';
+import TcpCallDrawer from './TcpCallDrawer';
 import LoadChannelMerchantInfoDrawer from './LoadChannelMerchantInfoDrawer';
 import ReferenceGenerationDrawer from './ReferenceGenerationDrawer';
 import type { ReferenceConfigTarget } from './ReferenceGenerationDrawer';
@@ -51,6 +52,7 @@ const COMPONENT_LIBRARY = [
   { code: 'updateOutboundBatchOrder', name: 'Update Outbound Batch Order', group: 'Inbound', usage: 'multiple', scopes: ['inbound'] },
   { code: 'generateRequestReference', name: 'Generate Request Reference', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
   { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
+  { code: 'tcpCall', name: 'TCP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
   { code: 'loadChannelMerchantInfo', name: 'Load Channel Merchant Info', group: 'Runtime', usage: 'single', scopes: ['outbound', 'inbound'] },
   { code: 'sendCompleteMQ', name: 'Send Complete MQ', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
   { code: 'condition', name: 'Condition Check', group: 'Common', usage: 'multiple', scopes: ['match', 'outbound', 'inbound'] },
@@ -1888,6 +1890,7 @@ export default function FlowEditorPage() {
 
   // Network drawer state
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
+  const [showTcpCallDrawer, setShowTcpCallDrawer] = useState(false);
   const [showLoadChannelMerchantInfoDrawer, setShowLoadChannelMerchantInfoDrawer] = useState(false);
   const [referenceConfigTarget, setReferenceConfigTarget] = useState<ReferenceConfigTarget | null>(null);
   const [showInboundRequestDrawer, setShowInboundRequestDrawer] = useState(false);
@@ -2128,6 +2131,7 @@ export default function FlowEditorPage() {
   const openComponentConfig = useCallback((code: string, nodeId?: string) => {
     setSelectedConfigNodeId(nodeId ?? null);
     if (code === 'httpCall') setShowNetworkDrawer(true);
+    if (code === 'tcpCall') setShowTcpCallDrawer(true);
     if (code === 'loadChannelMerchantInfo') setShowLoadChannelMerchantInfoDrawer(true);
     if (code === 'initOutboundOrder') setReferenceConfigTarget({ direction: 'outbound', placement: 'init-order' });
     if (code === 'initInboundOrder') setReferenceConfigTarget({ direction: 'inbound', placement: 'init-order' });
@@ -2469,6 +2473,20 @@ export default function FlowEditorPage() {
             return n;
           }));
           setShowNetworkDrawer(false);
+        }}
+      />
+
+      <TcpCallDrawer
+        open={showTcpCallDrawer}
+        channelCode={params.channelCode ?? ''}
+        initialValues={selectedConfig}
+        readOnly={readOnly}
+        onClose={() => setShowTcpCallDrawer(false)}
+        onSave={(config) => {
+          setNodes(nds => nds.map(n => n.id === selectedConfigNodeId
+            ? { ...n, data: { ...n.data, status: 'complete', isConfigured: true, config } }
+            : n));
+          setShowTcpCallDrawer(false);
         }}
       />
 
