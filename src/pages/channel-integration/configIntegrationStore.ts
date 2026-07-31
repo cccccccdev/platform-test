@@ -673,6 +673,51 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
       ],
     },
   ],
+  NPSB_BD: [
+    {
+      bt: 'WALLET_PAYOUT',
+      ability: 'TRANSACTION',
+      actions: ['TRANSACTION'],
+      stateMachine: 'NPSB_Wallet_Payout_StateMachine',
+      versions: [
+        {
+          id: 'npsb_wallet_payout_daily',
+          groupId: 801,
+          version: '20260715103000',
+          status: 'DAILY',
+          badges: [{ cloud: 'BD', env: 'DAILY' }],
+          remark: 'NPSB TCP + ISO 8583 wallet payout sample',
+          operator: 'admin',
+          operationTime: '2026-07-15 10:30:00',
+          deployRecords: [{ cloud: 'BD', app: 'omnicore', env: 'DAILY', version: '20260715103000', operator: 'admin', operationTime: '2026-07-15 10:30:00' }],
+          flows: [{
+            id: 'npsb_wallet_payout_flow',
+            name: 'WALLET_PAYOUT',
+            executionType: 'single',
+            flowType: 'outbound',
+            endType: 'wait_external',
+            triggerType: 'UPSTREAM_TRIGGERED',
+            template: 'STANDARD',
+            triggerEvents: ['TRANSACTION'],
+            contextActions: [],
+            isConfigured: true,
+            status: 'SUBMITTED',
+            canvasNodes: [
+              { id: 'npsb_out_1', componentCode: 'initOutboundOrder', x: 320, y: 40, status: 'complete' as const },
+              { id: 'npsb_out_2', componentCode: 'tcpCall', x: 320, y: 170, status: 'complete' as const, config: { requestName: 'wallet_payout_request', requestMTI: '0100', responseMTI: '0110', profileId: 'tcp_npsb_default', responseCodeMapping: 'WALLET_PAYOUT' } },
+              { id: 'npsb_out_3', componentCode: 'updateOutboundOrder', x: 320, y: 300, status: 'complete' as const },
+              { id: 'npsb_out_4', componentCode: 'sendCompleteMQ', x: 320, y: 430, status: 'complete' as const },
+            ],
+            canvasEdges: [
+              { id: 'npsb_out_e1', source: 'npsb_out_1', target: 'npsb_out_2' },
+              { id: 'npsb_out_e2', source: 'npsb_out_2', target: 'npsb_out_3' },
+              { id: 'npsb_out_e3', source: 'npsb_out_3', target: 'npsb_out_4' },
+            ],
+          }],
+        },
+      ],
+    },
+  ],
   ZENITH_NG: [
     {
       bt: 'COLLECTION',
@@ -690,6 +735,7 @@ const seedResourceVersions: Record<string, { globalVariables: string; credential
   GTB_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
   ZENITH_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
   PAYSTACK_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+  NPSB_BD: { globalVariables: '20260715100000', credentials: '20260715100000', orderVariables: '20260715100000' },
 };
 
 const cloneSeed = () => Object.fromEntries(

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Button, Collapse, Input, Modal, Space, Tag, message } from 'antd';
+import { Button, Collapse, Input, Modal, Space, Tag, Tooltip, message } from 'antd';
 import { EditOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useChannelScopeStore } from './channelScopeStore';
 import type { AuthConfig, CredentialItem, VariableItem } from './channelScopeStore';
 import AuthenticationDrawer from './sharedAuthenticationDrawer';
+import TcpProfileDrawer from './TcpProfileDrawer';
+import type { TcpProfile } from './channelScopeStore';
 
 const EMPTY_VARIABLES: VariableItem[] = [];
 const EMPTY_CREDENTIALS: CredentialItem[] = [];
@@ -89,6 +91,9 @@ export default function CanvasContextPanel({
   const credentials = useChannelScopeStore((state) => state.credentialsByChannel[channelCode]) ?? EMPTY_CREDENTIALS;
   const credentialVersion = useChannelScopeStore((state) => state.credentialVersionByChannel[channelCode]);
   const authentications = useChannelScopeStore((state) => state.authenticationsByChannel[channelCode]) ?? EMPTY_AUTHENTICATIONS;
+  const tcpProfiles = useChannelScopeStore((state) => state.tcpProfilesByChannel[channelCode]) ?? [];
+  const addTcpProfile = useChannelScopeStore((state) => state.addTcpProfile);
+  const updateTcpProfile = useChannelScopeStore((state) => state.updateTcpProfile);
   const addCredential = useChannelScopeStore((state) => state.addCredential);
   const addGlobalVariable = useChannelScopeStore((state) => state.addGlobalVariable);
   const updateGlobalVariableValue = useChannelScopeStore((state) => state.updateGlobalVariableValue);
@@ -101,6 +106,8 @@ export default function CanvasContextPanel({
   const [showCredentialGuidance, setShowCredentialGuidance] = useState(false);
   const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
   const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
+  const [editingTcpProfile, setEditingTcpProfile] = useState<TcpProfile | null>(null);
+  const [showTcpProfileDrawer, setShowTcpProfileDrawer] = useState(false);
 
   const submitGlobalVariable = () => {
     const key = globalVariableKeyDraft.trim();
@@ -236,6 +243,17 @@ export default function CanvasContextPanel({
     </div>,
   };
 
+  const tcpProfileItem = {
+    key: 'tcp-profile',
+    label: <Space><span>🔌</span><span>TCP Profiles</span><Tag color="blue">{tcpProfiles.length}</Tag><Tooltip title="A TCP Profile is a reusable Channel-level configuration for long-lived TCP connection runtime behavior. TCP endpoint details remain in Channel Info Party Lines, while message definitions stay in tcpCall."><QuestionCircleOutlined style={{ color: '#8c8c8c', fontSize: 12 }} /></Tooltip></Space>,
+    children: <div>
+      {tcpProfiles.length ? tcpProfiles.map((profile) => <div key={profile.id} style={{ padding: '7px 4px', borderBottom: '1px solid #f5f5f5' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}><b style={{ fontSize: 11 }}>{profile.name}</b><Button type="text" size="small" icon={<EditOutlined />} aria-label={`Edit ${profile.name}`} onClick={() => { setEditingTcpProfile(profile); setShowTcpProfileDrawer(true); }} /></div>
+      </div>) : <EmptyContext>No TCP Profile configured.</EmptyContext>}
+      {!readOnly && <div style={{ padding: '8px 4px 0' }}><Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingTcpProfile(null); setShowTcpProfileDrawer(true); }}>Create TCP Profile</Button></div>}
+    </div>,
+  };
+
   const loadedDataItems = channelMerchantInfoAvailable ? [{
     key: 'channel-merchant-info',
     label: <Space><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
@@ -246,12 +264,12 @@ export default function CanvasContextPanel({
 
   const resourceItems = mode === 'flow'
     ? [
-        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={readOnly ? channelItems : [...channelItems, authenticationItem]} defaultActiveKey={[]} /> },
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={readOnly ? [...channelItems, tcpProfileItem] : [...channelItems, tcpProfileItem, authenticationItem]} defaultActiveKey={[]} /> },
         { key: 'order-resources', label: <strong>Order Resources</strong>, children: <Collapse ghost items={orderItems} defaultActiveKey={[]} /> },
         { key: 'loaded-data', label: <strong>Loaded Data</strong>, children: loadedDataItems.length ? <Collapse ghost items={loadedDataItems} defaultActiveKey={[]} /> : <EmptyContext>No data loaded.</EmptyContext> },
       ]
     : [
-        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={[...channelItems, tcpProfileItem]} defaultActiveKey={[]} /> },
       ];
   const defaultResourceKeys = mode === 'flow'
     ? ['channel-resources', 'order-resources', 'loaded-data']
@@ -269,6 +287,7 @@ export default function CanvasContextPanel({
     </div>
 
     <AuthenticationDrawer visible={showAuthenticationDrawer} channelCode={channelCode} auth={editingAuthentication} onClose={() => { setShowAuthenticationDrawer(false); setEditingAuthentication(null); }} />
+    <TcpProfileDrawer open={showTcpProfileDrawer} profile={editingTcpProfile} readOnly={readOnly} onClose={() => { setShowTcpProfileDrawer(false); setEditingTcpProfile(null); }} onSave={(profile) => { if (editingTcpProfile) updateTcpProfile(channelCode, profile.id, profile); else addTcpProfile(channelCode, profile); setShowTcpProfileDrawer(false); setEditingTcpProfile(null); message.success('TCP Profile saved'); }} />
     <Modal title="Credential Guidance" open={showCredentialGuidance} footer={null} onCancel={() => setShowCredentialGuidance(false)}>
       <ol style={{ paddingLeft: 22, marginBottom: 0, lineHeight: 1.8 }}>
         <li>Create the required credential field names for the Channel here, such as username and password.</li>
