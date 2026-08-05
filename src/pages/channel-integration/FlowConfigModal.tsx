@@ -355,10 +355,11 @@ export default function FlowConfigModal({
           label="Flow Name"
           rules={[
             { required: true, message: 'Please enter Flow Name' },
+            { max: 30, message: 'Flow Name cannot exceed 30 characters' },
             { validator: (_, value) => isFlowNameUnique(value) ? Promise.resolve() : Promise.reject('Flow Name already exists') },
           ]}
         >
-          <Input placeholder="Enter Flow Name" />
+          <Input placeholder="Enter Flow Name" maxLength={30} showCount />
         </Form.Item>
 
         {/* Trigger Type */}

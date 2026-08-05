@@ -500,7 +500,7 @@ function LegacyInboundFlowEditor({
       <div style={{ height: 58, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0' }}>
         <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => readOnly ? navigate(-1) : navigate(`/channel-integration/${channelCode}/integration/config/route-matching`)}>Back</Button>
         <Divider type="vertical" />
-        <Space><Tag color="purple">Legacy 1.0</Tag><strong>{readOnly ? 'Inbound Flow Detail' : 'Configure Legacy Inbound Flow'}</strong></Space>
+        <strong>{readOnly ? 'Inbound Flow Detail' : 'Configure Legacy Inbound Flow'}</strong>
         <div style={{ flex: 1 }} />
         {!readOnly && <Space>
           <Button icon={<SaveOutlined />} onClick={() => { saveChannel(channelCode); message.success('Legacy Inbound Flow draft saved'); }}>Save Draft</Button>
@@ -544,7 +544,7 @@ function LegacyInboundFlowEditor({
           <div style={{ flex: 1, overflow: 'auto', padding: 30, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
             {components.map((component, index) => <div key={component.id}>
               <button onClick={() => setSelectedId(component.id)} style={{ display: 'block', width: 330, margin: '0 auto', padding: 14, textAlign: 'left', border: '1px solid #9254de', borderRadius: 8, background: '#f9f0ff', cursor: 'pointer' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span><Tag color="purple">Legacy</Tag><strong>{component.code}</strong></span><Tag color="green">Configured</Tag></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><strong>{component.code}</strong><Tag color="green">Configured</Tag></div>
                 <div style={{ color: '#595959', fontSize: 11, marginTop: 5 }}>Click to {readOnly ? 'view' : 'configure'} · position locked</div>
               </button>
               {index < components.length - 1 && <div style={{ textAlign: 'center', fontSize: 24, lineHeight: '38px' }}>↓</div>}

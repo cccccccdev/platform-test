@@ -14,9 +14,19 @@ const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((v
 const flatTypes = types.filter((option) => !['Object', 'Array'].includes(option.value));
 const formats = ['Custom', 'FORM_DATA', 'JSON', 'X_WWW_FORM_URLENCODED', 'XML'].map((value) => ({ label: value, value }));
 const generated = [
-  { label: 'Current Timestamp', value: 'generated.current-timestamp', type: 'Long' },
-  { label: 'UUID', value: 'generated.uuid', type: 'String' },
-  { label: 'Random Number', value: 'generated.random-number', type: 'Long' },
+  { label: 'DATE', value: 'generated.date', children: [
+    { label: 'Generate timestamp', value: 'generated.timestamp', type: 'String' },
+    { label: 'Generate current time millis', value: 'generated.current-time-millis', type: 'Long' },
+    { label: 'Generate current timestamp(second)', value: 'generated.current-timestamp-second', type: 'Long' },
+  ] },
+  { label: 'RANDOM', value: 'generated.random', children: [
+    { label: 'Generate digital random number', value: 'generated.digital-random-number', type: 'Long' },
+    { label: 'Generate character random number', value: 'generated.character-random-number', type: 'String' },
+    { label: 'Generate reference number', value: 'generated.reference-number', type: 'String' },
+  ] },
+  { label: 'CALLBACK', value: 'generated.callback', children: [
+    { label: 'Generate callback url', value: 'generated.callback-url', type: 'String' },
+  ] },
 ];
 const signing = ['Custom', 'HMAC (SHA256)', 'HMAC (SHA512)', 'MD5', 'RSA (SHA1)', 'RSA (SHA256)', 'RSA (SHA512)', 'SHA1', 'SHA256', 'SHA512'].map((value) => ({ label: value, value }));
 const encryption = ['AES (CBC)', 'AES (ECB)', 'Custom', 'RSA'].map((value) => ({ label: value, value }));

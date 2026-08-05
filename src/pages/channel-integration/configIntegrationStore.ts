@@ -37,17 +37,15 @@ const commonCanvasNodes = [
   { id: 'out_1', componentCode: 'initOutboundOrder', x: 320, y: 40, status: 'complete' as const },
   { id: 'out_2', componentCode: 'loadCredential', x: 320, y: 150, status: 'complete' as const },
   { id: 'out_3', componentCode: 'loadGlobalVariable', x: 320, y: 260, status: 'complete' as const },
-  { id: 'out_4', componentCode: 'generateRequestReference', x: 320, y: 370, status: 'complete' as const },
-  { id: 'out_5', componentCode: 'httpCall', x: 320, y: 480, status: 'complete' as const },
-  { id: 'out_6', componentCode: 'updateOutboundOrder', x: 320, y: 590, status: 'complete' as const },
-  { id: 'out_7', componentCode: 'sendCompleteMQ', x: 320, y: 700, status: 'complete' as const },
+  { id: 'out_5', componentCode: 'httpCall', x: 320, y: 370, status: 'complete' as const },
+  { id: 'out_6', componentCode: 'updateOutboundOrder', x: 320, y: 480, status: 'complete' as const },
+  { id: 'out_7', componentCode: 'sendCompleteMQ', x: 320, y: 590, status: 'complete' as const },
 ];
 
 const commonCanvasEdges = [
   { id: 'out_e1', source: 'out_1', target: 'out_2' },
   { id: 'out_e2', source: 'out_2', target: 'out_3' },
-  { id: 'out_e3', source: 'out_3', target: 'out_4' },
-  { id: 'out_e4', source: 'out_4', target: 'out_5' },
+  { id: 'out_e3', source: 'out_3', target: 'out_5' },
   { id: 'out_e5', source: 'out_5', target: 'out_6' },
   { id: 'out_e6', source: 'out_6', target: 'out_7' },
 ];
@@ -108,15 +106,13 @@ const evexinSendHttpCallConfig = {
 
 const evexinSendCanvasNodes = [
   { id: 'evexin_out_1', componentCode: 'initOutboundOrder', x: 320, y: 40, status: 'complete' as const },
-  { id: 'evexin_out_2', componentCode: 'generateRequestReference', x: 320, y: 150, status: 'complete' as const },
-  { id: 'evexin_out_3', componentCode: 'httpCall', x: 320, y: 260, status: 'complete' as const, config: evexinSendHttpCallConfig },
-  { id: 'evexin_out_4', componentCode: 'updateOutboundOrder', x: 320, y: 370, status: 'complete' as const, config: { targetSubState: 'SUBMITTED', failureSubState: 'FAILED' } },
-  { id: 'evexin_out_5', componentCode: 'sendCompleteMQ', x: 320, y: 480, status: 'complete' as const },
+  { id: 'evexin_out_3', componentCode: 'httpCall', x: 320, y: 150, status: 'complete' as const, config: evexinSendHttpCallConfig },
+  { id: 'evexin_out_4', componentCode: 'updateOutboundOrder', x: 320, y: 260, status: 'complete' as const, config: { targetSubState: 'SUBMITTED', failureSubState: 'FAILED' } },
+  { id: 'evexin_out_5', componentCode: 'sendCompleteMQ', x: 320, y: 370, status: 'complete' as const },
 ];
 
 const evexinSendCanvasEdges = [
-  { id: 'evexin_out_e1', source: 'evexin_out_1', target: 'evexin_out_2' },
-  { id: 'evexin_out_e2', source: 'evexin_out_2', target: 'evexin_out_3' },
+  { id: 'evexin_out_e1', source: 'evexin_out_1', target: 'evexin_out_3' },
   { id: 'evexin_out_e3', source: 'evexin_out_3', target: 'evexin_out_4' },
   { id: 'evexin_out_e4', source: 'evexin_out_4', target: 'evexin_out_5' },
 ];

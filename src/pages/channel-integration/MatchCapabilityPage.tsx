@@ -253,7 +253,7 @@ export default function MatchCapabilityPage() {
       columns={[
         { title: 'Matching ID', dataIndex: 'id', width: 190 },
         { title: 'Version', dataIndex: 'version', width: 135 },
-        { title: 'Description', dataIndex: 'remark', render: (remark: string | undefined, version) => <Space>{version.sourceType === 'legacy' && <Tag color="purple">Legacy 1.0</Tag>}<span>{remark || '-'}</span></Space> },
+        { title: 'Description', dataIndex: 'remark', render: (remark: string | undefined) => remark || '-' },
         { title: 'Status', width: 130, render: (_, version) => renderStatus(version) },
         { title: 'Operator', dataIndex: 'operator', width: 100 },
         { title: 'Operation Time', dataIndex: 'updatedTime', width: 180 },

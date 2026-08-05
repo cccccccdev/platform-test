@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowRightOutlined, DeleteOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Cascader, Input, Select, Space, Switch, Tag, Tooltip, Typography } from 'antd';
+import { Button, Cascader, Form, Input, Modal, Select, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import TargetMappingList, { createTargetMapping, normalizeTargetMappings, TargetMappingColumnHeaders } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
 
@@ -16,12 +16,14 @@ export interface FlatMappingField {
   description?: string;
   targetValue?: string;
   targetMappings?: TargetMapping[];
+  generatedDataConfig?: { mode: 'default' | 'customPrefix'; prefix?: string };
 }
 
 interface ValueOption {
   label: string;
   value: string;
   type?: string;
+  children?: ValueOption[];
 }
 
 interface OptionGroup {
@@ -62,10 +64,18 @@ const createField = (withTargetMapping = false): FlatMappingField => ({
 
 const optionType = (options: MappingOption[], selected?: string | string[]): string => {
   const selectedValue = Array.isArray(selected) ? selected[selected.length - 1] : selected;
+  const findType = (items: ValueOption[]): string | undefined => {
+    for (const item of items) {
+      if (item.value === selectedValue) return item.type ?? 'String';
+      const nested = item.children ? findType(item.children) : undefined;
+      if (nested) return nested;
+    }
+    return undefined;
+  };
   for (const option of options) {
     if ('options' in option) {
-      const match = option.options.find((item) => item.value === selectedValue);
-      if (match) return match.type ?? 'String';
+      const type = findType(option.options);
+      if (type) return type;
     } else if (option.value === selectedValue) return option.type ?? 'String';
   }
   return 'String';
@@ -89,6 +99,8 @@ export default function FlatFieldMappingEditor({
   schemaOnly = false,
 }: Props) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [referenceConfigIndex, setReferenceConfigIndex] = useState<number | null>(null);
+  const [referenceForm] = Form.useForm<{ mode: 'default' | 'customPrefix'; prefix?: string }>();
   const emit = (next: FlatMappingField[]) => onChange?.(next);
   const update = (index: number, updates: Partial<FlatMappingField>) =>
     emit(value.map((item, itemIndex) => itemIndex === index ? { ...item, ...updates } : item));
@@ -105,6 +117,13 @@ export default function FlatFieldMappingEditor({
   const cascaderSourceOptions = sourceOptions.map((option) => 'options' in option
     ? { label: option.label, value: option.label, children: option.options }
     : option);
+  const selectSource = (index: number, sourceValue: string[]) => {
+    update(index, { sourceValue });
+    if (sourceValue[sourceValue.length - 1] === 'generated.reference-number') {
+      referenceForm.setFieldsValue(value[index].generatedDataConfig ?? { mode: 'default', prefix: '' });
+      setReferenceConfigIndex(index);
+    }
+  };
 
   return (
     <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
@@ -136,7 +155,7 @@ export default function FlatFieldMappingEditor({
               >
                 {!schemaOnly && direction === 'request' ? <>
                   {sourceCascader
-                    ? <Cascader value={item.sourceValue as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceValue) => update(index, { sourceValue: sourceValue as string[] })} />
+                    ? <Cascader value={item.sourceValue as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceValue) => selectSource(index, sourceValue as string[])} />
                     : <Select value={item.sourceValue as string | undefined} placeholder={sourcePlaceholder} options={sourceOptions} onChange={(sourceValue) => update(index, { sourceValue })} />}
                   <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, item.sourceValue)}</Text>
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
@@ -168,6 +187,28 @@ export default function FlatFieldMappingEditor({
           </div>
         </div>
       </div>
+      <Modal
+        title="Generate Reference Number"
+        open={referenceConfigIndex !== null}
+        onCancel={() => setReferenceConfigIndex(null)}
+        onOk={() => referenceForm.validateFields().then((config) => {
+          if (referenceConfigIndex !== null) update(referenceConfigIndex, { generatedDataConfig: config });
+          setReferenceConfigIndex(null);
+        })}
+      >
+        <Form form={referenceForm} layout="vertical" initialValues={{ mode: 'default' }}>
+          <Form.Item name="mode" label="Generation Mode" rules={[{ required: true }]}>
+            <Select options={[{ label: 'Default', value: 'default' }, { label: 'Custom Prefix', value: 'customPrefix' }]} />
+          </Form.Item>
+          <Form.Item noStyle shouldUpdate={(previous, current) => previous.mode !== current.mode}>
+            {({ getFieldValue }) => getFieldValue('mode') === 'customPrefix' && (
+              <Form.Item name="prefix" label="Prefix" rules={[{ required: true, whitespace: true, message: 'Enter a prefix' }]}>
+                <Input placeholder="Enter a custom reference prefix" />
+              </Form.Item>
+            )}
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }
