@@ -44,13 +44,13 @@ const authTypeColors: Record<AuthType, string> = {
 type ComponentScope = 'match' | 'outbound' | 'inbound';
 type LibraryComponent = { code: string; name: string; group: string; usage: 'single' | 'multiple'; scopes: ComponentScope[] };
 
-// Phase 3 component library. eventListener and legacy network are intentionally unavailable.
+// Phase 3 component library. eventListener remains unavailable to users.
 const COMPONENT_LIBRARY = [
   { code: 'initOutboundOrder', name: 'Initialize Outbound Order', group: 'Outbound', usage: 'single', scopes: ['outbound'] },
   { code: 'prepareExtendOrder', name: 'Prepare Extend Order', group: 'Outbound', usage: 'single', scopes: ['outbound'] },
   { code: 'updateOutboundOrder', name: 'Update Outbound Order', group: 'Outbound', usage: 'multiple', scopes: ['outbound', 'inbound'] },
   { code: 'updateOutboundBatchOrder', name: 'Update Outbound Batch Order', group: 'Inbound', usage: 'multiple', scopes: ['inbound'] },
-  { code: 'generateRequestReference', name: 'Generate Request Reference', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
+  { code: 'network', name: 'Network', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
   { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
   { code: 'tcpCall', name: 'TCP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
   { code: 'loadChannelMerchantInfo', name: 'Load Channel Merchant Info', group: 'Runtime', usage: 'single', scopes: ['outbound', 'inbound'] },
@@ -60,7 +60,6 @@ const COMPONENT_LIBRARY = [
   { code: 'inboundRequest', name: 'Inbound Request', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
   { code: 'inboundResponse', name: 'Inbound Response', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
   { code: 'initInboundOrder', name: 'Initialize Inbound Order', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
-  { code: 'generateResponseReference', name: 'Generate Response Reference', group: 'Inbound', usage: 'multiple', scopes: ['inbound'] },
   { code: 'updateInboundOrder', name: 'Update Inbound Order', group: 'Inbound', usage: 'multiple', scopes: ['outbound', 'inbound'] },
   { code: 'queryInboundOrder', name: 'Query Inbound Order', group: 'Query', usage: 'multiple', scopes: ['inbound'] },
   { code: 'queryOutboundOrder', name: 'Query Outbound Order', group: 'Query', usage: 'multiple', scopes: ['outbound', 'inbound'] },
@@ -1379,8 +1378,6 @@ function NetworkConfigDrawer({
   );
 }
 
-void NetworkConfigDrawer;
-
 // Edge Condition Drawer - for configuring condition on edge from Condition node
 function EdgeConditionDrawer({
   visible,
@@ -1888,7 +1885,8 @@ export default function FlowEditorPage() {
   });
   const [showSpiModal, setShowSpiModal] = useState(false);
 
-  // Network drawer state
+  // Outbound request drawer state
+  const [showHttpCallDrawer, setShowHttpCallDrawer] = useState(false);
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
   const [showTcpCallDrawer, setShowTcpCallDrawer] = useState(false);
   const [showLoadChannelMerchantInfoDrawer, setShowLoadChannelMerchantInfoDrawer] = useState(false);
@@ -1931,8 +1929,6 @@ export default function FlowEditorPage() {
       setSelectedContextField(null); // Reset selected field
     }
   }, []);
-  void selectedContextField;
-  void handleMappingContextSet;
 
   // Unsaved changes warning modal
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
@@ -2130,13 +2126,12 @@ export default function FlowEditorPage() {
 
   const openComponentConfig = useCallback((code: string, nodeId?: string) => {
     setSelectedConfigNodeId(nodeId ?? null);
-    if (code === 'httpCall') setShowNetworkDrawer(true);
+    if (code === 'network') setShowNetworkDrawer(true);
+    if (code === 'httpCall') setShowHttpCallDrawer(true);
     if (code === 'tcpCall') setShowTcpCallDrawer(true);
     if (code === 'loadChannelMerchantInfo') setShowLoadChannelMerchantInfoDrawer(true);
     if (code === 'initOutboundOrder') setReferenceConfigTarget({ direction: 'outbound', placement: 'init-order' });
     if (code === 'initInboundOrder') setReferenceConfigTarget({ direction: 'inbound', placement: 'init-order' });
-    if (code === 'generateRequestReference') setReferenceConfigTarget({ direction: 'outbound', placement: 'standalone' });
-    if (code === 'generateResponseReference') setReferenceConfigTarget({ direction: 'inbound', placement: 'standalone' });
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
@@ -2458,12 +2453,12 @@ export default function FlowEditorPage() {
       />
 
       <HttpCallDrawer
-        open={showNetworkDrawer}
+        open={showHttpCallDrawer}
         channelCode={params.channelCode ?? ''}
         initialValues={selectedConfig}
         readOnly={readOnly}
         channelMerchantInfoAvailable={channelMerchantInfoAvailable}
-        onClose={() => setShowNetworkDrawer(false)}
+        onClose={() => setShowHttpCallDrawer(false)}
         onSave={(config) => {
           console.log('HTTP Call config saved:', config);
           setNodes(nds => nds.map(n => {
@@ -2472,6 +2467,28 @@ export default function FlowEditorPage() {
             }
             return n;
           }));
+          setShowHttpCallDrawer(false);
+        }}
+      />
+
+      <NetworkConfigDrawer
+        visible={showNetworkDrawer}
+        code="network"
+        name="Network"
+        endpoints={mockEndpoints}
+        generatedFields={mockGeneratedFields}
+        channelCode={params.channelCode ?? ''}
+        isMappingActive={isMappingActive}
+        onMappingActiveChange={setIsMappingActive}
+        onMappingContextChange={handleMappingContextSet}
+        activeMappingContext={activeMappingContext}
+        selectedContextField={selectedContextField}
+        onFieldSelect={setSelectedContextField}
+        onClose={() => setShowNetworkDrawer(false)}
+        onSave={(config) => {
+          setNodes(nds => nds.map(n => n.id === selectedConfigNodeId
+            ? { ...n, data: { ...n.data, status: 'complete', isConfigured: true, config } }
+            : n));
           setShowNetworkDrawer(false);
         }}
       />
@@ -2506,7 +2523,7 @@ export default function FlowEditorPage() {
 
       <ReferenceGenerationDrawer
         open={referenceConfigTarget !== null}
-        target={referenceConfigTarget ?? { direction: 'outbound', placement: 'standalone' }}
+        target={referenceConfigTarget ?? { direction: 'outbound', placement: 'init-order' }}
         initialValues={selectedConfig}
         readOnly={readOnly}
         onClose={() => setReferenceConfigTarget(null)}

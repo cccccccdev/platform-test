@@ -1,4 +1,5 @@
-import { Cascader, Form, Input, Typography } from 'antd';
+import { useState } from 'react';
+import { Cascader, Form, Input, Modal, Select, Typography } from 'antd';
 import { ArrowRightOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -6,7 +7,7 @@ const { Text } = Typography;
 export interface PathSourceOption {
   label: string;
   value: string;
-  children: Array<{ label: string; value: string; type?: string }>;
+  children: Array<{ label: string; value: string; type?: string; children?: PathSourceOption['children'] }>;
 }
 
 interface Props {
@@ -19,9 +20,17 @@ interface Props {
 
 const selectedType = (options: PathSourceOption[], value?: string[]): string => {
   const selected = value?.[value.length - 1];
+  const findType = (items: PathSourceOption['children']): string | undefined => {
+    for (const item of items) {
+      if (item.value === selected) return item.type ?? 'String';
+      const nested = item.children ? findType(item.children) : undefined;
+      if (nested) return nested;
+    }
+    return undefined;
+  };
   for (const group of options) {
-    const match = group.children.find((item) => item.value === selected);
-    if (match) return match.type ?? 'String';
+    const type = findType(group.children);
+    if (type) return type;
   }
   return 'String';
 };
@@ -29,6 +38,10 @@ const selectedType = (options: PathSourceOption[], value?: string[]): string => 
 const columns = 'minmax(210px,1fr) 90px 24px 150px 24px minmax(190px,.9fr) 90px';
 
 export default function PathVariableMappingEditor({ variables, mappingName, sourceOptions, operationOptions, emptyText }: Props) {
+  const form = Form.useFormInstance();
+  const [referenceVariable, setReferenceVariable] = useState<string | null>(null);
+  const [referenceMode, setReferenceMode] = useState<'default' | 'customPrefix'>('default');
+  const [referencePrefix, setReferencePrefix] = useState('');
   if (variables.length === 0) return <div style={{ padding: '14px 16px', color: '#8c8c8c', background: '#fafafa', borderRadius: 6 }}>{emptyText}</div>;
   return (
     <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
@@ -42,7 +55,14 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
             return (
               <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
                 <Form.Item name={[mappingName, variable, 'source']} rules={[{ required: true, message: 'Select value source' }]} style={{ margin: 0 }}>
-                  <Cascader placeholder="Select source value" options={sourceOptions} expandTrigger="click" showSearch />
+                  <Cascader placeholder="Select source value" options={sourceOptions} expandTrigger="click" showSearch onChange={(next) => {
+                    if ((next as string[]).at(-1) === 'generated.reference-number') {
+                      const existing = form.getFieldValue([mappingName, variable, 'generatedDataConfig']);
+                      setReferenceMode(existing?.mode ?? 'default');
+                      setReferencePrefix(existing?.prefix ?? '');
+                      setReferenceVariable(variable);
+                    }
+                  }} />
                 </Form.Item>
                 <Text>{selectedType(sourceOptions, source)}</Text>
                 <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
@@ -57,6 +77,14 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
           }}
         </Form.Item>
       ))}
+      <Modal title="Generate Reference Number" open={referenceVariable !== null} okButtonProps={{ disabled: referenceMode === 'customPrefix' && !referencePrefix.trim() }} onCancel={() => setReferenceVariable(null)} onOk={() => {
+        if (referenceVariable) form.setFieldValue([mappingName, referenceVariable, 'generatedDataConfig'], { mode: referenceMode, prefix: referenceMode === 'customPrefix' ? referencePrefix.trim() : undefined });
+        setReferenceVariable(null);
+      }}>
+        <div style={{ marginBottom: 16 }}><Text strong>Generation Mode</Text></div>
+        <Select style={{ width: '100%' }} value={referenceMode} onChange={setReferenceMode} options={[{ label: 'Default', value: 'default' }, { label: 'Custom Prefix', value: 'customPrefix' }]} />
+        {referenceMode === 'customPrefix' && <div style={{ marginTop: 16 }}><Text strong>Prefix</Text><Input value={referencePrefix} onChange={(event) => setReferencePrefix(event.target.value)} placeholder="Enter a custom reference prefix" style={{ marginTop: 8 }} /></div>}
+      </Modal>
     </div>
   );
 }

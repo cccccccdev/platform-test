@@ -300,10 +300,11 @@ export default function ConfigEditorPage() {
               label="Flow Name"
               rules={[
                 { required: true, message: 'Please enter Flow Name' },
+                { max: 30, message: 'Flow Name cannot exceed 30 characters' },
                 { validator: (_, value) => !value || !flows.some((flow) => flow.name === value) ? Promise.resolve() : Promise.reject(new Error('Flow Name already exists')) },
               ]}
             >
-              <Input placeholder="Enter Flow Name" />
+              <Input placeholder="Enter Flow Name" maxLength={30} showCount />
             </Form.Item>
             <Form.Item label="Trigger Type">
               <Input disabled value={copyingFlow.triggerType ? triggerLabels[copyingFlow.triggerType] : '-'} />

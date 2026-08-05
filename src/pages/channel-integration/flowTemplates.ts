@@ -45,11 +45,11 @@ export function getTemplates(triggerType: TriggerType, action?: string): string[
 }
 
 const templateComponents: Record<string, string[]> = {
-  TRANSACTION: ['initOutboundOrder', 'generateRequestReference', 'httpCall', 'updateOutboundOrder', 'sendCompleteMQ'],
-  VERIFY: ['prepareExtendOrder', 'httpCall', 'updateOutboundOrder', 'sendCompleteMQ'],
-  QUERY: ['generateRequestReference', 'httpCall'],
-  REQUERY: ['httpCall', 'updateOutboundOrder', 'sendCompleteMQ'],
-  ACK_INBOUND_TRANSACTION: ['httpCall', 'updateInboundOrder', 'sendCompleteMQ'],
+  TRANSACTION: ['initOutboundOrder', 'network', 'updateOutboundOrder', 'sendCompleteMQ'],
+  VERIFY: ['prepareExtendOrder', 'network', 'updateOutboundOrder', 'sendCompleteMQ'],
+  QUERY: ['network'],
+  REQUERY: ['network', 'updateOutboundOrder', 'sendCompleteMQ'],
+  ACK_INBOUND_TRANSACTION: ['network', 'updateInboundOrder', 'sendCompleteMQ'],
   CALLBACK: ['inboundRequest', 'updateOutboundOrder', 'sendCompleteMQ', 'inboundResponse'],
   CALLBACK_REQUERY: ['inboundRequest', 'queryOutboundOrder', 'sendReQueryMQ', 'inboundResponse'],
   CALLBACK_BATCH_ORDER: ['inboundRequest', 'updateOutboundBatchOrder', 'sendCompleteMQ', 'inboundResponse'],

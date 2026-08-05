@@ -27,6 +27,7 @@ export interface BodySchemaNode {
   operation?: string | string[];
   targetValue?: string;
   targetMappings?: TargetMapping[];
+  generatedDataConfig?: { mode: 'default' | 'customPrefix'; prefix?: string };
   children?: BodySchemaNode[];
 }
 
@@ -34,6 +35,7 @@ interface ValueOption {
   label: string;
   value: string;
   type?: string;
+  children?: ValueOption[];
 }
 
 interface OptionGroup {
@@ -161,6 +163,9 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
   const [importOpen, setImportOpen] = useState(false);
   const [jsonDraft, setJsonDraft] = useState('');
   const [jsonError, setJsonError] = useState('');
+  const [referenceConfigPath, setReferenceConfigPath] = useState<number[] | null>(null);
+  const [referenceMode, setReferenceMode] = useState<'default' | 'customPrefix'>('default');
+  const [referencePrefix, setReferencePrefix] = useState('');
   const total = useMemo(() => countNodes(value), [value]);
   const schemaColumns = 'minmax(250px, 1.4fr) 100px 56px minmax(180px, 1fr) 52px';
   const columns = schemaOnly ? schemaColumns : direction === 'request' ? requestColumns : responseColumns;
@@ -192,6 +197,15 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
   };
 
   const updateNode = (path: number[], updates: Partial<BodySchemaNode>) => emit(updateAtPath(value, path, (node) => ({ ...node, ...updates })));
+  const selectNodeSource = (path: number[], sourceId: string[]) => {
+    updateNode(path, { sourceId });
+    if (sourceId[sourceId.length - 1] === 'generated.reference-number') {
+      const node = getSiblings(value, path.slice(0, -1))[path[path.length - 1]];
+      setReferenceMode(node?.generatedDataConfig?.mode ?? 'default');
+      setReferencePrefix(node?.generatedDataConfig?.prefix ?? '');
+      setReferenceConfigPath(path);
+    }
+  };
 
   const changeType = (path: number[], nextType: string) => {
     const parentPath = path.slice(0, -1);
@@ -306,7 +320,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
           }}
         >
           {!schemaOnly && direction === 'request' && (isContainer ? <><span /><span /><span /><span /><span /></> : <>
-            <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceId) => updateNode(path, { sourceId: sourceId as string[] })} />
+            <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceId) => selectNodeSource(path, sourceId as string[])} />
             <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, node.sourceId)}</Text>
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
             <Cascader allowClear value={node.operation as string[] | undefined} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(operation) => updateNode(path, { operation: operation as string[] })} />
@@ -435,6 +449,20 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
           style={{ marginTop: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
         />
         {jsonError && <Text type="danger" style={{ display: 'block', marginTop: 6 }}>{jsonError}</Text>}
+      </Modal>
+      <Modal
+        title="Generate Reference Number"
+        open={referenceConfigPath !== null}
+        okButtonProps={{ disabled: referenceMode === 'customPrefix' && !referencePrefix.trim() }}
+        onCancel={() => setReferenceConfigPath(null)}
+        onOk={() => {
+          if (referenceConfigPath) updateNode(referenceConfigPath, { generatedDataConfig: { mode: referenceMode, prefix: referenceMode === 'customPrefix' ? referencePrefix.trim() : undefined } });
+          setReferenceConfigPath(null);
+        }}
+      >
+        <div style={{ marginBottom: 16 }}><Text strong>Generation Mode</Text></div>
+        <Select style={{ width: '100%' }} value={referenceMode} onChange={setReferenceMode} options={[{ label: 'Default', value: 'default' }, { label: 'Custom Prefix', value: 'customPrefix' }]} />
+        {referenceMode === 'customPrefix' && <div style={{ marginTop: 16 }}><Text strong>Prefix</Text><Input value={referencePrefix} onChange={(event) => setReferencePrefix(event.target.value)} placeholder="Enter a custom reference prefix" style={{ marginTop: 8 }} /></div>}
       </Modal>
     </div>
   );
