@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Cascader, ConfigProvider, Drawer, Form, Input, InputNumber, Modal, Radio, Select, Space, Switch, Tabs, Tag, Typography, message } from 'antd';
 import { ArrowRightOutlined, DeleteOutlined } from '@ant-design/icons';
-import { useChannelScopeStore } from './channelScopeStore';
+import { type TcpProfile, useChannelScopeStore } from './channelScopeStore';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
 
 const { Text } = Typography;
+
+const EMPTY_TCP_PROFILES: TcpProfile[] = [];
 
 type Props = {
   open: boolean;
@@ -135,7 +137,7 @@ function SecurityPanel({ direction }: { direction: FieldDirection }) {
 export default function TcpCallDrawer({ open, channelCode, initialValues, readOnly = false, onClose, onSave }: Props) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('request');
-  const profiles = useChannelScopeStore(state => state.tcpProfilesByChannel[channelCode] ?? []);
+  const profiles = useChannelScopeStore(state => state.tcpProfilesByChannel[channelCode]) ?? EMPTY_TCP_PROFILES;
   const selectedProfileId = Form.useWatch('profileId', form);
   const selectedProfile = profiles.find(profile => profile.id === selectedProfileId);
   const responseCodeMode = Form.useWatch('responseCodeMode', form) ?? 'default';
