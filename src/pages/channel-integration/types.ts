@@ -29,6 +29,7 @@ export interface MatchRule {
 }
 
 export type MatchingType = 'single' | 'order_no' | 'type_field' | 'custom';
+export type RouteMatchingTemplateCode = 'SINGLE_CAPABILITY' | 'MULTIPE_CAPABILITY' | 'MATCH_CAPABILITY_BY_ORDER';
 export type UriConfigStatus = 'UNDEPLOYED' | 'DAILY' | 'PRE' | 'PROD';
 
 export interface MatchingDeploymentRecord {
@@ -87,6 +88,7 @@ export interface CapabilityDecisionVersion {
   badges?: Array<{ cloud: string; env: string }>;
   deploymentRecords?: MatchingDeploymentRecord[];
   hasUnsubmittedDraft?: boolean;
+  resourceVersions?: ResourceVersionSnapshot;
   draftBaseline?: string;
   legacyComponents?: LegacyInboundComponent[];
   updatedTime?: string;
@@ -274,6 +276,13 @@ export interface FlowGroupVersion {
   operationTime: string;
   flows: FlowConfig[];
   deployRecords: DeployRecord[];
+  resourceVersions?: ResourceVersionSnapshot;
+}
+
+export interface ResourceVersionSnapshot {
+  globalVariables?: string;
+  credentials?: string;
+  orderVariables?: string;
 }
 
 // Config Ability main record (BT + Ability)

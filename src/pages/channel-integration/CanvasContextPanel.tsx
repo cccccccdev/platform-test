@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Button, Collapse, Input, Modal, Space, Tag, message } from 'antd';
+import { Button, Collapse, Input, Modal, Space, Tag, Tooltip, message } from 'antd';
 import { EditOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useChannelScopeStore } from './channelScopeStore';
 import type { AuthConfig, CredentialItem, VariableItem } from './channelScopeStore';
 import AuthenticationDrawer from './sharedAuthenticationDrawer';
+import TcpProfileDrawer from './TcpProfileDrawer';
+import type { TcpProfile } from './channelScopeStore';
 
 const EMPTY_VARIABLES: VariableItem[] = [];
 const EMPTY_CREDENTIALS: CredentialItem[] = [];
@@ -67,6 +69,7 @@ export default function CanvasContextPanel({
   isMappingActive = false,
   onFieldSelect,
   channelMerchantInfoAvailable = false,
+  resourceVersions,
 }: {
   channelCode: string;
   mode: 'flow' | 'matching';
@@ -75,6 +78,11 @@ export default function CanvasContextPanel({
   isMappingActive?: boolean;
   onFieldSelect?: (fieldPath: string) => void;
   channelMerchantInfoAvailable?: boolean;
+  resourceVersions?: {
+    globalVariables?: string;
+    credentials?: string;
+    orderVariables?: string;
+  };
 }) {
   const globalVariables = useChannelScopeStore((state) => state.globalVariablesByChannel[channelCode]) ?? EMPTY_VARIABLES;
   const globalVariableVersion = useChannelScopeStore((state) => state.globalVariableVersionByChannel[channelCode]);
@@ -83,6 +91,9 @@ export default function CanvasContextPanel({
   const credentials = useChannelScopeStore((state) => state.credentialsByChannel[channelCode]) ?? EMPTY_CREDENTIALS;
   const credentialVersion = useChannelScopeStore((state) => state.credentialVersionByChannel[channelCode]);
   const authentications = useChannelScopeStore((state) => state.authenticationsByChannel[channelCode]) ?? EMPTY_AUTHENTICATIONS;
+  const tcpProfiles = useChannelScopeStore((state) => state.tcpProfilesByChannel[channelCode]) ?? [];
+  const addTcpProfile = useChannelScopeStore((state) => state.addTcpProfile);
+  const updateTcpProfile = useChannelScopeStore((state) => state.updateTcpProfile);
   const addCredential = useChannelScopeStore((state) => state.addCredential);
   const addGlobalVariable = useChannelScopeStore((state) => state.addGlobalVariable);
   const updateGlobalVariableValue = useChannelScopeStore((state) => state.updateGlobalVariableValue);
@@ -95,6 +106,8 @@ export default function CanvasContextPanel({
   const [showCredentialGuidance, setShowCredentialGuidance] = useState(false);
   const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
   const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
+  const [editingTcpProfile, setEditingTcpProfile] = useState<TcpProfile | null>(null);
+  const [showTcpProfileDrawer, setShowTcpProfileDrawer] = useState(false);
 
   const submitGlobalVariable = () => {
     const key = globalVariableKeyDraft.trim();
@@ -144,7 +157,7 @@ export default function CanvasContextPanel({
   const channelItems = [
     {
       key: 'global-variable',
-      label: <Space><span>Global Variables</span><VersionTag version={globalVariables.length ? globalVariableVersion : undefined} /></Space>,
+      label: <Space><span>📝</span><span>Global Variables</span><VersionTag version={globalVariables.length ? resourceVersions?.globalVariables ?? globalVariableVersion : undefined} /></Space>,
       children: <div>
         {globalVariables.length
           ? globalVariables.map((item) => <GlobalVariableRow
@@ -167,7 +180,7 @@ export default function CanvasContextPanel({
     },
     {
       key: 'credential',
-      label: <Space><span>Credentials</span><VersionTag version={credentialVersion} /><Button type="text" size="small" aria-label="Credential Guidance" icon={<QuestionCircleOutlined />} onClick={(event) => { event.stopPropagation(); setShowCredentialGuidance(true); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
+      label: <Space><span>🔐</span><span>Credentials</span><VersionTag version={resourceVersions?.credentials ?? credentialVersion} /><Button type="text" size="small" aria-label="Credential Guidance" icon={<QuestionCircleOutlined />} onClick={(event) => { event.stopPropagation(); setShowCredentialGuidance(true); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
       children: <div>
         {credentials.length
           ? credentials.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.key}</div>)
@@ -188,11 +201,11 @@ export default function CanvasContextPanel({
 
   const orderItems = mode === 'flow' ? [{
     key: 'spi',
-    label: <Space><span>SPI</span><Tag>Read only</Tag></Space>,
+    label: <Space><span>🔵</span><span>SPI</span><Tag>Read only</Tag></Space>,
     children: spiFields,
   }, {
     key: 'order-variable',
-    label: <Space><span>Order Variables</span><VersionTag version={orderVariables.length ? orderVariableVersion : undefined} /></Space>,
+    label: <Space><span>📦</span><span>Order Variables</span><VersionTag version={orderVariables.length ? resourceVersions?.orderVariables ?? orderVariableVersion : undefined} /></Space>,
     children: <div>
       {orderVariables.length
         ? orderVariables.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.name}</div>)
@@ -212,7 +225,7 @@ export default function CanvasContextPanel({
 
   const authenticationItem = {
     key: 'authentication',
-    label: <Space><span>Authentication Schemes</span></Space>,
+    label: <Space><span>🛡️</span><span>Authentication</span></Space>,
     children: <div>
       {authentications.length ? authentications.map((item) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, gap: 6 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
@@ -230,6 +243,17 @@ export default function CanvasContextPanel({
     </div>,
   };
 
+  const tcpProfileItem = {
+    key: 'tcp-profile',
+    label: <Space><span>🔌</span><span>TCP Profiles</span><Tag color="blue">{tcpProfiles.length}</Tag><Tooltip title="A TCP Profile is a reusable Channel-level configuration for long-lived TCP connection runtime behavior. TCP endpoint details remain in Channel Info Party Lines, while message definitions stay in tcpCall."><QuestionCircleOutlined style={{ color: '#8c8c8c', fontSize: 12 }} /></Tooltip></Space>,
+    children: <div>
+      {tcpProfiles.length ? tcpProfiles.map((profile) => <div key={profile.id} style={{ padding: '7px 4px', borderBottom: '1px solid #f5f5f5' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}><b style={{ fontSize: 11 }}>{profile.name}</b><Button type="text" size="small" icon={<EditOutlined />} aria-label={`Edit ${profile.name}`} onClick={() => { setEditingTcpProfile(profile); setShowTcpProfileDrawer(true); }} /></div>
+      </div>) : <EmptyContext>No TCP Profile configured.</EmptyContext>}
+      {!readOnly && <div style={{ padding: '8px 4px 0' }}><Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingTcpProfile(null); setShowTcpProfileDrawer(true); }}>Create TCP Profile</Button></div>}
+    </div>,
+  };
+
   const loadedDataItems = channelMerchantInfoAvailable ? [{
     key: 'channel-merchant-info',
     label: <Space><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
@@ -240,22 +264,22 @@ export default function CanvasContextPanel({
 
   const resourceItems = mode === 'flow'
     ? [
-        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={[...channelItems, authenticationItem]} defaultActiveKey={[]} /> },
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={readOnly ? [...channelItems, tcpProfileItem] : [...channelItems, tcpProfileItem, authenticationItem]} defaultActiveKey={[]} /> },
         { key: 'order-resources', label: <strong>Order Resources</strong>, children: <Collapse ghost items={orderItems} defaultActiveKey={[]} /> },
-        ...(loadedDataItems.length ? [{ key: 'loaded-data', label: <strong>Loaded Data</strong>, children: <Collapse ghost items={loadedDataItems} defaultActiveKey={[]} /> }] : []),
+        { key: 'loaded-data', label: <strong>Loaded Data</strong>, children: loadedDataItems.length ? <Collapse ghost items={loadedDataItems} defaultActiveKey={[]} /> : <EmptyContext>No data loaded.</EmptyContext> },
       ]
     : [
-        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={channelItems} defaultActiveKey={[]} /> },
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={[...channelItems, tcpProfileItem]} defaultActiveKey={[]} /> },
       ];
   const defaultResourceKeys = mode === 'flow'
-    ? ['channel-resources', 'order-resources', ...(loadedDataItems.length ? ['loaded-data'] : [])]
+    ? ['channel-resources', 'order-resources', 'loaded-data']
     : ['channel-resources'];
 
   return <>
     <div style={{ width: 292, height: '100%', borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span>Resources</span>
-        <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Resources" onClick={() => message.success('Resource references are up to date')} />
+        {!readOnly && <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Resources" onClick={() => message.success('Resource references are up to date')} />}
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 6 }}>
         <Collapse ghost items={resourceItems} defaultActiveKey={defaultResourceKeys} />
@@ -263,6 +287,7 @@ export default function CanvasContextPanel({
     </div>
 
     <AuthenticationDrawer visible={showAuthenticationDrawer} channelCode={channelCode} auth={editingAuthentication} onClose={() => { setShowAuthenticationDrawer(false); setEditingAuthentication(null); }} />
+    <TcpProfileDrawer open={showTcpProfileDrawer} profile={editingTcpProfile} readOnly={readOnly} onClose={() => { setShowTcpProfileDrawer(false); setEditingTcpProfile(null); }} onSave={(profile) => { if (editingTcpProfile) updateTcpProfile(channelCode, profile.id, profile); else addTcpProfile(channelCode, profile); setShowTcpProfileDrawer(false); setEditingTcpProfile(null); message.success('TCP Profile saved'); }} />
     <Modal title="Credential Guidance" open={showCredentialGuidance} footer={null} onCancel={() => setShowCredentialGuidance(false)}>
       <ol style={{ paddingLeft: 22, marginBottom: 0, lineHeight: 1.8 }}>
         <li>Create the required credential field names for the Channel here, such as username and password.</li>

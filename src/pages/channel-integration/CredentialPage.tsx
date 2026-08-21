@@ -1,140 +1,133 @@
-import { useState } from 'react';
-import { Breadcrumb, Typography, Table, Button, Space, Modal, Form, Input, Tag, message } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useMemo, useState } from 'react';
+import { Breadcrumb, Button, Card, Form, Input, Modal, Space, Tag, Typography, message } from 'antd';
+import { InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Brand, UserProfile } from '../../components/PlatformChrome';
 
-const { Title } = Typography;
+const { Text, Title } = Typography;
 
-interface CredentialItem {
-  id: string;
-  key: string;
-  description?: string;
-}
+const initialFields = ['public', 'private', 'enKey', 'deKey'];
 
 export default function CredentialPage() {
-  const { channelCode } = useParams<{ channelCode: string }>();
+  const { channelCode = '' } = useParams();
   const navigate = useNavigate();
-  const [credentials, setCredentials] = useState<CredentialItem[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCredential, setEditingCredential] = useState<CredentialItem | null>(null);
-  const [form] = Form.useForm();
+  const [fields, setFields] = useState(initialFields);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [version, setVersion] = useState('20260820063329');
+  const [operationTime, setOperationTime] = useState('2026-08-20 06:33:29');
+  const [form] = Form.useForm<{ newFields: { name?: string }[] }>();
 
-  const handleAdd = () => {
-    setEditingCredential(null);
+  const normalizedChannel = useMemo(() => channelCode || '-', [channelCode]);
+
+  const openConfig = () => {
+    form.setFieldsValue({ newFields: [] });
+    setConfigOpen(true);
+  };
+
+  const submitConfig = async () => {
+    const values = await form.validateFields();
+    const additions = (values.newFields ?? [])
+      .map((item) => item?.name?.trim())
+      .filter((item): item is string => Boolean(item));
+    const duplicate = additions.find((item, index) => fields.includes(item) || additions.indexOf(item) !== index);
+    if (duplicate) {
+      message.error(`Credential field already exists: ${duplicate}`);
+      return;
+    }
+    if (additions.length) setFields((current) => [...current, ...additions]);
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    const nextVersion = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    setVersion(nextVersion);
+    setOperationTime(`${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`);
+    setConfigOpen(false);
     form.resetFields();
-    setIsModalOpen(true);
+    message.success(additions.length ? 'Credential fields added' : 'Credential configuration submitted');
   };
-
-  const handleEdit = (cred: CredentialItem) => {
-    setEditingCredential(cred);
-    form.setFieldsValue({
-      key: cred.key,
-      description: cred.description,
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = (id: string) => {
-    setCredentials(prev => prev.filter(c => c.id !== id));
-    message.success('Deleted successfully', 2);
-  };
-
-  const handleModalOk = () => {
-    form.validateFields().then(values => {
-      if (editingCredential) {
-        setCredentials(prev => prev.map(c =>
-          c.id === editingCredential.id
-            ? { ...c, key: values.key, description: values.description }
-            : c
-        ));
-        message.success('Updated successfully', 2);
-      } else {
-        const newCred: CredentialItem = {
-          id: `cred_${Date.now()}`,
-          key: values.key,
-          description: values.description,
-        };
-        setCredentials(prev => [...prev, newCred]);
-        message.success('Added successfully', 2);
-      }
-      setIsModalOpen(false);
-    });
-  };
-
-  const handleModalCancel = () => {
-    setIsModalOpen(false);
-    form.resetFields();
-  };
-
-  const columns = [
-    {
-      title: 'Key',
-      dataIndex: 'key',
-      key: 'key',
-      render: (text: string) => <Tag color="blue">{text}</Tag>,
-    },
-    {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
-      render: (text: string) => text || '-',
-    },
-    {
-      title: 'Operation',
-      key: 'operation',
-      width: 120,
-      render: (_: any, record: CredentialItem) => (
-        <Space>
-          <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
-          <Button type="text" size="small" icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} danger />
-        </Space>
-      ),
-    },
-  ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
-        items={[
-          { title: 'Channel Integration', onClick: () => navigate('/channel-integration') },
-          { title: channelCode },
-          { title: 'Credential' },
-        ]}
-      />
+    <div className="channel-list-shell">
+      <aside className="channel-list-sidebar">
+        <div className="legacy-sidebar-brand" onClick={() => navigate('/home')}><Brand /></div>
+        <div className="legacy-sidebar-section">Channel Integration <span>⌃</span></div>
+        <div className="channel-list-active" onClick={() => navigate('/channel-integration')}>Channel List</div>
+      </aside>
+      <div className="channel-list-main">
+        <header className="legacy-header"><UserProfile /></header>
+        <div className="legacy-page-heading">
+          <Breadcrumb items={[{ title: 'Channel Integration' }, { title: 'Channel List' }, { title: 'Credential' }]} />
+          <h1>Credential</h1>
+        </div>
+        <main className="channel-list-content">
+          <Card styles={{ body: { padding: 24 } }}>
+            <div style={{ marginBottom: 18 }}><Text strong>Channel: </Text><Text>{normalizedChannel}</Text></div>
+            <div style={{ border: '1px solid #c084e8', background: '#f3e5f8', padding: '18px 20px', marginBottom: 20 }}>
+              <Space align="start" size={14}>
+                <InfoCircleOutlined style={{ color: '#6d00b9', fontSize: 22, marginTop: 2 }} />
+                <div>
+                  <Text strong style={{ fontSize: 15 }}>Guidance</Text>
+                  <ol style={{ margin: '12px 0 0', paddingLeft: 22, lineHeight: 1.9, color: '#262626' }}>
+                    <li>Create the required credential field names for the channel on this page, such as username and password.</li>
+                    <li>Credentials refer to information that must be sent when requesting the channel and may vary based on different parties.</li>
+                    <li>The actual values of the credentials should be maintained on the party-related page.</li>
+                    <li>Credential field names cannot be edited or deleted after creation.</li>
+                    <li>If an error occurs during creation, please add a new record to make corrections.</li>
+                  </ol>
+                </div>
+              </Space>
+            </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0 }}>Channel Credentials</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-          Add Credential Key
-        </Button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap', marginBottom: 16 }}>
+              <span><Text>Configuration Version: </Text><Tag color="green">{version}</Tag></span>
+              <span><Text>Operator: </Text><Text>张爱伟</Text></span>
+              <span style={{ marginLeft: 'auto' }}><Text>Operation Time: </Text><Text>{operationTime}</Text></span>
+              <Space>
+                <Button type="primary" onClick={openConfig}>Config</Button>
+                <Button type="primary" onClick={() => message.info('Credential Log is not included in the current Demo scope.')}>Log</Button>
+              </Space>
+            </div>
+
+            <div style={{ border: '1px solid #f0f0f0' }}>
+              <div style={{ padding: '13px 16px', background: '#fafafa', fontWeight: 600 }}>Credential Field</div>
+              {fields.map((field) => <div key={field} style={{ padding: '15px 16px', borderTop: '1px solid #f0f0f0' }}>{field}</div>)}
+            </div>
+          </Card>
+        </main>
       </div>
 
-      <Table
-        dataSource={credentials}
-        columns={columns}
-        rowKey="id"
-        pagination={false}
-        locale={{ emptyText: 'No credential keys configured. Click "Add Credential Key" to add a new key.' }}
-      />
-
       <Modal
-        title={editingCredential ? 'Edit Credential Key' : 'Add Credential Key'}
-        open={isModalOpen}
-        onOk={handleModalOk}
-        onCancel={handleModalCancel}
-        okText={editingCredential ? 'Update' : 'Add'}
+        title={<Title level={4} style={{ margin: 0 }}>Config Credential</Title>}
+        open={configOpen}
+        onCancel={() => { setConfigOpen(false); form.resetFields(); }}
+        onOk={() => void submitConfig()}
+        okText="Submit"
         cancelText="Cancel"
-        width={500}
+        width={560}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="Key" name="key" rules={[{ required: true, message: 'Please enter credential key' }]}>
-            <Input placeholder="e.g. API_KEY, SECRET_KEY, APP_ID" />
-          </Form.Item>
-          <Form.Item label="Description" name="description">
-            <Input.TextArea placeholder="enter description (optional)" rows={2} />
-          </Form.Item>
-        </Form>
+        <div style={{ paddingTop: 16 }}>
+          <Space direction="vertical" size={12} style={{ width: '100%', marginBottom: 16 }}>
+            {fields.map((field) => <Input key={field} value={field} disabled />)}
+          </Space>
+          <Form form={form} layout="vertical">
+            <Form.List name="newFields">
+              {(items, { add, remove }) => (
+                <>
+                  <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                    {items.map((item) => (
+                      <Space.Compact key={item.key} style={{ width: '100%' }}>
+                        <Form.Item {...item} name={[item.name, 'name']} style={{ flex: 1, margin: 0 }} rules={[{ required: true, message: 'Please enter a credential field name.' }]}>
+                          <Input placeholder="Credential field name" />
+                        </Form.Item>
+                        <Button danger onClick={() => remove(item.name)}>Remove</Button>
+                      </Space.Compact>
+                    ))}
+                  </Space>
+                  <Button block type="dashed" icon={<PlusOutlined />} onClick={() => add()} style={{ marginTop: 16 }}>Add field</Button>
+                </>
+              )}
+            </Form.List>
+          </Form>
+        </div>
       </Modal>
     </div>
   );

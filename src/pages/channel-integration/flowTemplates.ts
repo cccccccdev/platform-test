@@ -26,37 +26,42 @@ export function getActionsForTrigger(triggerType: TriggerType, availableActions:
     case 'UPSTREAM_TRIGGERED': return availableActions.filter((action) => ['TRANSACTION', 'VERIFY', 'QUERY'].includes(action));
     case 'EXTERNAL_INBOUND_TRIGGERED': return availableActions.filter((action) => ['INBOUND_TRANSACTION', 'INBOUND_QUERY'].includes(action));
     case 'CALLBACK_TRIGGERED':
-    case 'REQUERY_TRIGGERED': return usedBy(['UPSTREAM_TRIGGERED']);
-    case 'ASYNC_TRIGGERED': return usedBy(['UPSTREAM_TRIGGERED', 'EXTERNAL_INBOUND_TRIGGERED']);
+    case 'REQUERY_TRIGGERED': return usedBy(['UPSTREAM_TRIGGERED']).filter((action) => ['TRANSACTION', 'VERIFY'].includes(action));
+    case 'ASYNC_TRIGGERED': return usedBy(['UPSTREAM_TRIGGERED', 'EXTERNAL_INBOUND_TRIGGERED']).filter((action) => ['TRANSACTION', 'VERIFY', 'INBOUND_TRANSACTION'].includes(action));
   }
 }
 
 export function getTemplates(triggerType: TriggerType, action?: string): string[] {
-  switch (triggerType) {
-    case 'UPSTREAM_TRIGGERED': return action && ['TRANSACTION', 'VERIFY', 'QUERY'].includes(action) ? [action] : [];
-    case 'EXTERNAL_INBOUND_TRIGGERED':
-      if (action === 'INBOUND_TRANSACTION') return ['MESSAGE_NOTIFICATION', 'INBOUND_QUERY', 'INBOUND_RE_QUERY', 'INBOUND_TRANSACTION_WITH_ACK'];
-      if (action === 'INBOUND_QUERY') return ['INBOUND_QUERY'];
-      return [];
-    case 'CALLBACK_TRIGGERED': return action ? ['CALLBACK', 'CALLBACK_REQUERY', 'CALLBACK_BATCH_ORDER'] : [];
-    case 'ASYNC_TRIGGERED': return action ? ['ACK_INBOUND_TRANSACTION'] : [];
-    case 'REQUERY_TRIGGERED': return action ? ['REQUERY'] : [];
-  }
+  if (!action) return [];
+  const key = `${triggerType === 'EXTERNAL_INBOUND_TRIGGERED' ? 'EXTERNAL_TRIGGERED' : triggerType}-${action}`;
+  return TEMPLATE_OPTIONS[key] ?? [];
 }
 
+const TEMPLATE_OPTIONS: Record<string, string[]> = {
+  'UPSTREAM_TRIGGERED-TRANSACTION': ['UPSTREAM_TRIGGERED_TRANSACTION'],
+  'UPSTREAM_TRIGGERED-VERIFY': ['UPSTREAM_TRIGGERED_VERIFY'],
+  'UPSTREAM_TRIGGERED-QUERY': ['UPSTREAM_TRIGGERED_QUERY'],
+  'REQUERY_TRIGGERED-TRANSACTION': ['REQUERY_TRIGGERED_OUTBOUND_ORDER'],
+  'REQUERY_TRIGGERED-VERIFY': ['REQUERY_TRIGGERED_OUTBOUND_ORDER'],
+  'CALLBACK_TRIGGERED-TRANSACTION': ['CALLBACK_TRIGGERED_OUTBOUND_ORDER', 'CALLBACK_TRIGGERED_REQUERY_OUTBOUND_ORDER'],
+  'CALLBACK_TRIGGERED-VERIFY': ['CALLBACK_TRIGGERED_OUTBOUND_ORDER', 'CALLBACK_TRIGGERED_REQUERY_OUTBOUND_ORDER'],
+  'EXTERNAL_TRIGGERED-INBOUND_TRANSACTION': ['EXTERNAL_TRIGGERED_INBOUND_TRANSACTION'],
+  'EXTERNAL_TRIGGERED-INBOUND_QUERY': ['EXTERNAL_TRIGGERED_INBOUND_QUERY'],
+  'ASYNC_TRIGGERED-TRANSACTION': ['ASYNC_TRIGGERED'],
+  'ASYNC_TRIGGERED-VERIFY': ['ASYNC_TRIGGERED'],
+  'ASYNC_TRIGGERED-INBOUND_TRANSACTION': ['ASYNC_TRIGGERED'],
+};
+
 const templateComponents: Record<string, string[]> = {
-  TRANSACTION: ['initOutboundOrder', 'generateRequestReference', 'httpCall', 'updateOutboundOrder', 'sendCompleteMQ'],
-  VERIFY: ['prepareExtendOrder', 'httpCall', 'updateOutboundOrder', 'sendCompleteMQ'],
-  QUERY: ['generateRequestReference', 'httpCall'],
-  REQUERY: ['httpCall', 'updateOutboundOrder', 'sendCompleteMQ'],
-  ACK_INBOUND_TRANSACTION: ['httpCall', 'updateInboundOrder', 'sendCompleteMQ'],
-  CALLBACK: ['inboundRequest', 'updateOutboundOrder', 'sendCompleteMQ', 'inboundResponse'],
-  CALLBACK_REQUERY: ['inboundRequest', 'queryOutboundOrder', 'sendReQueryMQ', 'inboundResponse'],
-  CALLBACK_BATCH_ORDER: ['inboundRequest', 'updateOutboundBatchOrder', 'sendCompleteMQ', 'inboundResponse'],
-  MESSAGE_NOTIFICATION: ['inboundRequest', 'initInboundOrder', 'requestBusinessAccessLayer', 'responseCodeInner2Outer', 'inboundResponse'],
-  INBOUND_QUERY: ['inboundRequest', 'requestBusinessAccessLayer', 'responseCodeInner2Outer', 'inboundResponse'],
-  INBOUND_RE_QUERY: ['inboundRequest', 'queryInboundOrder', 'responseCodeInner2Outer', 'inboundResponse'],
-  INBOUND_TRANSACTION_WITH_ACK: ['inboundRequest', 'initInboundOrder', 'requestBusinessAccessLayer', 'responseCodeInner2Outer', 'inboundResponse', 'asyncTriggerFlow'],
+  UPSTREAM_TRIGGERED_TRANSACTION: ['initOutboundFirstOrder', 'http', 'updateOutboundOrder'],
+  UPSTREAM_TRIGGERED_VERIFY: ['initOutboundNotFirstOrder', 'http', 'updateOutboundOrder'],
+  UPSTREAM_TRIGGERED_QUERY: ['http'],
+  REQUERY_TRIGGERED_OUTBOUND_ORDER: ['http', 'updateOutboundOrder'],
+  CALLBACK_TRIGGERED_OUTBOUND_ORDER: ['inboundRequest', 'updateOutboundOrderCallback', 'inboundResponse'],
+  CALLBACK_TRIGGERED_REQUERY_OUTBOUND_ORDER: ['inboundRequest', 'queryOutboundOrder', 'sendReQueryMQ', 'inboundResponse'],
+  EXTERNAL_TRIGGERED_INBOUND_TRANSACTION: ['inboundRequest', 'initInboundOrder', 'requestBusinessAccessLayer', 'updateInboundOrder', 'inboundResponse'],
+  EXTERNAL_TRIGGERED_INBOUND_QUERY: ['inboundRequest', 'requestBusinessAccessLayer', 'inboundResponse'],
+  ASYNC_TRIGGERED: ['http'],
 };
 
 export function buildTemplateCanvas(template: string): { canvasNodes: FlowCanvasNode[]; canvasEdges: FlowCanvasEdge[] } {

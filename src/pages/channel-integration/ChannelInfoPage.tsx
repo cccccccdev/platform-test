@@ -22,7 +22,7 @@ import {
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { DownOutlined, EyeOutlined, LockOutlined, RightOutlined, UnlockOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DownOutlined, EyeOutlined, LockOutlined, RightOutlined, UnlockOutlined } from '@ant-design/icons';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
@@ -34,6 +34,7 @@ import InboundPreprocessDrawer from './InboundPreprocessDrawer';
 import { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
 import HttpCallDrawer from './HttpCallDrawer';
 import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
+import { Brand } from '../../components/PlatformChrome';
 
 const { Content, Sider } = Layout;
 const { Text } = Typography;
@@ -141,8 +142,11 @@ interface RuntimeHistoryTarget {
 }
 
 interface TimeoutTarget {
-  label: string;
-  paths: Array<{ id: string; path: string; timeout: number; source: string }>;
+  ability: ConfigAbility;
+  group: FlowGroupVersion;
+  flow: FlowGroupVersion['flows'][number];
+  authenticationEndpoints: Array<{ id: string; path: string; timeout: number }>;
+  flowEndpoints: Array<{ id: string; path: string; timeout: number }>;
 }
 
 type RuntimeConfigTarget = { kind: 'matching'; endpoint: InboundEndpoint } | { kind: 'group'; ability: ConfigAbility };
@@ -163,7 +167,8 @@ interface RuntimeApproval {
   reason: string;
   operator: string;
   operationTime: string;
-  approvalStatus: 'In Progress' | 'Approved' | 'Rejected';
+  approvalStatus: 'In Progress' | 'Approved' | 'Rejected' | 'Applied';
+  changeType: 'status' | 'weight';
   changes: Array<{ id: string; enabled: boolean; weight: number }>;
 }
 
@@ -400,6 +405,7 @@ export default function ChannelInfoPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [pageKey, setPageKey] = useState<PageKey>(() => pageKeyFromPath(location.pathname));
+  const [channelMenuOpen, setChannelMenuOpen] = useState(true);
   const [cloud, setCloud] = useState<string>();
   const [env, setEnv] = useState<string>();
   const [applied, setApplied] = useState<{ cloud: string; env: string } | null>(null);
@@ -439,6 +445,8 @@ export default function ChannelInfoPage() {
   const [runtimeConfigTarget, setRuntimeConfigTarget] = useState<RuntimeConfigTarget | null>(null);
   const [runtimeDraft, setRuntimeDraft] = useState<Record<string, RuntimeDraftItem>>({});
   const [pendingRuntimeDraft, setPendingRuntimeDraft] = useState<{ target: RuntimeConfigTarget; draft: Record<string, RuntimeDraftItem> } | null>(null);
+  const [pendingGroupToggle, setPendingGroupToggle] = useState<{ ability: ConfigAbility; group: FlowGroupVersion; enabled: boolean } | null>(null);
+  const [pendingMatchingToggle, setPendingMatchingToggle] = useState<{ endpoint: InboundEndpoint; version: CapabilityDecisionVersion; enabled: boolean } | null>(null);
   const [runtimeApprovalOpen, setRuntimeApprovalOpen] = useState(false);
   const [runtimeApprovals, setRuntimeApprovals] = useState<RuntimeApproval[]>([]);
   const [runtimeDetailView, setRuntimeDetailView] = useState<RuntimeDetailView | null>(null);
@@ -463,8 +471,6 @@ export default function ChannelInfoPage() {
   const searchEndpoint = Form.useWatch('endpoint', searchForm);
   const searchBt = Form.useWatch('bt', searchForm);
   const searchAbility = Form.useWatch('ability', searchForm);
-  const searchSubState = Form.useWatch('subState', searchForm);
-  const selectedSearchMainState = Form.useWatch('mainState', searchForm);
   const bulkEndpoint = Form.useWatch('endpoint', bulkForm);
   const bulkBt = Form.useWatch('bt', bulkForm);
   const selectedRequerySubState = Form.useWatch('subState', requeryForm);
@@ -494,8 +500,7 @@ export default function ChannelInfoPage() {
   const searchAbilityOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === searchEndpoint && item.bt === searchBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [isExternal, searchBt, searchEndpoint]);
   const searchSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', searchBt, searchAbility).map((item) => ({ label: item.value, value: item.value })), [channelCode, searchAbility, searchBt]);
   const bulkBtOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === bulkEndpoint).map((item) => item.bt)).map((value) => ({ label: value, value })), [bulkEndpoint, isExternal]);
-  const bulkAbilityOptions = useMemo(() => unique(pathCapabilities.filter((item) => item.path === bulkEndpoint && item.bt === bulkBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [bulkBt, bulkEndpoint]);
-  const searchMainState = searchSubState ? mainStateForSubState(searchSubState) : selectedSearchMainState;
+  const bulkAbilityOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === bulkEndpoint && item.bt === bulkBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [bulkBt, bulkEndpoint, isExternal]);
   const modalSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', selectedBt, selectedAbility).map((item) => ({ label: item.value, value: item.value })), [channelCode, selectedAbility, selectedBt]);
   const requeryBtOptions = useMemo(() => {
     const fromGroups = flowGroupAbilities.map((item) => item.bt);
@@ -777,16 +782,22 @@ export default function ChannelInfoPage() {
 
   const runtimeTargetId = (target: RuntimeConfigTarget) => target.kind === 'matching' ? target.endpoint.id : `${target.ability.bt}-${target.ability.ability}`;
 
-  const runtimeTargetTitle = (target: RuntimeConfigTarget) => (
-    target.kind === 'matching'
-      ? `Route Matching Runtime Config · ${target.endpoint.url}`
-      : `Flow Groups Runtime Config · ${target.ability.bt} / ${target.ability.ability}`
-  );
+  const isMatchingEnabled = (version: CapabilityDecisionVersion) => matchingSwitches[version.id] ?? false;
+  const isGroupEnabled = (group: FlowGroupVersion) => groupSwitches[String(group.groupId)] ?? false;
+
+  const openMatchingRows = (endpoint: InboundEndpoint) => endpoint.versions
+    .filter(isMatchingEnabled)
+    .map((version) => ({ id: version.id, label: version.id, version: version.version }));
+
+  const openGroupRows = (ability: ConfigAbility) => ability.versions
+    .filter(isGroupEnabled)
+    .map((group) => ({ id: String(group.groupId), label: `Group ${group.groupId}`, version: group.version }));
 
   const openRuntimeConfig = (target: RuntimeConfigTarget) => {
-    const draft = Object.fromEntries(runtimeTargetRows(target).map((row) => {
-      const enabled = target.kind === 'matching' ? matchingSwitches[row.id] ?? true : groupSwitches[row.id] ?? true;
-      const weight = target.kind === 'matching' ? matchingWeights[row.id] ?? 100 : groupWeights[row.id] ?? 100;
+    const rows = target.kind === 'group' ? openGroupRows(target.ability) : openMatchingRows(target.endpoint);
+    const draft = Object.fromEntries(rows.map((row) => {
+      const enabled = true;
+      const weight = target.kind === 'matching' ? matchingWeights[row.id] ?? 0 : groupWeights[row.id] ?? 0;
       return [row.id, { enabled, weight }];
     }));
     setRuntimeConfigTarget(target);
@@ -794,26 +805,109 @@ export default function ChannelInfoPage() {
   };
 
   const validateRuntimeDraft = (target: RuntimeConfigTarget, draft: Record<string, RuntimeDraftItem>) => {
-    const rows = runtimeTargetRows(target);
-    const originallyOpen = rows.some((row) => target.kind === 'matching' ? matchingSwitches[row.id] ?? true : groupSwitches[row.id] ?? true);
-    const enabledRows = rows.filter((row) => draft[row.id]?.enabled);
-    if (originallyOpen && enabledRows.length === 0) return 'At least one ID must remain enabled.';
-    const zeroWeightRows = enabledRows.filter((row) => Number(draft[row.id]?.weight ?? 0) <= 0);
-    if (zeroWeightRows.length > 0) return 'Enabled IDs must have a weight greater than 0%.';
-    const total = enabledRows.reduce((sum, row) => sum + Number(draft[row.id]?.weight ?? 0), 0);
-    if (enabledRows.length > 0 && total !== 100) return 'The weight sum of enabled IDs must be 100%.';
+    const rows = target.kind === 'group' ? openGroupRows(target.ability) : openMatchingRows(target.endpoint);
+    const objectName = target.kind === 'group' ? 'Group' : 'Matching';
+    const total = rows.reduce((sum, row) => sum + Number(draft[row.id]?.weight ?? 0), 0);
+    if (rows.length === 0) return `No enabled ${objectName} is available for weight configuration.`;
+    if (total !== 100) return `The weight sum of enabled ${objectName} records must be 100%.`;
     return null;
   };
 
   const applyRuntimeDraft = (target: RuntimeConfigTarget, draft: Record<string, RuntimeDraftItem>) => {
     const rows = runtimeTargetRows(target);
     if (target.kind === 'matching') {
-      setMatchingSwitches((prev) => ({ ...prev, ...Object.fromEntries(rows.map((row) => [row.id, draft[row.id]?.enabled ?? false])) }));
       setMatchingWeights((prev) => ({ ...prev, ...Object.fromEntries(rows.map((row) => [row.id, draft[row.id]?.weight ?? 0])) }));
     } else {
-      setGroupSwitches((prev) => ({ ...prev, ...Object.fromEntries(rows.map((row) => [row.id, draft[row.id]?.enabled ?? false])) }));
       setGroupWeights((prev) => ({ ...prev, ...Object.fromEntries(rows.map((row) => [row.id, draft[row.id]?.weight ?? 0])) }));
     }
+  };
+
+  const recordRuntimeStatusChange = (kind: 'matching' | 'group', targetId: string, enabled: boolean, weight: number) => {
+    setRuntimeApprovals((prev) => [{
+      id: `runtime-change-${Date.now()}`,
+      kind,
+      targetId,
+      reason: '-',
+      operator: 'admin',
+      operationTime: '2026-07-07 18:24:00',
+      approvalStatus: 'Applied',
+      changeType: 'status',
+      changes: [{ id: targetId, enabled, weight }],
+    }, ...prev]);
+  };
+
+  const applyMatchingToggle = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion, enabled: boolean) => {
+    const enabledVersions = endpoint.versions.filter(isMatchingEnabled);
+    if (enabled) {
+      const weight = enabledVersions.length === 0 ? 100 : 0;
+      setMatchingSwitches((prev) => ({ ...prev, [version.id]: true }));
+      setMatchingWeights((prev) => ({ ...prev, [version.id]: weight }));
+      recordRuntimeStatusChange('matching', version.id, true, weight);
+      return;
+    }
+    const remainingVersion = enabledVersions.find((item) => item.id !== version.id);
+    setMatchingSwitches((prev) => ({ ...prev, [version.id]: false }));
+    setMatchingWeights((prev) => ({ ...prev, [version.id]: 0, ...(remainingVersion ? { [remainingVersion.id]: 100 } : {}) }));
+    recordRuntimeStatusChange('matching', version.id, false, 0);
+  };
+
+  const handleMatchingRuntimeStatusChange = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion, enabled: boolean) => {
+    const enabledVersions = endpoint.versions.filter(isMatchingEnabled);
+    if (enabled && enabledVersions.length >= 2) {
+      message.error('At most two Matching records can be enabled for one Path.');
+      return;
+    }
+    if (!enabled && enabledVersions.length <= 1) {
+      message.error('At least one Matching record must remain enabled.');
+      return;
+    }
+    if (applied?.env === 'PROD') {
+      setPendingMatchingToggle({ endpoint, version, enabled });
+      runtimeApprovalForm.resetFields();
+      setRuntimeApprovalOpen(true);
+      return;
+    }
+    applyMatchingToggle(endpoint, version, enabled);
+    message.success(`Matching ${version.id} runtime status updated`);
+  };
+
+  const applyGroupToggle = (ability: ConfigAbility, group: FlowGroupVersion, enabled: boolean) => {
+    const groupId = String(group.groupId);
+    const enabledGroups = ability.versions.filter(isGroupEnabled);
+    if (enabled) {
+      setGroupSwitches((prev) => ({ ...prev, [groupId]: true }));
+      setGroupWeights((prev) => ({ ...prev, [groupId]: enabledGroups.length === 0 ? 100 : 0 }));
+      recordRuntimeStatusChange('group', groupId, true, enabledGroups.length === 0 ? 100 : 0);
+      return;
+    }
+    const remainingGroup = enabledGroups.find((item) => String(item.groupId) !== groupId);
+    setGroupSwitches((prev) => ({ ...prev, [groupId]: false }));
+    setGroupWeights((prev) => ({
+      ...prev,
+      [groupId]: 0,
+      ...(remainingGroup ? { [String(remainingGroup.groupId)]: 100 } : {}),
+    }));
+    recordRuntimeStatusChange('group', groupId, false, 0);
+  };
+
+  const handleGroupRuntimeStatusChange = (ability: ConfigAbility, group: FlowGroupVersion, enabled: boolean) => {
+    const enabledGroups = ability.versions.filter(isGroupEnabled);
+    if (enabled && enabledGroups.length >= 2) {
+      message.error('At most two Groups can be enabled for one Business Type and Ability.');
+      return;
+    }
+    if (!enabled && enabledGroups.length <= 1) {
+      message.error('At least one Group must remain enabled.');
+      return;
+    }
+    if (applied?.env === 'PROD') {
+      setPendingGroupToggle({ ability, group, enabled });
+      runtimeApprovalForm.resetFields();
+      setRuntimeApprovalOpen(true);
+      return;
+    }
+    applyGroupToggle(ability, group, enabled);
+    message.success(`Group ${group.groupId} runtime status updated`);
   };
 
   const saveRuntimeConfig = () => {
@@ -833,9 +927,49 @@ export default function ChannelInfoPage() {
   };
 
   const submitRuntimeApproval = async () => {
-    if (!pendingRuntimeDraft) return;
     const values = await runtimeApprovalForm.validateFields();
-    const rows = runtimeTargetRows(pendingRuntimeDraft.target);
+    if (pendingGroupToggle) {
+      const { group, enabled } = pendingGroupToggle;
+      setRuntimeApprovals((prev) => [{
+        id: `runtime-approval-${Date.now()}`,
+        kind: 'group',
+        targetId: String(group.groupId),
+        reason: values.reason,
+        operator: 'admin',
+        operationTime: '2026-07-07 18:24:00',
+        approvalStatus: 'In Progress',
+        changeType: 'status',
+        changes: [{ id: String(group.groupId), enabled, weight: enabled ? groupWeights[String(group.groupId)] ?? 0 : 0 }],
+      }, ...prev]);
+      setRuntimeApprovalOpen(false);
+      setPendingGroupToggle(null);
+      runtimeApprovalForm.resetFields();
+      message.success('Runtime status change submitted for approval');
+      return;
+    }
+    if (pendingMatchingToggle) {
+      const { version, enabled } = pendingMatchingToggle;
+      setRuntimeApprovals((prev) => [{
+        id: `runtime-approval-${Date.now()}`,
+        kind: 'matching',
+        targetId: version.id,
+        reason: values.reason,
+        operator: 'admin',
+        operationTime: '2026-07-07 18:24:00',
+        approvalStatus: 'In Progress',
+        changeType: 'status',
+        changes: [{ id: version.id, enabled, weight: enabled ? matchingWeights[version.id] ?? 0 : 0 }],
+      }, ...prev]);
+      setRuntimeApprovalOpen(false);
+      setPendingMatchingToggle(null);
+      runtimeApprovalForm.resetFields();
+      message.success('Runtime status change submitted for approval');
+      return;
+    }
+    if (!pendingRuntimeDraft) return;
+    const rows = pendingRuntimeDraft.target.kind === 'group'
+      ? openGroupRows(pendingRuntimeDraft.target.ability)
+      : runtimeTargetRows(pendingRuntimeDraft.target);
     setRuntimeApprovals((prev) => [{
       id: `runtime-approval-${Date.now()}`,
       kind: pendingRuntimeDraft.target.kind,
@@ -844,6 +978,7 @@ export default function ChannelInfoPage() {
       operator: 'admin',
       operationTime: '2026-07-07 18:24:00',
       approvalStatus: 'In Progress',
+      changeType: 'weight',
       changes: rows.map((row) => ({ id: row.id, enabled: pendingRuntimeDraft.draft[row.id]?.enabled ?? false, weight: pendingRuntimeDraft.draft[row.id]?.weight ?? 0 })),
     }, ...prev]);
     setRuntimeApprovalOpen(false);
@@ -854,31 +989,24 @@ export default function ChannelInfoPage() {
     message.success('Runtime config submitted for approval');
   };
 
-  const openTimeoutConfig = (ability: ConfigAbility, group: FlowGroupVersion) => {
-    const paths = group.flows.flatMap((flow, index) => {
-      const httpNodes = flow.canvasNodes?.filter((node) => node.componentCode === 'httpCall') ?? [];
-      if (httpNodes.length > 0) {
-        return httpNodes.map((node, nodeIndex) => ({
-          id: `${group.groupId}-${flow.id}-${node.id}-${nodeIndex}`,
-          path: String(node.config?.path ?? '/test/path'),
-          timeout: Number(node.config?.timeout ?? 10000),
-          source: flow.name,
-        }));
-      }
-      return {
-        id: `${group.groupId}-${flow.id}-${index}`,
-        path: flow.flowType === 'inbound' ? '/callback/payment' : index === 0 ? '/test/path' : '/request-to-pay/status',
-        timeout: 10000,
-        source: flow.name,
-      };
+  const openTimeoutConfig = (ability: ConfigAbility, group: FlowGroupVersion, flow: FlowGroupVersion['flows'][number]) => {
+    const httpNodes = flow.canvasNodes?.filter((node) => node.componentCode === 'httpCall') ?? [];
+    const flowEndpoints = httpNodes.map((node, index) => ({
+      id: `${group.groupId}-${flow.id}-${node.id}-${index}`,
+      path: String(node.config?.path ?? '/test/path'),
+      timeout: Number(node.config?.timeout ?? 10000),
+    }));
+    const authenticationEndpoints = httpNodes
+      .filter((node) => Boolean(node.config?.authenticationEndpoint || node.config?.authEndpoint || node.config?.tokenEndpoint))
+      .map((node, index) => ({
+        id: `${group.groupId}-${flow.id}-auth-${node.id}-${index}`,
+        path: String(node.config?.authenticationEndpoint ?? node.config?.authEndpoint ?? node.config?.tokenEndpoint),
+        timeout: Number(node.config?.authenticationTimeout ?? node.config?.timeout ?? 10000),
+      }));
+    setTimeoutTarget({ ability, group, flow, authenticationEndpoints, flowEndpoints });
+    timeoutForm.setFieldsValue({
+      timeouts: Object.fromEntries([...authenticationEndpoints, ...flowEndpoints].map((item) => [item.id, item.timeout])),
     });
-    const deduped = unique(paths.map((item) => item.path)).map((path) => {
-      const first = paths.find((item) => item.path === path);
-      return first ?? { id: `${group.groupId}-${path}`, path, timeout: 10000, source: 'httpCall' };
-    });
-    const fallback = deduped.length ? deduped : [{ id: `${group.groupId}-default`, path: '/test/path', timeout: 10000, source: 'httpCall' }];
-    setTimeoutTarget({ label: `${ability.bt} / ${ability.ability} / Group ${group.groupId}`, paths: fallback });
-    timeoutForm.setFieldsValue({ timeouts: Object.fromEntries(fallback.map((item) => [item.id, item.timeout])) });
   };
 
   const openFlowGroupDetail = (ability: ConfigAbility, group: FlowGroupVersion) => {
@@ -948,14 +1076,15 @@ export default function ChannelInfoPage() {
     { title: 'Matching ID', dataIndex: 'id', width: 150 },
     { title: 'Version', dataIndex: 'version', width: 150 },
     { title: 'Name', dataIndex: 'name', width: 230 },
-    { title: 'Weight', width: 100, render: (_, version) => `${matchingWeights[version.id] ?? 100}%` },
-    { title: 'Runtime Status', width: 130, render: (_, version) => <Tag color={(matchingSwitches[version.id] ?? true) ? 'green' : 'default'}>{(matchingSwitches[version.id] ?? true) ? 'on' : 'off'}</Tag> },
+    { title: 'Weight', width: 100, render: (_, version) => `${matchingWeights[version.id] ?? 0}%` },
+    { title: 'Runtime Status', width: 130, render: (_, version) => <Switch checked={isMatchingEnabled(version)} onChange={(enabled) => handleMatchingRuntimeStatusChange(endpoint, version, enabled)} /> },
     {
       title: 'Operation',
       width: 180,
       render: (_, version) => {
         return <Space size="small">
           <Button type="link" size="small" onClick={() => openRouteMatchingDetail(endpoint, version)}>Detail</Button>
+          <Button type="link" size="small" onClick={() => setRuntimeHistory({ kind: 'Route Matching', title: `Matching ${version.id}`, targetId: version.id, context: [{ label: 'Path', value: endpoint.url }, { label: 'Method', value: endpoint.method }, { label: 'Version', value: version.version }], weight: 0, enabled: isMatchingEnabled(version) })}>Change History</Button>
         </Space>;
       },
     },
@@ -981,8 +1110,7 @@ export default function ChannelInfoPage() {
       width: 280,
       render: (_, endpoint) => (
         <Space size="small">
-          <Button type="link" size="small" onClick={() => openRuntimeConfig({ kind: 'matching', endpoint })}>Runtime Config</Button>
-          <Button type="link" size="small" onClick={() => setRuntimeHistory({ kind: 'Route Matching', title: endpoint.url, targetId: endpoint.id, context: [{ label: 'Path', value: endpoint.url }, { label: 'Method', value: endpoint.method }], weight: 0, enabled: true })}>Change History</Button>
+          <Button type="link" size="small" onClick={() => openRuntimeConfig({ kind: 'matching', endpoint })}>Weight Config</Button>
         </Space>
       ),
     },
@@ -991,15 +1119,24 @@ export default function ChannelInfoPage() {
   const flowGroupVersionColumns = (ability: ConfigAbility): ColumnsType<FlowGroupVersion> => [
     { title: 'Group ID', dataIndex: 'groupId', width: 120 },
     { title: 'Version', dataIndex: 'version', width: 150 },
-    { title: 'Weight', width: 100, render: (_, group) => `${groupWeights[String(group.groupId)] ?? 100}%` },
-    { title: 'Runtime Status', width: 130, render: (_, group) => <Tag color={(groupSwitches[String(group.groupId)] ?? true) ? 'green' : 'default'}>{(groupSwitches[String(group.groupId)] ?? true) ? 'on' : 'off'}</Tag> },
+    { title: 'Weight', width: 100, render: (_, group) => `${groupWeights[String(group.groupId)] ?? 0}%` },
+    {
+      title: 'Runtime Status',
+      width: 130,
+      render: (_, group) => (
+        <Switch
+          checked={isGroupEnabled(group)}
+          onChange={(enabled) => handleGroupRuntimeStatusChange(ability, group, enabled)}
+        />
+      ),
+    },
     {
       title: 'Operation',
       width: 250,
       render: (_, group) => {
         return <Space size="small" wrap>
-          <Button type="link" size="small" onClick={() => openTimeoutConfig(ability, group)}>Timeout Config</Button>
-          <Button type="link" size="small" onClick={() => openFlowGroupDetail(ability, group)}>Detail</Button>
+          <Button type="link" size="small" onClick={() => openFlowGroupDetail(ability, group)}>Config</Button>
+          <Button type="link" size="small" onClick={() => setRuntimeHistory({ kind: 'Flow Groups', title: `Group ${group.groupId}`, targetId: String(group.groupId), context: [{ label: 'Business Type', value: ability.bt }, { label: 'Ability', value: ability.ability }, { label: 'Version', value: group.version }], weight: 0, enabled: isGroupEnabled(group) })}>Change History</Button>
         </Space>;
       },
     },
@@ -1036,8 +1173,7 @@ export default function ChannelInfoPage() {
       width: 280,
       render: (_, ability) => (
         <Space size="small">
-          <Button type="link" size="small" onClick={() => openRuntimeConfig({ kind: 'group', ability })}>Runtime Config</Button>
-          <Button type="link" size="small" onClick={() => setRuntimeHistory({ kind: 'Flow Groups', title: `${ability.bt} / ${ability.ability}`, targetId: `${ability.bt}-${ability.ability}`, context: [{ label: 'Business Type', value: ability.bt }, { label: 'Ability', value: ability.ability }], weight: 0, enabled: true })}>Change History</Button>
+          <Button type="link" size="small" onClick={() => openRuntimeConfig({ kind: 'group', ability })}>Weight Config</Button>
         </Space>
       ),
     },
@@ -1073,24 +1209,21 @@ export default function ChannelInfoPage() {
               onChange={() => searchForm.setFieldsValue({ subState: undefined, mainState: undefined })}
             />
           </Form.Item>
-          <Form.Item name="mainState" label="Main State">
-            <Select
-              allowClear
-              options={valueOptions(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'])}
-              placeholder="Select Main State"
-              onChange={() => searchForm.setFieldsValue({ subState: undefined })}
-            />
-          </Form.Item>
           <Form.Item name="subState" label="Gateway Sub State">
             <Select
               allowClear
               disabled={!searchAbility}
               options={searchSubStateOptions}
               placeholder="Loaded by Channel + BT + Ability"
-              onChange={(value) => searchForm.setFieldsValue({ mainState: mainStateForSubState(value) })}
             />
           </Form.Item>
-          <Form.Item label="Current Main State"><Input disabled value={searchMainState ?? ''} placeholder="Auto-filled or selected above" /></Form.Item>
+          <Form.Item name="mainState" label="Main State">
+            <Select
+              allowClear
+              options={valueOptions(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'])}
+              placeholder="Select Main State"
+            />
+          </Form.Item>
           <Form.Item label="Response Code"><Input placeholder="Response Code" /></Form.Item>
           {isExternal ? <Form.Item label="Channel Response Code"><Input placeholder="Channel Response Code" /></Form.Item> : <Form.Item label="Channel Status"><Input placeholder="Channel Status" /></Form.Item>}
         </div>
@@ -1144,7 +1277,7 @@ export default function ChannelInfoPage() {
 
   const renderRuntimeFlowGroupsPage = () => (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Alert type="info" showIcon message="Runtime Control manages deployed Flow Groups by Business Type + Ability. Timeout Config is confirmed here and aggregates httpCall paths inside the selected Flow Group." />
+      <Alert type="info" showIcon message="Runtime Control manages deployed Flow Groups by Business Type + Ability. Open a Group Config to manage Flow-level settings." />
       <Card>
         <Table<ConfigAbility>
           rowKey={(ability) => `${ability.bt}-${ability.ability}`}
@@ -1215,7 +1348,15 @@ export default function ChannelInfoPage() {
         ];
     return (
       <div style={{ display: 'flex', minHeight: 620, background: '#fff', border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
-        <CanvasContextPanel channelCode={channelCode} mode="matching" readOnly />
+        <CanvasContextPanel
+          channelCode={channelCode}
+          mode="matching"
+          readOnly
+          resourceVersions={{
+            globalVariables: version.resourceVersions?.globalVariables ?? version.version,
+            credentials: version.resourceVersions?.credentials ?? version.version,
+          }}
+        />
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Canvas</div>
           <div style={{ flex: 1, overflow: 'auto', padding: 36, backgroundImage: 'radial-gradient(#d9d9d9 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
@@ -1228,13 +1369,17 @@ export default function ChannelInfoPage() {
 
   const renderRuntimeFlowGroupDetail = (detail: Extract<RuntimeDetailView, { kind: 'flow-group' }>) => (
     <Card>
-      <Descriptions column={5} size="small" style={{ marginBottom: 16 }} items={[
-        { key: 'bt', label: 'Business Type', children: detail.ability.bt },
-        { key: 'ability', label: 'Ability', children: detail.ability.ability },
-        { key: 'group', label: 'Group ID', children: detail.group.groupId },
-        { key: 'version', label: 'Version', children: detail.group.version },
-        { key: 'status', label: 'Status', children: <Tag color={detail.group.status === 'PROD' ? 'green' : 'default'}>{detail.group.status}</Tag> },
-      ]} />
+      <div className="flow-configuration-toolbar">
+        <Space wrap className="flow-configuration-context">
+          <Text>Channel: <Text strong>{channelCode}</Text></Text>
+          <Text>Business Type: <Text strong>{detail.ability.bt}</Text></Text>
+          <Text>Ability: <Text strong>{detail.ability.ability}</Text></Text>
+          <Text>Group ID: <Text strong>{detail.group.groupId}</Text></Text>
+          <Text>Group Version: <Text strong>{detail.group.version}</Text></Text>
+          {detail.group.remark && <Text>Description: <Text strong>{detail.group.remark}</Text></Text>}
+          <Text>Status: <Tag color={detail.group.status === 'PROD' ? 'green' : 'default'}>{detail.group.status}</Tag></Text>
+        </Space>
+      </div>
       <Table
         rowKey="id"
         pagination={false}
@@ -1257,7 +1402,7 @@ export default function ChannelInfoPage() {
               return flow.triggerType === 'REQUERY_TRIGGERED' && triggerSubState ? <Tag color="gold">{triggerSubState}</Tag> : <span style={{ color: '#999' }}>N/A</span>;
             },
           },
-          { title: 'Operation', width: 180, fixed: 'right', render: (_, flow) => <Button type="link" size="small" onClick={() => setRuntimeDetailView({ kind: 'flow-canvas', ability: detail.ability, group: detail.group, flowId: flow.id })}>View Components</Button> },
+          { title: 'Operation', width: 270, fixed: 'right', render: (_, flow) => <Space size="small"><Button type="link" size="small" onClick={() => openTimeoutConfig(detail.ability, detail.group, flow)}>Timeout Config</Button><Button type="link" size="small" onClick={() => setRuntimeDetailView({ kind: 'flow-canvas', ability: detail.ability, group: detail.group, flowId: flow.id })}>View Components</Button></Space> },
         ]}
       />
     </Card>
@@ -1289,6 +1434,11 @@ export default function ChannelInfoPage() {
           mode="flow"
           action={flow.triggerEvents?.[0] ?? flow.contextActions?.[0]}
           readOnly
+          resourceVersions={{
+            globalVariables: detail.group.resourceVersions?.globalVariables ?? detail.group.version,
+            credentials: detail.group.resourceVersions?.credentials ?? detail.group.version,
+            orderVariables: detail.group.resourceVersions?.orderVariables ?? detail.group.version,
+          }}
         />
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Canvas</div>
@@ -1439,7 +1589,7 @@ export default function ChannelInfoPage() {
 
         <ConditionNodeDrawer
           open={code === 'condition'}
-          branches={detail?.conditionBranches ?? []}
+          branches={(detail?.conditionBranches ?? []).map((branch, index) => ({ ...branch, id: `runtime_branch_${index}` }))}
           endCurrentFlow={Boolean(detail?.endCurrentFlow)}
           readOnly
           onClose={closeRuntimeComponentDetail}
@@ -1543,7 +1693,7 @@ export default function ChannelInfoPage() {
   const title = runtimeDetailView?.kind === 'route-matching'
     ? 'Route Matching Detail'
     : runtimeDetailView?.kind === 'flow-group'
-      ? 'Flow Groups Detail'
+      ? 'Flow Group Detail'
       : runtimeDetailView?.kind === 'flow-canvas'
         ? 'Flow Detail'
         : detailView?.type === 'event'
@@ -1563,20 +1713,33 @@ export default function ChannelInfoPage() {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: '#f4f6f8' }}>
-      <Sider width={260} style={{ background: '#001529', position: 'sticky', top: 0, height: '100vh' }}>
-        <div style={{ color: '#fff', fontSize: 20, fontWeight: 700, padding: '24px 24px 18px' }}>Omnicore Solution</div>
-        <div style={{ color: '#cbd5e1', padding: '0 24px 14px', fontSize: 15 }}>{channelCode}</div>
+    <Layout className="integration-shell">
+      <Sider width={200} theme="dark" className="integration-sidebar channel-info-sidebar">
+        <div className="integration-brand" onClick={() => navigate('/home')}>
+          <Brand />
+        </div>
         {runtimeDetailView ? (
+          <button type="button" className="sidebar-back" onClick={handleRuntimeBack}>
+            <span className="sidebar-back-icon"><ArrowLeftOutlined /></span>
+            <span>Back</span>
+          </button>
+        ) : <>
+          <button type="button" className="sidebar-back" onClick={() => navigate('/channel-integration')}>
+            <span className="sidebar-back-icon"><ArrowLeftOutlined /></span>
+            <span>Channel List</span>
+          </button>
+          <button
+            type="button"
+            className="channel-info-sidebar-context"
+            aria-expanded={channelMenuOpen}
+            onClick={() => setChannelMenuOpen((open) => !open)}
+          >
+            <span>{channelCode}</span>
+            {channelMenuOpen ? <DownOutlined /> : <RightOutlined />}
+          </button>
+          {channelMenuOpen && (
           <Menu
-            theme="dark"
-            mode="inline"
-            selectedKeys={['runtime-back']}
-            onClick={handleRuntimeBack}
-            items={[{ key: 'runtime-back', label: 'Back' }]}
-          />
-        ) : (
-          <Menu
+            className="integration-menu channel-info-menu"
             theme="dark"
             mode="inline"
             selectedKeys={[pageKey]}
@@ -1602,9 +1765,10 @@ export default function ChannelInfoPage() {
               { key: 'service-channel', label: 'Service Channel' },
             ]}
           />
-        )}
+          )}
+        </>}
       </Sider>
-      <Layout>
+      <Layout className="integration-main">
         <div style={{ background: '#fff', borderBottom: '1px solid #edf0f2', padding: '12px 24px' }}>
           <Space size={18} align="center" wrap>
             <Text strong><span style={{ color: '#ff4d4f' }}>*</span> Cloud:</Text>
@@ -1817,50 +1981,60 @@ export default function ChannelInfoPage() {
       </Modal>
 
       <Modal
-        title={runtimeConfigTarget ? runtimeTargetTitle(runtimeConfigTarget) : 'Runtime Config'}
+        title="Weight Config"
         open={!!runtimeConfigTarget}
         width={760}
         okText="Submit"
+        okButtonProps={{ disabled: runtimeConfigTarget ? (runtimeConfigTarget.kind === 'group' ? openGroupRows(runtimeConfigTarget.ability).length === 0 : openMatchingRows(runtimeConfigTarget.endpoint).length === 0) : false }}
         onCancel={() => { setRuntimeConfigTarget(null); setRuntimeDraft({}); }}
         onOk={saveRuntimeConfig}
       >
         {runtimeConfigTarget && (
-          <Table
-            rowKey="id"
-            pagination={false}
-            dataSource={runtimeTargetRows(runtimeConfigTarget)}
-            columns={[
-              { title: runtimeConfigTarget.kind === 'matching' ? 'Matching ID' : 'Group ID', dataIndex: 'label' },
-              { title: 'Version', dataIndex: 'version', width: 180 },
-              {
-                title: 'Runtime Status',
-                width: 160,
-                render: (_, row) => (
-                  <Switch
-                    checked={runtimeDraft[row.id]?.enabled ?? false}
-                    onChange={(enabled) => setRuntimeDraft((draft) => {
-                      const current = draft[row.id] ?? { weight: 0 };
-                      return { ...draft, [row.id]: { ...current, enabled, weight: enabled && Number(current.weight ?? 0) <= 0 ? 100 : current.weight } };
-                    })}
-                  />
-                ),
-              },
-              {
-                title: 'Weight',
-                width: 180,
-                render: (_, row) => (
-                  <InputNumber
-                    min={0}
-                    max={100}
-                    addonAfter="%"
-                    disabled={!runtimeDraft[row.id]?.enabled}
-                    value={runtimeDraft[row.id]?.weight}
-                    onChange={(weight) => setRuntimeDraft((draft) => ({ ...draft, [row.id]: { ...(draft[row.id] ?? { enabled: false }), weight: Number(weight ?? 0) } }))}
-                  />
-                ),
-              },
-            ]}
-          />
+          <>
+            <div className="flow-group-deploy-status-context">
+              {runtimeConfigTarget.kind === 'group' ? (
+                <Space size={28} wrap className="flow-group-deploy-status-line">
+                  <span><strong>Business Type:</strong> {runtimeConfigTarget.ability.bt}</span>
+                  <span><strong>Ability:</strong> {runtimeConfigTarget.ability.ability}</span>
+                </Space>
+              ) : (
+                <Space size={28} wrap className="flow-group-deploy-status-line">
+                  <span><strong>Path:</strong> {runtimeConfigTarget.endpoint.url}</span>
+                </Space>
+              )}
+            </div>
+            <Alert
+              type="info"
+              showIcon
+              message={(runtimeConfigTarget.kind === 'group' ? openGroupRows(runtimeConfigTarget.ability) : openMatchingRows(runtimeConfigTarget.endpoint)).length
+                ? `Only enabled ${runtimeConfigTarget.kind === 'group' ? 'Groups' : 'Matching records'} are shown. The total weight must equal 100%.`
+                : `No ${runtimeConfigTarget.kind === 'group' ? 'Group' : 'Matching record'} is enabled. Enable one from the Runtime Status column before configuring weight.`}
+              style={{ marginBottom: 16 }}
+            />
+            <Table
+              rowKey="id"
+              pagination={false}
+              locale={{ emptyText: runtimeConfigTarget.kind === 'group' ? 'No enabled Group' : 'No enabled Matching record' }}
+              dataSource={runtimeConfigTarget.kind === 'group' ? openGroupRows(runtimeConfigTarget.ability) : openMatchingRows(runtimeConfigTarget.endpoint)}
+              columns={[
+                { title: runtimeConfigTarget.kind === 'matching' ? 'Matching ID' : 'Group ID', dataIndex: 'label' },
+                { title: 'Version', dataIndex: 'version', width: 180 },
+                {
+                  title: 'Weight',
+                  width: 180,
+                  render: (_: unknown, row: { id: string }) => (
+                    <InputNumber
+                      min={0}
+                      max={100}
+                      addonAfter="%"
+                      value={runtimeDraft[row.id]?.weight}
+                      onChange={(weight) => setRuntimeDraft((draft) => ({ ...draft, [row.id]: { ...(draft[row.id] ?? { enabled: true }), weight: Number(weight ?? 0) } }))}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </>
         )}
       </Modal>
 
@@ -1872,6 +2046,8 @@ export default function ChannelInfoPage() {
         onCancel={() => {
           setRuntimeApprovalOpen(false);
           setPendingRuntimeDraft(null);
+          setPendingGroupToggle(null);
+          setPendingMatchingToggle(null);
           runtimeApprovalForm.resetFields();
         }}
       >
@@ -1895,14 +2071,29 @@ export default function ChannelInfoPage() {
       >
         {timeoutTarget && (
           <>
-            <Alert type="info" showIcon message="Timeout Config is confirmed under Runtime Control / Flow Groups. Paths are aggregated from httpCall components inside the selected Flow Group." style={{ marginBottom: 16 }} />
-            <Descriptions column={1} size="small" items={[{ key: 'group', label: 'Flow Group', children: timeoutTarget.label }]} style={{ marginBottom: 16 }} />
+            <div className="flow-group-deploy-status-context">
+              <Space size={20} wrap className="flow-group-deploy-status-line">
+                <span><strong>Flow ID:</strong> {timeoutTarget.flow.id}</span>
+                <span><strong>Flow Name:</strong> {timeoutTarget.flow.name}</span>
+              </Space>
+            </div>
             <Form form={timeoutForm} layout="vertical">
-              {timeoutTarget.paths.map((item) => (
-                <Form.Item key={item.id} name={['timeouts', item.id]} label={`${item.path} · ${item.source}`} rules={[{ required: true }]}>
-                  <InputNumber min={1} addonAfter="ms" style={{ width: '100%' }} />
-                </Form.Item>
-              ))}
+              {timeoutTarget.authenticationEndpoints.length > 0 && (
+                <Card size="small" title="Authentication Endpoint Timeout" style={{ marginBottom: 16 }}>
+                  {timeoutTarget.authenticationEndpoints.map((item) => (
+                    <Form.Item key={item.id} name={['timeouts', item.id]} label={item.path} rules={[{ required: true }]}>
+                      <InputNumber min={1} addonAfter="ms" style={{ width: '100%' }} />
+                    </Form.Item>
+                  ))}
+                </Card>
+              )}
+              <Card size="small" title="Flow Endpoint Timeout">
+                {timeoutTarget.flowEndpoints.length > 0 ? timeoutTarget.flowEndpoints.map((item) => (
+                  <Form.Item key={item.id} name={['timeouts', item.id]} label={item.path} rules={[{ required: true }]}>
+                    <InputNumber min={1} addonAfter="ms" style={{ width: '100%' }} />
+                  </Form.Item>
+                )) : <Text type="secondary">No Flow Endpoint is configured for this Flow.</Text>}
+              </Card>
             </Form>
           </>
         )}
@@ -1921,21 +2112,19 @@ export default function ChannelInfoPage() {
               pagination={false}
               dataSource={[
                 ...runtimeApprovals
-                  .filter((item) => item.kind === (runtimeHistory.kind === 'Route Matching' ? 'matching' : 'group') && (!runtimeHistory.targetId || item.targetId === runtimeHistory.targetId))
+                  .filter((item) => item.changeType === 'status' && item.kind === (runtimeHistory.kind === 'Route Matching' ? 'matching' : 'group') && (!runtimeHistory.targetId || item.targetId === runtimeHistory.targetId))
                   .map((item) => ({
                     version: item.id,
-                    weight: item.changes.map((change) => `${change.id}: ${change.enabled ? `${change.weight}%` : 'off'}`).join('; '),
-                    runtimeStatus: 'pending approval',
+                    runtimeStatus: `${item.changes[0]?.enabled ? 'On' : 'Off'}${item.approvalStatus === 'In Progress' ? ' (Pending Approval)' : ''}`,
                     operator: item.operator,
                     operationTime: item.operationTime,
                     approvalStatus: item.approvalStatus,
                     reason: item.reason,
                   })),
-                { version: '20260707142000', weight: runtimeHistory.weight ? `${runtimeHistory.weight}%` : '-', runtimeStatus: runtimeHistory.enabled ? 'on' : 'off', operator: 'admin', operationTime: '2026-07-07 14:20:00', approvalStatus: 'Approved', reason: '-' },
+                { version: '20260707142000', runtimeStatus: runtimeHistory.enabled ? 'On' : 'Off', operator: 'admin', operationTime: '2026-07-07 14:20:00', approvalStatus: 'Approved', reason: '-' },
               ]}
               columns={[
                 { title: 'Version', dataIndex: 'version', width: 170 },
-                { title: 'Runtime Config', dataIndex: 'weight' },
                 { title: 'Runtime Status', dataIndex: 'runtimeStatus', width: 150 },
                 { title: 'Reason', dataIndex: 'reason', width: 220 },
                 { title: 'Operator', dataIndex: 'operator', width: 150 },
@@ -1969,7 +2158,7 @@ export default function ChannelInfoPage() {
         <Form form={bulkForm} layout="vertical">
           <Form.Item name="endpoint" label="Endpoint" required><Select options={isExternal ? externalEndpointOptions : internalEndpointOptions} onChange={() => bulkForm.setFieldsValue({ bt: undefined, ability: undefined })} /></Form.Item>
           <Form.Item name="bt" label="Business Type" required><Select disabled={!bulkEndpoint} options={bulkBtOptions} onChange={() => bulkForm.setFieldsValue({ ability: undefined })} /></Form.Item>
-          {isExternal && <Form.Item name="ability" label="Ability" required><Select disabled={!bulkBt} options={bulkAbilityOptions} /></Form.Item>}
+          <Form.Item name="ability" label="Ability" required><Select disabled={!bulkBt} options={bulkAbilityOptions} /></Form.Item>
           <Space><Button type="primary">Upload</Button><Button type="link">Download Template</Button></Space>
         </Form>
       </Modal>

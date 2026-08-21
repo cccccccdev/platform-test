@@ -21,7 +21,7 @@ const triggerTypeOptions = [
   },
   {
     value: 'EXTERNAL_INBOUND_TRIGGERED',
-    label: 'EXTERNAL_INBOUND_TRIGGERED',
+    label: 'EXTERNAL_TRIGGERED',
     description: TRIGGER_TYPE_DESCRIPTIONS.EXTERNAL_INBOUND_TRIGGERED,
   },
   {
@@ -355,20 +355,17 @@ export default function FlowConfigModal({
           label="Flow Name"
           rules={[
             { required: true, message: 'Please enter Flow Name' },
+            { max: 30, message: 'Flow Name cannot exceed 30 characters' },
             { validator: (_, value) => isFlowNameUnique(value) ? Promise.resolve() : Promise.reject('Flow Name already exists') },
           ]}
         >
-          <Input placeholder="Enter Flow Name" />
+          <Input placeholder="Enter Flow Name" maxLength={30} showCount />
         </Form.Item>
 
         {/* Trigger Type */}
         <Form.Item
-          label={
-            <Space>
-              Trigger Type
-              <span style={{ color: '#ff4d4f' }}>*</span>
-            </Space>
-          }
+          required
+          label="Trigger Type"
         >
           <Radio.Group
             className="new-flow-trigger-types"

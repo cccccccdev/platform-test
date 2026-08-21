@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Badge, Breadcrumb, Button, Form, Input, message, Modal, Select, Space, Table, Tag, Tooltip } from 'antd';
-import { DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons';
+import { DownOutlined, PlusOutlined, QuestionCircleOutlined, RightOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { nextMatchingId, useMatchCapabilityStore } from './matchCapabilityStore';
-import type { CapabilityDecisionVersion, InboundEndpoint, UriConfigStatus } from './types';
+import type { CapabilityDecisionVersion, InboundEndpoint, RouteMatchingTemplateCode, UriConfigStatus } from './types';
 
 interface NewInboundEndpointForm {
   path: string;
@@ -12,7 +12,14 @@ interface NewInboundEndpointForm {
 
 interface NewMatchingForm {
   description: string;
+  templateCode: RouteMatchingTemplateCode;
 }
+
+const routeMatchingTemplateOptions: Array<{ value: RouteMatchingTemplateCode; label: string; description: string }> = [
+  { value: 'SINGLE_CAPABILITY', label: 'SINGLE_CAPABILITY', description: 'inboundPreprocess -> specifyCapability' },
+  { value: 'MULTIPE_CAPABILITY', label: 'MULTIPE_CAPABILITY', description: 'inboundPreprocess -> condition -> specifyCapability' },
+  { value: 'MATCH_CAPABILITY_BY_ORDER', label: 'MATCH_CAPABILITY_BY_ORDER', description: 'inboundPreprocess -> matchCapabilityByOrder' },
+];
 
 const statusMeta: Record<UriConfigStatus, { label: string; color: string }> = {
   UNDEPLOYED: { label: 'UNDEPLOYED', color: 'default' },
@@ -133,12 +140,13 @@ export default function MatchCapabilityPage() {
   const handleNewMatching = async () => {
     if (!newMatchingEndpoint) return;
     const values = await matchingForm.validateFields();
-    const version = createVersion(channelCode, newMatchingEndpoint.id, values.description);
+    const version = createVersion(channelCode, newMatchingEndpoint.id, values.description, values.templateCode);
     if (!version) return void message.warning('An undeployed Route Matching Version already exists.');
-    const endpoint = newMatchingEndpoint;
+    const endpointId = newMatchingEndpoint.id;
     setNewMatchingEndpoint(null);
     matchingForm.resetFields();
-    openEditor(endpoint, version, 'config');
+    setExpandedRows((previous) => new Set(previous).add(endpointId));
+    message.success(`Matching ID ${version.id} created`);
   };
 
   const openConfig = (endpoint: InboundEndpoint, version: CapabilityDecisionVersion) => {
@@ -244,7 +252,7 @@ export default function MatchCapabilityPage() {
       columns={[
         { title: 'Matching ID', dataIndex: 'id', width: 190 },
         { title: 'Version', dataIndex: 'version', width: 135 },
-        { title: 'Description', dataIndex: 'remark', render: (remark: string | undefined, version) => <Space>{version.sourceType === 'legacy' && <Tag color="purple">Legacy 1.0</Tag>}<span>{remark || '-'}</span></Space> },
+        { title: 'Description', dataIndex: 'remark', render: (remark: string | undefined) => remark || '-' },
         { title: 'Status', width: 130, render: (_, version) => renderStatus(version) },
         { title: 'Operator', dataIndex: 'operator', width: 100 },
         { title: 'Operation Time', dataIndex: 'updatedTime', width: 180 },
@@ -259,6 +267,7 @@ export default function MatchCapabilityPage() {
         <Breadcrumb items={[{ title: 'Channel List' }, { title: 'Config Integration' }, { title: 'Route Matching' }]} />
         <div className="route-matching-title-line">
           <h2>Route Matching</h2>
+          <span>Inbound path and capability routing configuration</span>
         </div>
       </section>
 
@@ -297,11 +306,25 @@ export default function MatchCapabilityPage() {
       <Modal
         title="New Matching"
         open={Boolean(newMatchingEndpoint)}
-        okText="Create and Configure"
+        okText="Create"
         onOk={() => void handleNewMatching()}
         onCancel={() => { setNewMatchingEndpoint(null); matchingForm.resetFields(); }}
       >
         <Form form={matchingForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item
+            name="templateCode"
+            label={<Space size={6}>Template<Tooltip title="The Template only initializes the canvas. Components can be added, removed, or reordered after creation."><QuestionCircleOutlined style={{ color: '#8c8c8c' }} /></Tooltip></Space>}
+            rules={[{ required: true, message: 'Select a Template' }]}
+          >
+            <Select
+              placeholder="Select a Route Matching Template"
+              options={routeMatchingTemplateOptions.map((template) => ({
+                value: template.value,
+                label: <div><div>{template.label}</div><div style={{ color: '#8c8c8c', fontSize: 12 }}>{template.description}</div></div>,
+              }))}
+              optionLabelProp="value"
+            />
+          </Form.Item>
           <Form.Item
             name="description"
             label="Description"

@@ -17,14 +17,15 @@ export default function IntegrationLayout() {
   const pathParts = location.pathname.split('/');
   const channelCodeIndex = pathParts.indexOf('channel-integration') + 1;
   const channelCode = pathParts[channelCodeIndex] || '';
+  const readOnlyDetail = new URLSearchParams(location.search).get('mode') === 'detail';
+  const flowGroupWorkspace = location.pathname.includes('/integration/config/flow-groups/')
+    && location.pathname.includes('/versions/')
+    && !location.pathname.includes('/flows/');
+  const backOnly = readOnlyDetail || flowGroupWorkspace;
+  const detailBackPath = `/channel-integration/${channelCode}/integration/config/flow-groups`;
 
   // Update menu items with actual channelCode
   const getMenuItems = () => [
-    {
-      key: '/channel-integration',
-      icon: <ArrowLeftOutlined />,
-      label: 'Channel List',
-    },
     {
       key: 'config-integration',
       icon: <SettingOutlined />,
@@ -70,7 +71,11 @@ export default function IntegrationLayout() {
         <div className="integration-brand" onClick={() => navigate('/home')}>
           <Brand />
         </div>
-        <Menu
+        <button type="button" className="sidebar-back" onClick={() => navigate(backOnly ? detailBackPath : '/channel-integration')}>
+          <span className="sidebar-back-icon"><ArrowLeftOutlined /></span>
+          <span>{backOnly ? 'Back' : 'Channel List'}</span>
+        </button>
+        {!backOnly && <Menu
           className="integration-menu"
           theme="dark"
           mode="inline"
@@ -78,7 +83,7 @@ export default function IntegrationLayout() {
           defaultOpenKeys={['config-integration']}
           items={getMenuItems()}
           onClick={handleMenuClick}
-        />
+        />}
       </Sider>
       <Layout className="integration-main">
         <div className="integration-topbar">

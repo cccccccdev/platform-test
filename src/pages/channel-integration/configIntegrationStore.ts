@@ -21,6 +21,30 @@ const timestampVersion = () => {
     .map((part, index) => index === 0 ? String(part) : String(part).padStart(2, '0')).join('');
 };
 
+const npsb0100Mandatory = new Set([2, 3, 4, 5, 7, 11, 12, 13, 18, 22, 32, 37, 47, 49, 50, 103, 112, 128]);
+const npsb0110Mandatory = new Set([2, 3, 4, 5, 7, 11, 32, 37, 39, 49, 50, 103, 112, 128]);
+const npsb0100Fields = [2, 3, 4, 5, 6, 7, 10, 11, 12, 13, 18, 19, 22, 25, 32, 37, 41, 42, 43, 47, 48, 49, 50, 51, 103, 112, 128].map((de) => ({
+  de,
+  source: de === 2 ? ['SPI Request', 'spi.request.accountNumber']
+    : de === 4 ? ['SPI Request', 'spi.request.amount']
+      : de === 3 ? ['Fixed Values', 'fixed.280000']
+        : [7, 12, 13].includes(de) ? ['Generated Data', 'generated.current-timestamp']
+          : [11, 37].includes(de) ? ['Generated Data', 'generated.uuid']
+            : ['Generated Data', 'generated.script'],
+  operation: undefined,
+  mandatory: npsb0100Mandatory.has(de),
+}));
+const npsb0110Fields = [2, 3, 4, 5, 6, 7, 10, 11, 19, 25, 32, 37, 38, 39, 41, 42, 48, 49, 50, 51, 103, 112, 128].map((de) => ({
+  de,
+  operation: undefined,
+  target: de === 39 ? 'SPI · response.channelResponseCode'
+    : de === 37 ? 'SPI · response.responseReference'
+      : de === 2 ? 'SPI · response.accountNumber'
+        : de === 11 ? 'Order Variable · trace'
+          : 'SPI · response.counterpartAccount',
+  mandatory: npsb0110Mandatory.has(de),
+}));
+
 const nextGroupId = (abilitiesByChannel: Record<string, ConfigAbility[]>) =>
   Object.values(abilitiesByChannel).reduce(
     (maxGroupId, abilities) => abilities.reduce(
@@ -34,35 +58,25 @@ const nextGroupId = (abilitiesByChannel: Record<string, ConfigAbility[]>) =>
   ) + 1;
 
 const commonCanvasNodes = [
-  { id: 'out_1', componentCode: 'initOutboundOrder', x: 320, y: 40, status: 'complete' as const },
-  { id: 'out_2', componentCode: 'loadCredential', x: 320, y: 150, status: 'complete' as const },
-  { id: 'out_3', componentCode: 'loadGlobalVariable', x: 320, y: 260, status: 'complete' as const },
-  { id: 'out_4', componentCode: 'generateRequestReference', x: 320, y: 370, status: 'complete' as const },
-  { id: 'out_5', componentCode: 'httpCall', x: 320, y: 480, status: 'complete' as const },
-  { id: 'out_6', componentCode: 'updateOutboundOrder', x: 320, y: 590, status: 'complete' as const },
-  { id: 'out_7', componentCode: 'sendCompleteMQ', x: 320, y: 700, status: 'complete' as const },
+  { id: 'out_1', componentCode: 'initOutboundFirstOrder', x: 320, y: 40, status: 'complete' as const },
+  { id: 'out_2', componentCode: 'http', x: 320, y: 160, status: 'complete' as const },
+  { id: 'out_3', componentCode: 'updateOutboundOrder', x: 320, y: 280, status: 'complete' as const },
 ];
 
 const commonCanvasEdges = [
   { id: 'out_e1', source: 'out_1', target: 'out_2' },
   { id: 'out_e2', source: 'out_2', target: 'out_3' },
-  { id: 'out_e3', source: 'out_3', target: 'out_4' },
-  { id: 'out_e4', source: 'out_4', target: 'out_5' },
-  { id: 'out_e5', source: 'out_5', target: 'out_6' },
-  { id: 'out_e6', source: 'out_6', target: 'out_7' },
 ];
 
 const callbackCanvasNodes = [
   { id: 'in_1', componentCode: 'inboundRequest', x: 320, y: 80, status: 'complete' as const },
-  { id: 'in_2', componentCode: 'initInboundOrder', x: 320, y: 200, status: 'complete' as const },
-  { id: 'in_3', componentCode: 'requestBusinessAccessLayer', x: 320, y: 320, status: 'complete' as const },
-  { id: 'in_4', componentCode: 'inboundResponse', x: 320, y: 440, status: 'complete' as const },
+  { id: 'in_2', componentCode: 'updateOutboundOrderCallback', x: 320, y: 200, status: 'complete' as const },
+  { id: 'in_3', componentCode: 'inboundResponse', x: 320, y: 320, status: 'complete' as const },
 ];
 
 const callbackCanvasEdges = [
   { id: 'in_e1', source: 'in_1', target: 'in_2' },
   { id: 'in_e2', source: 'in_2', target: 'in_3' },
-  { id: 'in_e3', source: 'in_3', target: 'in_4' },
 ];
 
 const evexinSendHttpCallConfig = {
@@ -107,18 +121,14 @@ const evexinSendHttpCallConfig = {
 };
 
 const evexinSendCanvasNodes = [
-  { id: 'evexin_out_1', componentCode: 'initOutboundOrder', x: 320, y: 40, status: 'complete' as const },
-  { id: 'evexin_out_2', componentCode: 'generateRequestReference', x: 320, y: 150, status: 'complete' as const },
-  { id: 'evexin_out_3', componentCode: 'httpCall', x: 320, y: 260, status: 'complete' as const, config: evexinSendHttpCallConfig },
-  { id: 'evexin_out_4', componentCode: 'updateOutboundOrder', x: 320, y: 370, status: 'complete' as const, config: { targetSubState: 'SUBMITTED', failureSubState: 'FAILED' } },
-  { id: 'evexin_out_5', componentCode: 'sendCompleteMQ', x: 320, y: 480, status: 'complete' as const },
+  { id: 'evexin_out_1', componentCode: 'initOutboundFirstOrder', x: 320, y: 40, status: 'complete' as const },
+  { id: 'evexin_out_3', componentCode: 'http', x: 320, y: 150, status: 'complete' as const, config: evexinSendHttpCallConfig },
+  { id: 'evexin_out_4', componentCode: 'updateOutboundOrder', x: 320, y: 260, status: 'complete' as const, config: { targetSubState: 'SUBMITTED', failureSubState: 'FAILED' } },
 ];
 
 const evexinSendCanvasEdges = [
-  { id: 'evexin_out_e1', source: 'evexin_out_1', target: 'evexin_out_2' },
-  { id: 'evexin_out_e2', source: 'evexin_out_2', target: 'evexin_out_3' },
+  { id: 'evexin_out_e1', source: 'evexin_out_1', target: 'evexin_out_3' },
   { id: 'evexin_out_e3', source: 'evexin_out_3', target: 'evexin_out_4' },
-  { id: 'evexin_out_e4', source: 'evexin_out_4', target: 'evexin_out_5' },
 ];
 
 const evexinCallbackCanvasNodes = [
@@ -142,15 +152,13 @@ const evexinCallbackCanvasNodes = [
       ],
     },
   },
-  { id: 'evexin_in_2', componentCode: 'updateOutboundOrder', x: 320, y: 200, status: 'complete' as const, config: { targetSubStates: ['SUBMITTED', 'DELIVERED', 'FAILED'] } },
-  { id: 'evexin_in_3', componentCode: 'sendCompleteMQ', x: 320, y: 320, status: 'complete' as const },
-  { id: 'evexin_in_4', componentCode: 'inboundResponse', x: 320, y: 440, status: 'complete' as const, config: { responseMappingMode: 'configuration', responseFormat: 'JSON', responseHeaders: [], responseBody: [] } },
+  { id: 'evexin_in_2', componentCode: 'updateOutboundOrderCallback', x: 320, y: 200, status: 'complete' as const, config: { targetSubStates: ['SUBMITTED', 'DELIVERED', 'FAILED'] } },
+  { id: 'evexin_in_3', componentCode: 'inboundResponse', x: 320, y: 320, status: 'complete' as const, config: { responseMappingMode: 'configuration', responseFormat: 'JSON', responseHeaders: [], responseBody: [] } },
 ];
 
 const evexinCallbackCanvasEdges = [
   { id: 'evexin_in_e1', source: 'evexin_in_1', target: 'evexin_in_2' },
   { id: 'evexin_in_e2', source: 'evexin_in_2', target: 'evexin_in_3' },
-  { id: 'evexin_in_e3', source: 'evexin_in_3', target: 'evexin_in_4' },
 ];
 
 const seedDeployRecords: DeployRecord[] = [
@@ -193,7 +201,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'UPSTREAM_TRIGGERED',
-              template: 'TRANSACTION',
+              template: 'UPSTREAM_TRIGGERED_TRANSACTION',
               triggerEvents: ['TRANSACTION'],
               contextActions: [],
               isConfigured: true,
@@ -208,7 +216,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'inbound',
               endType: 'wait_external',
               triggerType: 'CALLBACK_TRIGGERED',
-              template: 'CALLBACK',
+              template: 'CALLBACK_TRIGGERED_OUTBOUND_ORDER',
               triggerEvents: ['TRANSACTION'],
               contextActions: ['TRANSACTION'],
               inboundUriId: 'evexin_sms_status_callback',
@@ -237,7 +245,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'UPSTREAM_TRIGGERED',
-              template: 'TRANSACTION',
+              template: 'UPSTREAM_TRIGGERED_TRANSACTION',
               triggerEvents: ['TRANSACTION'],
               contextActions: [],
               isConfigured: true,
@@ -252,7 +260,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'inbound',
               endType: 'wait_external',
               triggerType: 'CALLBACK_TRIGGERED',
-              template: 'CALLBACK',
+              template: 'CALLBACK_TRIGGERED_OUTBOUND_ORDER',
               triggerEvents: ['TRANSACTION'],
               contextActions: ['TRANSACTION'],
               inboundUriId: 'evexin_sms_status_callback',
@@ -293,7 +301,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'UPSTREAM_TRIGGERED',
-              template: 'TRANSACTION',
+              template: 'UPSTREAM_TRIGGERED_TRANSACTION',
               triggerEvents: ['TRANSACTION'],
               contextActions: [],
               isConfigured: true,
@@ -308,12 +316,12 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'UPSTREAM_TRIGGERED',
-              template: 'VERIFY',
+              template: 'UPSTREAM_TRIGGERED_VERIFY',
               triggerEvents: ['VERIFY'],
               contextActions: [],
               isConfigured: true,
               status: 'SUBMITTED',
-              ...buildTemplateCanvas('VERIFY'),
+              ...buildTemplateCanvas('UPSTREAM_TRIGGERED_VERIFY'),
             },
             {
               id: 'mtn_flow_wallet_requery',
@@ -322,13 +330,13 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'REQUERY_TRIGGERED',
-              template: 'REQUERY',
+              template: 'REQUERY_TRIGGERED_OUTBOUND_ORDER',
               triggerEvents: [],
               contextActions: ['TRANSACTION'],
               stateConditions: [{ id: 'mtn-requery-wait-callback', field: 'subState', operator: '==', value: 'PAYMENT_PENDING_WAIT_CALLBACK' }],
               isConfigured: true,
               status: 'SUBMITTED',
-              ...buildTemplateCanvas('REQUERY'),
+              ...buildTemplateCanvas('REQUERY_TRIGGERED_OUTBOUND_ORDER'),
             },
           ],
         },
@@ -360,7 +368,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'inbound',
               endType: 'wait_external',
               triggerType: 'CALLBACK_TRIGGERED',
-              template: 'CALLBACK',
+              template: 'CALLBACK_TRIGGERED_OUTBOUND_ORDER',
               triggerEvents: ['TRANSACTION'],
               contextActions: [],
               inboundUriId: 'mtn_ug_payment_callback',
@@ -587,12 +595,12 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'UPSTREAM_TRIGGERED',
-              template: 'TRANSACTION',
+              template: 'UPSTREAM_TRIGGERED_TRANSACTION',
               triggerEvents: ['TRANSACTION'],
               contextActions: [],
               isConfigured: false,
               status: 'DRAFT',
-              ...buildTemplateCanvas('TRANSACTION'),
+              ...buildTemplateCanvas('UPSTREAM_TRIGGERED_TRANSACTION'),
             },
             {
               id: 'flow_1783050572774',
@@ -601,12 +609,12 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'UPSTREAM_TRIGGERED',
-              template: 'VERIFY',
+              template: 'UPSTREAM_TRIGGERED_VERIFY',
               triggerEvents: ['VERIFY'],
               contextActions: [],
               isConfigured: false,
               status: 'DRAFT',
-              ...buildTemplateCanvas('VERIFY'),
+              ...buildTemplateCanvas('UPSTREAM_TRIGGERED_VERIFY'),
             },
             {
               id: 'flow_1783050610609',
@@ -615,13 +623,13 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'inbound',
               endType: 'wait_external',
               triggerType: 'CALLBACK_TRIGGERED',
-              template: 'CALLBACK',
+              template: 'CALLBACK_TRIGGERED_OUTBOUND_ORDER',
               triggerEvents: ['TRANSACTION'],
               contextActions: [],
               inboundUriId: 'gtb_callback_endpoint',
               isConfigured: false,
               status: 'DRAFT',
-              ...buildTemplateCanvas('CALLBACK'),
+              ...buildTemplateCanvas('CALLBACK_TRIGGERED_OUTBOUND_ORDER'),
             },
             {
               id: 'flow_1783050634527',
@@ -630,13 +638,13 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'inbound',
               endType: 'wait_external',
               triggerType: 'CALLBACK_TRIGGERED',
-              template: 'CALLBACK',
+              template: 'CALLBACK_TRIGGERED_OUTBOUND_ORDER',
               triggerEvents: ['VERIFY'],
               contextActions: [],
               inboundUriId: 'gtb_callback_endpoint',
               isConfigured: false,
               status: 'DRAFT',
-              ...buildTemplateCanvas('CALLBACK'),
+              ...buildTemplateCanvas('CALLBACK_TRIGGERED_OUTBOUND_ORDER'),
             },
             {
               id: 'flow_1783050858525',
@@ -645,13 +653,13 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'REQUERY_TRIGGERED',
-              template: 'REQUERY',
+              template: 'REQUERY_TRIGGERED_OUTBOUND_ORDER',
               triggerEvents: [],
               contextActions: ['VERIFY'],
               stateConditions: [{ id: 'requery-progressing', field: 'subState', operator: '==', value: 'PROGRESSING' }],
               isConfigured: false,
               status: 'DRAFT',
-              ...buildTemplateCanvas('REQUERY'),
+              ...buildTemplateCanvas('REQUERY_TRIGGERED_OUTBOUND_ORDER'),
             },
             {
               id: 'flow_1783050899045',
@@ -660,15 +668,60 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               flowType: 'outbound',
               endType: 'wait_external',
               triggerType: 'REQUERY_TRIGGERED',
-              template: 'REQUERY',
+              template: 'REQUERY_TRIGGERED_OUTBOUND_ORDER',
               triggerEvents: [],
               contextActions: ['VERIFY'],
               stateConditions: [{ id: 'requery-verifying-otp', field: 'subState', operator: '==', value: 'VERIFYING_OTP' }],
               isConfigured: false,
               status: 'DRAFT',
-              ...buildTemplateCanvas('REQUERY'),
+              ...buildTemplateCanvas('REQUERY_TRIGGERED_OUTBOUND_ORDER'),
             },
           ],
+        },
+      ],
+    },
+  ],
+  NPSB_BD: [
+    {
+      bt: 'WALLET_PAYOUT',
+      ability: 'TRANSACTION',
+      actions: ['TRANSACTION'],
+      stateMachine: 'NPSB_Wallet_Payout_StateMachine',
+      versions: [
+        {
+          id: 'npsb_wallet_payout_daily',
+          groupId: 801,
+          version: '20260715103000',
+          status: 'DAILY',
+          badges: [{ cloud: 'BD', env: 'DAILY' }],
+          remark: 'NPSB TCP + ISO 8583 wallet payout sample',
+          operator: 'admin',
+          operationTime: '2026-07-15 10:30:00',
+          deployRecords: [{ cloud: 'BD', app: 'omnicore', env: 'DAILY', version: '20260715103000', operator: 'admin', operationTime: '2026-07-15 10:30:00' }],
+          flows: [{
+            id: 'npsb_wallet_payout_flow',
+            name: 'WALLET_PAYOUT',
+            executionType: 'single',
+            flowType: 'outbound',
+            endType: 'wait_external',
+            triggerType: 'UPSTREAM_TRIGGERED',
+            template: 'STANDARD',
+            triggerEvents: ['TRANSACTION'],
+            contextActions: [],
+            isConfigured: true,
+            status: 'SUBMITTED',
+            canvasNodes: [
+              { id: 'npsb_out_1', componentCode: 'initOutboundOrder', x: 320, y: 40, status: 'complete' as const },
+              { id: 'npsb_out_2', componentCode: 'tcpCall', x: 320, y: 170, status: 'complete' as const, config: { requestName: 'wallet_payout_request', requestMTI: '0100', responseMTI: '0110', profileId: 'tcp_npsb_default', requestFields: npsb0100Fields, responseFields: npsb0110Fields, responseCodeMapping: 'WALLET_PAYOUT' } },
+              { id: 'npsb_out_3', componentCode: 'updateOutboundOrder', x: 320, y: 300, status: 'complete' as const },
+              { id: 'npsb_out_4', componentCode: 'sendCompleteMQ', x: 320, y: 430, status: 'complete' as const },
+            ],
+            canvasEdges: [
+              { id: 'npsb_out_e1', source: 'npsb_out_1', target: 'npsb_out_2' },
+              { id: 'npsb_out_e2', source: 'npsb_out_2', target: 'npsb_out_3' },
+              { id: 'npsb_out_e3', source: 'npsb_out_3', target: 'npsb_out_4' },
+            ],
+          }],
         },
       ],
     },
@@ -685,7 +738,26 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
   PAYSTACK_NG: [],
 };
 
-const cloneSeed = () => structuredClone(seedAbilities);
+const seedResourceVersions: Record<string, { globalVariables: string; credentials: string; orderVariables: string }> = {
+  EVEXIN: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+  GTB_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+  ZENITH_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+  PAYSTACK_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
+  NPSB_BD: { globalVariables: '20260715100000', credentials: '20260715100000', orderVariables: '20260715100000' },
+};
+
+const cloneSeed = () => Object.fromEntries(
+  Object.entries(structuredClone(seedAbilities)).map(([channelCode, abilities]) => [
+    channelCode,
+    abilities.map((ability) => ({
+      ...ability,
+      versions: ability.versions.map((version) => ({
+        ...version,
+        resourceVersions: version.resourceVersions ?? seedResourceVersions[channelCode],
+      })),
+    })),
+  ]),
+);
 
 // Helper to create a submitted snapshot from a flow
 function snapshotFlow(flow: FlowConfig): SubmittedFlowContent {

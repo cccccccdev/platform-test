@@ -7,6 +7,7 @@ export const mockChannels = [
   { code: 'GTB_NG', country: ['Nigeria'], party: ['PalmPay NG'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 10:00:00' },
   { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: ['PalmPay NG'], status: 'Inactive', operator: 'admin', operationTime: '2026-05-20 11:00:00' },
   { code: 'PAYSTACK_NG', country: ['Nigeria'], party: ['PalmPay GH'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 12:00:00' },
+  { code: 'NPSB_BD', country: ['Bangladesh'], party: ['NPSB Member Institution'], status: 'Active', operator: 'admin', operationTime: '2026-07-15 10:00:00' },
 ]
 
 // Credential 列表（按 channelCode 索引）
@@ -28,6 +29,11 @@ export const mockCredentials: Record<string, Array<{ id: string; key: string; de
   PAYSTACK_NG: [
     { id: 'cred_5', key: 'PUBLIC_KEY', description: 'Public key' },
   ],
+  NPSB_BD: [
+    { id: 'npsb_zmk', key: 'ZMK_KEY_REFERENCE', description: 'HSM key reference for key exchange' },
+    { id: 'npsb_zak', key: 'ZAK_KEY_REFERENCE', description: 'HSM key reference for MAC' },
+    { id: 'npsb_zpk', key: 'ZPK_KEY_REFERENCE', description: 'HSM key reference for PIN block' },
+  ],
 }
 
 // Business Type 列表（按 channelCode 索引）
@@ -48,6 +54,11 @@ export const mockBusinessTypes: Record<string, Array<{ bt: string; mode: 'Config
     { bt: 'COLLECTION', mode: 'Config Integration' },
   ],
   PAYSTACK_NG: [],
+  NPSB_BD: [
+    { bt: 'WALLET_PAYOUT', mode: 'Config Integration' },
+    { bt: 'BANK_ACCOUNT_PAYOUT', mode: 'Config Integration' },
+    { bt: 'FUND_NOTIFICATION', mode: 'Config Integration' },
+  ],
 }
 
 // Ability 列表（Config Integration）
@@ -422,6 +433,8 @@ export const abilityOptions: Record<string, string[]> = {
   SMS: ['SINGLE_MESSAGE', 'BULK_MESSAGE'],
   KYC: ['FINGERPRINT_VERIFY'],
   FUND_NOTIFICATION: ['CUSTOMER_VALIDATION'],
+  WALLET_PAYOUT: ['TRANSACTION'],
+  BANK_ACCOUNT_PAYOUT: ['TRANSACTION'],
 }
 
 // Country 枚举
@@ -450,4 +463,7 @@ export const capabilityActionOptions: Record<string, string[]> = {
   'SMS:BULK_MESSAGE': ['TRANSACTION'],
   'KYC:FINGERPRINT_VERIFY': ['QUERY'],
   'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['INBOUND_QUERY'],
+  'WALLET_PAYOUT:TRANSACTION': ['TRANSACTION', 'QUERY', 'REVERSAL'],
+  'BANK_ACCOUNT_PAYOUT:TRANSACTION': ['TRANSACTION', 'QUERY', 'REVERSAL'],
+  'FUND_NOTIFICATION:EXTERNAL_CREDIT': ['INBOUND_TRANSACTION', 'QUERY'],
 }
