@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Drawer, Form, Input, InputNumber, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Alert, Button, Drawer, Form, Input, InputNumber, Select, Space, Switch, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { DeleteOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { iso8583Ver1987Template, type TcpProfile } from './channelScopeStore';
 
 type Props = {
@@ -48,6 +48,7 @@ export default function TcpProfileDrawer({ open, profile, readOnly = false, onCl
     } else {
       form.setFieldsValue({
         name: '',
+        maxConnections: undefined,
         responseTimeout: undefined,
         maxInFlight: undefined,
         framingType: undefined,
@@ -72,6 +73,7 @@ export default function TcpProfileDrawer({ open, profile, readOnly = false, onCl
       ...existingDefaults,
       ...profile,
       name: values.name,
+      maxConnections: values.maxConnections,
       responseTimeout: values.responseTimeout,
       maxInFlight: values.maxInFlight,
       framingType: values.framingType,
@@ -89,9 +91,10 @@ export default function TcpProfileDrawer({ open, profile, readOnly = false, onCl
   };
 
   const runtime = <div style={{ padding: '16px 4px' }}>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16 }}>
+      <Form.Item name="maxConnections" label="Maximum TCP Connections" rules={[{ required: true, message: 'Maximum TCP connections is required' }]}><InputNumber min={1} max={1000} style={{ width: '100%' }} /></Form.Item>
+      <Form.Item name="maxInFlight" label="Max In-flight per Connection" rules={[{ required: true, message: 'Max in-flight requests per connection is required' }]}><InputNumber min={1} max={10000} style={{ width: '100%' }} /></Form.Item>
       <Form.Item name="responseTimeout" label="Business Response Timeout (seconds)" rules={[{ required: true, message: 'Response timeout is required' }]}><InputNumber min={1} max={300} style={{ width: '100%' }} /></Form.Item>
-      <Form.Item name="maxInFlight" label="Max In-flight Requests" rules={[{ required: true, message: 'Max in-flight requests is required' }]}><InputNumber min={1} max={10000} style={{ width: '100%' }} /></Form.Item>
     </div>
   </div>;
 
@@ -111,7 +114,7 @@ export default function TcpProfileDrawer({ open, profile, readOnly = false, onCl
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 16 }}>
         <Form.Item name="mtiEncoding" label="MTI Encoding" rules={[{ required: true }]}><Select options={[{ label: 'ASCII', value: 'ASCII' }, { label: 'BCD', value: 'BCD' }]} /></Form.Item>
         <Form.Item name="bitmapEncoding" label="Bitmap Encoding" rules={[{ required: true }]}><Select options={[{ label: 'Binary', value: 'Binary' }, { label: 'ASCII Hex', value: 'ASCII Hex' }]} /></Form.Item>
-        <Form.Item name="correlationFields" label="Correlation Fields"><Select mode="multiple" options={(form.getFieldValue('fieldDictionary') ?? []).map((item: { de: number; field: string }) => ({ label: `DE${item.de} · ${item.field}`, value: item.de }))} /></Form.Item>
+        <Form.Item name="correlationFields" label={<Space size={6}><span>Correlation Candidate Fields</span><Tooltip title="Configure every DE that may participate in matching. For each response or reversal, the runtime uses only the configured DEs actually present in that incoming message; every candidate field present must match the original message. If none are present, automatic matching cannot be performed."><QuestionCircleOutlined style={{ color: '#8c8c8c' }} /></Tooltip></Space>}><Select mode="multiple" options={(form.getFieldValue('fieldDictionary') ?? []).map((item: { de: number; field: string }) => ({ label: `DE${item.de} · ${item.field}`, value: item.de }))} /></Form.Item>
       </div>
       <Form.List name="fieldDictionary">
         {(fields, { add, remove }) => <div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>

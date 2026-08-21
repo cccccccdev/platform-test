@@ -9,10 +9,12 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
+import { useChannelScopeStore } from './channelScopeStore';
 import type { CapabilityDecisionVersion, ConfigAbility, InboundEndpoint, InboundRequestField, LegacyInboundComponent, MatchRule } from './types';
 import CanvasContextPanel from './CanvasContextPanel';
 import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
 import InboundPreprocessDrawer from './InboundPreprocessDrawer';
+import { componentsForScope } from './componentCatalog';
 
 const { Text } = Typography;
 
@@ -58,13 +60,8 @@ function RouteMatchingSummary({
   );
 }
 
-type MatchLibraryComponent = { code: 'inboundPreprocess' | 'condition' | 'specifyCapability' | 'matchCapabilityByOrder'; description: string; usage: 'single' | 'multiple'; scopes: Array<'Route Matching' | 'Outbound' | 'Inbound'> };
-const MATCH_COMPONENTS: MatchLibraryComponent[] = [
-  { code: 'inboundPreprocess', description: 'Parse Common Request, message format and decryption', usage: 'single', scopes: ['Route Matching'] },
-  { code: 'condition', description: 'Branch by field rules or Groovy script', usage: 'multiple', scopes: ['Route Matching', 'Outbound', 'Inbound'] },
-  { code: 'specifyCapability', description: 'Specify Business Type, Ability and Action', usage: 'multiple', scopes: ['Route Matching'] },
-  { code: 'matchCapabilityByOrder', description: 'Resolve Capability from a matched gateway order', usage: 'single', scopes: ['Route Matching'] },
-];
+type MatchComponentCode = 'inboundPreprocess' | 'condition' | 'specifyCapability' | 'matchCapabilityByOrder';
+const MATCH_COMPONENTS = componentsForScope('MATCHCAPABILITY');
 
 const createRule = (): MatchRule => ({
   id: `result_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -103,6 +100,7 @@ export default function MatchCapabilityEditorPage() {
   const submitVersion = useMatchCapabilityStore((state) => state.submitVersion);
   const abilitiesByChannel = useConfigIntegrationStore((state) => state.abilitiesByChannel);
   const abilities = abilitiesByChannel[channelCode] ?? EMPTY_ABILITIES;
+  const globalVariables = useChannelScopeStore((state) => state.globalVariablesByChannel[channelCode] ?? []);
   const configuration = endpoint?.versions.find((version) => version.id === decisionVersionId);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(configuration?.rules[0]?.id ?? null);
   const [activeDrawer, setActiveDrawer] = useState<'preprocess' | 'condition' | 'capability' | 'order' | null>(null);
@@ -280,6 +278,7 @@ export default function MatchCapabilityEditorPage() {
         />
         <MatchCapabilityCanvas
           configuration={configuration}
+          globalVariableOptions={globalVariables.map((variable) => ({ label: variable.name, value: `global.${variable.name}`, type: 'String' }))}
           readOnly={readOnly}
           onOpenDrawer={openDrawer}
           onAddResult={addResult}
@@ -361,11 +360,11 @@ export default function MatchCapabilityEditorPage() {
   );
 }
 
-function MatchComponentLibrary({ onAdd, readOnly }: { onAdd: (code: MatchLibraryComponent['code']) => void; readOnly: boolean }) {
+function MatchComponentLibrary({ onAdd, readOnly, componentCounts = {} }: { onAdd: (code: MatchComponentCode) => void; readOnly: boolean; componentCounts?: Record<string, number> }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [searchText, setSearchText] = useState('');
-  const filtered = MATCH_COMPONENTS.filter((item) => item.code.toLowerCase().includes(searchText.toLowerCase()) || item.description.toLowerCase().includes(searchText.toLowerCase()));
-  const handleDragStart = (event: DragEvent, code: MatchLibraryComponent['code']) => {
+  const filtered = MATCH_COMPONENTS.filter((item) => item.name.toLowerCase().includes(searchText.toLowerCase()) || item.alias.toLowerCase().includes(searchText.toLowerCase()));
+  const handleDragStart = (event: DragEvent, code: MatchComponentCode) => {
     event.dataTransfer.setData('application/reactflow', code);
     event.dataTransfer.effectAllowed = 'move';
   };
@@ -374,10 +373,13 @@ function MatchComponentLibrary({ onAdd, readOnly }: { onAdd: (code: MatchLibrary
     <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontWeight: 600, fontSize: 13 }}>Component Library</span><Button type="text" size="small" onClick={() => setIsExpanded(false)}>← Collapse</Button></div>
     <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}><Input placeholder="Search components..." prefix={<span style={{ color: '#999', fontSize: 12 }}>🔍</span>} value={searchText} onChange={(event) => setSearchText(event.target.value)} size="small" /></div>
     {!readOnly && <div style={{ padding: '4px 12px', background: '#e6f7ff', fontSize: 10, color: '#1890ff', textAlign: 'center' }}>Drag or click a component to add it</div>}
-    <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>{filtered.map((component) => <div key={component.code} draggable={!readOnly} onDragStart={(event) => handleDragStart(event, component.code)} onClick={() => !readOnly && onAdd(component.code)} style={{ padding: '8px 12px', marginBottom: 6, border: '1px solid #e8e8e8', borderRadius: 6, cursor: readOnly ? 'default' : 'grab', fontSize: 12, background: '#fff' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><div><div style={{ fontWeight: 500 }}>{component.code}</div><div style={{ color: '#888', fontSize: 10 }}>{component.description}</div></div><Tag color={component.usage === 'single' ? 'default' : 'green'} style={{ fontSize: 9, margin: 0, height: 20 }}>{component.usage === 'single' ? 'Single Use' : 'Multiple'}</Tag></div>
-      <div style={{ marginTop: 5 }}>{component.scopes.map((scope) => <Tag key={scope} color={scope === 'Route Matching' ? 'purple' : scope === 'Outbound' ? 'blue' : 'cyan'} style={{ fontSize: 9 }}>{scope}</Tag>)}</div>
-    </div>)}{filtered.length === 0 && <Text type="secondary" style={{ fontSize: 12 }}>No matching components</Text>}</div>
+    <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>{filtered.map((component) => {
+      const exhausted = component.usageCount < 99 && (componentCounts[component.name] ?? 0) >= component.usageCount;
+      const unavailable = readOnly || component.status === 0 || exhausted;
+      return <div key={component.name} draggable={!unavailable} onDragStart={(event) => handleDragStart(event, component.name as MatchComponentCode)} onClick={() => !unavailable && onAdd(component.name as MatchComponentCode)} style={{ padding: '8px 12px', marginBottom: 6, border: '1px solid #e8e8e8', borderRadius: 6, cursor: unavailable ? 'not-allowed' : 'grab', fontSize: 12, background: unavailable ? '#fafafa' : '#fff', opacity: component.status === 0 ? 0.55 : 1 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><div><div style={{ fontWeight: 500 }}>{component.name}</div><div style={{ color: '#888', fontSize: 10 }}>{component.alias}</div></div><Tag color={component.status === 0 ? 'default' : component.usageCount >= 99 ? 'green' : 'default'} style={{ fontSize: 9, margin: 0, height: 20 }}>{component.status === 0 ? 'Legacy' : component.usageCount >= 99 ? 'Multiple' : exhausted ? 'Used' : 'Single Use'}</Tag></div>
+      </div>;
+    })}{filtered.length === 0 && <Text type="secondary" style={{ fontSize: 12 }}>No matching components</Text>}</div>
   </div>;
 }
 
@@ -394,7 +396,7 @@ function MatchFlowNode({ data }: { data: Record<string, any> }) {
 const matchNodeTypes = { flowNode: MatchFlowNode };
 
 function seedMatchGraph(configuration: CapabilityDecisionVersion, onOpenDrawer: (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string, nodeId?: string) => void, onDelete: (nodeId: string, ruleId?: string) => void): { nodes: Node[]; edges: Edge[] } {
-  const makeNode = (id: string, code: MatchLibraryComponent['code'], x: number, y: number, description: string, drawer: 'preprocess' | 'condition' | 'capability' | 'order', isConfigured: boolean, ruleId?: string): Node => ({ id, type: 'flowNode', position: { x, y }, data: { code, description, isConfigured, ruleId, onConfig: () => onOpenDrawer(drawer, ruleId, id), onDelete: () => onDelete(id, ruleId) } });
+  const makeNode = (id: string, code: MatchComponentCode, x: number, y: number, description: string, drawer: 'preprocess' | 'condition' | 'capability' | 'order', isConfigured: boolean, ruleId?: string): Node => ({ id, type: 'flowNode', position: { x, y }, data: { code, description, isConfigured, ruleId, onConfig: () => onOpenDrawer(drawer, ruleId, id), onDelete: () => onDelete(id, ruleId) } });
   const preprocess = makeNode('preprocess', 'inboundPreprocess', 320, 50, configuration.requestMessageFormat ? `Prepare matching fields · ${configuration.requestMessageFormat}` : 'Configure request fields used for matching', 'preprocess', Boolean(configuration.requestMessageFormat));
   if (configuration.matchType === 'order_no') {
     const orderNode = makeNode('order', 'matchCapabilityByOrder', 320, 210, configuration.referenceField ? `Compare with ${configuration.referenceField}` : 'Configure order reference comparison', 'order', Boolean(configuration.referenceField && configuration.singleNoField));
@@ -408,14 +410,18 @@ function seedMatchGraph(configuration: CapabilityDecisionVersion, onOpenDrawer: 
   if (configuration.matchType === 'single') {
     const rule = configuration.rules[0];
     if (!rule) return { nodes: [], edges: [] };
-    return { nodes: [makeNode(`cap_${rule.id}`, 'specifyCapability', 320, 120, rule.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify one Capability Result', 'capability', Boolean(rule.bt && rule.ability && rule.action), rule.id)], edges: [] };
+    const capabilityNode = makeNode(`cap_${rule.id}`, 'specifyCapability', 320, 220, rule.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify one Capability Result', 'capability', Boolean(rule.bt && rule.ability && rule.action), rule.id);
+    return {
+      nodes: [preprocess, capabilityNode],
+      edges: [{ id: 'match_e1', source: 'preprocess', target: capabilityNode.id, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }],
+    };
   }
   const condition = makeNode('condition', 'condition', 320, 200, 'Branch by field rules or Groovy script', 'condition', configuration.rules.some((rule) => Object.keys(rule.fieldValues ?? {}).length > 0));
   const resultNodes = configuration.rules.map((rule, index) => makeNode(`cap_${rule.id}`, 'specifyCapability', 80 + index * 300, 380, rule.ability ? `${rule.bt} / ${rule.ability} / ${rule.action}` : 'Specify Capability Result', 'capability', Boolean(rule.bt && rule.ability && rule.action), rule.id));
   return { nodes: [preprocess, condition, ...resultNodes], edges: [{ id: 'match_e1', source: 'preprocess', target: 'condition', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }, ...resultNodes.map((node, index) => ({ id: `match_branch_${index}`, source: 'condition', target: node.id, type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed } }))] };
 }
 
-function MatchCapabilityCanvas({ configuration, readOnly, onOpenDrawer, onAddResult, onDeleteResult }: { configuration: CapabilityDecisionVersion; readOnly: boolean; onOpenDrawer: (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string) => void; onAddResult: () => string; onDeleteResult: (ruleId: string) => void }) {
+function MatchCapabilityCanvas({ configuration, globalVariableOptions, readOnly, onOpenDrawer, onAddResult, onDeleteResult }: { configuration: CapabilityDecisionVersion; globalVariableOptions: Array<{ label: string; value: string; type: string }>; readOnly: boolean; onOpenDrawer: (drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string) => void; onAddResult: () => string; onDeleteResult: (ruleId: string) => void }) {
   const [showConditionNode, setShowConditionNode] = useState(false);
   const [selectedConditionNodeId, setSelectedConditionNodeId] = useState<string | null>(null);
   const openCanvasDrawer = useCallback((drawer: 'preprocess' | 'condition' | 'capability' | 'order', ruleId?: string, nodeId?: string) => {
@@ -435,13 +441,14 @@ function MatchCapabilityCanvas({ configuration, readOnly, onOpenDrawer, onAddRes
     if (readOnly) return;
     setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, onDelete: () => removeNode(node.id, node.data.ruleId as string | undefined) } })));
   }, [readOnly, removeNode]);
-  const addComponent = useCallback((code: MatchLibraryComponent['code']) => {
-    const libraryItem = MATCH_COMPONENTS.find((item) => item.code === code);
-    if (libraryItem?.usage === 'single' && nodes.some((node) => node.data.code === code)) return void message.warning(`${code} can only be added once`);
+  const addComponent = useCallback((code: MatchComponentCode) => {
+    const libraryItem = MATCH_COMPONENTS.find((item) => item.name === code);
+    if (!libraryItem || libraryItem.status === 0) return;
+    if (libraryItem.usageCount < 99 && nodes.filter((node) => node.data.code === code).length >= libraryItem.usageCount) return void message.warning(`${code} can only be added ${libraryItem.usageCount === 1 ? 'once' : `${libraryItem.usageCount} times`}`);
     const ruleId = code === 'specifyCapability' ? onAddResult() : undefined;
     const drawer = code === 'inboundPreprocess' ? 'preprocess' : code === 'condition' ? 'condition' : code === 'matchCapabilityByOrder' ? 'order' : 'capability';
     const nodeId = `${code}_${Date.now()}`;
-    const node: Node = { id: nodeId, type: 'flowNode', position: { x: 320, y: nodes.length * 120 + 50 }, data: { code, description: libraryItem?.description, isConfigured: false, ruleId, onConfig: () => openCanvasDrawer(drawer, ruleId, nodeId), onDelete: () => removeNode(nodeId, ruleId) } };
+    const node: Node = { id: nodeId, type: 'flowNode', position: { x: 320, y: nodes.length * 120 + 50 }, data: { code, description: libraryItem.alias, isConfigured: false, ruleId, onConfig: () => openCanvasDrawer(drawer, ruleId, nodeId), onDelete: () => removeNode(nodeId, ruleId) } };
     setNodes((current) => [...current, node]);
   }, [nodes, onAddResult, openCanvasDrawer, removeNode]);
   const onConnect = useCallback((connection: Connection) => {
@@ -457,10 +464,10 @@ function MatchCapabilityCanvas({ configuration, readOnly, onOpenDrawer, onAddRes
     setEdges((current) => addEdge(edge, current));
     if (sourceCode === 'condition') setSelectedConditionEdge(edge);
   }, [nodes]);
-  const onDrop = useCallback((event: DragEvent) => { event.preventDefault(); const code = event.dataTransfer.getData('application/reactflow') as MatchLibraryComponent['code']; if (MATCH_COMPONENTS.some((item) => item.code === code)) addComponent(code); }, [addComponent]);
-  const conditionBranches = edges.filter((edge) => edge.source === selectedConditionNodeId).map((edge, index) => { const condition = edge.data?.condition as any; return { name: condition?.branchName ?? `Branch ${index + 1}`, target: String(nodes.find((node) => node.id === edge.target)?.data.code ?? 'Unknown'), summary: condition?.scriptMode ? 'Groovy Script' : condition?.groups?.length ? `${condition.groups.length} condition group(s)` : '' }; });
+  const onDrop = useCallback((event: DragEvent) => { event.preventDefault(); const code = event.dataTransfer.getData('application/reactflow') as MatchComponentCode; if (MATCH_COMPONENTS.some((item) => item.name === code && item.status === 1)) addComponent(code); }, [addComponent]);
+  const conditionBranches = edges.filter((edge) => edge.source === selectedConditionNodeId).map((edge, index) => { const condition = edge.data?.condition as any; return { id: edge.id, name: condition?.branchName ?? `Branch ${index + 1}`, target: String(nodes.find((node) => node.id === edge.target)?.data.code ?? 'Unknown'), summary: condition?.scriptMode ? 'Groovy Script' : condition?.groups?.length ? `${condition.groups.length} condition group(s)` : '' }; });
   const selectedConditionConfig = nodes.find((node) => node.id === selectedConditionNodeId)?.data.config as Record<string, unknown> | undefined;
-  return <>{!readOnly && <MatchComponentLibrary onAdd={addComponent} readOnly={readOnly} />}<div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}><div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Canvas</div><div style={{ flex: 1, minHeight: 0 }}><ReactFlow nodes={nodes} edges={edges} onDrop={readOnly ? undefined : onDrop} onDragOver={(event) => { if (!readOnly) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }} onConnect={readOnly ? undefined : onConnect} onEdgeClick={(_event, edge) => { if (nodes.find((node) => node.id === edge.source)?.data.code === 'condition') setSelectedConditionEdge(edge); }} onNodesChange={readOnly ? undefined : (changes) => setNodes((current) => current.map((node) => { const move = changes.find((change) => change.type === 'position' && change.id === node.id); return move && 'position' in move && move.position ? { ...node, position: move.position } : node; }))} onNodeClick={(_event, node) => (node.data as any).onConfig?.()} nodeTypes={matchNodeTypes} fitView minZoom={0.1} maxZoom={2}><Background color="#e8e8e8" gap={16} /><Controls /><MiniMap /></ReactFlow></div></div><ConditionNodeDrawer open={showConditionNode} branches={conditionBranches} endCurrentFlow={Boolean(selectedConditionConfig?.endCurrentFlow)} readOnly={readOnly} onClose={() => setShowConditionNode(false)} onSave={({ endCurrentFlow }) => { setNodes((current) => current.map((node) => node.id === selectedConditionNodeId ? { ...node, data: { ...node.data, config: { ...(node.data.config as Record<string, unknown> | undefined), endCurrentFlow } } } : node)); setShowConditionNode(false); }} /><ConditionConfigurationDrawer open={Boolean(selectedConditionEdge)} targetComponent={String(nodes.find((node) => node.id === selectedConditionEdge?.target)?.data.code ?? '')} fieldOptions={configuration.requestFields.map((field) => ({ label: `${field.source}.${field.name}`, value: `${field.source}.${field.name}`, type: field.type }))} value={selectedConditionEdge?.data?.condition as any} readOnly={readOnly} onClose={() => setSelectedConditionEdge(null)} onSave={(condition) => { setEdges((current) => current.map((edge) => edge.id === selectedConditionEdge?.id ? { ...edge, data: { ...edge.data, condition } } : edge)); setSelectedConditionEdge(null); message.success('Branch condition saved'); }} /></>;
+  return <>{!readOnly && <MatchComponentLibrary onAdd={addComponent} readOnly={readOnly} />}<div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}><div style={{ height: 42, padding: '0 16px', display: 'flex', alignItems: 'center', background: '#fff', borderBottom: '1px solid #f0f0f0', fontWeight: 600, fontSize: 13 }}>Canvas</div><div style={{ flex: 1, minHeight: 0 }}><ReactFlow nodes={nodes} edges={edges} onDrop={readOnly ? undefined : onDrop} onDragOver={(event) => { if (!readOnly) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }} onConnect={readOnly ? undefined : onConnect} onEdgeClick={(_event, edge) => { if (nodes.find((node) => node.id === edge.source)?.data.code === 'condition') setSelectedConditionEdge(edge); }} onNodesChange={readOnly ? undefined : (changes) => setNodes((current) => current.map((node) => { const move = changes.find((change) => change.type === 'position' && change.id === node.id); return move && 'position' in move && move.position ? { ...node, position: move.position } : node; }))} onNodeClick={(_event, node) => (node.data as any).onConfig?.()} nodeTypes={matchNodeTypes} fitView minZoom={0.1} maxZoom={2}><Background color="#e8e8e8" gap={16} /><Controls /><MiniMap /></ReactFlow></div></div><ConditionNodeDrawer open={showConditionNode} branches={conditionBranches} name={String(selectedConditionConfig?.name ?? 'Condition')} endCurrentFlow={Boolean(selectedConditionConfig?.endCurrentFlow)} readOnly={readOnly} onClose={() => setShowConditionNode(false)} onSelectBranch={(branchId) => { const edge = edges.find((item) => item.id === branchId); if (edge) { setSelectedConditionEdge(edge); setShowConditionNode(false); } }} onSave={({ name, endCurrentFlow, branchOrder }) => { setNodes((current) => current.map((node) => node.id === selectedConditionNodeId ? { ...node, data: { ...node.data, config: { ...(node.data.config as Record<string, unknown> | undefined), name, endCurrentFlow } } } : node)); setEdges((current) => { const branchSet = new Set(branchOrder); const ordered = branchOrder.map((id) => current.find((edge) => edge.id === id)).filter((edge): edge is Edge => Boolean(edge)); let branchIndex = 0; return current.map((edge) => branchSet.has(edge.id) ? (ordered[branchIndex++] ?? edge) : edge); }); setShowConditionNode(false); }} /><ConditionConfigurationDrawer open={Boolean(selectedConditionEdge)} targetComponent={String(nodes.find((node) => node.id === selectedConditionEdge?.target)?.data.code ?? '')} fieldOptions={configuration.requestFields.map((field) => ({ label: `${field.source}.${field.name}`, value: `${field.source}.${field.name}`, type: field.type }))} globalVariableOptions={globalVariableOptions} value={selectedConditionEdge?.data?.condition as any} readOnly={readOnly} onClose={() => setSelectedConditionEdge(null)} onSave={(condition) => { setEdges((current) => current.map((edge) => edge.id === selectedConditionEdge?.id ? { ...edge, data: { ...edge.data, condition } } : edge)); setSelectedConditionEdge(null); message.success('Branch condition saved'); }} /></>;
 }
 
 function LegacyInboundFlowEditor({

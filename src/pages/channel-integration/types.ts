@@ -29,7 +29,7 @@ export interface MatchRule {
 }
 
 export type MatchingType = 'single' | 'order_no' | 'type_field' | 'custom';
-export type RouteMatchingTemplateCode = 'FIXED_CAPABILITY' | 'FIELD_BASED_CAPABILITY' | 'ORDER_BASED_CAPABILITY' | 'BLANK_CANVAS';
+export type RouteMatchingTemplateCode = 'SINGLE_CAPABILITY' | 'MULTIPE_CAPABILITY' | 'MATCH_CAPABILITY_BY_ORDER';
 export type UriConfigStatus = 'UNDEPLOYED' | 'DAILY' | 'PRE' | 'PROD';
 
 export interface MatchingDeploymentRecord {

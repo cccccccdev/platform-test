@@ -1589,7 +1589,7 @@ export default function ChannelInfoPage() {
 
         <ConditionNodeDrawer
           open={code === 'condition'}
-          branches={detail?.conditionBranches ?? []}
+          branches={(detail?.conditionBranches ?? []).map((branch, index) => ({ ...branch, id: `runtime_branch_${index}` }))}
           endCurrentFlow={Boolean(detail?.endCurrentFlow)}
           readOnly
           onClose={closeRuntimeComponentDetail}

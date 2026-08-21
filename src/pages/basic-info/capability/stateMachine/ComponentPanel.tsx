@@ -1,5 +1,9 @@
-export default function ComponentPanel() {
+export default function ComponentPanel({ disabled = false }: { disabled?: boolean }) {
   const onDragStart = (event: React.DragEvent, nodeType: string) => {
+    if (disabled) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.setData('application/reactflow', nodeType);
     event.dataTransfer.effectAllowed = 'move';
   };
@@ -7,7 +11,7 @@ export default function ComponentPanel() {
   return (
     <div
       style={{
-        width: 200,
+        width: 240,
         background: '#fff',
         borderRight: '1px solid #e5e5e5',
         display: 'flex',
@@ -17,27 +21,34 @@ export default function ComponentPanel() {
     >
       <div
         style={{
-          padding: '16px',
+          padding: '20px 16px 16px',
           borderBottom: '1px solid #e5e5e5',
           fontWeight: 600,
           fontSize: 14,
           color: '#333',
         }}
       >
-        Components
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 32, height: 32, borderRadius: 8, background: '#eef2ff', color: '#6366f1', display: 'grid', placeItems: 'center', fontSize: 17 }}>⊞</span>
+          <span>
+            <span style={{ display: 'block' }}>Components</span>
+            <span style={{ display: 'block', marginTop: 2, color: '#94a3b8', fontSize: 12, fontWeight: 400 }}>{disabled ? 'View only' : 'Drag to canvas'}</span>
+          </span>
+        </div>
       </div>
 
       <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {/* INIT State Card */}
         <div
-          draggable
+          draggable={!disabled}
           onDragStart={e => onDragStart(e, 'init_state')}
           style={{
-            background: '#e6f7ff',
-            border: '1px solid #1890ff',
-            borderRadius: 8,
-            padding: '12px 16px',
-            cursor: 'grab',
+            background: '#fff',
+            border: '1px solid #e2e8f0',
+            borderRadius: 10,
+            padding: '14px 12px',
+            cursor: disabled ? 'not-allowed' : 'grab',
+            opacity: disabled ? 0.48 : 1,
             display: 'flex',
             alignItems: 'center',
             gap: 12,
@@ -56,8 +67,9 @@ export default function ComponentPanel() {
             style={{
               width: 36,
               height: 36,
-              borderRadius: '50%',
-              background: '#1890ff',
+              borderRadius: 5,
+              background: '#f8fbff',
+              border: '1px solid #93c5fd',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -65,23 +77,23 @@ export default function ComponentPanel() {
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="8" stroke="#fff" strokeWidth="2" />
-              <circle cx="12" cy="12" r="3" fill="#fff" />
+              <text x="12" y="15" textAnchor="middle" fontSize="7" fill="#64748b">INITIAL</text>
             </svg>
           </div>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#1890ff' }}>INIT State</span>
+          <span><span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155' }}>INITIAL State</span><span style={{ display: 'block', marginTop: 4, fontSize: 11, color: '#94a3b8' }}>Default mapping: INITIAL</span></span>
         </div>
 
         {/* State Card */}
         <div
-          draggable
+          draggable={!disabled}
           onDragStart={e => onDragStart(e, 'state')}
           style={{
-            background: '#f5f5f5',
-            border: '1px solid #ddd',
-            borderRadius: 8,
-            padding: '12px 16px',
-            cursor: 'grab',
+            background: '#fff',
+            border: '1px solid #e2e8f0',
+            borderRadius: 10,
+            padding: '14px 12px',
+            cursor: disabled ? 'not-allowed' : 'grab',
+            opacity: disabled ? 0.48 : 1,
             display: 'flex',
             alignItems: 'center',
             gap: 12,
@@ -100,8 +112,9 @@ export default function ComponentPanel() {
             style={{
               width: 36,
               height: 36,
-              borderRadius: '50%',
-              background: '#22c55e',
+              borderRadius: 5,
+              background: '#fbfff9',
+              border: '1px solid #a7d99b',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -109,10 +122,10 @@ export default function ComponentPanel() {
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="8" stroke="#fff" strokeWidth="2" />
+              <text x="12" y="15" textAnchor="middle" fontSize="8" fill="#64748b">State</text>
             </svg>
           </div>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#333' }}>State</span>
+          <span><span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155' }}>State</span><span style={{ display: 'block', marginTop: 4, fontSize: 11, color: '#94a3b8' }}>General state node</span></span>
         </div>
       </div>
     </div>

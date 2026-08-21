@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Cascader, ConfigProvider, Drawer, Form, Input, InputNumber, Modal, Radio, Select, Space, Switch, Tabs, Tag, Typography, message } from 'antd';
-import { ArrowRightOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Button, Card, Cascader, ConfigProvider, Drawer, Form, Input, InputNumber, Modal, Radio, Select, Space, Switch, Tabs, Tag, Tooltip, Transfer, Typography, message } from 'antd';
+import { ArrowRightOutlined, DeleteOutlined, EditOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { type TcpProfile, useChannelScopeStore } from './channelScopeStore';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
@@ -67,12 +67,14 @@ function fieldGrid(direction: FieldDirection) {
     : '58px 20px minmax(150px, 1fr) 82px 55px 75px 78px 80px 140px 20px 220px 32px';
 }
 
-function FieldMappingList({ direction, readOnly }: { direction: FieldDirection; readOnly: boolean }) {
+function FieldMappingList({ direction, readOnly, profile }: { direction: FieldDirection; readOnly: boolean; profile?: TcpProfile }) {
   const name = direction === 'request' ? 'requestFields' : 'responseFields';
   const rows = direction === 'request' ? requestFields : responseFields;
   const form = Form.useFormInstance();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [scriptName, setScriptName] = useState<string | null>(null);
+  const [fieldEditorOpen, setFieldEditorOpen] = useState(false);
+  const [selectedDEs, setSelectedDEs] = useState<number[]>([]);
 
   const move = (from: number, to: number) => {
     if (from === to) return;
@@ -82,8 +84,28 @@ function FieldMappingList({ direction, readOnly }: { direction: FieldDirection; 
     form.setFieldsValue({ [name]: current });
   };
 
+  const openFieldEditor = () => {
+    setSelectedDEs((form.getFieldValue(name) ?? []).map((item: { de: number }) => item.de));
+    setFieldEditorOpen(true);
+  };
+
+  const applyFieldSelection = () => {
+    const current = form.getFieldValue(name) ?? [];
+    const currentByDE = new Map<number, Record<string, unknown>>(current.map((item: Record<string, unknown>) => [Number(item.de), item]));
+    const next = selectedDEs.map(de => {
+      const existing = currentByDE.get(de);
+      if (existing) return existing;
+      const schema = profile?.fieldDictionary.find(item => item.de === de);
+      return direction === 'request'
+        ? { ...schema, source: undefined, operation: undefined, mandatory: false }
+        : { ...schema, operation: undefined, target: undefined, mandatory: false };
+    });
+    form.setFieldsValue({ [name]: next });
+    setFieldEditorOpen(false);
+  };
+
   return <Form.List name={name} initialValue={rows}>
-    {(fields, { remove }) => <Card size="small" title={<Space><Text strong>{direction === 'request' ? 'Source Value → DE Mapping' : 'DE → Target Value Mapping'}</Text><Tag>{fields.length} selected</Tag></Space>} extra={<Text type="secondary">Schema inherited from TCP Profile</Text>}>
+    {(fields, { remove }) => <Card size="small" title={<Space><Text strong>{direction === 'request' ? 'Source Value → DE Mapping' : 'DE → Target Value Mapping'}</Text><Tag>{fields.length} selected</Tag></Space>} extra={<Space><Text type="secondary">Schema inherited from TCP Profile</Text>{!readOnly && <Button size="small" icon={<EditOutlined />} onClick={openFieldEditor}>Edit Fields</Button>}</Space>}>
       <div style={{ overflowX: 'auto' }}>
         <div style={{ minWidth: direction === 'request' ? 1130 : 1050 }}>
           <div style={{ display: 'grid', gridTemplateColumns: fieldGrid(direction), gap: 8, alignItems: 'center', padding: '0 8px 7px', color: '#667085', fontSize: 12, fontWeight: 600 }}>
@@ -121,6 +143,22 @@ function FieldMappingList({ direction, readOnly }: { direction: FieldDirection; 
           </div>)}
         </div>
       </div>
+      <Modal title={`Edit ${direction === 'request' ? 'Request' : 'Response'} Fields`} open={fieldEditorOpen} onCancel={() => setFieldEditorOpen(false)} onOk={applyFieldSelection} okText="Apply" width={860}>
+        <Text type="secondary">Move data elements between Available and Selected. Search and use the header checkbox to add or remove the current results in bulk.</Text>
+        <Transfer
+          dataSource={(profile?.fieldDictionary ?? []).map(item => ({ key: String(item.de), title: `DE${item.de} · ${item.field}` }))}
+          titles={['Available fields', 'Selected fields']}
+          targetKeys={selectedDEs.map(String)}
+          onChange={(targetKeys) => setSelectedDEs(targetKeys.map(Number))}
+          render={item => item.title}
+          showSearch
+          showSelectAll
+          listStyle={{ width: 360, height: 420 }}
+          style={{ marginTop: 16 }}
+          filterOption={(inputValue, item) => item.title.toLowerCase().includes(inputValue.toLowerCase())}
+          locale={{ itemUnit: 'field', itemsUnit: 'fields', searchPlaceholder: 'Search DE or field name' }}
+        />
+      </Modal>
       <Modal title={scriptName} open={Boolean(scriptName)} onCancel={() => setScriptName(null)} footer={null} width={760}><GroovyScriptEditor name="generatedDataScript" helpText="Return the complete encoded DE value." /></Modal>
     </Card>}
   </Form.List>;
@@ -145,19 +183,21 @@ export default function TcpCallDrawer({ open, channelCode, initialValues, readOn
 
   useEffect(() => {
     if (!open) return;
-    const initialProfileId = String(initialValues?.profileId ?? profiles[0]?.id ?? '');
+    const initialProfileId = String(initialValues?.profileId ?? '');
     const initialProfile = profiles.find(profile => profile.id === initialProfileId);
     form.resetFields();
+    const initialRequestFields = Array.isArray(initialValues?.requestFields) ? initialValues.requestFields : [];
+    const initialResponseFields = Array.isArray(initialValues?.responseFields) ? initialValues.responseFields : [];
     form.setFieldsValue({
-      requestName: 'wallet_payout_request',
+      requestName: '',
       profileId: initialProfileId,
       requestMTI: '0100',
       responseMTI: '0110',
       responseCodeMode: 'default',
       responseCodeAssembly: ['DE39', 'DE47'],
-      requestFields: inheritFieldSchema(requestFields, initialProfile),
-      responseFields: inheritFieldSchema(responseFields, initialProfile),
       ...initialValues,
+      requestFields: inheritFieldSchema(initialRequestFields, initialProfile),
+      responseFields: inheritFieldSchema(initialResponseFields, initialProfile),
     });
   }, [form, initialValues, open, profiles]);
 
@@ -169,24 +209,20 @@ export default function TcpCallDrawer({ open, channelCode, initialValues, readOn
 
   const requestFieldsPanel = <>
     <Card size="small" style={{ marginBottom: 12 }}><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}><Form.Item label="Request MTI" name="requestMTI"><Input /></Form.Item><Form.Item label="Bitmap"><Input value="Auto-generated" disabled /></Form.Item></div></Card>
-    <FieldMappingList direction="request" readOnly={readOnly} />
+    <FieldMappingList direction="request" readOnly={readOnly} profile={selectedProfile} />
   </>;
   const responseFieldsPanel = <>
-    <Card size="small" style={{ marginBottom: 12 }}><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}><Form.Item label="Expected Response MTI" name="responseMTI"><Input /></Form.Item><Form.Item label="Correlation Rule"><Input disabled value={selectedProfile ? selectedProfile.correlationFields.map(de => `DE${de}`).join(' + ') : 'Select a TCP Profile'} /></Form.Item></div></Card>
-    <FieldMappingList direction="response" readOnly={readOnly} />
+    <Card size="small" style={{ marginBottom: 12 }}><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}><Form.Item label="Expected Response MTI" name="responseMTI"><Input /></Form.Item><Form.Item label={<Space size={6}><span>Correlation Candidate Fields</span><Tooltip title="The Profile defines all DEs that may participate. For this response, matching uses only candidate DEs actually present in the message, and all of those fields must match the original request."><QuestionCircleOutlined style={{ color: '#8c8c8c' }} /></Tooltip></Space>}><Input disabled value={selectedProfile ? selectedProfile.correlationFields.map(de => `DE${de}`).join(' / ') : 'Select a TCP Profile'} /></Form.Item></div></Card>
+    <FieldMappingList direction="response" readOnly={readOnly} profile={selectedProfile} />
   </>;
 
-  const framingSummary = selectedProfile?.framingType === 'length-prefix'
-    ? `${selectedProfile.frameHeaderSize === '2-bytes' ? '2-byte' : 'Length'} Length Prefix · ${selectedProfile.frameByteOrder === 'little-endian' ? 'Little Endian' : 'Big Endian'}`
-    : 'Inherited from TCP Profile';
-  const messageOptions = <Card size="small"><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}><Form.Item label="Message Protocol"><Input value={selectedProfile?.messageProtocol === 'ISO8583:1987' ? 'ISO 8583:1987' : 'Inherited from TCP Profile'} disabled /></Form.Item><Form.Item label="Framing"><Input value={framingSummary} disabled /></Form.Item><Form.Item label="Field Order"><Input value="Ascending DE Number" disabled /></Form.Item><Form.Item label="Validation"><Space><Switch defaultChecked disabled /><span>Validate against Profile field dictionary</span></Space></Form.Item></div></Card>;
   const responseCode = <Card size="small"><Form.Item label="Component Instance" name="responseFallback"><Select options={[{ label: 'FAIL', value: 'FAIL' }, { label: 'PENDING', value: 'PENDING' }]} /></Form.Item><Form.Item label="Assembly Mode" name="responseCodeMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{responseCodeMode === 'custom' ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the selected ISO 8583 DE values." /> : <><Form.Item label="Response Code Assembly" name="responseCodeAssembly"><Select mode="multiple" placeholder="Select DEs in assembly order" options={responseFields.map((field) => ({ label: `DE${field.de}`, value: `DE${field.de}` }))} /></Form.Item><div style={{ marginTop: -4, marginBottom: 12 }}>{(responseCodeAssembly as string[]).map((de) => { const field = responseFields.find((item) => `DE${item.de}` === de); return <div key={de} style={{ color: '#8c8c8c', fontSize: 12, lineHeight: 1.8 }}><Tag style={{ marginRight: 6 }}>{de}</Tag>{field?.field ?? 'Field name unavailable'}</div>; })}</div></>}<Form.Item label="Response Message Field" name="responseMessageField"><Input placeholder="Optional SPI response field" /></Form.Item></Card>;
 
   return <Drawer title={<Space><span>Configure TCP Call</span><Tag color="blue">tcpCall</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void save()}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ token: { fontSize: 14, controlHeight: 32, borderRadius: 5, paddingSM: 10, marginSM: 10, marginXS: 6 }, components: { Form: { itemMarginBottom: 10 }, Card: { bodyPadding: 12, headerHeight: 36 }, Tabs: { horizontalMargin: '0 0 10px 0' } } }}>
       <div style={{ fontSize: 14 }}><Form form={form} disabled={readOnly} layout="vertical">
-        <Card size="small" style={{ marginBottom: 14 }}><div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) minmax(300px, 1fr)', gap: 10 }}><Form.Item label="Request Name" name="requestName" rules={[{ required: true }]}><Input /></Form.Item><Form.Item label="TCP Profile" name="profileId" rules={[{ required: true }]}><Select placeholder="Select TCP Profile" options={profiles.map(profile => ({ label: profile.name, value: profile.id }))} onChange={(profileId) => { const nextProfile = profiles.find(profile => profile.id === profileId); form.setFieldsValue({ requestFields: inheritFieldSchema(form.getFieldValue('requestFields') ?? requestFields, nextProfile), responseFields: inheritFieldSchema(form.getFieldValue('responseFields') ?? responseFields, nextProfile) }); }} /></Form.Item></div>{selectedProfile && <Space wrap><Tag color="blue">{selectedProfile.messageProtocol === 'ISO8583:1987' ? 'ISO 8583:1987' : 'Raw / Custom'}</Tag><Tag>2-byte length prefix · big-endian</Tag><Tag>Correlation: {selectedProfile.correlationFields.map(de => `DE${de}`).join(' + ')}</Tag></Space>}</Card>
-        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'request', label: 'Request', children: <Tabs size="small" tabBarGutter={16} type="line" items={[{ key: 'request-fields', label: 'Fields & Mapping', children: requestFieldsPanel }, { key: 'request-security', label: 'Security', children: <SecurityPanel direction="request" /> }, { key: 'request-options', label: 'Message Options', children: messageOptions }]} /> }, { key: 'response', label: 'Response', children: <Tabs size="small" tabBarGutter={16} type="line" items={[{ key: 'response-fields', label: 'Fields & Mapping', children: responseFieldsPanel }, { key: 'response-security', label: 'Security', children: <SecurityPanel direction="response" /> }, { key: 'response-code', label: 'Response Code', children: responseCode }]} /> }]} />
+        <Card size="small" style={{ marginBottom: 14 }}><div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) minmax(300px, 1fr)', gap: 10 }}><Form.Item label="Request Name" name="requestName" rules={[{ required: true }]}><Input /></Form.Item><Form.Item label="TCP Profile" name="profileId" rules={[{ required: true }]}><Select placeholder="Select TCP Profile" options={profiles.map(profile => ({ label: profile.name, value: profile.id }))} onChange={(profileId) => { const nextProfile = profiles.find(profile => profile.id === profileId); form.setFieldsValue({ requestFields: inheritFieldSchema(form.getFieldValue('requestFields') ?? requestFields, nextProfile), responseFields: inheritFieldSchema(form.getFieldValue('responseFields') ?? responseFields, nextProfile) }); }} /></Form.Item></div>{selectedProfile && <Tag color="blue">{selectedProfile.messageProtocol === 'ISO8583:1987' ? 'ISO 8583:1987' : 'Raw / Custom'}</Tag>}</Card>
+        {selectedProfile?.messageProtocol === 'ISO8583:1987' && <Tabs activeKey={activeTab} onChange={setActiveTab} items={[{ key: 'request', label: 'Request', children: <Tabs size="small" tabBarGutter={16} type="line" items={[{ key: 'request-fields', label: 'Fields & Mapping', children: requestFieldsPanel }, { key: 'request-security', label: 'Security', children: <SecurityPanel direction="request" /> }]} /> }, { key: 'response', label: 'Response', children: <Tabs size="small" tabBarGutter={16} type="line" items={[{ key: 'response-fields', label: 'Fields & Mapping', children: responseFieldsPanel }, { key: 'response-security', label: 'Security', children: <SecurityPanel direction="response" /> }, { key: 'response-code', label: 'Response Code', children: responseCode }]} /> }]} />}
       </Form></div>
     </ConfigProvider>
   </Drawer>;

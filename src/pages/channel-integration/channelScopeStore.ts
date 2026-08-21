@@ -98,6 +98,7 @@ export interface TcpProfile {
   id: string;
   name: string;
   status: 'Draft' | 'Active' | 'Disabled';
+  maxConnections?: number;
   responseTimeout?: number;
   maxInFlight?: number;
   afterConnectBehavior: 'none' | 'sign-on';
@@ -191,6 +192,7 @@ export const useChannelScopeStore = create<ChannelScopeStore>((set, get) => ({
         id: 'tcp_npsb_default',
         name: 'NPSB ISO8583',
         status: 'Active',
+        maxConnections: 4,
         responseTimeout: 25,
         maxInFlight: 50,
         afterConnectBehavior: 'sign-on',
