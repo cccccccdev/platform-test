@@ -32,6 +32,10 @@ export default function IntegrationLayout() {
       label: 'Config Integration',
       children: [
         {
+          key: `/channel-integration/${channelCode}/integration/config/overview`,
+          label: 'Overview',
+        },
+        {
           key: `/channel-integration/${channelCode}/integration/config/route-matching`,
           label: 'Route Matching',
         },
@@ -53,13 +57,15 @@ export default function IntegrationLayout() {
     navigate(key);
   };
 
-  const selectedMenuKey = location.pathname.includes('/route-matching') || location.pathname.includes('/match-capability')
+  const selectedMenuKey = location.pathname.includes('/config/overview')
+    ? `/channel-integration/${channelCode}/integration/config/overview`
+    : location.pathname.includes('/route-matching') || location.pathname.includes('/match-capability')
     ? `/channel-integration/${channelCode}/integration/config/route-matching`
     : location.pathname.includes('/flow-groups') || location.pathname.includes('/integration/config')
       ? `/channel-integration/${channelCode}/integration/config/flow-groups`
       : location.pathname.includes('/integration/code')
         ? `/channel-integration/${channelCode}/integration/code`
-        : `/channel-integration/${channelCode}/integration/config/flow-groups`;
+        : `/channel-integration/${channelCode}/integration/config/overview`;
 
   return (
     <Layout className="integration-shell">
