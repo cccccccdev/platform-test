@@ -54,12 +54,21 @@ const DEFAULT_STATE_MACHINES: StateMachineItem[] = [
     operator: 'Bailly',
     operationTime: '2026-07-03 09:52:37',
   },
+  {
+    id: 'sm_sms_single_message_detailed',
+    name: 'SMS_Single_Message_Detailed_StateMachine',
+    description: 'Single SMS lifecycle with detailed failure states',
+    status: 'SUBMITTED',
+    operator: 'Bailly',
+    operationTime: '2026-08-18 10:00:00',
+  },
 ];
 
 const DEFAULT_LINKED_STATE_MACHINES: LinkedSMRecord[] = [
   { bt: 'BANK_CARD_DEBIT', ability: 'REFUND', smName: 'Default_Refund_StateMachine', operator: 'admin', operationTime: '2026-05-19 10:00:00' },
   { bt: 'BANK_CARD_DEBIT', ability: 'INFO_PAYMENT', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
   { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_StateMachine', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
+  { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_Detailed_StateMachine', operator: 'Bailly', operationTime: '2026-08-18 10:00:00' },
 ];
 
 function mergeBy<T>(records: T[], defaults: T[], keyOf: (record: T) => string): T[] {

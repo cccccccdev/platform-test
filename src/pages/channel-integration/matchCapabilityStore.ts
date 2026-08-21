@@ -210,14 +210,14 @@ export const useMatchCapabilityStore = create<MatchCapabilityStore>((set, get) =
       ability: '',
       action: '',
     });
-    const rules = templateCode === 'FIXED_CAPABILITY'
+    const rules = templateCode === 'SINGLE_CAPABILITY'
       ? [blankRule()]
-      : templateCode === 'FIELD_BASED_CAPABILITY'
+      : templateCode === 'MULTIPE_CAPABILITY'
         ? [blankRule(), blankRule()]
         : [];
-    const matchType: CapabilityDecisionVersion['matchType'] = templateCode === 'FIELD_BASED_CAPABILITY'
+    const matchType: CapabilityDecisionVersion['matchType'] = templateCode === 'MULTIPE_CAPABILITY'
       ? 'type_field'
-      : templateCode === 'ORDER_BASED_CAPABILITY'
+      : templateCode === 'MATCH_CAPABILITY_BY_ORDER'
         ? 'order_no'
         : 'single';
     const version: CapabilityDecisionVersion = {

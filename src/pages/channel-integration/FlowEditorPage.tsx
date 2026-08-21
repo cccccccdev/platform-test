@@ -21,6 +21,8 @@ import type { ReferenceConfigTarget } from './ReferenceGenerationDrawer';
 import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
 import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
 import StateMachinePreviewModal from './StateMachinePreviewModal';
+import { componentByName, componentsForScope, componentScopeForTrigger } from './componentCatalog';
+import type { ComponentDefinition } from './componentCatalog';
 
 const { Text, Title } = Typography;
 
@@ -41,57 +43,26 @@ const authTypeColors: Record<AuthType, string> = {
   oauth2: 'orange',
 };
 
-type ComponentScope = 'match' | 'outbound' | 'inbound';
-type LibraryComponent = { code: string; name: string; group: string; usage: 'single' | 'multiple'; scopes: ComponentScope[] };
-
-// Phase 3 component library. eventListener remains unavailable to users.
-const COMPONENT_LIBRARY = [
-  { code: 'initOutboundOrder', name: 'Initialize Outbound Order', group: 'Outbound', usage: 'single', scopes: ['outbound'] },
-  { code: 'prepareExtendOrder', name: 'Prepare Extend Order', group: 'Outbound', usage: 'single', scopes: ['outbound'] },
-  { code: 'updateOutboundOrder', name: 'Update Outbound Order', group: 'Outbound', usage: 'multiple', scopes: ['outbound', 'inbound'] },
-  { code: 'updateOutboundBatchOrder', name: 'Update Outbound Batch Order', group: 'Inbound', usage: 'multiple', scopes: ['inbound'] },
-  { code: 'network', name: 'Network', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
-  { code: 'httpCall', name: 'HTTP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
-  { code: 'tcpCall', name: 'TCP Call', group: 'Outbound', usage: 'multiple', scopes: ['outbound'] },
-  { code: 'loadChannelMerchantInfo', name: 'Load Channel Merchant Info', group: 'Runtime', usage: 'single', scopes: ['outbound', 'inbound'] },
-  { code: 'sendCompleteMQ', name: 'Send Complete MQ', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
-  { code: 'condition', name: 'Condition Check', group: 'Common', usage: 'multiple', scopes: ['match', 'outbound', 'inbound'] },
-  { code: 'asyncTriggerFlow', name: 'Async Trigger Flow', group: 'Common', usage: 'multiple', scopes: ['outbound', 'inbound'] },
-  { code: 'inboundRequest', name: 'Inbound Request', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
-  { code: 'inboundResponse', name: 'Inbound Response', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
-  { code: 'initInboundOrder', name: 'Initialize Inbound Order', group: 'Inbound', usage: 'single', scopes: ['inbound'] },
-  { code: 'updateInboundOrder', name: 'Update Inbound Order', group: 'Inbound', usage: 'multiple', scopes: ['outbound', 'inbound'] },
-  { code: 'queryInboundOrder', name: 'Query Inbound Order', group: 'Query', usage: 'multiple', scopes: ['inbound'] },
-  { code: 'queryOutboundOrder', name: 'Query Outbound Order', group: 'Query', usage: 'multiple', scopes: ['outbound', 'inbound'] },
-  { code: 'requestBusinessAccessLayer', name: 'Request Business Access Layer', group: 'Integration', usage: 'multiple', scopes: ['inbound'] },
-  { code: 'responseCodeInner2Outer', name: 'Response Code Inner to Outer', group: 'Response Code', usage: 'multiple', scopes: ['inbound'] },
-  { code: 'sendReQueryMQ', name: 'Send ReQuery MQ', group: 'Requery', usage: 'multiple', scopes: ['inbound'] },
-  // Runtime prerequisites are visible for seeded sample flows but cannot be added manually.
-  { code: 'loadCredential', name: 'Load Credential', group: 'System', usage: 'single', scopes: ['outbound', 'inbound'] },
-  { code: 'loadGlobalVariable', name: 'Load Global Variable', group: 'System', usage: 'single', scopes: ['outbound', 'inbound'] },
-] satisfies LibraryComponent[];
-
-const ADDABLE_COMPONENTS = COMPONENT_LIBRARY.filter((item) => item.group !== 'System');
-const scopeLabels: Record<ComponentScope, string> = { match: 'Route Matching', outbound: 'Outbound', inbound: 'Inbound' };
-
 // 组件面板
 function ComponentLibraryPanel({
   components,
+  componentCounts,
   onAddComponent,
 }: {
-  components: LibraryComponent[];
+  components: ComponentDefinition[];
+  componentCounts: Record<string, number>;
   onAddComponent: (code: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [searchText, setSearchText] = useState('');
 
   const filteredComposites = components.filter(c =>
-    c.name.toLowerCase().includes(searchText.toLowerCase()) ||
-    c.code.toLowerCase().includes(searchText.toLowerCase())
+    c.alias.toLowerCase().includes(searchText.toLowerCase()) ||
+    c.name.toLowerCase().includes(searchText.toLowerCase())
   );
 
-  const handleDragStart = (e: React.DragEvent, code: string) => {
-    e.dataTransfer.setData('application/reactflow', code);
+  const handleDragStart = (e: React.DragEvent, name: string) => {
+    e.dataTransfer.setData('application/reactflow', name);
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -151,45 +122,43 @@ function ComponentLibraryPanel({
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 8 }}>
-        {filteredComposites.map(c => (
-              <div
-                key={c.code}
-                draggable
-                onDragStart={(e) => handleDragStart(e, c.code)}
-                onClick={() => onAddComponent(c.code)}
+        {filteredComposites.map(c => {
+          const unavailable = c.status === 0 || (componentCounts[c.name] ?? 0) >= c.usageCount;
+          return <div
+                key={c.id}
+                draggable={!unavailable}
+                onDragStart={(e) => !unavailable && handleDragStart(e, c.name)}
+                onClick={() => !unavailable && onAddComponent(c.name)}
                 style={{
                   padding: '8px 12px',
                   marginBottom: 6,
                   border: '1px solid #e8e8e8',
                   borderRadius: 6,
-                  cursor: 'grab',
+                  cursor: unavailable ? 'not-allowed' : 'grab',
                   fontSize: 12,
                   transition: 'all 0.2s',
-                  background: '#fff',
+                  background: unavailable ? '#f6f7f9' : '#fff',
+                  opacity: unavailable ? 0.58 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#1890ff';
-                  e.currentTarget.style.background = '#e6f7ff';
+                  if (!unavailable) { e.currentTarget.style.borderColor = '#1890ff'; e.currentTarget.style.background = '#e6f7ff'; }
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.borderColor = '#e8e8e8';
-                  e.currentTarget.style.background = '#fff';
+                  e.currentTarget.style.background = unavailable ? '#f6f7f9' : '#fff';
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                   <div>
-                    <div style={{ fontWeight: 500 }}>{c.code}</div>
-                    <div style={{ color: '#888', fontSize: 10 }}>{c.name}</div>
+                    <div style={{ fontWeight: 500 }}>{c.name}</div>
+                    <div style={{ color: '#888', fontSize: 10 }}>{c.alias}</div>
                   </div>
-                  <Tag color={c.usage === 'single' ? 'default' : 'green'} style={{ fontSize: 9, margin: 0, height: 20 }}>
-                    {c.usage === 'single' ? 'Single Use' : 'Multiple'}
+                  <Tag color={c.status === 0 ? 'default' : c.usageCount === 1 ? 'default' : 'green'} style={{ fontSize: 9, margin: 0, height: 20 }}>
+                    {c.status === 0 ? 'Legacy' : c.usageCount === 1 ? 'Single Use' : 'Multiple'}
                   </Tag>
                 </div>
-                <div style={{ marginTop: 5 }}>
-                  {c.scopes.map((scope) => <Tag key={scope} color={scope === 'match' ? 'purple' : scope === 'outbound' ? 'blue' : 'cyan'} style={{ fontSize: 9, marginBottom: 2 }}>{scopeLabels[scope]}</Tag>)}
-                </div>
               </div>
-        ))}
+        })}
 
         {filteredComposites.length === 0 && (
           <Text type="secondary" style={{ fontSize: 12 }}>No matching components</Text>
@@ -1888,6 +1857,7 @@ export default function FlowEditorPage() {
   // Outbound request drawer state
   const [showHttpCallDrawer, setShowHttpCallDrawer] = useState(false);
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
+  const [placeholderComponent, setPlaceholderComponent] = useState<string | null>(null);
   const [showTcpCallDrawer, setShowTcpCallDrawer] = useState(false);
   const [showLoadChannelMerchantInfoDrawer, setShowLoadChannelMerchantInfoDrawer] = useState(false);
   const [referenceConfigTarget, setReferenceConfigTarget] = useState<ReferenceConfigTarget | null>(null);
@@ -1995,10 +1965,13 @@ export default function FlowEditorPage() {
     : undefined;
   const inboundPathVariables = [...(inboundUri?.url ?? '').matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
   const triggerSubState = storedFlow?.stateConditions?.find((condition) => condition.field === 'subState')?.value;
-  const flowScope: ComponentScope = storedFlow?.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || storedFlow?.triggerType === 'CALLBACK_TRIGGERED'
-    ? 'inbound'
-    : 'outbound';
-  const availableComponents = ADDABLE_COMPONENTS.filter((component) => component.scopes.includes(flowScope));
+  const isInboundFlow = storedFlow?.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || storedFlow?.triggerType === 'CALLBACK_TRIGGERED';
+  const availableComponents = componentsForScope(componentScopeForTrigger(storedFlow?.triggerType));
+  const componentCounts = nodes.reduce<Record<string, number>>((counts, node) => {
+    const code = String(node.data.code);
+    counts[code] = (counts[code] ?? 0) + 1;
+    return counts;
+  }, {});
   const capabilityContextItems: Array<[string, string | number | undefined]> = [
     ['Channel', params.channelCode],
     ['Business Type', params.bt],
@@ -2012,12 +1985,12 @@ export default function FlowEditorPage() {
     ['Trigger Type', storedFlow?.triggerType],
     ['Action (Triggered By)', actionName],
   ];
-  const triggerConditionLabel = flowScope === 'inbound'
+  const triggerConditionLabel = isInboundFlow
     ? 'Inbound URI'
     : storedFlow?.triggerType === 'REQUERY_TRIGGERED'
       ? 'Sub-state'
       : null;
-  const triggerConditionValue = flowScope === 'inbound'
+  const triggerConditionValue = isInboundFlow
     ? inboundUri ? `${inboundUri.method} ${inboundUri.url}` : storedFlow?.inboundUriId
     : storedFlow?.triggerType === 'REQUERY_TRIGGERED'
       ? triggerSubState
@@ -2126,29 +2099,36 @@ export default function FlowEditorPage() {
 
   const openComponentConfig = useCallback((code: string, nodeId?: string) => {
     setSelectedConfigNodeId(nodeId ?? null);
+    const definition = componentByName(code);
+    if (definition?.status === 0 && definition.needConfig) {
+      setPlaceholderComponent(code);
+      return;
+    }
     if (code === 'network') setShowNetworkDrawer(true);
-    if (code === 'httpCall') setShowHttpCallDrawer(true);
+    else if (code === 'http' || code === 'httpCall') setShowHttpCallDrawer(true);
     if (code === 'tcpCall') setShowTcpCallDrawer(true);
     if (code === 'loadChannelMerchantInfo') setShowLoadChannelMerchantInfoDrawer(true);
-    if (code === 'initOutboundOrder') setReferenceConfigTarget({ direction: 'outbound', placement: 'init-order' });
+    if (code === 'initOutboundOrder' || code === 'initOutboundFirstOrder') setReferenceConfigTarget({ direction: 'outbound', placement: 'init-order' });
     if (code === 'initInboundOrder') setReferenceConfigTarget({ direction: 'inbound', placement: 'init-order' });
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
+    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'condition'].includes(code);
+    if (!hasDedicatedConfig && definition?.needConfig) setPlaceholderComponent(code);
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
   const selectedConfig = selectedConfigNode?.data.config as Record<string, unknown> | undefined;
   const channelMerchantInfoAvailable = nodes.some((node) => node.data.code === 'loadChannelMerchantInfo');
 
   const toRuntimeNode = useCallback((item: FlowCanvasNode): Node => {
-    const info = COMPONENT_LIBRARY.find((component) => component.code === item.componentCode);
+    const info = componentByName(item.componentCode);
     return {
       id: item.id,
       type: 'flowNode',
       position: { x: item.x, y: item.y },
       data: {
         name: item.componentCode,
-        description: info?.name ?? item.componentCode,
+        description: info?.alias ?? item.componentCode,
         code: item.componentCode,
         status: item.status,
         isConfigured: item.status === 'complete' || item.status === 'readonly',
@@ -2181,11 +2161,15 @@ export default function FlowEditorPage() {
   }, [params.ability, params.bt, storedFlow, toRuntimeEdge, toRuntimeNode]);
 
   const handleAddComponent = useCallback((code: string) => {
-    const info = COMPONENT_LIBRARY.find(c => c.code === code);
+    const info = componentByName(code);
     if (!info) return;
 
-    if (info.usage === 'single' && nodes.some((node) => node.data.code === code)) {
-      message.warning(`${code} can only be added once`);
+    if (info.status === 0) {
+      message.warning(`${code} is a legacy component and cannot be added to a 2.0 Flow`);
+      return;
+    }
+    if (nodes.filter((node) => node.data.code === code).length >= info.usageCount) {
+      message.warning(`${code} can only be used ${info.usageCount} time(s)`);
       return;
     }
 
@@ -2195,14 +2179,11 @@ export default function FlowEditorPage() {
       componentCode: code,
       x: 320,
       y: nodes.length * 110 + 50,
-      status: 'not_started',
+      status: info.needConfig ? 'not_started' : 'complete',
     };
     setNodes((current) => [...current, toRuntimeNode(canvasNode)]);
-    if (code === 'loadChannelMerchantInfo') {
-      setSelectedConfigNodeId(id);
-      setShowLoadChannelMerchantInfoDrawer(true);
-    }
-  }, [nodes, toRuntimeNode]);
+    if (info.needConfig) openComponentConfig(code, id);
+  }, [nodes, openComponentConfig, toRuntimeNode]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -2396,6 +2377,7 @@ export default function FlowEditorPage() {
         {!readOnly && (
           <ComponentLibraryPanel
             components={availableComponents}
+            componentCounts={componentCounts}
             onAddComponent={handleAddComponent}
           />
         )}
@@ -2564,6 +2546,27 @@ export default function FlowEditorPage() {
         }}
       />
 
+      {placeholderComponent && componentByName(placeholderComponent)?.status === 0 ? <Modal
+        title={`${placeholderComponent} Configuration`}
+        open
+        footer={null}
+        onCancel={() => setPlaceholderComponent(null)}
+      >
+        <Text type="secondary">This legacy component keeps its original configuration dialog for existing Flow display. Detailed fields are not reproduced in this Demo.</Text>
+      </Modal> : <Drawer
+        title={`${placeholderComponent ?? 'Component'} Configuration`}
+        width={520}
+        open={placeholderComponent !== null}
+        onClose={() => setPlaceholderComponent(null)}
+        extra={!readOnly && <Space><Button onClick={() => setPlaceholderComponent(null)}>Cancel</Button><Button type="primary" onClick={() => {
+          setNodes((current) => current.map((node) => node.id === selectedConfigNodeId ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config: { placeholder: true } } } : node));
+          setPlaceholderComponent(null);
+          message.success('Component configuration saved');
+        }}>Save</Button></Space>}
+      >
+        <Text type="secondary">Configuration details for this component are still being designed. This placeholder keeps the component configurable in the Demo.</Text>
+      </Drawer>}
+
       {/* Edge Condition Modal */}
       <ConditionConfigurationDrawer
         open={showEdgeConditionDrawer}
@@ -2599,16 +2602,32 @@ export default function FlowEditorPage() {
         branches={edges.filter((edge) => edge.source === selectedConditionNodeId).map((edge, index) => {
           const condition = edge.data?.condition as any;
           return {
+            id: edge.id,
             name: condition?.branchName ?? `Branch ${index + 1}`,
             target: String(nodes.find((node) => node.id === edge.target)?.data.code ?? 'Unknown'),
             summary: condition?.scriptMode ? 'Groovy Script' : condition?.groups?.length ? `${condition.groups.length} condition group(s)` : '',
           };
         })}
+        name={String((nodes.find((node) => node.id === selectedConditionNodeId)?.data.config as any)?.name ?? 'Condition')}
         endCurrentFlow={Boolean(nodes.find((node) => node.id === selectedConditionNodeId)?.data.config && (nodes.find((node) => node.id === selectedConditionNodeId)?.data.config as any).endCurrentFlow)}
         readOnly={readOnly}
         onClose={() => setShowConditionNodeDrawer(false)}
-        onSave={({ endCurrentFlow }) => {
-          setNodes((current) => current.map((node) => node.id === selectedConditionNodeId ? { ...node, data: { ...node.data, config: { ...(node.data.config as Record<string, unknown> | undefined), endCurrentFlow } } } : node));
+        onSelectBranch={(branchId) => {
+          const edge = edges.find((item) => item.id === branchId);
+          if (edge) {
+            setSelectedEdgeForCondition(edge);
+            setShowConditionNodeDrawer(false);
+            setShowEdgeConditionDrawer(true);
+          }
+        }}
+        onSave={({ name, endCurrentFlow, branchOrder }) => {
+          setNodes((current) => current.map((node) => node.id === selectedConditionNodeId ? { ...node, data: { ...node.data, config: { ...(node.data.config as Record<string, unknown> | undefined), name, endCurrentFlow } } } : node));
+          setEdges((current) => {
+            const branchSet = new Set(branchOrder);
+            const ordered = branchOrder.map((id) => current.find((edge) => edge.id === id)).filter((edge): edge is Edge => Boolean(edge));
+            let branchIndex = 0;
+            return current.map((edge) => branchSet.has(edge.id) ? (ordered[branchIndex++] ?? edge) : edge);
+          });
           setShowConditionNodeDrawer(false);
           message.success('Condition configuration saved');
         }}

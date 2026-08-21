@@ -16,10 +16,9 @@ interface NewMatchingForm {
 }
 
 const routeMatchingTemplateOptions: Array<{ value: RouteMatchingTemplateCode; label: string; description: string }> = [
-  { value: 'FIXED_CAPABILITY', label: 'FIXED_CAPABILITY', description: 'specifyCapability' },
-  { value: 'FIELD_BASED_CAPABILITY', label: 'FIELD_BASED_CAPABILITY', description: 'inboundPreprocess → condition → specifyCapability × 2' },
-  { value: 'ORDER_BASED_CAPABILITY', label: 'ORDER_BASED_CAPABILITY', description: 'inboundPreprocess → matchCapabilityByOrder' },
-  { value: 'BLANK_CANVAS', label: 'BLANK_CANVAS', description: 'No components' },
+  { value: 'SINGLE_CAPABILITY', label: 'SINGLE_CAPABILITY', description: 'inboundPreprocess -> specifyCapability' },
+  { value: 'MULTIPE_CAPABILITY', label: 'MULTIPE_CAPABILITY', description: 'inboundPreprocess -> condition -> specifyCapability' },
+  { value: 'MATCH_CAPABILITY_BY_ORDER', label: 'MATCH_CAPABILITY_BY_ORDER', description: 'inboundPreprocess -> matchCapabilityByOrder' },
 ];
 
 const statusMeta: Record<UriConfigStatus, { label: string; color: string }> = {
@@ -268,6 +267,7 @@ export default function MatchCapabilityPage() {
         <Breadcrumb items={[{ title: 'Channel List' }, { title: 'Config Integration' }, { title: 'Route Matching' }]} />
         <div className="route-matching-title-line">
           <h2>Route Matching</h2>
+          <span>Inbound path and capability routing configuration</span>
         </div>
       </section>
 

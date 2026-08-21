@@ -16,6 +16,7 @@ import CodeGuidePage from '../pages/channel-integration/CodeGuidePage';
 import ChannelInfoPage from '../pages/channel-integration/ChannelInfoPage';
 import RuntimeFlowCanvasPage from '../pages/channel-integration/RuntimeFlowCanvasPage';
 import MetadataPage from '../pages/channel-integration/MetadataPage';
+import CredentialPage from '../pages/channel-integration/CredentialPage';
 
 
 // Scene pages (existing)
@@ -121,6 +122,7 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/party', element: <div style={{ padding: 24 }}>Party Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
+      { path: 'channel-integration/:channelCode/credential', element: <CredentialPage /> },
       { path: 'channel-integration/:channelCode/metadata', element: <MetadataPage /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matchina', element: <RuntimeRouteMatchingTypoRedirect /> },
@@ -215,13 +217,12 @@ const router = createHashRouter(
           { path: 'capability/spi', element: <ComingSoonPage title="Capability SPI" /> },
           { path: 'capability/stateMachine', element: <StateMachineListPage /> },
           { path: 'capability/link-state-machine', element: <LinkStateMachinePage /> },
+          { path: 'capability/stateMachine/canvas', element: <StateMachineCanvas /> },
           { path: 'stateMachine', element: <StateMachineListPage /> },
         ],
       },
     ],
   },
-  // Standalone stateMachine canvas (no sidebar, outside AppShell)
-  { path: 'basic-info/capability/stateMachine/canvas', element: <StateMachineCanvas /> },
   { path: '*', element: <Navigate to="/home" replace /> },
 ]);
 

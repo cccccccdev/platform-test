@@ -24,15 +24,13 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Button, message, Modal, Input, Typography, Space, Tag } from 'antd';
+import { Button, message, Modal, Input, Space, Tag } from 'antd';
 import { LeftOutlined } from '@ant-design/icons';
 import StateNode from './StateNode';
 import ComponentPanel from './ComponentPanel';
 import PropertyPanel from './PropertyPanel';
 
 const { TextArea } = Input;
-const { Text } = Typography;
-
 // ─────────────────────────────────────────────────
 // Types - using simple object type to avoid Record constraint
 // ─────────────────────────────────────────────────
@@ -94,9 +92,31 @@ const smsSingleMessageEdges: AnyEdge[] = [
   { id: 'sms_e4', source: 'sms_submitted', target: 'sms_failed', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'failed' } },
 ];
 
+const smsSingleMessageDetailedNodes: AnyNode[] = [
+  { id: 'sms_d_init', type: 'stateNode', position: { x: 60, y: 260 }, data: { name: 'INIT', description: 'SMS request initialized', businessStatus: 'INIT', nodeType: 'init' } },
+  { id: 'sms_d_submitted', type: 'stateNode', position: { x: 380, y: 150 }, data: { name: 'SUBMITTED', description: 'Accepted by the SMS provider and awaiting delivery result', businessStatus: 'PENDING' } },
+  { id: 'sms_d_system_error', type: 'stateNode', position: { x: 380, y: 410 }, data: { name: 'SYSTEM_ERROR', description: 'Our system failed before the SMS request could be submitted to the provider', businessStatus: 'FAIL' } },
+  { id: 'sms_d_delivered', type: 'stateNode', position: { x: 760, y: 20 }, data: { name: 'DELIVERED', description: 'SMS delivered to the recipient device', businessStatus: 'SUCCESS' } },
+  { id: 'sms_d_rejected', type: 'stateNode', position: { x: 760, y: 160 }, data: { name: 'REJECTED', description: 'Rejected because of content, carrier policy, blacklist, invalid number, or another pre-delivery rule', businessStatus: 'FAIL' } },
+  { id: 'sms_d_undeliverable', type: 'stateNode', position: { x: 760, y: 300 }, data: { name: 'UNDELIVERABLE', description: 'Accepted but ultimately could not be delivered to the recipient', businessStatus: 'FAIL' } },
+  { id: 'sms_d_expired', type: 'stateNode', position: { x: 760, y: 440 }, data: { name: 'EXPIRED', description: 'Not delivered before the message validity period elapsed', businessStatus: 'FAIL' } },
+];
+
+const smsSingleMessageDetailedEdges: AnyEdge[] = [
+  { id: 'sms_d_e1', source: 'sms_d_init', target: 'sms_d_submitted', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'submitted' } },
+  { id: 'sms_d_e2', source: 'sms_d_init', target: 'sms_d_system_error', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'system_error' } },
+  { id: 'sms_d_e3', source: 'sms_d_submitted', target: 'sms_d_delivered', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'delivered' } },
+  { id: 'sms_d_e4', source: 'sms_d_submitted', target: 'sms_d_rejected', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'rejected' } },
+  { id: 'sms_d_e5', source: 'sms_d_submitted', target: 'sms_d_undeliverable', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'undeliverable' } },
+  { id: 'sms_d_e6', source: 'sms_d_submitted', target: 'sms_d_expired', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'expired' } },
+];
+
 function getInitialGraph(sm: string): { nodes: AnyNode[]; edges: AnyEdge[] } {
   if (sm === 'SMS_Single_Message_StateMachine') {
     return { nodes: smsSingleMessageNodes, edges: smsSingleMessageEdges };
+  }
+  if (sm === 'SMS_Single_Message_Detailed_StateMachine') {
+    return { nodes: smsSingleMessageDetailedNodes, edges: smsSingleMessageDetailedEdges };
   }
   return { nodes: initialNodes, edges: initialEdges };
 }
@@ -660,32 +680,32 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
 
   return (
     <>
+      <div style={{ height: 76, background: '#fff', padding: '14px 24px 10px', flexShrink: 0 }}>
+        <div style={{ color: '#8c8c8c', fontSize: 13, marginBottom: 12 }}>Basic Info&nbsp;&nbsp;/&nbsp;&nbsp;State Machine&nbsp;&nbsp;/&nbsp;&nbsp;<span style={{ color: '#262626' }}>{mode === 'view' ? 'State Machine Detail' : 'State Machine Editor'}</span></div>
+        <div style={{ color: '#262626', fontSize: 18, fontWeight: 600 }}>{mode === 'view' ? 'State Machine Detail' : 'State Machine Editor'}</div>
+      </div>
+
       {/* Top Bar */}
       <div
         style={{
-          height: 56,
+          height: 76,
           background: '#fff',
-          borderBottom: '1px solid #e5e5e5',
+          border: '1px solid #e2e8f0',
+          borderRadius: 12,
+          margin: '16px 20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 24px',
+          padding: '0 16px',
           flexShrink: 0,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link to={bt && ability ? `/basic-info/capability/link-state-machine?bt=${bt}&ability=${ability}` : '/basic-info/capability/stateMachine'}>
-            <Button type="text" icon={<LeftOutlined />}>
-              Back
-            </Button>
+            <Button icon={<LeftOutlined />} />
           </Link>
-          <span style={{ color: '#ccc' }}>|</span>
-          <span style={{ fontSize: 14 }}>
-            <span style={{ color: '#999' }}>Basic Info / State Machine / </span>
-            <span style={{ fontWeight: 500, color: mode === 'view' ? '#1890ff' : '#333' }}>
-              {mode === 'view' ? 'Detail' : 'Modify'}
-            </span>
-          </span>
+          <span><span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#0f172a' }}>{sm || 'New State Machine'}</span><span style={{ display: 'block', marginTop: 3, color: '#94a3b8', fontSize: 12 }}>{ability || 'No description'}</span></span>
+          <Tag color={currentStatus === 'SUBMITTED' ? 'success' : 'orange'}>{currentStatus}</Tag>
         </div>
         {mode === 'edit' && (
           <Space>
@@ -706,36 +726,13 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
         )}
       </div>
 
-      {/* Basic Info Bar */}
-      <div
-        style={{
-          background: '#fafafa',
-          borderBottom: '1px solid #e5e5e5',
-          padding: '8px 24px',
-          fontSize: 13,
-          color: '#666',
-          display: 'flex',
-          gap: 24,
-        }}
-      >
-        <span>
-          <Text strong style={{ color: '#333' }}>State Machine Name:</Text> {sm || '-'}
-        </span>
-        <span>
-          <Text strong style={{ color: '#333' }}>Status:</Text>{' '}
-          <Tag color={currentStatus === 'SUBMITTED' ? 'success' : 'default'}>
-            {currentStatus}
-          </Tag>
-        </span>
-      </div>
-
       {/* Main Content */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {mode === 'edit' && <ComponentPanel />}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', margin: '0 20px 16px', border: '1px solid #e2e8f0', borderRadius: 12, background: '#fff' }}>
+        <ComponentPanel disabled={mode === 'view'} />
 
         <div
           ref={reactFlowWrapper}
-          style={{ flex: 1, background: '#f5f5f5' }}
+          style={{ flex: 1, background: '#f7faff' }}
           onDragOver={onDragOver}
           onDrop={onDrop}
           onKeyDown={onKeyDown as any}
@@ -767,7 +764,7 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
               style: { stroke: '#333', strokeWidth: 2 },
             }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#ccc" />
+            <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#cbd9ea" />
             <Controls />
             <MiniMap
               nodeColor={node => (node.type === 'stateNode' ? '#22c55e' : '#fff')}
@@ -803,31 +800,6 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
             onDeleteNode={handleDeleteNode}
             onDeleteEdge={handleDeleteEdge}
           />
-        )}
-      </div>
-
-      {/* Bottom Bar */}
-      <div
-        style={{
-          height: 40,
-          background: '#fafafa',
-          borderTop: '1px solid #e5e5e5',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 24px',
-          fontSize: 12,
-          color: '#666',
-          flexShrink: 0,
-        }}
-      >
-        <span>
-          States: {stateCount}
-        </span>
-        {canSave ? (
-          <span style={{ color: '#22c55e' }}>✓ Ready to save</span>
-        ) : (
-          <span style={{ color: '#ef4444' }}>⚠ At least 1 State node required to save</span>
         )}
       </div>
 
@@ -888,7 +860,7 @@ export default function StateMachineCanvas() {
   const mode = searchParams.get('mode') || 'edit';
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: 'calc(100vh - 64px)', minHeight: 720, display: 'flex', flexDirection: 'column', background: '#f1f5f9', overflow: 'hidden' }}>
       <ReactFlowProvider>
         <CanvasContent bt={bt} ability={ability} sm={sm} mode={mode} />
       </ReactFlowProvider>
