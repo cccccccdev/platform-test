@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, Checkbox, Drawer, Input, Select, Space, Switch, Tag, Typography } from 'antd';
-import { HolderOutlined, PlusOutlined } from '@ant-design/icons';
+import { HolderOutlined, MinusOutlined, PlusOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 type ValueOption = { label: string; value: string; type?: string };
@@ -63,12 +63,12 @@ export default function ConditionConfigurationDrawer({ open, targetComponent, fi
               <Select disabled={readOnly || !row.leftType} value={row.operator || undefined} options={operators} style={{ width: '100%' }} onChange={(operator) => patchRow(group, row.id, { operator })} />
               <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 6px' }}><Text strong style={{ fontSize: 12 }}>Right Value</Text><Tag bordered={false}>{row.leftType || 'Type'}</Tag></div>
               <Space.Compact block><Select disabled={readOnly || !row.leftType} value={row.rightSource} options={sourceOptions} style={{ width: 145 }} onChange={(rightSource: ValueSource) => patchRow(group, row.id, { rightSource, rightValue: '' })} /><Select showSearch disabled={readOnly || !row.leftType} value={row.rightValue || undefined} placeholder={row.rightSource === 'endpoint' ? 'Select endpoint param' : 'Select global variable'} options={rightOptions} style={{ flex: 1 }} onChange={(rightValue) => patchRow(group, row.id, { rightValue })} /></Space.Compact>
-              <Space style={{ marginTop: 10 }}><Button disabled={readOnly} size="small" icon={<PlusOutlined />} onClick={() => patchGroup(group.id, { conditions: [...group.conditions, createRow()] })}>Add Condition</Button><Button disabled={readOnly || group.conditions.length === 1} size="small" onClick={() => patchGroup(group.id, { conditions: group.conditions.filter((item) => item.id !== row.id) })}>Sub Condition</Button></Space>
+              <Space style={{ marginTop: 10 }}><Button disabled={readOnly} size="small" icon={<PlusOutlined />} onClick={() => patchGroup(group.id, { conditions: [...group.conditions, createRow()] })}>Add Condition</Button><Button disabled={readOnly || group.conditions.length === 1} size="small" icon={<MinusOutlined />} onClick={() => patchGroup(group.id, { conditions: group.conditions.filter((item) => item.id !== row.id) })}>Remove Condition</Button></Space>
             </div>;
           })}
         </Card>
       </div>)}
-      <Space><Button disabled={readOnly} icon={<PlusOutlined />} onClick={() => setGroups((current) => [...current, createGroup()])}>Add Group</Button><Button disabled={readOnly || groups.length === 1} onClick={() => setGroups((current) => current.slice(0, -1))}>Sub Group</Button></Space>
+      <Space><Button disabled={readOnly} icon={<PlusOutlined />} onClick={() => setGroups((current) => [...current, createGroup()])}>Add Group</Button><Button disabled={readOnly || groups.length === 1} icon={<MinusOutlined />} onClick={() => setGroups((current) => current.slice(0, -1))}>Remove Group</Button></Space>
       <div style={{ marginTop: 14, padding: '10px 12px', borderRadius: 8, background: '#f1f5f9', color: '#334155', fontFamily: 'monospace', fontSize: 12 }}>(= =)</div>
     </>}
   </Drawer>;
