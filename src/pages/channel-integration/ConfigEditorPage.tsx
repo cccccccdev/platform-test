@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import FlowConfigModal from './FlowConfigModal';
 import FlowSettingsModal from './FlowSettingsModal';
 import { useConfigIntegrationStore } from './configIntegrationStore';
+import { useMatchCapabilityStore } from './matchCapabilityStore';
 import type { FlowConfig, TriggerType } from './types';
 import StateMachinePreviewModal, { isNoStateMachine, stateMachineDisplayName } from './StateMachinePreviewModal';
 
@@ -68,6 +69,7 @@ export default function ConfigEditorPage() {
   const addFlow = useConfigIntegrationStore((state) => state.addFlow);
   const deleteFlow = useConfigIntegrationStore((state) => state.deleteFlow);
   const updateFlow = useConfigIntegrationStore((state) => state.updateFlow);
+  const inboundEndpoints = useMatchCapabilityStore((state) => state.endpointsByChannel[channelCode] ?? []);
 
   if (!ability || !version) {
     return (
@@ -121,6 +123,25 @@ export default function ConfigEditorPage() {
       : `/channel-integration/${channelCode}/integration/config/flow-groups/${bt}/${abilityCode}/versions/${versionId}/flows/${flow.id}`;
     navigate(`${basePath}?flowType=${flow.flowType}${readOnly ? '&mode=detail' : ''}${runtimeDetail ? '&source=runtime' : ''}`);
   };
+
+  const renderTriggerCondition = (flow: FlowConfig) => {
+    if (flow.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || flow.triggerType === 'CALLBACK_TRIGGERED') {
+      const inboundUri = inboundEndpoints.find((endpoint) => endpoint.id === flow.inboundUriId);
+      return <span title={inboundUri?.url ?? flow.inboundUriId ?? ''} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <Text type="secondary" style={{ fontSize: 11 }}>Inbound URI&nbsp;</Text>
+        {inboundUri?.url ?? flow.inboundUriId ?? 'N/A'}
+      </span>;
+    }
+    if (flow.triggerType === 'REQUERY_TRIGGERED') {
+      const triggerState = flow.stateConditions?.[0]?.value;
+      return <span>
+        <Text type="secondary" style={{ fontSize: 11 }}>Sub-state&nbsp;</Text>
+        {triggerState ?? 'N/A'}
+      </span>;
+    }
+    return <span style={{ color: '#8c8c8c' }}>N/A</span>;
+  };
+
   return (
     <div className="flow-configuration-page">
       <section className="flow-configuration-heading">
@@ -170,10 +191,10 @@ export default function ConfigEditorPage() {
           </Space>
         </div>
 
-      <div className="flow-configuration-table" style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.2fr 1fr 1fr 1fr 2.2fr', gap: 12, padding: '11px 14px', background: '#fafafa', color: '#667085', fontWeight: 600, fontSize: 12 }}><span>Flow ID</span><span>Flow Name</span><span>Trigger Type</span><span>Triggered By</span><span>Status</span><span>Operation</span></div>
-        {flows.length ? flows.map((flow) => <div key={flow.id} style={{ display: 'grid', gridTemplateColumns: '1.3fr 1.2fr 1fr 1fr 1fr 2.2fr', gap: 12, alignItems: 'center', padding: '14px', borderTop: '1px solid #f0f0f0', fontSize: 12 }}>
-          <span>{flow.id}</span><span style={{ fontWeight: 600 }}>{flow.name}</span><span><Tag>{flow.triggerType ? triggerLabels[flow.triggerType] : '-'}</Tag></span><span>{flow.triggerEvents?.[0] ?? flow.contextActions?.[0] ?? '-'}</span><span><Tag color={flowStatusColors[flow.status ?? 'DRAFT']}>{flow.status ?? 'DRAFT'}</Tag></span><Space className="flow-configuration-operation" wrap>
+      <div className="flow-configuration-table">
+        <div className="flow-configuration-grid flow-configuration-grid-header"><span>Flow ID</span><span>Flow Name</span><span>Trigger Type</span><span>Triggered By</span><span>Trigger Condition</span><span>Status</span><span className="flow-configuration-operation-cell">Operation</span></div>
+        {flows.length ? flows.map((flow) => <div key={flow.id} className="flow-configuration-grid flow-configuration-grid-row">
+          <span>{flow.id}</span><span style={{ fontWeight: 600 }}>{flow.name}</span><span><Tag>{flow.triggerType ? triggerLabels[flow.triggerType] : '-'}</Tag></span><span>{flow.triggerEvents?.[0] ?? flow.contextActions?.[0] ?? '-'}</span>{renderTriggerCondition(flow)}<span><Tag color={flowStatusColors[flow.status ?? 'DRAFT']}>{flow.status ?? 'DRAFT'}</Tag></span><Space className="flow-configuration-operation flow-configuration-operation-cell">
             {!readOnly && version.status !== 'PROD' && <Button type="text" icon={<SettingOutlined />} onClick={() => setEditingFlow(flow)}>Settings</Button>}
             <Badge dot={flow.status === 'SUBMITTED' && Boolean(flow.submittedContent)}><Button type="text" icon={<EditOutlined />} onClick={() => handleEditComponents(flow)}>{readOnly ? 'View Components' : 'Edit Components'}</Button></Badge>
             {!readOnly && version.status !== 'PROD' && <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDeleteFlow(flow)}>Delete</Button>}

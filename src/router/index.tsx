@@ -16,7 +16,7 @@ import CodeGuidePage from '../pages/channel-integration/CodeGuidePage';
 import ChannelInfoPage from '../pages/channel-integration/ChannelInfoPage';
 import RuntimeFlowCanvasPage from '../pages/channel-integration/RuntimeFlowCanvasPage';
 import MetadataPage from '../pages/channel-integration/MetadataPage';
-import CredentialPage from '../pages/channel-integration/CredentialPage';
+import ConfigIntegrationOverviewPage from '../pages/channel-integration/ConfigIntegrationOverviewPage';
 
 
 // Scene pages (existing)
@@ -48,7 +48,7 @@ function ComingSoonPage({ title }: { title: string }) {
 
 function IntegrationIndexRedirect() {
   const { channelCode = '' } = useParams();
-  return <Navigate to={`/channel-integration/${channelCode}/integration/config/flow-groups`} replace />;
+  return <Navigate to={`/channel-integration/${channelCode}/integration/config/overview`} replace />;
 }
 
 function LegacyRouteMatchingRedirect() {
@@ -122,7 +122,6 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/party', element: <div style={{ padding: 24 }}>Party Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
-      { path: 'channel-integration/:channelCode/credential', element: <CredentialPage /> },
       { path: 'channel-integration/:channelCode/metadata', element: <MetadataPage /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matchina', element: <RuntimeRouteMatchingTypoRedirect /> },
@@ -140,6 +139,7 @@ const router = createHashRouter(
           { path: 'channel-integration/:channelCode/integration', element: <IntegrationIndexRedirect /> },
           { path: 'channel-integration/:channelCode/integration/match-capability', element: <LegacyRouteMatchingRedirect /> },
           { path: 'channel-integration/:channelCode/integration/config', element: <LegacyFlowGroupsRedirect /> },
+          { path: 'channel-integration/:channelCode/integration/config/overview', element: <ConfigIntegrationOverviewPage /> },
           { path: 'channel-integration/:channelCode/integration/config/route-matching', element: <MatchCapabilityPage /> },
           { path: 'channel-integration/:channelCode/integration/config/flow-groups', element: <ConfigAbilityListPage /> },
           { path: 'channel-integration/:channelCode/integration/config/flow-groups/test', element: <TestPage /> },

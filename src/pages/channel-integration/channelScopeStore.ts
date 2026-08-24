@@ -25,6 +25,15 @@ export interface AuthConfig {
   operationTime: string;
 }
 
+export interface OutboundEndpoint {
+  id: string;
+  name: string;
+  method: 'POST' | 'GET' | 'PUT' | 'DELETE';
+  protocol: 'HTTP' | 'HTTPS';
+  path: string;
+  version: string;
+}
+
 export interface TcpDataElement {
   de: number;
   field: string;
@@ -125,6 +134,7 @@ interface ChannelScopeStore {
   orderVariablesByChannel: Record<string, VariableItem[]>;
   orderVariableVersionByChannel: Record<string, string>;
   authenticationsByChannel: Record<string, AuthConfig[]>;
+  outboundEndpointsByChannel: Record<string, OutboundEndpoint[]>;
   tcpProfilesByChannel: Record<string, TcpProfile[]>;
   addCredential: (channelCode: string, credential: CredentialItem) => void;
   updateCredential: (channelCode: string, id: string, updates: Partial<CredentialItem>) => void;
@@ -132,6 +142,8 @@ interface ChannelScopeStore {
   addAuthentication: (channelCode: string, auth: AuthConfig) => void;
   updateAuthentication: (channelCode: string, id: string, updates: Partial<AuthConfig>) => void;
   removeAuthentication: (channelCode: string, id: string) => void;
+  addOutboundEndpoint: (channelCode: string, endpoint: OutboundEndpoint) => void;
+  updateOutboundEndpoint: (channelCode: string, id: string, updates: Partial<OutboundEndpoint>) => void;
   addGlobalVariable: (channelCode: string, variable: VariableItem) => void;
   updateGlobalVariableValue: (channelCode: string, variableId: string, value: string) => void;
   addOrderVariable: (channelCode: string, variable: VariableItem) => void;
@@ -184,6 +196,16 @@ export const useChannelScopeStore = create<ChannelScopeStore>((set, get) => ({
         operator: 'admin',
         operationTime: '2026-07-01 11:00:00',
       },
+    ],
+  },
+  outboundEndpointsByChannel: {
+    EVEXIN: [
+      { id: 'endpoint_evexin_send_sms', name: 'Send SMS', method: 'POST', protocol: 'HTTP', path: '/api/msg/v2/sendMsg', version: '20260820122454' },
+      { id: 'endpoint_evexin_query_status', name: 'Query Message Status', method: 'POST', protocol: 'HTTP', path: '/api/msg/v2/queryStatus', version: '20260820115713' },
+    ],
+    GTB_NG: [
+      { id: 'endpoint_gtb_create', name: 'Create Transaction', method: 'POST', protocol: 'HTTP', path: '/api/formdata/Transaction', version: '20260824020304' },
+      { id: 'endpoint_gtb_query', name: 'Query Transaction', method: 'POST', protocol: 'HTTP', path: '/partner/api/v1/queryTransactionStatus', version: '20260820115713' },
     ],
   },
   tcpProfilesByChannel: {
@@ -252,6 +274,20 @@ export const useChannelScopeStore = create<ChannelScopeStore>((set, get) => ({
     authenticationsByChannel: {
       ...state.authenticationsByChannel,
       [channelCode]: (state.authenticationsByChannel[channelCode] ?? []).filter((a) => a.id !== id),
+    },
+  })),
+
+  addOutboundEndpoint: (channelCode, endpoint) => set((state) => ({
+    outboundEndpointsByChannel: {
+      ...state.outboundEndpointsByChannel,
+      [channelCode]: [...(state.outboundEndpointsByChannel[channelCode] ?? []), endpoint],
+    },
+  })),
+
+  updateOutboundEndpoint: (channelCode, id, updates) => set((state) => ({
+    outboundEndpointsByChannel: {
+      ...state.outboundEndpointsByChannel,
+      [channelCode]: (state.outboundEndpointsByChannel[channelCode] ?? []).map((endpoint) => endpoint.id === id ? { ...endpoint, ...updates, version: timestampVersion() } : endpoint),
     },
   })),
 

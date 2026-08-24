@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Button, Collapse, Input, Modal, Space, Tag, Tooltip, message } from 'antd';
 import { EditOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons';
-import { useChannelScopeStore } from './channelScopeStore';
+import { timestampVersion, useChannelScopeStore } from './channelScopeStore';
 import type { AuthConfig, CredentialItem, VariableItem } from './channelScopeStore';
+import type { OutboundEndpoint } from './channelScopeStore';
 import AuthenticationDrawer from './sharedAuthenticationDrawer';
+import OutboundEndpointDrawer from './OutboundEndpointDrawer';
 import TcpProfileDrawer from './TcpProfileDrawer';
 import type { TcpProfile } from './channelScopeStore';
 
@@ -91,9 +93,12 @@ export default function CanvasContextPanel({
   const credentials = useChannelScopeStore((state) => state.credentialsByChannel[channelCode]) ?? EMPTY_CREDENTIALS;
   const credentialVersion = useChannelScopeStore((state) => state.credentialVersionByChannel[channelCode]);
   const authentications = useChannelScopeStore((state) => state.authenticationsByChannel[channelCode]) ?? EMPTY_AUTHENTICATIONS;
+  const outboundEndpoints = useChannelScopeStore((state) => state.outboundEndpointsByChannel[channelCode]) ?? [];
   const tcpProfiles = useChannelScopeStore((state) => state.tcpProfilesByChannel[channelCode]) ?? [];
   const addTcpProfile = useChannelScopeStore((state) => state.addTcpProfile);
   const updateTcpProfile = useChannelScopeStore((state) => state.updateTcpProfile);
+  const addOutboundEndpoint = useChannelScopeStore((state) => state.addOutboundEndpoint);
+  const updateOutboundEndpoint = useChannelScopeStore((state) => state.updateOutboundEndpoint);
   const addCredential = useChannelScopeStore((state) => state.addCredential);
   const addGlobalVariable = useChannelScopeStore((state) => state.addGlobalVariable);
   const updateGlobalVariableValue = useChannelScopeStore((state) => state.updateGlobalVariableValue);
@@ -106,6 +111,8 @@ export default function CanvasContextPanel({
   const [showCredentialGuidance, setShowCredentialGuidance] = useState(false);
   const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
   const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState<OutboundEndpoint | null>(null);
+  const [showEndpointDrawer, setShowEndpointDrawer] = useState(false);
   const [editingTcpProfile, setEditingTcpProfile] = useState<TcpProfile | null>(null);
   const [showTcpProfileDrawer, setShowTcpProfileDrawer] = useState(false);
 
@@ -243,6 +250,21 @@ export default function CanvasContextPanel({
     </div>,
   };
 
+  const endpointItem = {
+    key: 'endpoint',
+    label: <Space><span>🔗</span><span>Endpoint</span></Space>,
+    children: <div>
+      {outboundEndpoints.length ? outboundEndpoints.map((endpoint) => <div key={endpoint.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '7px 4px', borderBottom: '1px solid #f5f5f5' }}>
+        <div style={{ minWidth: 0 }}>
+          <div title={endpoint.name} style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{endpoint.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}><Tag color="blue" style={{ margin: 0, fontSize: 9 }}>{endpoint.method}</Tag><span style={{ color: '#8c8c8c', fontSize: 9 }}>v{endpoint.version}</span></div>
+        </div>
+        <Button type="text" size="small" icon={<EditOutlined />} aria-label={`${readOnly ? 'View' : 'Edit'} ${endpoint.name}`} onClick={() => { setEditingEndpoint(endpoint); setShowEndpointDrawer(true); }} />
+      </div>) : <EmptyContext>No Endpoint configured.</EmptyContext>}
+      {!readOnly && <div style={{ padding: '8px 4px 0' }}><Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingEndpoint(null); setShowEndpointDrawer(true); }}>Create Endpoint</Button></div>}
+    </div>,
+  };
+
   const tcpProfileItem = {
     key: 'tcp-profile',
     label: <Space><span>🔌</span><span>TCP Profiles</span><Tag color="blue">{tcpProfiles.length}</Tag><Tooltip title="A TCP Profile is a reusable Channel-level configuration for long-lived TCP connection runtime behavior. TCP endpoint details remain in Channel Info Party Lines, while message definitions stay in tcpCall."><QuestionCircleOutlined style={{ color: '#8c8c8c', fontSize: 12 }} /></Tooltip></Space>,
@@ -264,7 +286,7 @@ export default function CanvasContextPanel({
 
   const resourceItems = mode === 'flow'
     ? [
-        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={readOnly ? [...channelItems, tcpProfileItem] : [...channelItems, tcpProfileItem, authenticationItem]} defaultActiveKey={[]} /> },
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={readOnly ? [...channelItems, tcpProfileItem, authenticationItem, endpointItem] : [...channelItems, tcpProfileItem, authenticationItem, endpointItem]} defaultActiveKey={[]} /> },
         { key: 'order-resources', label: <strong>Order Resources</strong>, children: <Collapse ghost items={orderItems} defaultActiveKey={[]} /> },
         { key: 'loaded-data', label: <strong>Loaded Data</strong>, children: loadedDataItems.length ? <Collapse ghost items={loadedDataItems} defaultActiveKey={[]} /> : <EmptyContext>No data loaded.</EmptyContext> },
       ]
@@ -287,6 +309,17 @@ export default function CanvasContextPanel({
     </div>
 
     <AuthenticationDrawer visible={showAuthenticationDrawer} channelCode={channelCode} auth={editingAuthentication} onClose={() => { setShowAuthenticationDrawer(false); setEditingAuthentication(null); }} />
+    <OutboundEndpointDrawer open={showEndpointDrawer} endpoint={editingEndpoint} onClose={() => { setShowEndpointDrawer(false); setEditingEndpoint(null); }} onSave={(values) => {
+      if (editingEndpoint) updateOutboundEndpoint(channelCode, editingEndpoint.id, values);
+      else {
+        const segment = values.path.split('/').filter(Boolean).at(-1) ?? 'Endpoint';
+        const name = segment.replace(/[{}_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+        addOutboundEndpoint(channelCode, { id: `endpoint_${Date.now()}`, name, ...values, version: timestampVersion() });
+      }
+      setShowEndpointDrawer(false);
+      setEditingEndpoint(null);
+      message.success('Endpoint saved');
+    }} />
     <TcpProfileDrawer open={showTcpProfileDrawer} profile={editingTcpProfile} readOnly={readOnly} onClose={() => { setShowTcpProfileDrawer(false); setEditingTcpProfile(null); }} onSave={(profile) => { if (editingTcpProfile) updateTcpProfile(channelCode, profile.id, profile); else addTcpProfile(channelCode, profile); setShowTcpProfileDrawer(false); setEditingTcpProfile(null); message.success('TCP Profile saved'); }} />
     <Modal title="Credential Guidance" open={showCredentialGuidance} footer={null} onCancel={() => setShowCredentialGuidance(false)}>
       <ol style={{ paddingLeft: 22, marginBottom: 0, lineHeight: 1.8 }}>

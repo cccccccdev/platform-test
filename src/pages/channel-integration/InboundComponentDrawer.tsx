@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Alert, Button, Card, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
 import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappingEditor';
@@ -8,6 +8,7 @@ import { mappingOperationOptions } from './mappingOperationOptions';
 import EndpointPathVariablesReference from './EndpointPathVariablesReference';
 import TargetMappingList, { collectFieldTargetMappings, normalizeTargetMappings, TargetMappingColumnHeaders, validateTargetMappings } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
+import { fallbackStateOptionsFor } from './stateMachineStateOptions';
 
 const { Text } = Typography;
 const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -44,9 +45,9 @@ const bodySchemaState = (nodes: unknown): TabState => {
 };
 
 type Props = { open: boolean; initialValues?: Record<string, unknown>; readOnly?: boolean; onClose: () => void; onSave: (config: Record<string, unknown>) => void };
-type InboundRequestProps = Props & { pathVariables?: string[]; endpointPath?: string };
+type InboundRequestProps = Props & { pathVariables?: string[]; endpointPath?: string; stateMachine?: string };
 
-export function InboundRequestDrawer({ open, initialValues = {}, readOnly = false, pathVariables = [], endpointPath, onClose, onSave }: InboundRequestProps) {
+export function InboundRequestDrawer({ open, initialValues = {}, readOnly = false, pathVariables = [], endpointPath, stateMachine = '', onClose, onSave }: InboundRequestProps) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('format');
   const watchedValues = Form.useWatch([], form) ?? {};
@@ -57,6 +58,9 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
   const verificationEnabled = Form.useWatch('verificationEnabled', form);
   const codeMappingEnabled = Form.useWatch('codeMappingEnabled', form);
   const codeMappingMode = Form.useWatch('codeMappingMode', form) ?? 'default';
+  const componentInstance = Form.useWatch('componentInstance', form);
+  const fallbackSubStates = useMemo(() => fallbackStateOptionsFor(stateMachine), [stateMachine]);
+  const matchingFallbackSubStates = fallbackSubStates.filter((item) => item.mainState === componentInstance);
   const effectiveRequestMappingMode = allValues.requestMappingMode ?? requestMappingMode;
   const effectiveDecryptionEnabled = Boolean(allValues.decryptionEnabled ?? decryptionEnabled);
   const effectiveVerificationEnabled = Boolean(allValues.verificationEnabled ?? verificationEnabled);
@@ -85,7 +89,7 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
     }
     if (key === 'code') {
       if (!effectiveCodeMappingEnabled) return 'empty';
-      if (!hasValue(allValues.componentInstance)) return 'error';
+      if (!hasValue(allValues.componentInstance) || !hasValue(allValues.componentSubState)) return 'error';
       return effectiveCodeMappingMode === 'custom'
         ? (hasValue(allValues.codeMappingScript) ? 'ok' : 'error')
         : (hasRows(allValues.responseCodeAssembly) ? 'ok' : 'error');
@@ -133,7 +137,7 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
             <SecuritySection title="Decryption" enabledName="decryptionEnabled" enabled={effectiveDecryptionEnabled}><Form.Item name="decryptionAlgorithm" label="Algorithm" rules={[{ required: true }]}><Select options={encryption} /></Form.Item><Form.Item name="encryptedField" label="Encrypted Field"><Input placeholder="Request field not decrypted by A" /></Form.Item><Form.Item name="decryptionSources" label="Decryption Source Fields"><Checkbox.Group options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body']} /></Form.Item></SecuritySection>
             <SecuritySection title="Signature Verification" enabledName="verificationEnabled" enabled={effectiveVerificationEnabled}><Form.Item name="verificationAlgorithm" label="Algorithm" rules={[{ required: true }]}><Select options={signing} /></Form.Item><Form.Item name="signatureField" label="Request Signature Field"><Input placeholder="Request header or body field" /></Form.Item><Form.Item name="verificationSources" label="Verification Source Fields"><Checkbox.Group options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body']} /></Form.Item></SecuritySection>
           </div></Card> },
-          { key: 'code', label: tabLabel('Code Mapping', state('code')), children: <Card size="small" title={<Space><Form.Item name="codeMappingEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Channel Response Code</Space>}>{effectiveCodeMappingEnabled ? <><Alert type="info" showIcon message="Interpret this inbound callback request as the channel response to an earlier outbound request." style={{ marginBottom: 12 }} /><Form.Item name="componentInstance" label="Component Instance" rules={[{ required: true }]}><Select options={[{ value: 'FAIL' }, { value: 'PENDING' }]} /></Form.Item><Form.Item name="codeMappingMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom Script', value: 'custom' }]} /></Form.Item>{effectiveCodeMappingMode === 'custom' ? <GroovyScriptEditor name="codeMappingScript" helpText="Return channelResponseCode from the available inbound request fields." /> : <><Form.Item name="responseCodeAssembly" label="Channel Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select request fields in assembly order" options={['Path Variable', 'Query Parameter', 'Request Header', 'Request Body'].map((value) => ({ value }))} /></Form.Item><Form.Item name="responseMessageField" label="Channel Response Message Field"><Input placeholder="Optional request field path" /></Form.Item></>}</> : <Text type="secondary">Enable only when the inbound request reports the result of a previous channel request.</Text>}</Card> },
+          { key: 'code', label: tabLabel('Code Mapping', state('code')), children: <Card size="small" title={<Space><Form.Item name="codeMappingEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Channel Response Code</Space>}>{effectiveCodeMappingEnabled ? <><Alert type="info" showIcon message="Interpret this inbound callback request as the channel response to an earlier outbound request." style={{ marginBottom: 12 }} /><Form.Item name="componentInstance" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('componentSubState', undefined)} /></Form.Item><Form.Item label="Main State"><Input disabled value={componentInstance ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item><Form.Item name="componentSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!componentInstance} placeholder={componentInstance ? `Select a ${componentInstance} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item><Form.Item name="codeMappingMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom Script', value: 'custom' }]} /></Form.Item>{effectiveCodeMappingMode === 'custom' ? <GroovyScriptEditor name="codeMappingScript" helpText="Return channelResponseCode from the available inbound request fields." /> : <><Form.Item name="responseCodeAssembly" label="Channel Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select request fields in assembly order" options={['Path Variable', 'Query Parameter', 'Request Header', 'Request Body'].map((value) => ({ value }))} /></Form.Item><Form.Item name="responseMessageField" label="Channel Response Message Field"><Input placeholder="Optional request field path" /></Form.Item></>}</> : <Text type="secondary">Enable only when the inbound request reports the result of a previous channel request.</Text>}</Card> },
         ]} />
       </Form>
     </ConfigProvider>

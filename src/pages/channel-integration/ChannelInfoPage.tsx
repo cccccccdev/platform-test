@@ -216,13 +216,6 @@ const subStates: Array<{ value: string; mainState: MainState }> = [
   { value: 'BILL_QUERY_FAILED', mainState: 'FAIL' },
 ];
 
-const legacyNoStateMachineSubStates: Array<{ value: string; mainState: MainState }> = [
-  { value: 'PENDING', mainState: 'PENDING' },
-  { value: 'TO_BE_VERIFY', mainState: 'TO_BE_VERIFY' },
-  { value: 'SUCCESS', mainState: 'SUCCESS' },
-  { value: 'FAIL', mainState: 'FAIL' },
-];
-
 const responseCodesByState: Record<MainState, Array<{ label: string; value: string }>> = {
   INIT: [{ label: '61000000 - Initialized', value: '61000000' }],
   PENDING: [
@@ -329,13 +322,13 @@ function businessTypesForEndpoint(endpoint: InboundEndpoint) {
 }
 
 function mainStateForSubState(subState?: string): MainState | undefined {
-  return [...subStates, ...legacyNoStateMachineSubStates].find((item) => item.value === subState)?.mainState;
+  return subStates.find((item) => item.value === subState)?.mainState;
 }
 
 function subStatesForCapability(_channelCode: string, bt?: string, ability?: string) {
   if (!bt || !ability) return [];
   if (isLegacyNoStateMachineCapability(bt, ability)) {
-    return legacyNoStateMachineSubStates;
+    return [];
   }
   if (bt === 'SETTLEMENT_ACCOUNT' && ability === 'BALANCE_QUERY') {
     return subStates.filter((item) => item.value.startsWith('BALANCE_QUERY_'));
@@ -468,15 +461,17 @@ export default function ChannelInfoPage() {
   const selectedBt = Form.useWatch('bt', form);
   const selectedAbility = Form.useWatch('ability', form);
   const selectedSubState = Form.useWatch('subState', form);
+  const selectedMainState = Form.useWatch('mainState', form);
   const searchEndpoint = Form.useWatch('endpoint', searchForm);
   const searchBt = Form.useWatch('bt', searchForm);
   const searchAbility = Form.useWatch('ability', searchForm);
   const bulkEndpoint = Form.useWatch('endpoint', bulkForm);
   const bulkBt = Form.useWatch('bt', bulkForm);
   const selectedRequerySubState = Form.useWatch('subState', requeryForm);
+  const selectedRequeryMainState = Form.useWatch('mainState', requeryForm);
   const selectedRequeryType = Form.useWatch('type', requeryForm);
-  const currentMainState = mainStateForSubState(selectedSubState);
-  const currentRequeryMainState = mainStateForSubState(selectedRequerySubState);
+  const currentMainState: MainState | undefined = isLegacyNoStateMachineCapability(selectedBt, selectedAbility) ? selectedMainState as MainState | undefined : mainStateForSubState(selectedSubState);
+  const currentRequeryMainState: MainState | undefined = isLegacyNoStateMachineCapability(selectedRequeryBt, selectedRequeryAbility) ? selectedRequeryMainState as MainState | undefined : mainStateForSubState(selectedRequerySubState);
   const isExternal = pageKey === 'external-internal';
   const isInternal = pageKey === 'internal-external';
   const isRequery = pageKey === 'requery';
@@ -613,14 +608,14 @@ export default function ChannelInfoPage() {
 
   const saveExternal = async () => {
     const values = await form.validateFields();
-    const mainState = mainStateForSubState(values.subState);
+    const mainState = isLegacyNoStateMachineCapability(values.bt, values.ability) ? values.mainState : mainStateForSubState(values.subState);
     if (!mainState) return;
     const source = pathCapabilities.find((item) => item.path === values.path && item.bt === values.bt && item.ability === values.ability)?.source ?? 'httpCall';
     if (editingExternal) {
       if (applied?.env === 'PROD' && values.subState !== editingExternal.subState) {
         setPendingExternalValues({
           description: values.channelDescription,
-          subState: values.subState,
+          subState: values.subState ?? '',
           mainState,
           responseCode: values.responseCode,
         });
@@ -628,9 +623,9 @@ export default function ChannelInfoPage() {
         setApprovalOpen(true);
         return;
       }
-      setExternalRecords((prev) => prev.map((item) => item.id === editingExternal.id ? { ...item, channelDescription: values.channelDescription, subState: values.subState, mainState, responseCode: values.responseCode } : item));
+      setExternalRecords((prev) => prev.map((item) => item.id === editingExternal.id ? { ...item, channelDescription: values.channelDescription, subState: values.subState ?? '', mainState, responseCode: values.responseCode } : item));
     } else {
-      setExternalRecords((prev) => [{ id: `ext-${Date.now()}`, path: values.path, source, bt: values.bt, ability: values.ability, channelResponseCode: values.channelResponseCode, channelDescription: values.channelDescription, subState: values.subState, mainState, responseCode: values.responseCode }, ...prev]);
+      setExternalRecords((prev) => [{ id: `ext-${Date.now()}`, path: values.path, source, bt: values.bt, ability: values.ability, channelResponseCode: values.channelResponseCode, channelDescription: values.channelDescription, subState: values.subState ?? '', mainState, responseCode: values.responseCode }, ...prev]);
     }
     message.success('External->Internal mapping saved');
     resetForm();
@@ -656,7 +651,7 @@ export default function ChannelInfoPage() {
 
   const saveInternal = async () => {
     const values = await form.validateFields();
-    const mainState = mainStateForSubState(values.subState);
+    const mainState = isLegacyNoStateMachineCapability(values.bt, values.ability) ? values.mainState : mainStateForSubState(values.subState);
     if (!mainState) return;
     if (!values.channelResponseCode && !values.channelStatus) {
       form.setFields([{ name: 'channelResponseCode', errors: ['Fill Channel Response Code or Channel Status'] }, { name: 'channelStatus', errors: ['Fill Channel Status or Channel Response Code'] }]);
@@ -665,7 +660,7 @@ export default function ChannelInfoPage() {
     if (editingInternal) {
       setInternalRecords((prev) => prev.map((item) => item.id === editingInternal.id ? { ...item, description: values.description, channelResponseCode: values.channelResponseCode, channelStatus: values.channelStatus, channelResponseMessage: values.channelResponseMessage } : item));
     } else {
-      setInternalRecords((prev) => [{ id: `int-${Date.now()}`, path: values.path, bt: values.bt, ability: values.ability, subState: values.subState, mainState, responseCode: values.responseCode, description: values.description, channelResponseCode: values.channelResponseCode, channelStatus: values.channelStatus, channelResponseMessage: values.channelResponseMessage }, ...prev]);
+      setInternalRecords((prev) => [{ id: `int-${Date.now()}`, path: values.path, bt: values.bt, ability: values.ability, subState: values.subState ?? '', mainState, responseCode: values.responseCode, description: values.description, channelResponseCode: values.channelResponseCode, channelStatus: values.channelStatus, channelResponseMessage: values.channelResponseMessage }, ...prev]);
     }
     message.success('Internal->External mapping saved');
     resetForm();
@@ -695,7 +690,7 @@ export default function ChannelInfoPage() {
 
   const saveRequery = async () => {
     const values = await requeryForm.validateFields();
-    const mainState = mainStateForSubState(values.subState);
+    const mainState = isLegacyNoStateMachineCapability(selectedRequeryBt, selectedRequeryAbility) ? values.mainState : mainStateForSubState(values.subState);
     if (!mainState) return;
     const responseCodes = values.type === 'ALL' ? [] : values.responseCodes;
     const payload: RequeryStrategy = {
@@ -707,12 +702,12 @@ export default function ChannelInfoPage() {
       frequency: values.frequency,
       durationMin: values.durationMin,
       durationMax: values.durationMax,
-      subState: values.subState,
+      subState: values.subState ?? '',
       mainState,
       type: values.type,
       responseCodes,
-      requeryFlow: findRequeryFlowName(selectedRequeryAction, values.subState),
-      triggerSubState: values.subState,
+      requeryFlow: findRequeryFlowName(selectedRequeryAction, values.subState ?? ''),
+      triggerSubState: values.subState ?? '',
       operator: editingRequery?.operator ?? 'admin',
       operationTime: '2026-07-07 10:42:00',
       enabled: editingRequery?.enabled ?? false,
@@ -1209,14 +1204,15 @@ export default function ChannelInfoPage() {
               onChange={() => searchForm.setFieldsValue({ subState: undefined, mainState: undefined })}
             />
           </Form.Item>
-          <Form.Item name="subState" label="Gateway Sub State">
+          {!isLegacyNoStateMachineCapability(searchBt, searchAbility) && <Form.Item name="subState" label="Gateway Sub State">
             <Select
               allowClear
               disabled={!searchAbility}
               options={searchSubStateOptions}
               placeholder="Loaded by Channel + BT + Ability"
+              onChange={(value) => searchForm.setFieldValue('mainState', mainStateForSubState(value))}
             />
-          </Form.Item>
+          </Form.Item>}
           <Form.Item name="mainState" label="Main State">
             <Select
               allowClear
@@ -1395,11 +1391,11 @@ export default function ChannelInfoPage() {
             render: (_, flow) => flow.triggerEvents?.[0] ?? flow.contextActions?.[0] ?? '-',
           },
           {
-            title: 'Trigger Sub-State',
+            title: 'Trigger State',
             width: 240,
             render: (_, flow) => {
-              const triggerSubState = flow.stateConditions?.find((condition) => condition.field === 'subState')?.value;
-              return flow.triggerType === 'REQUERY_TRIGGERED' && triggerSubState ? <Tag color="gold">{triggerSubState}</Tag> : <span style={{ color: '#999' }}>N/A</span>;
+              const triggerState = flow.stateConditions?.find((condition) => condition.field === 'subState' || condition.field === 'mainState')?.value;
+              return flow.triggerType === 'REQUERY_TRIGGERED' && triggerState ? <Tag color="gold">{triggerState}</Tag> : <span style={{ color: '#999' }}>N/A</span>;
             },
           },
           { title: 'Operation', width: 270, fixed: 'right', render: (_, flow) => <Space size="small"><Button type="link" size="small" onClick={() => openTimeoutConfig(detail.ability, detail.group, flow)}>Timeout Config</Button><Button type="link" size="small" onClick={() => setRuntimeDetailView({ kind: 'flow-canvas', ability: detail.ability, group: detail.group, flowId: flow.id })}>View Components</Button></Space> },
@@ -1800,17 +1796,17 @@ export default function ChannelInfoPage() {
         <Form form={form} layout="vertical" style={{ marginTop: 12 }}>
           {isExternal ? (
             <>
-              <Form.Item name="path" label="Endpoint" rules={[{ required: true }]}><Select disabled={!!editingExternal} options={externalEndpointOptions} onChange={() => form.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item name="path" label="Endpoint" rules={[{ required: true }]}><Select disabled={!!editingExternal} options={externalEndpointOptions} onChange={() => form.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
               <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}><Select disabled={!!editingExternal || !selectedPath} options={externalBtOptions} onChange={() => form.setFieldsValue({ ability: undefined })} /></Form.Item>
-              <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!!editingExternal || !selectedBt} options={externalAbilityOptions} onChange={() => form.setFieldsValue({ subState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!!editingExternal || !selectedBt} options={externalAbilityOptions} onChange={() => form.setFieldsValue({ subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
               <Form.Item name="channelResponseCode" label="Channel Response Code" rules={[{ required: true }]}><Input disabled={!!editingExternal} /></Form.Item>
               <Form.Item name="channelDescription" label="Description" rules={[{ required: true }]}><Input /></Form.Item>
             </>
           ) : (
             <>
-              <Form.Item name="path" label="Endpoint" rules={[{ required: true }]}><Select disabled={!!editingInternal} options={internalEndpointOptions} onChange={() => form.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, responseCode: undefined })} /></Form.Item>
-              <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}><Select disabled={!!editingInternal || !selectedPath} options={internalBtOptions} onChange={() => form.setFieldsValue({ ability: undefined, subState: undefined, responseCode: undefined })} /></Form.Item>
-              <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!!editingInternal || !selectedBt} options={internalAbilityOptions} onChange={() => form.setFieldsValue({ subState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item name="path" label="Endpoint" rules={[{ required: true }]}><Select disabled={!!editingInternal} options={internalEndpointOptions} onChange={() => form.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}><Select disabled={!!editingInternal || !selectedPath} options={internalBtOptions} onChange={() => form.setFieldsValue({ ability: undefined, subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!!editingInternal || !selectedBt} options={internalAbilityOptions} onChange={() => form.setFieldsValue({ subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
             </>
           )}
           {(isExternal || (isInternal && selectedBt && selectedAbility)) && (
@@ -1832,7 +1828,7 @@ export default function ChannelInfoPage() {
               )}
             </div>
           )}
-          <Form.Item label="Gateway Sub State" required>
+          {!isNoStateMachine(stateMachineName) && <><Form.Item label="Gateway Sub State" required>
             <Space.Compact style={{ width: '100%' }}>
               <Form.Item name="subState" noStyle rules={[{ required: true, message: 'Select Gateway Sub State' }]}>
                 <Select
@@ -1866,8 +1862,10 @@ export default function ChannelInfoPage() {
               description="The selected Gateway Sub State has changed. In PROD, this change must be submitted for approval. The field cannot be locked again until the change is saved or discarded."
               style={{ marginBottom: 16 }}
             />
-          )}
-          <Form.Item label="Main State"><Input value={currentMainState ?? ''} disabled placeholder="Auto-filled from selected Gateway Sub State" /></Form.Item>
+          )}</>}
+          {isNoStateMachine(stateMachineName)
+            ? <Form.Item name="mainState" label="Main State" rules={[{ required: true }]}><Select options={(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'] as MainState[]).map((value) => ({ label: value, value }))} placeholder="Select main state" /></Form.Item>
+            : <Form.Item label="Main State"><Input value={currentMainState ?? ''} disabled placeholder="Auto-filled from selected Gateway Sub State" /></Form.Item>}
           <Form.Item name="responseCode" label="Response Code" rules={[{ required: true }]}><Select disabled={!!editingInternal || !currentMainState} options={currentMainState ? responseCodesByState[currentMainState] : []} /></Form.Item>
           {!isExternal && (
             <>
@@ -1948,12 +1946,14 @@ export default function ChannelInfoPage() {
               </Form.Item>
             </Space.Compact>
           </Form.Item>
-          <Form.Item name="subState" label="Gateway Sub State" rules={[{ required: true }]}>
-            <Select options={requerySubStateOptions} placeholder="Select sub state" onChange={() => requeryForm.setFieldsValue({ responseCodes: undefined })} />
-          </Form.Item>
-          <Form.Item label="Main State">
-            <Input value={currentRequeryMainState ?? ''} disabled placeholder="Auto-filled from selected Gateway Sub State" />
-          </Form.Item>
+          {isNoStateMachine(requeryStateMachineName)
+            ? <Form.Item name="mainState" label="Main State" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }]} placeholder="Select main state" onChange={() => requeryForm.setFieldsValue({ responseCodes: undefined })} /></Form.Item>
+            : <><Form.Item name="subState" label="Gateway Sub State" rules={[{ required: true }]}>
+              <Select options={requerySubStateOptions} placeholder="Select sub state" onChange={() => requeryForm.setFieldsValue({ responseCodes: undefined })} />
+            </Form.Item>
+            <Form.Item label="Main State">
+              <Input value={currentRequeryMainState ?? ''} disabled placeholder="Auto-filled from selected Gateway Sub State" />
+            </Form.Item></>}
           <Form.Item name="type" label="type" rules={[{ required: true }]}>
             <Select
               placeholder="Select a response code"
