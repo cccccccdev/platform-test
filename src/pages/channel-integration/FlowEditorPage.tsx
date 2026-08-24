@@ -1965,6 +1965,7 @@ export default function FlowEditorPage() {
     : undefined;
   const inboundPathVariables = [...(inboundUri?.url ?? '').matchAll(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g)].map((match) => match[1]);
   const triggerSubState = storedFlow?.stateConditions?.find((condition) => condition.field === 'subState')?.value;
+  const triggerMainState = storedFlow?.stateConditions?.find((condition) => condition.field === 'mainState')?.value;
   const isInboundFlow = storedFlow?.triggerType === 'EXTERNAL_INBOUND_TRIGGERED' || storedFlow?.triggerType === 'CALLBACK_TRIGGERED';
   const availableComponents = componentsForScope(componentScopeForTrigger(storedFlow?.triggerType));
   const componentCounts = nodes.reduce<Record<string, number>>((counts, node) => {
@@ -1988,12 +1989,12 @@ export default function FlowEditorPage() {
   const triggerConditionLabel = isInboundFlow
     ? 'Inbound URI'
     : storedFlow?.triggerType === 'REQUERY_TRIGGERED'
-      ? 'Sub-state'
+      ? triggerSubState ? 'Sub-state' : 'Main State'
       : null;
   const triggerConditionValue = isInboundFlow
     ? inboundUri ? `${inboundUri.method} ${inboundUri.url}` : storedFlow?.inboundUriId
     : storedFlow?.triggerType === 'REQUERY_TRIGGERED'
-      ? triggerSubState
+      ? triggerSubState ?? triggerMainState
       : 'N/A';
 
   const mockEndpoints = [
@@ -2440,6 +2441,7 @@ export default function FlowEditorPage() {
         initialValues={selectedConfig}
         readOnly={readOnly}
         channelMerchantInfoAvailable={channelMerchantInfoAvailable}
+        stateMachine={storedAbility?.stateMachine ?? ''}
         onClose={() => setShowHttpCallDrawer(false)}
         onSave={(config) => {
           console.log('HTTP Call config saved:', config);
@@ -2524,6 +2526,7 @@ export default function FlowEditorPage() {
         readOnly={readOnly}
         endpointPath={inboundUri?.url}
         pathVariables={inboundPathVariables}
+        stateMachine={storedAbility?.stateMachine ?? ''}
         onClose={() => setShowInboundRequestDrawer(false)}
         onSave={(config) => {
           console.log('Inbound Request config saved:', config);
