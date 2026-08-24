@@ -10,7 +10,7 @@ const { Text } = Typography;
 
 const firstValue = (value?: string | string[]) => Array.isArray(value) ? value[0] : value;
 const triggerActionOf = (flow: FlowConfig) => flow.triggerEvents?.[0] ?? flow.contextActions?.[0];
-const triggerSubStateOf = (flow: FlowConfig) => flow.stateConditions?.find((condition) => condition.field === 'subState')?.value;
+const triggerStateOf = (flow: FlowConfig) => flow.stateConditions?.find((condition) => condition.field === 'subState' || condition.field === 'mainState')?.value;
 
 // Trigger Type options with descriptions
 const triggerTypeOptions = [
@@ -101,6 +101,7 @@ export default function FlowConfigModal({
     form.setFieldValue('originalRequestAction', undefined);
     form.setFieldValue('referenceActions', undefined);
     form.setFieldValue('triggerSubState', undefined);
+    form.setFieldValue('triggerMainState', undefined);
     form.setFieldValue('inboundUriId', undefined);
     form.setFieldValue('template', undefined);
   };
@@ -134,7 +135,7 @@ export default function FlowConfigModal({
   const validateFlowRouteKey = (values: any) => {
     const action = firstValue(values.triggerAction) ?? firstValue(values.originalRequestAction) ?? firstValue(values.referenceActions);
     const uri = values.inboundUriId;
-    const subState = values.triggerSubState;
+    const triggerState = values.triggerSubState ?? values.triggerMainState;
 
     if ((triggerType === 'UPSTREAM_TRIGGERED' || triggerType === 'ASYNC_TRIGGERED') && action) {
       const duplicate = existingFlows.some((flow) => flow.triggerType === triggerType && triggerActionOf(flow) === action);
@@ -159,16 +160,16 @@ export default function FlowConfigModal({
       }
     }
 
-    if (triggerType === 'REQUERY_TRIGGERED' && subState && action) {
+    if (triggerType === 'REQUERY_TRIGGERED' && triggerState && action) {
       const duplicate = existingFlows.some((flow) =>
         flow.triggerType === 'REQUERY_TRIGGERED' &&
-        triggerSubStateOf(flow) === subState &&
+        triggerStateOf(flow) === triggerState &&
         triggerActionOf(flow) === action
       );
       if (duplicate) {
         form.setFields([
-          { name: 'triggerSubState', errors: ['Sub-State + Action already exists in current Version'] },
-          { name: actionField, errors: ['Sub-State + Action already exists in current Version'] },
+          { name: availableSubStates.length ? 'triggerSubState' : 'triggerMainState', errors: ['Trigger State + Action already exists in current Version'] },
+          { name: actionField, errors: ['Trigger State + Action already exists in current Version'] },
         ]);
         return false;
       }
@@ -203,6 +204,7 @@ export default function FlowConfigModal({
         return;
       }
       if (!validateFlowRouteKey(values)) return;
+      const triggerState = values.triggerSubState ?? values.triggerMainState;
 
       const config: FlowConfig = {
         id: `flow_${Date.now()}`,
@@ -218,8 +220,8 @@ export default function FlowConfigModal({
         // Ensure triggerEvents is always an array
         triggerEvents: Array.isArray(values.triggerAction) ? values.triggerAction : values.triggerAction ? [values.triggerAction] : Array.isArray(values.originalRequestAction) ? values.originalRequestAction : values.originalRequestAction ? [values.originalRequestAction] : [],
         contextActions: Array.isArray(values.referenceActions) ? values.referenceActions : values.referenceActions ? [values.referenceActions] : [],
-        stateConditions: values.triggerSubState
-          ? [{ id: 'trigger-sub-state', field: 'subState', operator: '==', value: values.triggerSubState }]
+        stateConditions: triggerType === 'REQUERY_TRIGGERED' && triggerState
+          ? [{ id: availableSubStates.length ? 'trigger-sub-state' : 'trigger-main-state', field: availableSubStates.length ? 'subState' : 'mainState', operator: '==', value: triggerState }]
           : [],
         inboundUriId: values.inboundUriId,
         isConfigured: false,
@@ -294,7 +296,7 @@ export default function FlowConfigModal({
       case 'REQUERY_TRIGGERED':
         return (
           <>
-            <Form.Item
+            {availableSubStates.length ? <Form.Item
               name="triggerSubState"
               label="Trigger Sub-State"
               rules={[
@@ -311,7 +313,7 @@ export default function FlowConfigModal({
                 disabled={availableSubStates.length === 0}
                 options={availableSubStates.map((subState) => ({ label: subState, value: subState }))}
               />
-            </Form.Item>
+            </Form.Item> : <Form.Item name="triggerMainState" label="Trigger Main State" rules={[{ required: true, message: 'Please select Trigger Main State' }]}><Select placeholder="Select Trigger Main State" options={['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'].map((value) => ({ label: value, value }))} /></Form.Item>}
             <Form.Item
               name="referenceActions"
               label={actionLabel('Reference Action')}

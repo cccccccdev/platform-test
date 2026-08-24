@@ -16,7 +16,6 @@ import CodeGuidePage from '../pages/channel-integration/CodeGuidePage';
 import ChannelInfoPage from '../pages/channel-integration/ChannelInfoPage';
 import RuntimeFlowCanvasPage from '../pages/channel-integration/RuntimeFlowCanvasPage';
 import MetadataPage from '../pages/channel-integration/MetadataPage';
-import CredentialPage from '../pages/channel-integration/CredentialPage';
 import ConfigIntegrationOverviewPage from '../pages/channel-integration/ConfigIntegrationOverviewPage';
 
 
@@ -123,7 +122,6 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/party', element: <div style={{ padding: 24 }}>Party Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
-      { path: 'channel-integration/:channelCode/credential', element: <CredentialPage /> },
       { path: 'channel-integration/:channelCode/metadata', element: <MetadataPage /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matchina', element: <RuntimeRouteMatchingTypoRedirect /> },

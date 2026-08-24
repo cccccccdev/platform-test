@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, Card, Cascader, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useChannelScopeStore } from './channelScopeStore';
 import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappingEditor';
 import FlatFieldMappingEditor from './FlatFieldMappingEditor';
@@ -8,6 +8,7 @@ import { mappingOperationOptions } from './mappingOperationOptions';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import PathVariableMappingEditor from './PathVariableMappingEditor';
 import { collectFieldTargetMappings, normalizeTargetMappings, validateTargetMappings } from './TargetMappingList';
+import { fallbackStateOptionsFor } from './stateMachineStateOptions';
 
 const { Text } = Typography;
 const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -134,11 +135,12 @@ type Props = {
   initialValues?: Record<string, unknown>;
   readOnly?: boolean;
   channelMerchantInfoAvailable?: boolean;
+  stateMachine?: string;
   onClose: () => void;
   onSave: (config: Record<string, unknown>) => void;
 };
 
-export default function HttpCallDrawer({ open, channelCode, initialValues = {}, readOnly = false, channelMerchantInfoAvailable = false, onClose, onSave }: Props) {
+export default function HttpCallDrawer({ open, channelCode, initialValues = {}, readOnly = false, channelMerchantInfoAvailable = false, stateMachine = '', onClose, onSave }: Props) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('request');
   const [, force] = useState(0);
@@ -147,6 +149,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   const globals = store.globalVariablesByChannel[channelCode] ?? [];
   const orders = store.orderVariablesByChannel[channelCode] ?? [];
   const auth = store.authenticationsByChannel[channelCode] ?? [];
+  const endpoints = store.outboundEndpointsByChannel[channelCode] ?? [];
   const spiRequest = channelCode === 'EVEXIN'
     ? ['content', 'mobileNumber', 'requestReference', 'responseReference']
     : ['amount', 'currency', 'reference', 'customerId', 'accountNumber', 'bankCode', 'timestamp'];
@@ -184,8 +187,10 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   const requestFormat = Form.useWatch('requestFormat', form) ?? 'JSON';
   const responseFormat = Form.useWatch('responseFormat', form) ?? 'JSON';
   const watchedValues = Form.useWatch([], form) ?? {};
-  const initialFormValues = { protocol: 'HTTP', requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all', ...initialValues };
+  const initialEndpoint = endpoints.find((endpoint) => endpoint.id === initialValues.endpointId) ?? endpoints.find((endpoint) => endpoint.path === initialValues.path);
+  const initialFormValues = { protocol: initialEndpoint?.protocol ?? 'HTTP', method: initialEndpoint?.method, path: initialEndpoint?.path, endpointId: initialEndpoint?.id, endpointVersion: initialEndpoint?.version, requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all', ...initialValues };
   const allValues = { ...initialFormValues, ...form.getFieldsValue(true), ...watchedValues } as Record<string, any>;
+  const selectedEndpoint = endpoints.find((endpoint) => endpoint.id === allValues.endpointId);
   const requestBody = allValues.requestBody as BodySchemaNode[] | undefined;
   const requestBodyOptions = collectBodyOptions(requestBody ?? []);
   const responseBody = allValues.responseBody as BodySchemaNode[] | undefined;
@@ -197,6 +202,9 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   const verificationEnabled = Form.useWatch('verificationEnabled', form);
   const decryptionEnabled = Form.useWatch('decryptionEnabled', form);
   const responseCodeMode = Form.useWatch('responseCodeMode', form) ?? 'default';
+  const responseFallback = Form.useWatch('responseFallback', form);
+  const fallbackSubStates = useMemo(() => fallbackStateOptionsFor(stateMachine), [stateMachine]);
+  const matchingFallbackSubStates = fallbackSubStates.filter((item) => item.mainState === responseFallback);
   const path = allValues.path ?? '';
   const pathVariables = useMemo(() => {
     const found: string[] = [];
@@ -248,7 +256,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
       if (allValues.responseFormat === 'Custom' && !hasValue(allValues.responseMessageScript)) return 'error';
       return 'ok';
     }
-    if (key === 'responseCode') return hasValue(allValues.responseFallback) && (responseCodeMode === 'custom' ? hasValue(allValues.responseCodeScript) : hasRows(allValues.responseCodeAssembly)) ? 'ok' : 'error';
+    if (key === 'responseCode') return hasValue(allValues.responseFallback) && hasValue(allValues.responseFallbackSubState) && (responseCodeMode === 'custom' ? hasValue(allValues.responseCodeScript) : hasRows(allValues.responseCodeAssembly)) ? 'ok' : 'error';
     if (key === 'request') return mergeTabStates([state('requestFields'), state('authorization'), state('requestSecurity'), state('requestFormat')]);
     if (key === 'response') return mergeTabStates([state('responseFormat'), state('responseFields'), state('responseSecurity'), state('responseCode')]);
     return 'empty';
@@ -269,18 +277,22 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
       ...collectFieldTargetMappings(values.responseBody),
     ]);
     if (mappingError) return void message.error(mappingError);
-    onSave({ ...values, protocol: 'HTTP' });
+    const endpoint = endpoints.find((item) => item.id === values.endpointId);
+    onSave({ ...values, method: endpoint?.method, protocol: endpoint?.protocol, path: endpoint?.path, endpointVersion: endpoint?.version });
   };
 
-  return <Drawer title={<Space><span>Configure HTTP Call</span><Tag color="blue">httpCall</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void handleSave()}>Save</Button></Space>}>
+  return <Drawer title={<Space><span>Config Http</span></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void handleSave()}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ token: { fontSize: 14, controlHeight: 32, borderRadius: 5, paddingSM: 10, marginSM: 10, marginXS: 6 }, components: { Form: { itemMarginBottom: 10 }, Card: { bodyPadding: 12, headerHeight: 36 }, Tabs: { horizontalMargin: '0 0 10px 0' } } }}>
-    <div style={{ fontSize: 14 }}><Form form={form} disabled={readOnly} layout="vertical" initialValues={{ protocol: 'HTTP', requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all', ...initialValues }} onValuesChange={() => force(v => v + 1)}>
+    <div style={{ fontSize: 14 }}><Form form={form} disabled={readOnly} layout="vertical" initialValues={initialFormValues} onValuesChange={() => force(v => v + 1)}>
       <Card size="small" style={{ marginBottom: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '120px 130px minmax(420px, 1fr)', gap: 10 }}>
-          <Form.Item label="Method" name="method" rules={[{ required: true }]}><Select options={['POST', 'GET', 'PUT', 'DELETE'].map(value => ({ label: value, value }))} /></Form.Item>
-          <Form.Item label="Protocol" name="protocol"><Input disabled value="HTTP" /></Form.Item>
-          <Form.Item label="Path" name="path" rules={[{ required: true, message: 'Enter request path' }]}><Input placeholder="/collection/{version}/request-to-pay" /></Form.Item>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}><Space><Text strong>http</Text><Tag color="blue">HTTP Call</Tag></Space><Space><Text type="secondary" style={{ fontSize: 12 }}>Endpoint Version</Text><Tag>{selectedEndpoint?.version ?? (allValues.endpointId ? allValues.endpointVersion : undefined) ?? '—'}</Tag></Space></div>
+        <div style={{ display: 'grid', gridTemplateColumns: '90px 90px minmax(420px, 1fr) auto', gap: 8, alignItems: 'start' }}>
+          <Form.Item name="method"><Input disabled value={selectedEndpoint?.method ?? allValues.method ?? ''} /></Form.Item>
+          <Form.Item name="protocol"><Input disabled value={selectedEndpoint?.protocol ?? allValues.protocol ?? ''} /></Form.Item>
+          <Form.Item name="endpointId" rules={[{ required: true, message: 'Select an Endpoint' }]}><Select showSearch optionFilterProp="label" placeholder="Select Endpoint" options={endpoints.map((endpoint) => ({ value: endpoint.id, label: endpoint.path }))} onChange={(endpointId) => { const endpoint = endpoints.find((item) => item.id === endpointId); form.setFieldsValue({ method: endpoint?.method, protocol: endpoint?.protocol, path: endpoint?.path, endpointVersion: endpoint?.version }); force((value) => value + 1); }} /></Form.Item>
+          <Button icon={<ReloadOutlined />} onClick={() => message.success('Endpoint list refreshed')}>Refresh</Button>
         </div>
+        <Text type="secondary" style={{ fontSize: 11 }}>Fields &amp; Mapping uses the selected endpoint version.</Text>
       </Card>
       <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
         { key: 'request', label: tabLabel('Request', state('request')), children: <Tabs size="small" tabBarGutter={16} items={[
@@ -308,7 +320,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
             { key: 'order-variable', label: tabLabel('Order Variable', state('responseOrderMappings')), children: <OrderVariableMapping name="responseOrderMappings" title="Order Variable to SPI Mapping" sourceLabel="ORDER VARIABLE" targetLabel="SPI VALUE" sourceOptions={orderOptions} targetOptions={spiResOptions} /> },
           ]} />{responseMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="responseMappingScript" helpText={responseScriptHelp} /></Card>}</> },
           { key: 'response-security', label: tabLabel('Security', state('responseSecurity')), children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('response').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('response').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
-          { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small"><Form.Item name="responseFallback" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'FAIL', value: 'FAIL' }, { label: 'PENDING', value: 'PENDING' }]} /></Form.Item><Form.Item name="responseCodeMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{responseCodeMode === 'custom' ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." /> : <><Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select in assembly order" options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, ...responseBodyOptions.map((option) => ({ label: `Response Body / ${option.label}`, value: `responseBody.${option.value}` }))]} /></Form.Item><Form.Item name="responseMessageField" label="Response Message Field"><Input placeholder="Optional response field path" /></Form.Item></>}</Card> },
+          { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small"><Form.Item name="responseFallback" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('responseFallbackSubState', undefined)} /></Form.Item><Form.Item label="Main State"><Input disabled value={responseFallback ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item><Form.Item name="responseFallbackSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!responseFallback} placeholder={responseFallback ? `Select a ${responseFallback} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item><Form.Item name="responseCodeMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{responseCodeMode === 'custom' ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." /> : <><Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select in assembly order" options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, ...responseBodyOptions.map((option) => ({ label: `Response Body / ${option.label}`, value: `responseBody.${option.value}` }))]} /></Form.Item><Form.Item name="responseMessageField" label="Response Message Field"><Input placeholder="Optional response field path" /></Form.Item></>}</Card> },
         ]} /> },
       ]} />
     </Form></div>
