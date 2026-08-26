@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Cascader, Form, Input, Modal, Select, Typography } from 'antd';
 import { ArrowRightOutlined } from '@ant-design/icons';
+import MappingOperationSelector, { type DecimalScaleConfig, type MappingOperationOption } from './MappingOperationSelector';
 
 const { Text } = Typography;
 
@@ -14,7 +15,7 @@ interface Props {
   variables: string[];
   mappingName: string;
   sourceOptions: PathSourceOption[];
-  operationOptions: Array<{ label: string; value: string; children?: Array<{ label: string; value: string }> }>;
+  operationOptions: MappingOperationOption[];
   emptyText: string;
 }
 
@@ -52,6 +53,8 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
         <Form.Item key={variable} noStyle shouldUpdate>
           {({ getFieldValue }) => {
             const source = getFieldValue([mappingName, variable, 'source']) as string[] | undefined;
+            const operation = getFieldValue([mappingName, variable, 'operation']) as string[] | undefined;
+            const operationConfig = getFieldValue([mappingName, variable, 'operationConfig']) as DecimalScaleConfig | undefined;
             return (
               <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
                 <Form.Item name={[mappingName, variable, 'source']} rules={[{ required: true, message: 'Select value source' }]} style={{ margin: 0 }}>
@@ -66,9 +69,10 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
                 </Form.Item>
                 <Text>{selectedType(sourceOptions, source)}</Text>
                 <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                <Form.Item name={[mappingName, variable, 'operation']} style={{ margin: 0 }}>
-                  <Cascader allowClear placeholder="Optional" options={operationOptions} expandTrigger="click" />
-                </Form.Item>
+                <MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={operationOptions} dataDirection="outbound" onChange={(nextOperation, nextConfig) => {
+                  form.setFieldValue([mappingName, variable, 'operation'], nextOperation);
+                  form.setFieldValue([mappingName, variable, 'operationConfig'], nextConfig);
+                }} />
                 <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
                 <Input value={`{${variable}}`} disabled />
                 <Text>String</Text>

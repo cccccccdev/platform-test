@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import TargetMappingList, { createTargetMapping, normalizeTargetMappings, TargetMappingColumnHeaders } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
+import MappingOperationSelector, { type DecimalScaleConfig, type MappingOperationOption } from './MappingOperationSelector';
 
 const { Text } = Typography;
 
@@ -25,6 +26,7 @@ export interface BodySchemaNode {
   description?: string;
   sourceId?: string | string[];
   operation?: string | string[];
+  operationConfig?: DecimalScaleConfig;
   targetValue?: string;
   targetMappings?: TargetMapping[];
   generatedDataConfig?: { mode: 'default' | 'customPrefix'; prefix?: string };
@@ -50,7 +52,7 @@ interface Props {
   onChange?: (value: BodySchemaNode[]) => void;
   sourceOptions: MappingOption[];
   dataTypeOptions: Array<{ label: string; value: string }>;
-  operationOptions: Array<{ label: string; value: string; children?: Array<{ label: string; value: string }> }>;
+  operationOptions: MappingOperationOption[];
   direction?: 'request' | 'response';
   targetOptions?: MappingOption[];
   sourcePlaceholder?: string;
@@ -158,6 +160,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
   const [rootType, setRootType] = useState('Object');
   const [rootSourceId, setRootSourceId] = useState<string[]>([]);
   const [rootOperation, setRootOperation] = useState<string[]>([]);
+  const [rootOperationConfig, setRootOperationConfig] = useState<DecimalScaleConfig>();
   const [rootTargetMappings, setRootTargetMappings] = useState<TargetMapping[]>([]);
   const [dragState, setDragState] = useState<DragState>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -323,7 +326,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceId) => selectNodeSource(path, sourceId as string[])} />
             <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, node.sourceId)}</Text>
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-            <Cascader allowClear value={node.operation as string[] | undefined} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(operation) => updateNode(path, { operation: operation as string[] })} />
+            <MappingOperationSelector value={node.operation as string[] | undefined} config={node.operationConfig} options={operationOptions} dataDirection="outbound" onChange={(operation, operationConfig) => updateNode(path, { operation, operationConfig })} />
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
           </>)}
           <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, paddingLeft: depth * 20 }}>
@@ -347,6 +350,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
               value={normalizeTargetMappings(node)}
               targetOptions={targetOptions}
               operationOptions={operationOptions}
+              dataDirection="inbound"
               targetPlaceholder={targetPlaceholder}
               reservedTargetValues={collectTargetValues(value, node.id)}
               onChange={(targetMappings) => updateNode(path, { targetMappings, operation: undefined, targetValue: undefined })}
@@ -397,7 +401,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
               <Cascader value={rootSourceId} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(next) => setRootSourceId(next as string[])} />
               <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, rootSourceId)}</Text>
               <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-              <Cascader allowClear value={rootOperation} placeholder="Select operation (optional)" options={operationOptions} expandTrigger="click" onChange={(next) => setRootOperation(next as string[])} />
+              <MappingOperationSelector value={rootOperation} config={rootOperationConfig} options={operationOptions} dataDirection="outbound" onChange={(operation, operationConfig) => { setRootOperation(operation ?? []); setRootOperationConfig(operationConfig); }} />
               <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
             </>)}
             <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -414,6 +418,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
                 value={rootTargetMappings}
                 targetOptions={targetOptions}
                 operationOptions={operationOptions}
+                dataDirection="inbound"
                 targetPlaceholder={targetPlaceholder}
                 reservedTargetValues={collectTargetValues(value)}
                 onChange={setRootTargetMappings}

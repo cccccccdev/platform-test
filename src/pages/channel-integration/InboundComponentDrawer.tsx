@@ -11,15 +11,15 @@ import type { TargetMapping } from './TargetMappingList';
 import { fallbackStateOptionsFor } from './stateMachineStateOptions';
 
 const { Text } = Typography;
-const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
+const types = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
 const flatTypes = types.filter((item) => !['Object', 'Array'].includes(item.value));
 const formats = ['Custom', 'FORM_DATA', 'JSON', 'X_WWW_FORM_URLENCODED', 'XML'].map((value) => ({ label: value, value }));
 const signing = ['Custom', 'HMAC (SHA256)', 'HMAC (SHA512)', 'MD5', 'RSA (SHA1)', 'RSA (SHA256)', 'RSA (SHA512)', 'SHA1', 'SHA256', 'SHA512'].map((value) => ({ label: value, value }));
 const encryption = ['AES (CBC)', 'AES (ECB)', 'Custom', 'RSA'].map((value) => ({ label: value, value }));
 const spiRequest = ['amount', 'currency', 'requestReference', 'responseReference', 'customerId', 'accountNumber', 'channelResponseCode', 'channelResponseMessage'];
 const spiResponse = ['responseCode', 'responseMessage', 'status', 'requestReference', 'channelReference', 'amount', 'currency'];
-const spiRequestOptions = [{ label: 'SPI Request', options: spiRequest.map((value) => ({ label: value, value: `spi.request.${value}`, type: 'String' })) }];
-const spiResponseOptions = [{ label: 'SPI Response', options: spiResponse.map((value) => ({ label: value, value: `spi.response.${value}`, type: 'String' })) }];
+const spiRequestOptions = [{ label: 'SPI Request', options: spiRequest.map((value) => ({ label: value, value: `spi.request.${value}`, type: value === 'amount' ? 'BigDecimal' : 'String' })) }];
+const spiResponseOptions = [{ label: 'SPI Response', options: spiResponse.map((value) => ({ label: value, value: `spi.response.${value}`, type: value === 'amount' ? 'BigDecimal' : 'String' })) }];
 const Dot = ({ color }: { color: string }) => <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 7, background: color }} />;
 type TabState = 'empty' | 'ok' | 'error';
 const tabLabel = (label: string, state: TabState) => <Space size={6}><span>{label}</span>{state !== 'empty' && <Dot color={state === 'ok' ? '#52c41a' : '#ff4d4f'} />}</Space>;
@@ -183,6 +183,7 @@ function InboundPathVariableTargetMappings({ variable, variables }: { variable: 
     value={mappings}
     targetOptions={spiRequestOptions}
     operationOptions={mappingOperationOptions}
+    dataDirection="inbound"
     targetPlaceholder="SPI request field"
     reservedTargetValues={reservedTargetValues}
     onChange={update}

@@ -1,11 +1,13 @@
 import { ArrowRightOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Cascader, Select, Tooltip, Typography } from 'antd';
+import { Button, Select, Tooltip, Typography } from 'antd';
+import MappingOperationSelector, { type DecimalScaleConfig, type DecimalScaleDirection, type MappingOperationOption } from './MappingOperationSelector';
 
 const { Text } = Typography;
 
 export interface TargetMapping {
   id: string;
   operation?: string[];
+  operationConfig?: DecimalScaleConfig;
   targetValue?: string;
 }
 
@@ -23,13 +25,12 @@ export interface MappingOptionGroup {
 
 export type TargetMappingOption = MappingValueOption | MappingOptionGroup;
 
-type OperationOption = { label: string; value: string; children?: Array<{ label: string; value: string }> };
-
 export const normalizeTargetMappings = (source: {
   id?: string;
   targetMappings?: TargetMapping[];
   targetValue?: string;
   operation?: string | string[];
+  operationConfig?: DecimalScaleConfig;
 }): TargetMapping[] => {
   if (source.targetMappings) return source.targetMappings;
   if (!source.targetValue) return [];
@@ -37,6 +38,7 @@ export const normalizeTargetMappings = (source: {
     id: `legacy_${source.id ?? source.targetValue}`,
     targetValue: source.targetValue,
     operation: Array.isArray(source.operation) ? source.operation : source.operation ? [source.operation] : undefined,
+    operationConfig: source.operationConfig,
   }];
 };
 
@@ -54,7 +56,7 @@ export const collectFieldTargetMappings = (fields: unknown): TargetMapping[] => 
   if (!Array.isArray(fields)) return [];
   return fields.flatMap((field) => {
     if (!field || typeof field !== 'object') return [];
-    const record = field as { id?: string; targetMappings?: TargetMapping[]; targetValue?: string; operation?: string | string[]; children?: unknown };
+    const record = field as { id?: string; targetMappings?: TargetMapping[]; targetValue?: string; operation?: string | string[]; operationConfig?: DecimalScaleConfig; children?: unknown };
     return [...normalizeTargetMappings(record), ...collectFieldTargetMappings(record.children)];
   });
 };
@@ -90,14 +92,16 @@ export default function TargetMappingList({
   targetPlaceholder,
   reservedTargetValues = [],
   onRemoveLast,
+  dataDirection,
 }: {
   value: TargetMapping[];
   onChange: (value: TargetMapping[]) => void;
   targetOptions: TargetMappingOption[];
-  operationOptions: OperationOption[];
+  operationOptions: MappingOperationOption[];
   targetPlaceholder: string;
   reservedTargetValues?: string[];
   onRemoveLast?: () => void;
+  dataDirection: DecimalScaleDirection;
 }) {
   const update = (id: string, updates: Partial<TargetMapping>) => onChange(value.map((mapping) => mapping.id === id ? { ...mapping, ...updates } : mapping));
   const addAfter = (id: string) => {
@@ -132,7 +136,7 @@ export default function TargetMappingList({
       key={mapping.id}
       style={{ display: 'grid', gridTemplateColumns: targetMappingColumns, gap: 6, alignItems: 'center', padding: '4px 0', borderTop: '1px solid #f2f3f5' }}
     >
-      <Cascader allowClear value={mapping.operation} placeholder="Operation (optional)" options={operationOptions} expandTrigger="click" onChange={(operation) => update(mapping.id, { operation: operation as string[] })} />
+      <MappingOperationSelector value={mapping.operation} config={mapping.operationConfig} placeholder="Operation (optional)" options={operationOptions} dataDirection={dataDirection} onChange={(operation, operationConfig) => update(mapping.id, { operation, operationConfig })} />
       <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
       <Select status={!mapping.targetValue ? 'error' : undefined} value={mapping.targetValue} placeholder={targetPlaceholder} options={optionsFor(mapping)} onChange={(targetValue) => update(mapping.id, { targetValue })} />
       <Text style={{ fontSize: 11 }}>{targetOptionType(targetOptions, mapping.targetValue)}</Text>
