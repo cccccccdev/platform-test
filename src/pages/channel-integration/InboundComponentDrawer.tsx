@@ -183,7 +183,6 @@ function InboundPathVariableTargetMappings({ variable, variables }: { variable: 
     value={mappings}
     targetOptions={spiRequestOptions}
     operationOptions={mappingOperationOptions}
-    dataDirection="inbound"
     targetPlaceholder="SPI request field"
     reservedTargetValues={reservedTargetValues}
     onChange={update}

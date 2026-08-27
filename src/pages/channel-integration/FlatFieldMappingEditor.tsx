@@ -161,7 +161,7 @@ export default function FlatFieldMappingEditor({
                     : <Select value={item.sourceValue as string | undefined} placeholder={sourcePlaceholder} options={sourceOptions} onChange={(sourceValue) => update(index, { sourceValue })} />}
                   <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, item.sourceValue)}</Text>
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                  <MappingOperationSelector value={item.operation as string[] | undefined} config={item.operationConfig} options={operationOptions} dataDirection={direction === 'request' ? 'outbound' : 'inbound'} onChange={(operation, operationConfig) => update(index, { operation, operationConfig })} />
+                  <MappingOperationSelector value={item.operation as string[] | undefined} config={item.operationConfig} options={operationOptions} onChange={(operation, operationConfig) => update(index, { operation, operationConfig })} />
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
                 </> : null}
                 <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
@@ -176,7 +176,6 @@ export default function FlatFieldMappingEditor({
                     value={normalizeTargetMappings(item)}
                     targetOptions={targetOptions}
                     operationOptions={operationOptions}
-                    dataDirection="inbound"
                     targetPlaceholder={targetPlaceholder}
                     reservedTargetValues={value.flatMap((other, otherIndex) => otherIndex === index ? [] : normalizeTargetMappings(other).map((mapping) => mapping.targetValue).filter((target): target is string => Boolean(target)))}
                     onChange={(targetMappings) => update(index, { targetMappings, operation: undefined, targetValue: undefined })}

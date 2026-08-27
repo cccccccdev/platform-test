@@ -5,16 +5,20 @@ export interface DecimalScaleConfig {
   targetScale: number;
 }
 
-export type DecimalScaleDirection = 'outbound' | 'inbound';
-
 export type MappingOperationOption = {
   label: string;
   value: string;
   children?: Array<{ label: string; value: string }>;
 };
 
-export const isAdjustDecimalScale = (value?: string[]) =>
-  value?.[0] === 'money' && value?.[1] === 'adjust-decimal-scale';
+type DecimalScaleOperation = 'enforce-exact-decimal-scale' | 'ensure-minimum-decimal-scale';
+
+const decimalScaleOperation = (value?: string[]): DecimalScaleOperation | undefined => {
+  const operation = value?.[1];
+  return value?.[0] === 'money' && (operation === 'enforce-exact-decimal-scale' || operation === 'ensure-minimum-decimal-scale')
+    ? operation
+    : undefined;
+};
 
 const defaultConfig: DecimalScaleConfig = {
   targetScale: 18,
@@ -24,18 +28,17 @@ export default function MappingOperationSelector({
   value,
   config,
   options,
-  dataDirection,
   placeholder = 'Select operation (optional)',
   onChange,
 }: {
   value?: string[];
   config?: DecimalScaleConfig;
   options: MappingOperationOption[];
-  dataDirection: DecimalScaleDirection;
   placeholder?: string;
   onChange: (value?: string[], config?: DecimalScaleConfig) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pendingOperation, setPendingOperation] = useState<DecimalScaleOperation>();
   const [form] = Form.useForm<DecimalScaleConfig>();
 
   useEffect(() => {
@@ -47,7 +50,8 @@ export default function MappingOperationSelector({
       onChange(undefined, undefined);
       return;
     }
-    if (isAdjustDecimalScale(next)) {
+    if (decimalScaleOperation(next)) {
+      setPendingOperation(decimalScaleOperation(next));
       form.setFieldsValue(config ?? defaultConfig);
       setOpen(true);
       return;
@@ -57,8 +61,10 @@ export default function MappingOperationSelector({
 
   const save = async () => {
     const nextConfig = await form.validateFields();
-    onChange(['money', 'adjust-decimal-scale'], nextConfig);
+    const operation = pendingOperation ?? decimalScaleOperation(value);
+    if (operation) onChange(['money', operation], nextConfig);
     setOpen(false);
+    setPendingOperation(undefined);
   };
 
   return <>
@@ -71,18 +77,18 @@ export default function MappingOperationSelector({
         expandTrigger="click"
         onChange={(next) => selectOperation(next as string[])}
       />
-      {isAdjustDecimalScale(value) && config && <Button type="link" size="small" onClick={() => setOpen(true)} style={{ height: 20, padding: 0, fontSize: 11 }}>
+      {decimalScaleOperation(value) && config && <Button type="link" size="small" onClick={() => { setPendingOperation(decimalScaleOperation(value)); setOpen(true); }} style={{ height: 20, padding: 0, fontSize: 11 }}>
         Target Scale: {config.targetScale}
       </Button>}
     </Space>
-    <Modal title="Adjust Decimal Scale" open={open} onCancel={() => setOpen(false)} onOk={() => void save()} okText="Apply">
+    <Modal title={(pendingOperation ?? decimalScaleOperation(value)) === 'enforce-exact-decimal-scale' ? 'Enforce Exact Decimal Scale' : 'Ensure Minimum Decimal Scale'} open={open} onCancel={() => { setOpen(false); setPendingOperation(undefined); }} onOk={() => void save()} okText="Apply">
       <Form form={form} layout="vertical" initialValues={defaultConfig}>
         <Form.Item name="targetScale" label="Target Scale" rules={[{ required: true, message: 'Enter the target scale.' }]}>
           <InputNumber min={0} max={100} precision={0} style={{ width: '100%' }} placeholder="For example: 2, 12 or 18" />
         </Form.Item>
-        <Alert type="info" showIcon message={dataDirection === 'outbound'
-          ? 'BigDecimal only. Pads zeros; reduction requires an all-zero suffix.'
-          : 'BigDecimal only. Pads zeros; values above the target scale are preserved.'} />
+        <Alert type="info" showIcon message={(pendingOperation ?? decimalScaleOperation(value)) === 'enforce-exact-decimal-scale'
+          ? 'BigDecimal only. Pads zeros; removes only an all-zero suffix.'
+          : 'BigDecimal only. Pads zeros; never reduces the source scale.'} />
       </Form>
     </Modal>
   </>;
