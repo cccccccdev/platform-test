@@ -18,12 +18,13 @@ import {
   Switch,
   Table,
   Tag,
+  Tooltip,
   Typography,
   Upload,
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ArrowLeftOutlined, DownOutlined, EyeOutlined, LockOutlined, RightOutlined, UnlockOutlined, UploadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DownOutlined, EyeOutlined, LockOutlined, QuestionCircleOutlined, RightOutlined, UnlockOutlined, UploadOutlined } from '@ant-design/icons';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
@@ -2150,16 +2151,37 @@ export default function ChannelInfoPage() {
         )}
       </Modal>
 
-      <Modal title="Create Event Operation" open={eventCreateOpen} onCancel={() => { setEventCreateOpen(false); eventForm.resetFields(); }} onOk={() => void saveEventOperation()} okText="Submit" width={720}>
+      <Modal
+        className="event-operation-modal"
+        title="Create Event Operation"
+        open={eventCreateOpen}
+        onCancel={() => { setEventCreateOpen(false); eventForm.resetFields(); }}
+        onOk={() => void saveEventOperation()}
+        okText="Submit"
+        width={760}
+      >
         {detailView?.type === 'event' && (
-          <>
-            <Descriptions column={1} size="small" style={{ marginBottom: 24 }} items={[
-              { key: 'crc', label: 'Channel Response Code', children: detailView.record.channelResponseCode },
-              { key: 'responseCode', label: 'Response Code', children: detailView.record.responseCode },
-              ...(detailView.record.subState ? [{ key: 'subState', label: 'Gateway Sub State', children: detailView.record.subState }] : []),
-              { key: 'mainState', label: 'Main State', children: detailView.record.mainState },
-            ]} />
-            <Form form={eventForm} layout="vertical">
+          <Form
+            className="event-operation-form"
+            form={eventForm}
+            layout="horizontal"
+            colon
+            labelAlign="right"
+            labelCol={{ span: 9 }}
+            wrapperCol={{ span: 14 }}
+          >
+              <Form.Item label="Channel Response Code">
+                <Text>{detailView.record.channelResponseCode}</Text>
+              </Form.Item>
+              <Form.Item label="Response Code">
+                <Text>{detailView.record.responseCode}</Text>
+              </Form.Item>
+              {detailView.record.subState && <Form.Item label="Gateway Sub State">
+                <Text>{detailView.record.subState}</Text>
+              </Form.Item>}
+              <Form.Item label="Main State">
+                <Text>{detailView.record.mainState}</Text>
+              </Form.Item>
               <Form.Item name="eventType" label="Event Type" rules={[{ required: true, message: 'Select Event Type' }]}>
                 <Select
                   onChange={() => eventForm.setFieldsValue({ pendingDuration: undefined, targetSubState: undefined })}
@@ -2179,20 +2201,28 @@ export default function ChannelInfoPage() {
                 <Form.Item name="pendingDuration" label="Pending Duration" rules={[{ required: true, message: 'Enter Pending Duration' }]}>
                   <InputNumber min={1} precision={0} addonAfter="s" style={{ width: '100%' }} />
                 </Form.Item>
-                <Form.Item name="approvalRecords" label="Approval Records" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList} rules={[{ required: true, message: 'Upload Approval Records' }]}>
+                <Form.Item
+                  name="approvalRecords"
+                  label="Approval Records"
+                  valuePropName="fileList"
+                  getValueFromEvent={(event) => event?.fileList}
+                  rules={[{ required: true, message: 'Upload Approval Records' }]}
+                  extra="Only support upload file type: .jpg, .jpeg, .png, .pdf, .doc, .docx"
+                >
                   <Upload beforeUpload={() => false} maxCount={1} accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
                     <Button icon={<UploadOutlined />}>Upload</Button>
                   </Upload>
                 </Form.Item>
-                <Text type="secondary" style={{ display: 'block', marginTop: -16, marginBottom: 20 }}>
-                  Only support upload file type: .jpg, .jpeg, .png, .pdf, .doc, .docx
-                </Text>
                 {detailView.record.subState && <>
                   <Form.Item
                     name="targetSubState"
-                    label="Target Gateway Sub State"
+                    label={<Space size={6}>
+                      <span>Target Gateway Sub State</span>
+                      <Tooltip title="Closing Order can only end in a Gateway Sub State mapped to SUCCESS or FAIL.">
+                        <QuestionCircleOutlined style={{ color: '#8c8c8c', cursor: 'help' }} />
+                      </Tooltip>
+                    </Space>}
                     rules={[{ required: true, message: 'Select the Gateway Sub State to set when the order closes' }]}
-                    extra="Closing Order can only end in a Gateway Sub State mapped to SUCCESS or FAIL."
                   >
                     <Select
                       placeholder="Select a terminal Gateway Sub State"
@@ -2202,12 +2232,11 @@ export default function ChannelInfoPage() {
                     />
                   </Form.Item>
                   <Form.Item label="Target Main State">
-                    <Input disabled value={selectedEventTargetMainState ?? ''} placeholder="Auto-filled from Gateway Sub State" />
+                    <Text>{selectedEventTargetMainState ?? '-'}</Text>
                   </Form.Item>
                 </>}
               </>}
-            </Form>
-          </>
+          </Form>
         )}
       </Modal>
 
