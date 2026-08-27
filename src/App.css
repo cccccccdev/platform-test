@@ -375,6 +375,26 @@
 .new-flow-modal .ant-modal-footer .ant-btn { height: 32px; border-radius: 0; }
 .new-flow-modal .ant-modal-footer .ant-btn-primary { background: var(--legacy-purple); box-shadow: none; }
 
+.event-operation-modal .ant-modal-content { padding: 0; border-radius: 3px; overflow: hidden; }
+.event-operation-modal .ant-modal-header { min-height: 60px; margin: 0; padding: 18px 24px; border-bottom: 1px solid #f0f0f0; }
+.event-operation-modal .ant-modal-title { font-size: 18px; font-weight: 500; line-height: 24px; }
+.event-operation-modal .ant-modal-close { top: 14px; right: 16px; color: #8c8c8c; }
+.event-operation-modal .ant-modal-body { padding: 30px 32px 24px; }
+.event-operation-modal .ant-modal-footer { margin: 0; padding: 10px 16px; border-top: 1px solid #f0f0f0; }
+.event-operation-modal .ant-modal-footer .ant-btn { min-width: 88px; height: 36px; border-radius: 2px; font-size: 14px; }
+.event-operation-modal .ant-modal-footer .ant-btn-primary { background: var(--legacy-purple); box-shadow: none; }
+.event-operation-form .ant-form-item { margin-bottom: 20px; }
+.event-operation-form .ant-form-item-label > label,
+.event-operation-form .ant-form-item-control-input,
+.event-operation-form .ant-typography { min-height: 34px; font-size: 14px; line-height: 34px; }
+.event-operation-form .ant-select-selector,
+.event-operation-form .ant-input-number,
+.event-operation-form .ant-input { min-height: 34px; border-radius: 2px; }
+.event-operation-form .ant-select-selection-item,
+.event-operation-form .ant-select-selection-placeholder { line-height: 32px !important; }
+.event-operation-form .ant-btn { height: 34px; border-radius: 2px; }
+.event-operation-form .ant-form-item-extra { padding-top: 6px; color: #8c8c8c; font-size: 14px; line-height: 22px; }
+
 .config-flow-context-wrap { padding: 10px 16px; background: #f5f7fa; }
 .config-flow-context-card { background: #fff; border: 1px solid #e8e8e8; border-radius: 2px; }
 .config-flow-context-row { display: grid; grid-template-columns: 118px minmax(0, 1fr); align-items: stretch; }
