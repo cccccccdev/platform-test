@@ -1,6 +1,6 @@
 import { ArrowRightOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Select, Tooltip, Typography } from 'antd';
-import MappingOperationSelector, { type DecimalScaleConfig, type DecimalScaleDirection, type MappingOperationOption } from './MappingOperationSelector';
+import MappingOperationSelector, { type DecimalScaleConfig, type MappingOperationOption } from './MappingOperationSelector';
 
 const { Text } = Typography;
 
@@ -92,7 +92,6 @@ export default function TargetMappingList({
   targetPlaceholder,
   reservedTargetValues = [],
   onRemoveLast,
-  dataDirection,
 }: {
   value: TargetMapping[];
   onChange: (value: TargetMapping[]) => void;
@@ -101,7 +100,6 @@ export default function TargetMappingList({
   targetPlaceholder: string;
   reservedTargetValues?: string[];
   onRemoveLast?: () => void;
-  dataDirection: DecimalScaleDirection;
 }) {
   const update = (id: string, updates: Partial<TargetMapping>) => onChange(value.map((mapping) => mapping.id === id ? { ...mapping, ...updates } : mapping));
   const addAfter = (id: string) => {
@@ -136,7 +134,7 @@ export default function TargetMappingList({
       key={mapping.id}
       style={{ display: 'grid', gridTemplateColumns: targetMappingColumns, gap: 6, alignItems: 'center', padding: '4px 0', borderTop: '1px solid #f2f3f5' }}
     >
-      <MappingOperationSelector value={mapping.operation} config={mapping.operationConfig} placeholder="Operation (optional)" options={operationOptions} dataDirection={dataDirection} onChange={(operation, operationConfig) => update(mapping.id, { operation, operationConfig })} />
+      <MappingOperationSelector value={mapping.operation} config={mapping.operationConfig} placeholder="Operation (optional)" options={operationOptions} onChange={(operation, operationConfig) => update(mapping.id, { operation, operationConfig })} />
       <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
       <Select status={!mapping.targetValue ? 'error' : undefined} value={mapping.targetValue} placeholder={targetPlaceholder} options={optionsFor(mapping)} onChange={(targetValue) => update(mapping.id, { targetValue })} />
       <Text style={{ fontSize: 11 }}>{targetOptionType(targetOptions, mapping.targetValue)}</Text>

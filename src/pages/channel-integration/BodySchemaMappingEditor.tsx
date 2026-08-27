@@ -326,7 +326,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceId) => selectNodeSource(path, sourceId as string[])} />
             <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, node.sourceId)}</Text>
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-            <MappingOperationSelector value={node.operation as string[] | undefined} config={node.operationConfig} options={operationOptions} dataDirection="outbound" onChange={(operation, operationConfig) => updateNode(path, { operation, operationConfig })} />
+            <MappingOperationSelector value={node.operation as string[] | undefined} config={node.operationConfig} options={operationOptions} onChange={(operation, operationConfig) => updateNode(path, { operation, operationConfig })} />
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
           </>)}
           <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, paddingLeft: depth * 20 }}>
@@ -350,7 +350,6 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
               value={normalizeTargetMappings(node)}
               targetOptions={targetOptions}
               operationOptions={operationOptions}
-              dataDirection="inbound"
               targetPlaceholder={targetPlaceholder}
               reservedTargetValues={collectTargetValues(value, node.id)}
               onChange={(targetMappings) => updateNode(path, { targetMappings, operation: undefined, targetValue: undefined })}
@@ -401,7 +400,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
               <Cascader value={rootSourceId} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(next) => setRootSourceId(next as string[])} />
               <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, rootSourceId)}</Text>
               <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-              <MappingOperationSelector value={rootOperation} config={rootOperationConfig} options={operationOptions} dataDirection="outbound" onChange={(operation, operationConfig) => { setRootOperation(operation ?? []); setRootOperationConfig(operationConfig); }} />
+              <MappingOperationSelector value={rootOperation} config={rootOperationConfig} options={operationOptions} onChange={(operation, operationConfig) => { setRootOperation(operation ?? []); setRootOperationConfig(operationConfig); }} />
               <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
             </>)}
             <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -418,7 +417,6 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
                 value={rootTargetMappings}
                 targetOptions={targetOptions}
                 operationOptions={operationOptions}
-                dataDirection="inbound"
                 targetPlaceholder={targetPlaceholder}
                 reservedTargetValues={collectTargetValues(value)}
                 onChange={setRootTargetMappings}

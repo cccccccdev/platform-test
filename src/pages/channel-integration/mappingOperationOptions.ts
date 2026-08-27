@@ -3,7 +3,8 @@ export const mappingOperationOptions = [
     label: 'MONEY',
     value: 'money',
     children: [
-      { label: 'Adjust Decimal Scale', value: 'adjust-decimal-scale' },
+      { label: 'Enforce Exact Decimal Scale', value: 'enforce-exact-decimal-scale' },
+      { label: 'Ensure Minimum Decimal Scale', value: 'ensure-minimum-decimal-scale' },
       { label: 'Unit Convert (main to fractional)', value: 'main-to-fractional' },
       { label: 'Unit Convert (main to fractional long)', value: 'main-to-fractional-long' },
     ],

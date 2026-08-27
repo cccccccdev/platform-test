@@ -69,7 +69,7 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
                 </Form.Item>
                 <Text>{selectedType(sourceOptions, source)}</Text>
                 <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                <MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={operationOptions} dataDirection="outbound" onChange={(nextOperation, nextConfig) => {
+                <MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={operationOptions} onChange={(nextOperation, nextConfig) => {
                   form.setFieldValue([mappingName, variable, 'operation'], nextOperation);
                   form.setFieldValue([mappingName, variable, 'operationConfig'], nextConfig);
                 }} />
