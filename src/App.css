@@ -45,6 +45,61 @@
 .channel-list-shell .ant-table-tbody > tr > td { font-size: 12px; }
 .channel-list-shell .ant-table-cell .ant-btn-primary { background: transparent; color: var(--legacy-purple); border: 0; padding-inline: 4px; }
 
+.offline-info-content { min-height: calc(100vh - 112px); padding: 20px 18px; background: var(--legacy-bg); }
+.offline-info-card { min-height: 390px; padding: 26px 32px 38px; background: #fff; }
+.offline-info-channel { display: flex; gap: 10px; margin-bottom: 28px; font-size: 14px; }
+.offline-info-actions { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+.offline-info-page .ant-btn-primary, .offline-info-modal .ant-btn-primary { background: var(--legacy-purple); box-shadow: none; }
+.offline-info-table .ant-table-thead > tr > th { background: #fafafa; font-size: 13px; }
+.offline-info-table .ant-table-tbody > tr > td { font-size: 12px; }
+.offline-info-table .ant-btn-link { height: auto; padding: 0; color: var(--legacy-purple); }
+.offline-info-breadcrumb-link { margin: 0; padding: 0; border: 0; color: inherit; background: transparent; cursor: pointer; font: inherit; }
+.offline-info-breadcrumb-link:hover { color: var(--legacy-purple); }
+.offline-info-modal .ant-modal-content { padding: 0; overflow: hidden; border-radius: 2px; }
+.offline-info-modal .ant-modal-header { margin: 0; padding: 20px 28px; border-bottom: 1px solid #f0f0f0; }
+.offline-info-modal .ant-modal-title { font-size: 20px; font-weight: 600; }
+.offline-info-modal .ant-modal-body { max-height: calc(100vh - 190px); padding: 28px 42px 12px; overflow-y: auto; }
+.offline-info-modal .ant-modal-footer { margin: 0; padding: 14px 20px; border-top: 1px solid #f0f0f0; }
+.offline-info-modal .ant-form-item { margin-bottom: 22px; }
+.offline-info-modal .ant-form-item-label > label { font-size: 14px; }
+.offline-info-modal .ant-select, .offline-info-modal .ant-input { width: 100%; }
+
+@media (max-width: 768px) {
+  .offline-info-card { padding: 20px 16px; }
+  .offline-info-modal .ant-modal-body { padding: 22px 16px 8px; }
+}
+
+.channel-profile-shell { min-height: 100dvh; background: var(--legacy-bg); }
+.channel-profile-sidebar { width: 200px !important; }
+.channel-profile-main { min-height: 100vh; margin-left: 200px; }
+.channel-profile-content { min-height: calc(100vh - 112px); padding: 20px 18px; background: var(--legacy-bg); }
+.channel-profile-card { min-height: 460px; padding: 26px 32px 38px; background: #fff; }
+.channel-profile-heading { display: flex; gap: 10px; margin-bottom: 30px; font-size: 14px; }
+.channel-profile-toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+.channel-profile-shell .ant-btn-primary, .channel-profile-modal .ant-btn-primary { background: var(--legacy-purple); box-shadow: none; }
+.channel-profile-shell .ant-table-thead > tr > th { background: #fafafa; font-size: 12px; }
+.channel-profile-shell .ant-table-tbody > tr > td { font-size: 12px; }
+.channel-profile-shell .ant-btn-link { height: auto; padding: 0; color: var(--legacy-purple); }
+.channel-profile-modal .ant-modal-content { border-radius: 2px; }
+.channel-profile-modal .ant-modal-body { padding-top: 18px; }
+.profile-settings-panel { max-width: 1120px; }
+.profile-settings-panel .ant-alert { margin-bottom: 26px; }
+.profile-settings-panel h3 { margin: 26px 0 16px; font-size: 15px; }
+.profile-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 22px; }
+.profile-form-grid.two-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.profile-save-row { display: flex; align-items: center; justify-content: space-between; padding-top: 18px; border-top: 1px solid #f0f0f0; color: #8c8c8c; font-size: 12px; }
+.approver-role-list { max-width: 780px; }
+.approver-role-list .ant-form-item { margin-bottom: 28px; }
+.records-guidance { margin-bottom: 18px; }
+.integration-record-modal .ant-modal-body { max-height: calc(100vh - 190px); overflow-y: auto; }
+
+@media (max-width: 900px) {
+  .channel-profile-sidebar { width: 168px !important; }
+  .channel-profile-main { margin-left: 168px; }
+  .profile-form-grid, .profile-form-grid.two-columns { grid-template-columns: 1fr; }
+  .channel-profile-card { padding: 20px 16px; }
+}
+
 .metadata-content { padding: 16px 14px 32px; }
 .metadata-content .ant-tabs-nav { margin: 0; }
 .metadata-content .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab { border-radius: 0; background: #fff; }

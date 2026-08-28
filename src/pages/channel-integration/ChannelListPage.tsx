@@ -91,20 +91,11 @@ export default function ChannelListPage() {
       width: '50%',
       render: (_: any, record: Channel) => (
         <Space size={[8, 8]} wrap>
-          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/offline-info`)}>
-            OfflineInfo
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/channel-profile/business-types`)}>
+            Channel Profile
           </Button>
           <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/api-debug`)}>
             AI Debug
-          </Button>
-          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/business-type`)}>
-            Business Type
-          </Button>
-          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/country`)}>
-            Country
-          </Button>
-          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/party`)}>
-            Party
           </Button>
           <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/metadata`)}>
             Metadata

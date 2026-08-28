@@ -36,17 +36,26 @@ const linkedStateMachines: Record<string, string[]> = {
   'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['Default_Refund_StateMachine'],
 };
 
+const integrationRecordOptions: Record<string, Array<{ label: string; value: string }>> = {
+  'WALLET_DEBIT:TRANSFER': [{ label: 'IR-000128 - TMUL Wallet Debit Initial Integration', value: 'IR-000128' }],
+  'COLLECTION:CARD_PAY': [{ label: 'IR-000086 - Card Collection Integration', value: 'IR-000086' }],
+  'COLLECTION:USSD_PAY': [{ label: 'IR-000094 - USSD Collection Integration', value: 'IR-000094' }],
+  'DISBURSEMENT:BANK_TRF': [{ label: 'IR-000103 - Bank Transfer Payout Integration', value: 'IR-000103' }],
+};
+
 function AddCapabilitiesModal({
   open,
   existingAbilities,
   availableBusinessTypes,
+  channelCode,
   onConfirm,
   onCancel,
 }: {
   open: boolean;
   existingAbilities: ConfigAbility[];
   availableBusinessTypes: string[];
-  onConfirm: (bt: string, ability: string, actions: string[], stateMachine: string) => void;
+  channelCode: string;
+  onConfirm: (bt: string, ability: string, integrationRecordId: string, actions: string[], stateMachine: string) => void;
   onCancel: () => void;
 }) {
   const [form] = Form.useForm();
@@ -73,7 +82,7 @@ function AddCapabilitiesModal({
       onCancel={resetAndCancel}
       onOk={() => {
         void form.validateFields().then((values) => {
-          onConfirm(values.bt, values.ability, values.actions, values.stateMachine);
+          onConfirm(values.bt, values.ability, values.integrationRecordId, values.actions, values.stateMachine);
           form.resetFields();
         });
       }}
@@ -84,7 +93,7 @@ function AddCapabilitiesModal({
           <Select
             placeholder="Select Business Type"
             options={availableBusinessTypes.map((item) => ({ label: item, value: item }))}
-            onChange={() => form.setFieldsValue({ ability: undefined, actions: undefined, stateMachine: undefined })}
+            onChange={() => form.setFieldsValue({ ability: undefined, integrationRecordId: undefined, actions: undefined, stateMachine: undefined })}
           />
         </Form.Item>
         <Form.Item name="ability" label="Ability" rules={[{ required: true }]}>
@@ -92,7 +101,21 @@ function AddCapabilitiesModal({
             disabled={!bt}
             placeholder={availableAbilities.length ? 'Select Ability' : 'No available Ability'}
             options={availableAbilities.map((item) => ({ label: item, value: item }))}
-            onChange={() => form.setFieldsValue({ actions: undefined, stateMachine: undefined })}
+            onChange={() => form.setFieldsValue({ integrationRecordId: undefined, actions: undefined, stateMachine: undefined })}
+          />
+        </Form.Item>
+        <Form.Item
+          name="integrationRecordId"
+          label="Integration Record"
+          rules={[{ required: true, message: 'Select an Integration Record for this Capability' }]}
+          extra={ability && !(integrationRecordOptions[`${bt}:${ability}`]?.length)
+            ? <Button type="link" style={{ padding: 0 }} onClick={() => window.location.hash = `/channel-integration/${channelCode}/channel-profile/integration-records`}>No suitable Record. Create Integration Record</Button>
+            : 'Only Records covering the selected Business Type + Ability are available.'}
+        >
+          <Select
+            disabled={!ability}
+            placeholder="Select Integration Record"
+            options={integrationRecordOptions[`${bt}:${ability}`] ?? []}
           />
         </Form.Item>
         <Form.Item name="actions" label="Actions" rules={[{ required: true, type: 'array', min: 1, message: 'Select at least one Action' }]}>
@@ -510,6 +533,7 @@ export default function ConfigAbilityListPage() {
     },
     { title: 'Business Type', dataIndex: 'bt' },
     { title: 'Ability', dataIndex: 'ability' },
+    { title: 'Record ID', dataIndex: 'integrationRecordId', render: (value?: string) => value || '-' },
     {
       title: 'Actions',
       dataIndex: 'actions',
@@ -597,17 +621,18 @@ export default function ConfigAbilityListPage() {
 
       <AddCapabilitiesModal
         open={showAddCapabilities}
+        channelCode={channelCode}
         existingAbilities={abilities}
         availableBusinessTypes={(mockBusinessTypes[channelCode] ?? [])
           .filter((item) => item.mode === 'Config Integration')
           .map((item) => item.bt)}
         onCancel={() => setShowAddCapabilities(false)}
-        onConfirm={(bt, ability, actions, stateMachine) => {
+        onConfirm={(bt, ability, integrationRecordId, actions, stateMachine) => {
           if (abilities.some((item) => item.bt === bt && item.ability === ability)) {
             message.error('This Ability already exists in the current Channel');
             return;
           }
-          addAbility(channelCode, { bt, ability, actions, stateMachine, versions: [] });
+          addAbility(channelCode, { bt, ability, integrationRecordId, actions, stateMachine, versions: [] });
           setShowAddCapabilities(false);
           setCurrentPage(1);
           message.success('Capabilities added');
