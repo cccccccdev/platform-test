@@ -1,9 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Input, Space, Modal, Form, Breadcrumb, Card, message } from 'antd';
+import { Table, Button, Input, Space, Modal, Form, Breadcrumb, Card, message, Steps, Select, Upload, Alert } from 'antd';
+import { MinusCircleOutlined, UploadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { mockChannels } from '../../mock/data';
+import { businessTypeOptions, mockChannels, partyOptions } from '../../mock/data';
+import { countryCodeOptions } from '../../mock/countries';
 import type { Channel } from './types';
 import { Brand, UserProfile } from '../../components/PlatformChrome';
+import { saveCreatedIntegrationRecord } from './channelCreationStore';
+
+const abilitiesByBusinessType: Record<string, string[]> = {
+  COLLECTION: ['CARD_PAY', 'USSD_PAY', 'WALLET_PAY'],
+  DISBURSEMENT: ['BANK_TRF', 'WALLET_PAYOUT'],
+  REFUND: ['REFUND_PAY'],
+  TRANSFER: ['WALLET_TRF'],
+  BANK_CARD_DEBIT: ['INFO_PAYMENT'],
+  WALLET_DEBIT: ['TRANSFER'],
+  SMS: ['SINGLE_MESSAGE', 'BULK_MESSAGE'],
+  KYC: ['FINGERPRINT_VERIFY'],
+  FUND_NOTIFICATION: ['CUSTOMER_VALIDATION', 'EXTERNAL_CREDIT'],
+};
+
+const uploadValue = (event: any) => event?.fileList;
+const fileNames = (files?: Array<{ name: string }>) => files?.map(({ name }) => name).join(', ');
 
 export default function ChannelListPage() {
   const navigate = useNavigate();
@@ -13,6 +31,7 @@ export default function ChannelListPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
   const [highlightedRow, setHighlightedRow] = useState<string | null>(null);
+  const [createStep, setCreateStep] = useState(0);
 
   // Initialize mock data
   useEffect(() => {
@@ -52,15 +71,78 @@ export default function ChannelListPage() {
         operator: 'admin',
         operationTime: new Date().toLocaleString(),
       };
+      saveCreatedIntegrationRecord(newChannel.code, {
+        recordName: values.recordName,
+        partyScopes: values.partyScopes,
+        debugReports: fileNames(values.debugReports) || '',
+        prdDocuments: fileNames(values.prdDocuments) || '',
+        contracts: fileNames(values.contracts),
+        accessApprovalRecords: fileNames(values.accessApprovalRecords),
+        brdDocuments: fileNames(values.brdDocuments),
+      });
       setChannels((prev) => [...prev, newChannel]);
       message.success('Channel created successfully');
       setIsModalOpen(false);
       form.resetFields();
+      setCreateStep(0);
       // Highlight new row
       setHighlightedRow(newChannel.code);
       setTimeout(() => setHighlightedRow(null), 2000);
+      navigate(`/channel-integration/${newChannel.code}/integration`);
     } catch {}
   };
+
+  const closeCreate = () => {
+    setIsModalOpen(false);
+    setCreateStep(0);
+    form.resetFields();
+  };
+
+  const nextCreateStep = async () => {
+    const fields = createStep === 0 ? ['channel', 'recordName'] : createStep === 1 ? ['partyScopes'] : ['debugReports', 'prdDocuments'];
+    try {
+      await form.validateFields(fields);
+      setCreateStep((step) => step + 1);
+    } catch {}
+  };
+
+  const renderIntegrationScope = () => (
+    <Form.List name="partyScopes" initialValue={[{ capabilities: [{}] }]}>
+      {(partyFields, { add: addParty, remove: removeParty }) => <>
+        <div className="record-party-scope-list">
+          {partyFields.map((partyField, partyIndex) => <section className="record-party-scope" key={partyField.key}>
+            <div className="record-party-scope-heading"><strong>Party {partyIndex + 1}</strong><Button type="text" danger disabled={partyFields.length === 1} onClick={() => removeParty(partyField.name)}>Remove Party</Button></div>
+            <Form.Item name={[partyField.name, 'party']} label="Party" rules={[{ required: true, message: 'Select Party' }]}>
+              <Select showSearch placeholder="Party" options={partyOptions.map((value) => ({ label: value, value }))} />
+            </Form.Item>
+            <Form.List name={[partyField.name, 'capabilities']} initialValue={[{}]}>
+              {(capabilityFields, { add, remove }) => <>
+                <div className="record-capability-table-head"><span>Business Type</span><span>Integration Type</span><span>Ability</span><span>Countries</span><span /></div>
+                <div className="record-capability-list">
+                  {capabilityFields.map((capabilityField) => <div className="record-capability-row" key={capabilityField.key}>
+                    <Form.Item name={[capabilityField.name, 'businessType']} rules={[{ required: true, message: 'Select Business Type' }]}>
+                      <Select placeholder="Business Type" options={businessTypeOptions.map((value) => ({ label: value, value }))} onChange={() => {
+                        form.setFieldValue(['partyScopes', partyField.name, 'capabilities', capabilityField.name, 'ability'], undefined);
+                      }} />
+                    </Form.Item>
+                    <Form.Item name={[capabilityField.name, 'integrationType']} rules={[{ required: true, message: 'Select Integration Type' }]}><Select placeholder="Integration Type" options={['CONFIG', 'CODE'].map((value) => ({ label: value, value }))} /></Form.Item>
+                    <Form.Item noStyle shouldUpdate>{() => {
+                      const bt = form.getFieldValue(['partyScopes', partyField.name, 'capabilities', capabilityField.name, 'businessType']);
+                      return <Form.Item name={[capabilityField.name, 'ability']} rules={[{ required: true, message: 'Select Ability' }]}><Select disabled={!bt} placeholder="Ability" options={(abilitiesByBusinessType[bt] || []).map((value) => ({ label: value, value }))} /></Form.Item>;
+                    }}</Form.Item>
+                    <Form.Item name={[capabilityField.name, 'countries']} rules={[{ required: true, message: 'Select at least one Country' }]}><Select mode="multiple" placeholder="Countries" options={countryCodeOptions.map((value) => ({ label: value, value }))} /></Form.Item>
+                    <Button type="text" danger icon={<MinusCircleOutlined />} disabled={capabilityFields.length === 1} onClick={() => remove(capabilityField.name)} />
+                  </div>)}
+                </div>
+                <Button type="dashed" onClick={() => add()}>+ Business Type / Ability / Countries</Button>
+              </>}
+            </Form.List>
+          </section>)}
+        </div>
+        <Button type="dashed" className="add-party-button" onClick={() => addParty({ capabilities: [{}] })}>+ Party</Button>
+      </>}
+    </Form.List>
+  );
 
   // Table column definition
   const columns = [
@@ -91,14 +173,8 @@ export default function ChannelListPage() {
       width: '50%',
       render: (_: any, record: Channel) => (
         <Space size={[8, 8]} wrap>
-          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/channel-profile/business-types`)}>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/channel-profile/summary`)}>
             Channel Profile
-          </Button>
-          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/api-debug`)}>
-            AI Debug
-          </Button>
-          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/metadata`)}>
-            Metadata
           </Button>
           <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/integration`)}>
             Integration
@@ -177,16 +253,19 @@ export default function ChannelListPage() {
       <Modal
         title="Create Channel"
         open={isModalOpen}
-        onOk={handleCreate}
-        onCancel={() => {
-          setIsModalOpen(false);
-          form.resetFields();
-        }}
-        okText="Submit"
-        cancelText="Cancel"
-        width={480}
+        onCancel={closeCreate}
+        width={900}
+        className="channel-profile-modal integration-record-modal create-channel-wizard"
+        footer={<Space><Button onClick={closeCreate}>Cancel</Button>{createStep > 0 && <Button onClick={() => setCreateStep((step) => step - 1)}>Previous</Button>}{createStep < 3 ? <Button type="primary" onClick={nextCreateStep}>Next</Button> : <Button type="primary" onClick={handleCreate}>Create Channel</Button>}</Space>}
       >
+        <Steps current={createStep} size="small" items={[
+          { title: 'Channel & Record' },
+          { title: 'Integration Scope' },
+          { title: 'Required Documents' },
+          { title: 'Optional Documents' },
+        ]} />
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <div style={{ display: createStep === 0 ? 'block' : 'none' }}><Alert type="info" showIcon title="Describe the first integration. This description will become the first Integration Record name." />
           <Form.Item
             name="channel"
             label="Channel"
@@ -194,6 +273,21 @@ export default function ChannelListPage() {
           >
             <Input placeholder="Channel name" />
           </Form.Item>
+          <Form.Item name="recordName" label="Integration Description" rules={[{ required: true, message: 'Please describe this integration' }]}><Input placeholder="For example: TMUL wallet debit initial integration" /></Form.Item></div>
+          <div style={{ display: createStep === 1 ? 'block' : 'none' }}>{renderIntegrationScope()}</div>
+          <div style={{ display: createStep === 2 ? 'block' : 'none' }}>
+            <Alert type="info" showIcon title="Debug Report and PRD Document are required before the channel can be created." />
+            <Form.Item name="debugReports" label="Debug Report" valuePropName="fileList" getValueFromEvent={uploadValue} rules={[{ required: true, message: 'Please upload the Debug Report' }]}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
+            <Form.Item name="prdDocuments" label="PRD Document" valuePropName="fileList" getValueFromEvent={uploadValue} rules={[{ required: true, message: 'Please upload the PRD Document' }]}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
+          </div>
+          <div style={{ display: createStep === 3 ? 'block' : 'none' }}>
+            <Alert type="info" showIcon title="These documents are optional during channel creation and can be completed later in Channel Profile." />
+            <div className="profile-form-grid two-columns">
+              <Form.Item name="contracts" label="Contract" valuePropName="fileList" getValueFromEvent={uploadValue}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
+              <Form.Item name="accessApprovalRecords" label="Access Approval Records" valuePropName="fileList" getValueFromEvent={uploadValue}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
+              <Form.Item name="brdDocuments" label="BRD Document" valuePropName="fileList" getValueFromEvent={uploadValue}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
+            </div>
+          </div>
         </Form>
       </Modal>
       </div>
