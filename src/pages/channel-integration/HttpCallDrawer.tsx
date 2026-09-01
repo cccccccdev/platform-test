@@ -11,7 +11,7 @@ import { collectFieldTargetMappings, normalizeTargetMappings, validateTargetMapp
 import { fallbackStateOptionsFor } from './stateMachineStateOptions';
 
 const { Text } = Typography;
-const types = ['String', 'Integer', 'Long', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
+const types = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
 const flatTypes = types.filter((option) => !['Object', 'Array'].includes(option.value));
 const formats = ['Custom', 'FORM_DATA', 'JSON', 'X_WWW_FORM_URLENCODED', 'XML'].map((value) => ({ label: value, value }));
 const generated = [
@@ -156,8 +156,8 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   const spiResponse = channelCode === 'EVEXIN'
     ? ['channelResponseCode', 'responseMessage', 'responseReference', 'status']
     : ['responseCode', 'responseMessage', 'status', 'channelReference', 'amount', 'currency', 'customerId'];
-  const requestTypes: Record<string, string> = { amount: 'Long', timestamp: 'Long' };
-  const responseTypes: Record<string, string> = { amount: 'Long' };
+  const requestTypes: Record<string, string> = { amount: 'BigDecimal', timestamp: 'Long' };
+  const responseTypes: Record<string, string> = { amount: 'BigDecimal' };
   const requestContextOptions = [
     { label: 'SPI Request', options: spiRequest.map(v => ({ label: v, value: `spi.request.${v}`, type: requestTypes[v] ?? 'String' })) },
     { label: 'Global Variables', options: globals.map(v => ({ label: v.name, value: `global.${v.name}`, type: 'String' })) },

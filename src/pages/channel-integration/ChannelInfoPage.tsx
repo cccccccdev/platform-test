@@ -19,10 +19,11 @@ import {
   Table,
   Tag,
   Typography,
+  Upload,
   message,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { ArrowLeftOutlined, DownOutlined, EyeOutlined, LockOutlined, RightOutlined, UnlockOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DownOutlined, EyeOutlined, LockOutlined, RightOutlined, UnlockOutlined, UploadOutlined } from '@ant-design/icons';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { capabilityActionOptions } from '../../mock/data';
 import { useConfigIntegrationStore } from './configIntegrationStore';
@@ -93,6 +94,8 @@ interface EventOperation {
   id: string;
   recordId: string;
   eventType: 'Closing Order' | 'Approval';
+  pendingDuration?: number;
+  approvalRecordName?: string;
   operator: string;
   operateTime: string;
   enabled: boolean;
@@ -259,7 +262,7 @@ const initialInternalRecords: InternalRecord[] = [
 ];
 
 const initialEventOperations: EventOperation[] = [
-  { id: 'evt-1', recordId: 'ext-1', eventType: 'Closing Order', operator: 'admin', operateTime: '2026-07-07 15:31:22', enabled: true },
+  { id: 'evt-1', recordId: 'ext-3', eventType: 'Closing Order', pendingDuration: 300, approvalRecordName: 'closing-order-approval.pdf', operator: 'admin', operateTime: '2026-07-07 15:31:22', enabled: true },
 ];
 
 const initialRequeryStrategies: RequeryStrategy[] = [
@@ -405,10 +408,10 @@ export default function ChannelInfoPage() {
   const [externalRecords, setExternalRecords] = useState<ExternalRecord[]>(initialExternalRecords);
   const [internalRecords, setInternalRecords] = useState<InternalRecord[]>(initialInternalRecords);
   const [eventOperations, setEventOperations] = useState<EventOperation[]>(initialEventOperations);
+  const [editingEvent, setEditingEvent] = useState<EventOperation | null>(null);
   const [detailView, setDetailView] = useState<DetailView | null>(null);
   const [requeryStrategies, setRequeryStrategies] = useState<RequeryStrategy[]>(initialRequeryStrategies);
   const [createOpen, setCreateOpen] = useState(false);
-  const [eventCreateOpen, setEventCreateOpen] = useState(false);
   const [requeryOpen, setRequeryOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [fileListOpen, setFileListOpen] = useState(false);
@@ -450,7 +453,7 @@ export default function ChannelInfoPage() {
   const [form] = Form.useForm();
   const [searchForm] = Form.useForm();
   const [bulkForm] = Form.useForm();
-  const [eventForm] = Form.useForm<{ eventType: EventOperation['eventType'] }>();
+  const [eventForm] = Form.useForm<{ eventType: EventOperation['eventType']; pendingDuration?: number; approvalRecords?: Array<{ name?: string }> }>();
   const [approvalForm] = Form.useForm<{ reason: string }>();
   const [requeryForm] = Form.useForm();
   const [timeoutForm] = Form.useForm();
@@ -468,6 +471,7 @@ export default function ChannelInfoPage() {
   const bulkEndpoint = Form.useWatch('endpoint', bulkForm);
   const bulkBt = Form.useWatch('bt', bulkForm);
   const selectedRequerySubState = Form.useWatch('subState', requeryForm);
+  const selectedEventType = Form.useWatch('eventType', eventForm);
   const selectedRequeryMainState = Form.useWatch('mainState', requeryForm);
   const selectedRequeryType = Form.useWatch('type', requeryForm);
   const currentMainState: MainState | undefined = isLegacyNoStateMachineCapability(selectedBt, selectedAbility) ? selectedMainState as MainState | undefined : mainStateForSubState(selectedSubState);
@@ -666,20 +670,29 @@ export default function ChannelInfoPage() {
     resetForm();
   };
 
-  const saveEventOperation = async () => {
-    if (detailView?.type !== 'event') return;
+  const openEventConfig = (event: EventOperation) => {
+    setEditingEvent(event);
+    eventForm.setFieldsValue({
+      eventType: event.eventType,
+      pendingDuration: event.pendingDuration,
+      approvalRecords: event.approvalRecordName ? [{ name: event.approvalRecordName }] : [],
+    });
+  };
+
+  const saveEventConfig = async () => {
+    if (!editingEvent) return;
     const values = await eventForm.validateFields();
-    setEventOperations((prev) => [{
-      id: `evt-${Date.now()}`,
-      recordId: detailView.record.id,
+    setEventOperations((prev) => prev.map((item) => item.id === editingEvent.id ? {
+      ...item,
       eventType: values.eventType,
+      pendingDuration: values.eventType === 'Closing Order' ? values.pendingDuration : undefined,
+      approvalRecordName: values.approvalRecords?.[0]?.name,
       operator: 'admin',
-      operateTime: '2026-07-07 17:58:00',
-      enabled: true,
-    }, ...prev]);
-    setEventCreateOpen(false);
+      operateTime: '2026-08-27 18:00:00',
+    } : item));
+    setEditingEvent(null);
     eventForm.resetFields();
-    message.success('Event operation created');
+    message.success('Event operation updated');
   };
 
   const renderApprovalStatus = (status: ExternalApprovalRequest['approvalStatus'] | '-') => {
@@ -1458,18 +1471,16 @@ export default function ChannelInfoPage() {
             <Text strong>Gateway Sub State: <Text>{record.subState}</Text></Text>
             <Text strong>Main State: <Tag color={mainStateColor(record.mainState)}>{record.mainState}</Tag></Text>
           </Space>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 32, marginBottom: 16 }}>
-            <Button type="primary" onClick={() => { eventForm.resetFields(); setEventCreateOpen(true); }}>Create</Button>
-          </div>
           <Table<EventOperation>
             rowKey="id"
             pagination={false}
             dataSource={rows}
             columns={[
               { title: 'Event Type', dataIndex: 'eventType' },
+              { title: 'Pending Duration', dataIndex: 'pendingDuration', width: 170, render: (value) => value ? `${value}s` : '-' },
               { title: 'Operator', dataIndex: 'operator', width: 180 },
               { title: 'Operate Time', dataIndex: 'operateTime', width: 220 },
-              { title: 'Operation', width: 160, render: () => <Button type="link" size="small">Change History</Button> },
+              { title: 'Operation', width: 220, render: (_, row) => <Space size="small"><Button type="link" size="small" onClick={() => openEventConfig(row)}>Config</Button><Button type="link" size="small">Change History</Button></Space> },
               { title: 'Switch', dataIndex: 'enabled', width: 120, render: (enabled, row) => <Switch checked={enabled} onChange={(checked) => setEventOperations((prev) => prev.map((item) => item.id === row.id ? { ...item, enabled: checked } : item))} /> },
             ]}
             locale={{ emptyText: 'No Data' }}
@@ -2136,22 +2147,64 @@ export default function ChannelInfoPage() {
         )}
       </Modal>
 
-      <Modal title="Create Event Operation" open={eventCreateOpen} onCancel={() => { setEventCreateOpen(false); eventForm.resetFields(); }} onOk={() => void saveEventOperation()} okText="Submit" width={720}>
-        {detailView?.type === 'event' && (
-          <>
-            <Descriptions column={1} size="small" style={{ marginBottom: 24 }} items={[
-              { key: 'crc', label: 'Channel Response Code', children: detailView.record.channelResponseCode },
-              { key: 'responseCode', label: 'Response Code', children: detailView.record.responseCode },
-              { key: 'subState', label: 'Gateway Sub State', children: detailView.record.subState },
-              { key: 'mainState', label: 'Main State', children: detailView.record.mainState },
+      <Modal
+        className="event-operation-modal"
+        title="Config Event Operation"
+        open={!!editingEvent}
+        onCancel={() => { setEditingEvent(null); eventForm.resetFields(); }}
+        onOk={() => void saveEventConfig()}
+        okText="Save"
+        width={760}
+      >
+        <Form className="event-operation-form" form={eventForm} layout="horizontal" labelAlign="right" labelCol={{ span: 9 }} wrapperCol={{ span: 14 }}>
+          {detailView?.type === 'event' && <>
+            <Form.Item label="Channel Response Code">
+              <Text>{detailView.record.channelResponseCode}</Text>
+            </Form.Item>
+            <Form.Item label="Response Code">
+              <Text>{detailView.record.responseCode}</Text>
+            </Form.Item>
+            {detailView.record.subState && <Form.Item label="Gateway Sub State">
+              <Text>{detailView.record.subState}</Text>
+            </Form.Item>}
+            <Form.Item label="Main State">
+              <Text>{detailView.record.mainState}</Text>
+            </Form.Item>
+          </>}
+          <Form.Item name="eventType" label="Event Type" rules={[{ required: true, message: 'Select Event Type' }]}>
+            <Select options={[
+              {
+                value: 'Closing Order',
+                disabled: detailView?.type === 'event'
+                  && editingEvent?.eventType !== 'Closing Order'
+                  && !['TO_BE_VERIFY', 'PENDING'].includes(detailView.record.mainState),
+                label: detailView?.type === 'event'
+                  && editingEvent?.eventType !== 'Closing Order'
+                  && !['TO_BE_VERIFY', 'PENDING'].includes(detailView.record.mainState)
+                  ? 'Closing Order (only available for TO_BE_VERIFY or PENDING)'
+                  : 'Closing Order',
+              },
+              { value: 'Approval' },
             ]} />
-            <Form form={eventForm} layout="vertical">
-              <Form.Item name="eventType" label="Event Type" rules={[{ required: true, message: 'Select Event Type' }]}>
-                <Select options={[{ value: 'Closing Order' }, { value: 'Approval' }]} />
-              </Form.Item>
-            </Form>
-          </>
-        )}
+          </Form.Item>
+          {selectedEventType === 'Closing Order' && <>
+            <Form.Item name="pendingDuration" label="Pending Duration" rules={[{ required: true, message: 'Enter Pending Duration' }]}>
+              <InputNumber min={1} precision={0} addonAfter="s" style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item
+              name="approvalRecords"
+              label="Approval Records"
+              valuePropName="fileList"
+              getValueFromEvent={(event) => event?.fileList}
+              rules={[{ required: true, message: 'Upload Approval Records' }]}
+              extra="Only support upload file type: .jpg, .jpeg, .png, .pdf, .doc, .docx"
+            >
+              <Upload beforeUpload={() => false} maxCount={1} accept=".jpg,.jpeg,.png,.pdf,.doc,.docx">
+                <Button icon={<UploadOutlined />}>Upload</Button>
+              </Upload>
+            </Form.Item>
+          </>}
+        </Form>
       </Modal>
 
       <Modal title="Bulk Operation" open={bulkOpen} onCancel={() => { setBulkOpen(false); bulkForm.resetFields(); }} onOk={() => { setBulkOpen(false); bulkForm.resetFields(); message.success('Upload submitted'); }} okText="OK" width={680}>

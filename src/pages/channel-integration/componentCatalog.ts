@@ -16,6 +16,7 @@ export type ComponentDefinition = {
 const ALL_SCOPES = ['UPSTREAM_TRIGGERED', 'EXTERNAL_TRIGGERED', 'CALLBACK_TRIGGERED', 'ASYNC_TRIGGERED', 'REQUERY_TRIGGERED', 'MATCHCAPABILITY'] satisfies ComponentScope[];
 
 export const COMPONENT_CATALOG: ComponentDefinition[] = ([
+  { id: 93, name: 'loadChannelMerchantInfo', alias: 'Load channel merchant info', description: 'Load channel merchant info', usageCount: 1, needConfig: true, scopes: ['UPSTREAM_TRIGGERED', 'ASYNC_TRIGGERED', 'REQUERY_TRIGGERED'], status: 1 },
   { id: 94, name: 'inboundPreprocess', alias: 'Prepare inbound request for routing', description: 'Prepare inbound request for routing', usageCount: 1, needConfig: true, scopes: ['MATCHCAPABILITY'], status: 1 },
   { id: 95, name: 'matchCapabilityByOrder', alias: 'Match capability by order', description: 'Match capability by order', usageCount: 1, needConfig: true, scopes: ['MATCHCAPABILITY'], status: 1 },
   { id: 96, name: 'specifyCapability', alias: 'Specify capability', description: 'Specify capability', usageCount: 99, needConfig: true, scopes: ['MATCHCAPABILITY'], status: 1 },
