@@ -29,6 +29,26 @@
 .legacy-content { height: calc(100vh - 36px); overflow: hidden; background: var(--legacy-bg); }
 .legacy-content-scroll { height: 100%; overflow: auto; }
 
+.basic-country-page { min-height: 100%; background: #f2f3f6; }
+.basic-country-heading { height: 108px; padding: 18px 32px 16px; background: #fff; border-bottom: 1px solid #ececec; }
+.basic-country-heading > span { display: block; margin-bottom: 8px; color: #737373; font-size: 13px; }
+.basic-country-heading h1 { margin: 0; color: #262626; font-size: 20px; font-weight: 600; line-height: 1.35; }
+.basic-country-table-wrap { margin: 24px 32px; padding-top: 16px; background: #fff; overflow: hidden; }
+.basic-country-actions { display: flex; justify-content: flex-end; padding: 0 16px 16px; }
+.basic-country-actions .ant-btn-primary, .create-country-modal .ant-btn-primary { background: var(--legacy-purple); box-shadow: none; }
+.basic-country-table .ant-table { color: #303030; font-size: 13px; }
+.basic-country-table .ant-table-thead > tr > th { height: 64px; padding: 16px; background: #fafafa; color: #262626; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.basic-country-table .ant-table-tbody > tr > td { height: 64px; padding: 16px; color: #303030; font-size: 13px; white-space: nowrap; }
+.basic-country-table .ant-pagination { margin: 16px 16px 16px 0; }
+.basic-country-table .ant-pagination-total-text { margin-inline-end: 10px; }
+.create-country-modal .ant-modal-header { margin-bottom: 32px; }
+.create-country-modal .ant-form-item { margin-bottom: 24px; }
+.create-country-modal .ant-form-item-label > label { color: #2f2f2f; font-size: 14px; }
+.create-country-modal .ant-input, .create-country-modal .ant-input-number, .create-country-modal .ant-input-group-addon { min-height: 40px; }
+.create-country-modal .ant-input-number { width: 100%; }
+.create-country-modal .ant-input-number-input { height: 38px; }
+.create-country-modal .ant-input::placeholder, .create-country-modal .ant-input-number-input::placeholder { color: #8c8c8c; }
+
 .channel-list-shell { min-height: 100dvh; background: var(--legacy-bg); }
 .channel-list-sidebar { width: 202px; }
 .channel-list-active { height: 44px; padding: 0 24px; display: flex; align-items: center; font-size: 14px; }
