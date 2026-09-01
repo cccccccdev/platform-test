@@ -84,7 +84,7 @@ export default function MappingOperationSelector({
     <Modal title={(pendingOperation ?? decimalScaleOperation(value)) === 'enforce-exact-decimal-scale' ? 'Enforce Exact Decimal Scale' : 'Ensure Minimum Decimal Scale'} open={open} onCancel={() => { setOpen(false); setPendingOperation(undefined); }} onOk={() => void save()} okText="Apply">
       <Form form={form} layout="vertical" initialValues={defaultConfig}>
         <Form.Item name="targetScale" label="Target Scale" rules={[{ required: true, message: 'Enter the target scale.' }]}>
-          <InputNumber min={0} max={100} precision={0} style={{ width: '100%' }} placeholder="For example: 2, 12 or 18" />
+          <InputNumber min={0} max={32} precision={0} style={{ width: '100%' }} placeholder="For example: 2, 12 or 18" />
         </Form.Item>
         <Alert type="info" showIcon message={(pendingOperation ?? decimalScaleOperation(value)) === 'enforce-exact-decimal-scale'
           ? 'BigDecimal only. Pads zeros; removes only an all-zero suffix.'
