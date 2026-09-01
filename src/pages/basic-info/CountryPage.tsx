@@ -71,7 +71,7 @@ export default function CountryPage() {
       <div className="basic-country-table-wrap">
         <div className="basic-country-actions">
           <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-            Create Country
+            Create
           </Button>
         </div>
         <Table<CountryReference>
