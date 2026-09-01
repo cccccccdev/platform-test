@@ -1,154 +1,134 @@
 import { useState } from 'react';
-import { Card, Table, Button, Space, Modal, Form, Input, Select, message, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Button, Form, Input, InputNumber, Modal, Table, message } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
+import { countryReferenceData, type CountryReference } from '../../mock/countries';
 
-interface Country {
-  code: string;
-  name: string;
-  localName: string;
-  region: string;
-  timezone: string;
-  status: string;
-}
+type CountryFormValues = Pick<
+  CountryReference,
+  'code' | 'callingCode' | 'currency' | 'mainUnit' | 'fractionalUnit' | 'ratio' | 'segmentLength'
+>;
 
-const MOCK_COUNTRIES: Country[] = [
-  { code: 'CN', name: '中国', localName: 'China', region: '亚太', timezone: 'Asia/Shanghai', status: 'ACTIVE' },
-  { code: 'HK', name: '香港', localName: 'Hong Kong', region: '亚太', timezone: 'Asia/Hong_Kong', status: 'ACTIVE' },
-  { code: 'MO', name: '澳门', localName: 'Macau', region: '亚太', timezone: 'Asia/Macau', status: 'ACTIVE' },
-  { code: 'TW', name: '台湾', localName: 'Taiwan', region: '亚太', timezone: 'Asia/Taipei', status: 'ACTIVE' },
-  { code: 'SG', name: '新加坡', localName: 'Singapore', region: '亚太', timezone: 'Asia/Singapore', status: 'ACTIVE' },
-  { code: 'MY', name: '马来西亚', localName: 'Malaysia', region: '亚太', timezone: 'Asia/Kuala_Lumpur', status: 'ACTIVE' },
-  { code: 'TH', name: '泰国', localName: 'Thailand', region: '亚太', timezone: 'Asia/Bangkok', status: 'ACTIVE' },
-  { code: 'PH', name: '菲律宾', localName: 'Philippines', region: '亚太', timezone: 'Asia/Manila', status: 'ACTIVE' },
-  { code: 'ID', name: '印度尼西亚', localName: 'Indonesia', region: '亚太', timezone: 'Asia/Jakarta', status: 'INACTIVE' },
-  { code: 'VN', name: '越南', localName: 'Vietnam', region: '亚太', timezone: 'Asia/Ho_Chi_Minh', status: 'ACTIVE' },
-  { code: 'US', name: '美国', localName: 'United States', region: '北美', timezone: 'America/New_York', status: 'ACTIVE' },
-  { code: 'GB', name: '英国', localName: 'United Kingdom', region: '欧洲', timezone: 'Europe/London', status: 'INACTIVE' },
+const columns = [
+  { title: 'Country', dataIndex: 'code', key: 'code', width: 96 },
+  { title: 'Calling Code', dataIndex: 'callingCode', key: 'callingCode', width: 118 },
+  { title: 'Currency', dataIndex: 'currency', key: 'currency', width: 96 },
+  { title: 'Main Unit', dataIndex: 'mainUnit', key: 'mainUnit', width: 142 },
+  { title: 'Fractional Unit', dataIndex: 'fractionalUnit', key: 'fractionalUnit', width: 142 },
+  { title: 'Ratio', dataIndex: 'ratio', key: 'ratio', width: 78 },
+  { title: 'Segment Length', dataIndex: 'segmentLength', key: 'segmentLength', width: 132 },
+  { title: 'Operator', dataIndex: 'operator', key: 'operator', width: 132 },
+  { title: 'Operation Time', dataIndex: 'operationTime', key: 'operationTime', width: 184 },
 ];
 
-const REGIONS = ['亚太', '北美', '欧洲', '南美', '非洲', '中东'];
+function formatOperationTime() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
 
 export default function CountryPage() {
-  const [countries, setCountries] = useState(MOCK_COUNTRIES);
+  const [countries, setCountries] = useState<CountryReference[]>(countryReferenceData);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCountry, setEditingCountry] = useState<Country | null>(null);
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<CountryFormValues>();
 
-  const columns = [
-    {
-      title: '国家代码',
-      dataIndex: 'code',
-      key: 'code',
-      render: (code: string) => <Tag color="blue">{code}</Tag>,
-    },
-    { title: '国家名称', dataIndex: 'name', key: 'name' },
-    { title: '本地名称', dataIndex: 'localName', key: 'localName' },
-    {
-      title: '区域',
-      dataIndex: 'region',
-      key: 'region',
-      render: (r: string) => <Tag>{r}</Tag>,
-    },
-    { title: '时区', dataIndex: 'timezone', key: 'timezone' },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (s: string) => (
-        <Tag color={s === 'ACTIVE' ? 'green' : 'red'}>{s === 'ACTIVE' ? '启用' : '停用'}</Tag>
-      ),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      render: (_: any, record: Country) => (
-        <Space>
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>
-            编辑
-          </Button>
-          <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.code)}>
-            删除
-          </Button>
-        </Space>
-      ),
-    },
-  ];
-
-  const handleAdd = () => {
-    setEditingCountry(null);
-    form.resetFields();
+  const handleCreate = () => {
     setIsModalOpen(true);
-  };
-
-  const handleEdit = (country: Country) => {
-    setEditingCountry(country);
-    form.setFieldsValue(country);
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = (code: string) => {
-    setCountries(countries.filter((c) => c.code !== code));
-    message.success('删除成功');
   };
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
-      if (editingCountry) {
-        setCountries(countries.map((c) => (c.code === editingCountry.code ? { ...c, ...values } : c)));
-        message.success('更新成功');
-      } else {
-        setCountries([...countries, { ...values, status: 'ACTIVE' }]);
-        message.success('新增成功');
+      const code = values.code.trim().toUpperCase();
+      if (countries.some((country) => country.code === code)) {
+        form.setFields([{ name: 'code', errors: ['Country already exists'] }]);
+        return;
       }
+
+      setCountries((current) => [
+        {
+          ...values,
+          code,
+          callingCode: values.callingCode.trim(),
+          currency: values.currency.trim().toUpperCase(),
+          mainUnit: values.mainUnit.trim().toUpperCase(),
+          fractionalUnit: values.fractionalUnit.trim().toUpperCase(),
+          operator: 'Current User',
+          operationTime: formatOperationTime(),
+        },
+        ...current,
+      ]);
       setIsModalOpen(false);
+      message.success('Country created');
     } catch {}
   };
 
   return (
-    <div style={{ padding: '0 24px' }}>
-      <Card
-        title="国家配置"
-        style={{ margin: '24px 0' }}
-        extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-            新增国家
+    <div className="basic-country-page">
+      <div className="basic-country-heading">
+        <span>Basic Info</span>
+        <h1>Country</h1>
+      </div>
+      <div className="basic-country-table-wrap">
+        <div className="basic-country-actions">
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+            Create Country
           </Button>
-        }
-      >
-        <Table dataSource={countries} columns={columns} rowKey="code" pagination={{ pageSize: 10 }} />
-      </Card>
+        </div>
+        <Table<CountryReference>
+          className="basic-country-table"
+          dataSource={countries}
+          columns={columns}
+          rowKey="code"
+          scroll={{ x: 1120 }}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            pageSizeOptions: [10, 20, 50],
+            showTotal: (total) => `Total ${total} items`,
+          }}
+        />
+      </div>
 
       <Modal
-        title={editingCountry ? '编辑国家' : '新增国家'}
+        className="create-country-modal"
+        title="Create Country"
         open={isModalOpen}
         onOk={handleSave}
         onCancel={() => setIsModalOpen(false)}
-        width={450}
+        okText="Save"
+        cancelText="Cancel"
+        width={720}
+        destroyOnHidden
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="code" label="国家代码" rules={[{ required: true }]}>
-            <Input placeholder="如：CN" disabled={!!editingCountry} />
+        <Form<CountryFormValues>
+          form={form}
+          layout="horizontal"
+          labelCol={{ span: 7 }}
+          wrapperCol={{ span: 14 }}
+          requiredMark
+          preserve={false}
+        >
+          <Form.Item name="code" label="Country" rules={[{ required: true, message: 'Enter Country' }, { pattern: /^[A-Za-z]{2,10}$/, message: 'Use 2-10 letters' }]}>
+            <Input placeholder="Country" maxLength={10} />
           </Form.Item>
-          <Form.Item name="name" label="国家名称" rules={[{ required: true }]}>
-            <Input placeholder="如：中国" />
+          <Form.Item name="callingCode" label="Calling Code" rules={[{ required: true, message: 'Enter Calling Code' }, { pattern: /^\d{1,6}$/, message: 'Use 1-6 digits' }]}>
+            <Input prefix="+" placeholder="Calling Code" maxLength={6} inputMode="numeric" />
           </Form.Item>
-          <Form.Item name="localName" label="本地名称">
-            <Input placeholder="如：China" />
+          <Form.Item name="currency" label="Currency" rules={[{ required: true, message: 'Enter Currency' }, { pattern: /^[A-Za-z]{3,10}$/, message: 'Use 3-10 letters' }]}>
+            <Input placeholder="Currency" maxLength={10} />
           </Form.Item>
-          <Form.Item name="region" label="区域" rules={[{ required: true }]}>
-            <Select>
-              {REGIONS.map((r) => (
-                <Select.Option key={r} value={r}>{r}</Select.Option>
-              ))}
-            </Select>
+          <Form.Item name="mainUnit" label="Main Unit" rules={[{ required: true, message: 'Enter Main Unit' }]}>
+            <Input placeholder="Main Unit" maxLength={40} />
           </Form.Item>
-          <Form.Item name="timezone" label="时区" rules={[{ required: true }]}>
-            <Select showSearch>
-              {['Asia/Shanghai', 'Asia/Hong_Kong', 'Asia/Macau', 'Asia/Taipei', 'Asia/Singapore', 'Asia/Bangkok', 'Asia/Manila', 'Asia/Jakarta', 'Asia/Ho_Chi_Minh', 'America/New_York', 'Europe/London'].map((tz) => (
-                <Select.Option key={tz} value={tz}>{tz}</Select.Option>
-              ))}
-            </Select>
+          <Form.Item name="fractionalUnit" label="Fractional Unit" rules={[{ required: true, message: 'Enter Fractional Unit' }]}>
+            <Input placeholder="Fractional Unit" maxLength={40} />
+          </Form.Item>
+          <Form.Item name="ratio" label="Ratio" rules={[{ required: true, message: 'Enter Ratio' }]}>
+            <InputNumber placeholder="Ratio" min={0} precision={0} controls={false} />
+          </Form.Item>
+          <Form.Item name="segmentLength" label="Segment Length" rules={[{ required: true, message: 'Enter Segment Length' }]}>
+            <InputNumber placeholder="Segment Length" min={0} precision={0} controls={false} />
           </Form.Item>
         </Form>
       </Modal>
