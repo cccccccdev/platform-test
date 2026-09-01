@@ -7,6 +7,7 @@ type CountryFormValues = Pick<
   CountryReference,
   'code' | 'callingCode' | 'currency' | 'mainUnit' | 'fractionalUnit' | 'ratio' | 'segmentLength'
 >;
+
 const columns = [
   { title: 'Country', dataIndex: 'code', key: 'code', width: 96 },
   { title: 'Calling Code', dataIndex: 'callingCode', key: 'callingCode', width: 118 },
@@ -60,6 +61,7 @@ export default function CountryPage() {
       message.success('Country created');
     } catch {}
   };
+
   return (
     <div className="basic-country-page">
       <div className="basic-country-heading">

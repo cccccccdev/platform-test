@@ -102,16 +102,6 @@
 .channel-profile-shell .ant-btn-primary, .channel-profile-modal .ant-btn-primary { background: var(--legacy-purple); box-shadow: none; }
 .channel-profile-shell .ant-table-thead > tr > th { background: #fafafa; font-size: 12px; }
 .channel-profile-shell .ant-table-tbody > tr > td { font-size: 12px; }
-.basic-country-page { min-height: 100%; background: #f2f3f6; }
-.basic-country-heading { height: 108px; padding: 18px 32px 16px; background: #fff; border-bottom: 1px solid #ececec; }
-.basic-country-heading > span { display: block; margin-bottom: 8px; color: #999; font-size: 13px; }
-.basic-country-heading h1 { margin: 0; color: #262626; font-size: 20px; font-weight: 600; line-height: 1.35; }
-.basic-country-table-wrap { margin: 24px 32px; background: #fff; overflow: hidden; }
-.basic-country-table .ant-table { color: #303030; font-size: 13px; }
-.basic-country-table .ant-table-thead > tr > th { height: 64px; padding: 16px; background: #fafafa; color: #262626; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.basic-country-table .ant-table-tbody > tr > td { height: 64px; padding: 16px; color: #303030; font-size: 13px; white-space: nowrap; }
-.basic-country-table .ant-pagination { margin: 16px 16px 16px 0; }
-.basic-country-table .ant-pagination-total-text { margin-inline-end: 10px; }
 .channel-profile-shell .ant-btn-link { height: auto; padding: 0; color: var(--legacy-purple); }
 .channel-profile-modal .ant-modal-content { border-radius: 2px; }
 .channel-profile-modal .ant-modal-body { padding-top: 18px; }
