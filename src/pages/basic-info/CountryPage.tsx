@@ -1,7 +1,10 @@
-import { useState } from 'react';
-import { Button, Form, Input, InputNumber, Modal, Table, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { useMemo, useState } from 'react';
+import { Breadcrumb, Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tooltip, Typography, message } from 'antd';
+import { PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { countryReferenceData, type CountryReference } from '../../mock/countries';
+import { useBasicInfoReferenceStore } from './basicInfoReferenceStore';
+
+const { Title } = Typography;
 
 type CountryFormValues = Pick<
   CountryReference,
@@ -28,8 +31,18 @@ function formatOperationTime() {
 
 export default function CountryPage() {
   const [countries, setCountries] = useState<CountryReference[]>(countryReferenceData);
+  const currencies = useBasicInfoReferenceStore((state) => state.currencies);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm<CountryFormValues>();
+
+  const fiatCurrencyOptions = useMemo(() => currencies
+    .filter((currency) => currency.type === 'Fiat')
+    .sort((left, right) => left.code.localeCompare(right.code))
+    .map((currency) => ({
+      value: currency.code,
+      label: `${currency.code} - ${currency.name}`,
+      searchText: `${currency.code} ${currency.name}`,
+    })), [currencies]);
 
   const handleCreate = () => {
     setIsModalOpen(true);
@@ -64,10 +77,12 @@ export default function CountryPage() {
 
   return (
     <div className="basic-country-page">
-      <div className="basic-country-heading">
-        <span>Basic Info</span>
-        <h1>Country</h1>
-      </div>
+      <section className="state-machine-heading">
+        <Breadcrumb items={[{ title: 'Basic Info', href: '/basic-info' }, { title: 'Country' }]} />
+        <div className="state-machine-title-line">
+          <Title level={4}>Country</Title>
+        </div>
+      </section>
       <div className="basic-country-table-wrap">
         <div className="basic-country-actions">
           <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
@@ -115,8 +130,25 @@ export default function CountryPage() {
           <Form.Item name="callingCode" label="Calling Code" rules={[{ required: true, message: 'Enter Calling Code' }, { pattern: /^\d{1,6}$/, message: 'Use 1-6 digits' }]}>
             <Input prefix="+" placeholder="Calling Code" maxLength={6} inputMode="numeric" />
           </Form.Item>
-          <Form.Item name="currency" label="Currency" rules={[{ required: true, message: 'Enter Currency' }, { pattern: /^[A-Za-z]{3,10}$/, message: 'Use 3-10 letters' }]}>
-            <Input placeholder="Currency" maxLength={10} />
+          <Form.Item
+            name="currency"
+            label={(
+              <Space size={5}>
+                Currency
+                <Tooltip title="Only Fiat currencies maintained in Currency can be selected. If the required currency is unavailable, create it in Basic Info > Currency first.">
+                  <QuestionCircleOutlined style={{ color: '#8c8c8c', cursor: 'help' }} />
+                </Tooltip>
+              </Space>
+            )}
+            rules={[{ required: true, message: 'Select Currency' }]}
+          >
+            <Select
+              showSearch
+              placeholder="Currency"
+              optionFilterProp="searchText"
+              options={fiatCurrencyOptions}
+              notFoundContent="Create the fiat currency in Basic Info > Currency first."
+            />
           </Form.Item>
           <Form.Item name="mainUnit" label="Main Unit" rules={[{ required: true, message: 'Enter Main Unit' }]}>
             <Input placeholder="Main Unit" maxLength={40} />
