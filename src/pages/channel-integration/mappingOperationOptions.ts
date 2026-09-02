@@ -18,16 +18,6 @@ export const mappingOperationOptions = [
       { label: 'String to Integer', value: 'string-to-integer' },
       { label: 'Field Concat', value: 'field-concat' },
       { label: 'Timestamp', value: 'timestamp' },
-      { label: 'Convert to Uppercase', value: 'convert-to-uppercase' },
-      { label: 'Convert to Lowercase', value: 'convert-to-lowercase' },
-    ],
-  },
-  {
-    label: 'MAPPING',
-    value: 'mapping',
-    children: [
-      { label: 'Chain Code Inner to Outer', value: 'chain-code-inner-to-outer' },
-      { label: 'Chain Code Outer to Inner', value: 'chain-code-outer-to-inner' },
     ],
   },
   {
@@ -49,6 +39,10 @@ export const mappingOperationOptions = [
     children: [
       { label: 'Verify Type Convert', value: 'verify-type-convert' },
       { label: 'Read file from URL', value: 'read-file-from-url' },
+      { label: 'Chain Code Inner to Outer', value: 'chain-code-inner-to-outer' },
+      { label: 'Chain Code Outer to Inner', value: 'chain-code-outer-to-inner' },
+      { label: 'Convert to Uppercase', value: 'convert-to-uppercase' },
+      { label: 'Convert to Lowercase', value: 'convert-to-lowercase' },
     ],
   },
 ];
