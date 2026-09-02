@@ -22,6 +22,7 @@ import type { CloudType, ConfigAbility, DeployRecord, FlowGroupVersion } from '.
 import StateMachinePreviewModal, { isNoStateMachine, stateMachineDisplayName } from './StateMachinePreviewModal';
 
 const { Text } = Typography;
+const EMPTY_ABILITIES: ConfigAbility[] = [];
 
 const linkedStateMachines: Record<string, string[]> = {
   'COLLECTION:CARD_PAY': ['Default_Refund_StateMachine', 'BankCard_Debit_StateMachine'],
@@ -34,6 +35,7 @@ const linkedStateMachines: Record<string, string[]> = {
   'SMS:BULK_MESSAGE': ['Default_Refund_StateMachine'],
   'KYC:FINGERPRINT_VERIFY': ['Default_Refund_StateMachine'],
   'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['Default_Refund_StateMachine'],
+  'STABLECOIN:ONRAMP': ['NO_STATE_MACHINE'],
 };
 
 function AddCapabilitiesModal({
@@ -287,9 +289,10 @@ export default function ConfigAbilityListPage() {
   const [configAbility, setConfigAbility] = useState<ConfigAbility | null>(null);
   const pageSize = 10;
 
-  const abilities = useConfigIntegrationStore(
-    (state) => state.abilitiesByChannel[channelCode] ?? []
+  const channelAbilities = useConfigIntegrationStore(
+    (state) => state.abilitiesByChannel[channelCode]
   );
+  const abilities = channelAbilities ?? EMPTY_ABILITIES;
   const addAbility = useConfigIntegrationStore((state) => state.addAbility);
   const createFlowGroup = useConfigIntegrationStore((state) => state.createFlowGroup);
   const cloneGroup = useConfigIntegrationStore((state) => state.cloneGroup);

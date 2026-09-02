@@ -443,6 +443,7 @@ export const abilityOptions: Record<string, string[]> = {
   FUND_NOTIFICATION: ['CUSTOMER_VALIDATION'],
   WALLET_PAYOUT: ['TRANSACTION'],
   BANK_ACCOUNT_PAYOUT: ['TRANSACTION'],
+  STABLECOIN: ['ONRAMP'],
 }
 
 // Country 枚举
@@ -452,7 +453,7 @@ export const countryOptions = ['Nigeria', 'Ghana', 'Kenya', 'Tanzania', 'Uganda'
 export const partyOptions = ['FLEXI', 'PalmPay NG', 'PalmPay GH', 'PalmPay KE']
 
 // Business Type 枚举
-export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRANSFER', 'BANK_CARD_DEBIT', 'WALLET_DEBIT', 'SMS', 'KYC', 'FUND_NOTIFICATION']
+export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRANSFER', 'BANK_CARD_DEBIT', 'WALLET_DEBIT', 'SMS', 'KYC', 'FUND_NOTIFICATION', 'STABLECOIN']
 
 // Action 枚举
 export const actionOptions = ['TRANSACTION', 'QUERY', 'VERIFY', 'CANCEL', 'REVERSAL', 'INBOUND_TRANSACTION', 'INBOUND_QUERY']
@@ -474,4 +475,5 @@ export const capabilityActionOptions: Record<string, string[]> = {
   'WALLET_PAYOUT:TRANSACTION': ['TRANSACTION', 'QUERY', 'REVERSAL'],
   'BANK_ACCOUNT_PAYOUT:TRANSACTION': ['TRANSACTION', 'QUERY', 'REVERSAL'],
   'FUND_NOTIFICATION:EXTERNAL_CREDIT': ['INBOUND_TRANSACTION', 'QUERY'],
+  'STABLECOIN:ONRAMP': ['TRANSACTION'],
 }
