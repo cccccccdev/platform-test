@@ -3,6 +3,7 @@
 
 // 渠道列表
 export const mockChannels = [
+  { code: 'COBO', country: ['GSA'], party: ['Stablecoin'], status: 'Active', operator: 'Abe', operationTime: '2026-09-02 10:00:00' },
   { code: 'EVEXIN', country: ['NG'], party: ['FLEXI'], status: 'Active', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
   { code: 'GTB_NG', country: ['Nigeria'], party: ['PalmPay NG'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 10:00:00' },
   { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: ['PalmPay NG'], status: 'Inactive', operator: 'admin', operationTime: '2026-05-20 11:00:00' },
@@ -12,6 +13,10 @@ export const mockChannels = [
 
 // Credential 列表（按 channelCode 索引）
 export const mockCredentials: Record<string, Array<{ id: string; key: string; description?: string }>> = {
+  COBO: [
+    { id: 'cobo_api_key', key: 'API_KEY', description: 'COBO API credential' },
+    { id: 'cobo_api_secret', key: 'API_SECRET', description: 'COBO API signing secret' },
+  ],
   EVEXIN: [
     { id: 'evexin_app_key', key: 'appKey', description: 'EVEXIN credential key' },
     { id: 'evexin_app_secret', key: 'appSecret', description: 'EVEXIN credential secret' },
@@ -38,6 +43,9 @@ export const mockCredentials: Record<string, Array<{ id: string; key: string; de
 
 // Business Type 列表（按 channelCode 索引）
 export const mockBusinessTypes: Record<string, Array<{ bt: string; mode: 'Config Integration' | 'Code Integration' }>> = {
+  COBO: [
+    { bt: 'STABLECOIN', mode: 'Config Integration' },
+  ],
   EVEXIN: [
     { bt: 'SMS', mode: 'Config Integration' },
   ],
@@ -435,6 +443,7 @@ export const abilityOptions: Record<string, string[]> = {
   FUND_NOTIFICATION: ['CUSTOMER_VALIDATION'],
   WALLET_PAYOUT: ['TRANSACTION'],
   BANK_ACCOUNT_PAYOUT: ['TRANSACTION'],
+  STABLECOIN: ['ONRAMP'],
 }
 
 // Country 枚举
@@ -444,7 +453,7 @@ export const countryOptions = ['Nigeria', 'Ghana', 'Kenya', 'Tanzania', 'Uganda'
 export const partyOptions = ['FLEXI', 'PalmPay NG', 'PalmPay GH', 'PalmPay KE']
 
 // Business Type 枚举
-export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRANSFER', 'BANK_CARD_DEBIT', 'WALLET_DEBIT', 'SMS', 'KYC', 'FUND_NOTIFICATION']
+export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRANSFER', 'BANK_CARD_DEBIT', 'WALLET_DEBIT', 'SMS', 'KYC', 'FUND_NOTIFICATION', 'STABLECOIN']
 
 // Action 枚举
 export const actionOptions = ['TRANSACTION', 'QUERY', 'VERIFY', 'CANCEL', 'REVERSAL', 'INBOUND_TRANSACTION', 'INBOUND_QUERY']
@@ -466,4 +475,5 @@ export const capabilityActionOptions: Record<string, string[]> = {
   'WALLET_PAYOUT:TRANSACTION': ['TRANSACTION', 'QUERY', 'REVERSAL'],
   'BANK_ACCOUNT_PAYOUT:TRANSACTION': ['TRANSACTION', 'QUERY', 'REVERSAL'],
   'FUND_NOTIFICATION:EXTERNAL_CREDIT': ['INBOUND_TRANSACTION', 'QUERY'],
+  'STABLECOIN:ONRAMP': ['TRANSACTION'],
 }

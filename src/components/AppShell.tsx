@@ -5,6 +5,7 @@ import { Brand, UserProfile } from './PlatformChrome';
 const { Sider, Content, Header } = Layout;
 
 const menuItems = [
+  { key: '/basic-info/currency', label: 'Currency' },
   { key: '/basic-info/country', label: 'Country' },
   { key: '/basic-info/party', label: 'Party' },
   { key: '/basic-info/card-bin', label: 'Card Bin' },

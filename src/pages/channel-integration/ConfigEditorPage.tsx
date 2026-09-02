@@ -6,7 +6,7 @@ import FlowConfigModal from './FlowConfigModal';
 import FlowSettingsModal from './FlowSettingsModal';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
-import type { FlowConfig, TriggerType } from './types';
+import type { FlowConfig, InboundEndpoint, TriggerType } from './types';
 import StateMachinePreviewModal, { isNoStateMachine, stateMachineDisplayName } from './StateMachinePreviewModal';
 
 const { Text, Title } = Typography;
@@ -38,6 +38,7 @@ const statusColors: Record<string, string> = {
   PRE: 'orange',
   PROD: 'green',
 };
+const EMPTY_INBOUND_ENDPOINTS: InboundEndpoint[] = [];
 
 export default function ConfigEditorPage() {
   const {
@@ -69,7 +70,8 @@ export default function ConfigEditorPage() {
   const addFlow = useConfigIntegrationStore((state) => state.addFlow);
   const deleteFlow = useConfigIntegrationStore((state) => state.deleteFlow);
   const updateFlow = useConfigIntegrationStore((state) => state.updateFlow);
-  const inboundEndpoints = useMatchCapabilityStore((state) => state.endpointsByChannel[channelCode] ?? []);
+  const channelInboundEndpoints = useMatchCapabilityStore((state) => state.endpointsByChannel[channelCode]);
+  const inboundEndpoints = channelInboundEndpoints ?? EMPTY_INBOUND_ENDPOINTS;
 
   if (!ability || !version) {
     return (

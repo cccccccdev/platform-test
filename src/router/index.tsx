@@ -124,6 +124,7 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/metadata', element: <MetadataPage /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
+      { path: 'channel-integration/:channelCode/channel-info/chain', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matchina', element: <RuntimeRouteMatchingTypoRedirect /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matching', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/flow-groups', element: <ChannelInfoPage /> },
