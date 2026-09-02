@@ -238,13 +238,6 @@ export default function SceneListPage() {
           >
             Control
           </Button>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => navigate(`/channel-integration/${channelCode}/scenes/${record.scenarioId}/api-debug`)}
-          >
-            API Debug
-          </Button>
         </Space>
       ),
     },

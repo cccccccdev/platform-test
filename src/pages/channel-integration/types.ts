@@ -289,6 +289,7 @@ export interface ResourceVersionSnapshot {
 export interface ConfigAbility {
   bt: string;
   ability: string;
+  integrationRecordId?: string;
   actions: string[];
   stateMachine: string;
   versions: FlowGroupVersion[];

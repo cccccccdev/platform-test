@@ -10,12 +10,11 @@ export function Brand() {
   );
 }
 
-export function UserProfile({ dark = false }: { dark?: boolean }) {
+export function UserProfile({ dark = false, name = '我爱北京天安门' }: { dark?: boolean; name?: string }) {
   return (
     <div className={`platform-user${dark ? ' platform-user-dark' : ''}`}>
       <Avatar size={28} icon={<UserOutlined />} className="platform-user-avatar" />
-      <span>我爱北京天安门</span>
+      <span>{name}</span>
     </div>
   );
 }
-

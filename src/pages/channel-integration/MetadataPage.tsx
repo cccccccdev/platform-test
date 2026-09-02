@@ -1,6 +1,5 @@
 import { Alert, Breadcrumb, Button, Table, Tabs, Tag } from 'antd';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Brand, UserProfile } from '../../components/PlatformChrome';
+import { useParams } from 'react-router-dom';
 
 type InboundEndpointRow = {
   key: string;
@@ -53,7 +52,6 @@ const legacySecuritySchemas: Array<{ title: string; algorithmTitle: string; rows
 ];
 
 export default function MetadataPage() {
-  const navigate = useNavigate();
   const { channelCode = '' } = useParams();
   const rows = legacyInboundEndpointsByChannel[channelCode] ?? [];
 
@@ -129,19 +127,12 @@ export default function MetadataPage() {
     />
   </section>;
 
-  return <div className="channel-list-shell metadata-page">
-    <aside className="channel-list-sidebar">
-      <div className="legacy-sidebar-brand" onClick={() => navigate('/home')}><Brand /></div>
-      <div className="legacy-sidebar-section">Channel Integration <span>⌃</span></div>
-      <div className="channel-list-active" onClick={() => navigate('/channel-integration')}>Channel List</div>
-    </aside>
-    <div className="channel-list-main">
-      <header className="legacy-header"><UserProfile /></header>
-      <div className="legacy-page-heading">
-        <Breadcrumb items={[{ title: 'Channel Integration' }, { title: 'Channel List' }, { title: 'Metadata' }]} />
+  return <main className="metadata-page">
+      <header className="integration-overview-heading">
+        <Breadcrumb items={[{ title: 'Channel Integration' }, { title: 'Integration' }, { title: 'Config Integration' }, { title: 'Metadata' }]} />
         <h1>Metadata</h1>
-      </div>
-      <main className="metadata-content">
+      </header>
+      <div className="metadata-content">
         <Tabs
           defaultActiveKey="security"
           type="card"
@@ -151,7 +142,6 @@ export default function MetadataPage() {
             { key: 'inbound', label: 'Inbound Endpoints', children: inboundContent },
           ]}
         />
-      </main>
-    </div>
-  </div>;
+      </div>
+  </main>;
 }

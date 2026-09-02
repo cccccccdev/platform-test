@@ -6,7 +6,6 @@ import HomePage from '../pages/home/HomePage';
 
 // Channel Integration pages (no sidebar)
 import ChannelListPage from '../pages/channel-integration/ChannelListPage';
-import BusinessTypePage from '../pages/channel-integration/BusinessTypePage';
 import MatchCapabilityPage from '../pages/channel-integration/MatchCapabilityPage';
 import MatchCapabilityEditorPage from '../pages/channel-integration/MatchCapabilityEditorPage';
 import ConfigAbilityListPage from '../pages/channel-integration/ConfigAbilityListPage';
@@ -17,6 +16,7 @@ import ChannelInfoPage from '../pages/channel-integration/ChannelInfoPage';
 import RuntimeFlowCanvasPage from '../pages/channel-integration/RuntimeFlowCanvasPage';
 import MetadataPage from '../pages/channel-integration/MetadataPage';
 import ConfigIntegrationOverviewPage from '../pages/channel-integration/ConfigIntegrationOverviewPage';
+import ChannelProfilePage from '../pages/channel-integration/ChannelProfilePage';
 
 
 // Scene pages (existing)
@@ -84,6 +84,16 @@ function RuntimeRouteMatchingTypoRedirect() {
   return <Navigate to={`/channel-integration/${channelCode}/channel-info/runtime-control/route-matching`} replace />;
 }
 
+function LegacyMetadataRedirect() {
+  const { channelCode = '' } = useParams();
+  return <Navigate to={`/channel-integration/${channelCode}/integration/config/metadata`} replace />;
+}
+
+function LegacyChannelProfileRedirect({ section }: { section: string }) {
+  const { channelCode = '' } = useParams();
+  return <Navigate to={`/channel-integration/${channelCode}/channel-profile/${section}`} replace />;
+}
+
 const router = createHashRouter(
 [
   { index: true, element: <Navigate to="/home" replace /> },
@@ -118,11 +128,12 @@ const router = createHashRouter(
       { path: 'channel-integration', element: <ChannelListPage /> },
 
       // Channel sub-pages
-      { path: 'channel-integration/:channelCode/business-type', element: <BusinessTypePage /> },
-      { path: 'channel-integration/:channelCode/party', element: <div style={{ padding: 24 }}>Party Page - 待实现</div> },
-      { path: 'channel-integration/:channelCode/country', element: <div style={{ padding: 24 }}>Country Page - 待实现</div> },
-      { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
-      { path: 'channel-integration/:channelCode/metadata', element: <MetadataPage /> },
+      { path: 'channel-integration/:channelCode/business-type', element: <LegacyChannelProfileRedirect section="summary" /> },
+      { path: 'channel-integration/:channelCode/party', element: <LegacyChannelProfileRedirect section="summary" /> },
+      { path: 'channel-integration/:channelCode/country', element: <LegacyChannelProfileRedirect section="summary" /> },
+      { path: 'channel-integration/:channelCode/offline-info', element: <LegacyChannelProfileRedirect section="integration-records" /> },
+      { path: 'channel-integration/:channelCode/channel-profile/:section', element: <ChannelProfilePage /> },
+      { path: 'channel-integration/:channelCode/metadata', element: <LegacyMetadataRedirect /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/chain', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matchina', element: <RuntimeRouteMatchingTypoRedirect /> },
@@ -141,6 +152,7 @@ const router = createHashRouter(
           { path: 'channel-integration/:channelCode/integration/match-capability', element: <LegacyRouteMatchingRedirect /> },
           { path: 'channel-integration/:channelCode/integration/config', element: <LegacyFlowGroupsRedirect /> },
           { path: 'channel-integration/:channelCode/integration/config/overview', element: <ConfigIntegrationOverviewPage /> },
+          { path: 'channel-integration/:channelCode/integration/config/metadata', element: <MetadataPage /> },
           { path: 'channel-integration/:channelCode/integration/config/route-matching', element: <MatchCapabilityPage /> },
           { path: 'channel-integration/:channelCode/integration/config/flow-groups', element: <ConfigAbilityListPage /> },
           { path: 'channel-integration/:channelCode/integration/config/flow-groups/test', element: <TestPage /> },
@@ -184,9 +196,6 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/scenes', element: <SceneListPage /> },
       { path: 'channel-integration/:channelCode/scenes/:sceneId/modify', element: <SceneEditPage /> },
       { path: 'channel-integration/:channelCode/scenes/:sceneId/detail/:version', element: <SceneDetailPage /> },
-      { path: 'channel-integration/:channelCode/scenes/:sceneId/api-debug', element: <div style={{ padding: 24 }}>AI Debug Page - 待实现</div> },
-      // Channel-level AI Debug (no scene)
-      { path: 'channel-integration/:channelCode/api-debug', element: <div style={{ padding: 24 }}>AI Debug Page - 待实现</div> },
     ],
   },
 

@@ -36,6 +36,10 @@ export default function IntegrationLayout() {
           label: 'Overview',
         },
         {
+          key: `/channel-integration/${channelCode}/integration/config/metadata`,
+          label: 'Metadata',
+        },
+        {
           key: `/channel-integration/${channelCode}/integration/config/route-matching`,
           label: 'Route Matching',
         },
@@ -59,6 +63,8 @@ export default function IntegrationLayout() {
 
   const selectedMenuKey = location.pathname.includes('/config/overview')
     ? `/channel-integration/${channelCode}/integration/config/overview`
+    : location.pathname.includes('/config/metadata')
+      ? `/channel-integration/${channelCode}/integration/config/metadata`
     : location.pathname.includes('/route-matching') || location.pathname.includes('/match-capability')
     ? `/channel-integration/${channelCode}/integration/config/route-matching`
     : location.pathname.includes('/flow-groups') || location.pathname.includes('/integration/config')
