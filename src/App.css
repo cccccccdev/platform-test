@@ -120,6 +120,15 @@
 .record-detail-meta { display: flex; flex-wrap: wrap; gap: 8px 24px; margin-bottom: 18px; color: #8c8c8c; font-size: 12px; }
 .record-detail-meta strong { color: #595959; }
 .integration-record-modal .ant-alert { margin-bottom: 18px; }
+.record-create-wizard-form { margin-top: 20px; }
+.document-source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 20px; }
+.document-source-field { padding: 16px 18px 4px; border: 1px solid #e6e6e6; background: #fafafa; }
+.document-source-label { margin-bottom: 4px; color: #262626; font-size: 14px; font-weight: 600; }
+.document-source-label span { margin-right: 4px; color: #ff4d4f; }
+.document-source-help { margin-bottom: 14px; color: #8c8c8c; font-size: 12px; }
+.document-source-field .ant-form-item { margin-bottom: 12px; }
+.document-source-or { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; color: #8c8c8c; font-size: 12px; text-transform: uppercase; }
+.document-source-or::before, .document-source-or::after { height: 1px; flex: 1; background: #e1e1e1; content: ''; }
 .record-party-scope-list { display: grid; gap: 14px; }
 .record-party-scope { padding: 16px; border: 1px solid #e8e8e8; background: #fafafa; }
 .record-party-scope-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -129,6 +138,10 @@
 .record-capability-list { display: grid; gap: 10px; margin-bottom: 10px; }
 .record-capability-row { align-items: start; }
 .record-capability-row .ant-form-item { margin-bottom: 0; }
+.record-scope-table-head, .record-scope-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) 32px; gap: 10px; }
+.record-scope-table-head { margin-bottom: 6px; color: #595959; font-size: 12px; font-weight: 600; }
+.record-scope-row { align-items: start; }
+.record-scope-row .ant-form-item { margin-bottom: 0; }
 .add-party-button { margin-top: 14px; }
 .channel-profile-shell .record-delete-button.ant-btn-dangerous { color: #ff4d4f; }
 .channel-profile-shell .record-delete-button.ant-btn-dangerous:disabled { color: #ff9c9c; }
@@ -153,7 +166,7 @@
 @media (max-width: 900px) {
   .channel-profile-sidebar { width: 168px !important; }
   .channel-profile-main { margin-left: 168px; }
-  .profile-form-grid, .profile-form-grid.two-columns { grid-template-columns: 1fr; }
+  .profile-form-grid, .profile-form-grid.two-columns, .document-source-grid { grid-template-columns: 1fr; }
   .channel-profile-card { padding: 20px 16px; }
 }
 

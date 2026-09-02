@@ -14,6 +14,7 @@ import {
   Table,
   Tag,
   Upload,
+  Steps,
   message,
 } from 'antd';
 import { ArrowLeftOutlined, DownOutlined, MinusCircleOutlined, RightOutlined, UploadOutlined } from '@ant-design/icons';
@@ -22,6 +23,7 @@ import { Brand, UserProfile } from '../../components/PlatformChrome';
 import { businessTypeOptions, partyOptions } from '../../mock/data';
 import { countryCodeOptions } from '../../mock/countries';
 import { getCreatedIntegrationRecord } from './channelCreationStore';
+import { isBusinessTypeScopeComplete, toBusinessTypeScopes, toPartyScopes } from './integrationScope';
 
 type ProfileSection = 'summary' | 'business-types' | 'parties' | 'owners' | 'approvers' | 'integration-records';
 type IntegrationMode = 'CONFIG' | 'CODE';
@@ -112,6 +114,20 @@ const sectionTitles: Record<ProfileSection, string> = {
 };
 
 const now = () => new Date().toLocaleString('sv-SE').replace('T', ' ');
+const uploadValue = (event: any) => event?.fileList;
+const fileNames = (files?: Array<{ name: string }>) => files?.map(({ name }) => name).join(', ');
+const documentValue = (files?: Array<{ name: string }>, link?: string) => [fileNames(files), link?.trim()].filter(Boolean).join(' | ');
+const documentFormValue = (value?: string, uid = 'document') => {
+  const parts = (value || '').split(' | ').filter(Boolean);
+  const link = parts.find((part) => /^https?:\/\//.test(part));
+  const filePart = parts.find((part) => !/^https?:\/\//.test(part));
+  return { files: filePart ? filePart.split(', ').map((name, index) => ({ uid: `${uid}-${index}`, name, status: 'done' })) : [], link };
+};
+const contractPdfOnly = (file: File) => {
+  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) return false;
+  message.error('Only PDF files are accepted for Contract');
+  return Upload.LIST_IGNORE;
+};
 
 export default function ChannelProfilePage() {
   const navigate = useNavigate();
@@ -122,10 +138,12 @@ export default function ChannelProfilePage() {
   const [ownersForm] = Form.useForm<OwnerSettings>();
   const [approversForm] = Form.useForm<ApproverSettings>();
   const [recordForm] = Form.useForm<any>();
+  const recordCreateValues = Form.useWatch([], recordForm) || {};
   const [recordDetailForm] = Form.useForm<any>();
   const [businessTypeModalOpen, setBusinessTypeModalOpen] = useState(false);
   const [partyModalOpen, setPartyModalOpen] = useState(false);
   const [recordModalOpen, setRecordModalOpen] = useState(false);
+  const [recordCreateStep, setRecordCreateStep] = useState(0);
   const [recordDetailOpen, setRecordDetailOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<IntegrationRecord | null>(null);
   const [channelMenuOpen, setChannelMenuOpen] = useState(true);
@@ -145,7 +163,7 @@ export default function ChannelProfilePage() {
   const [parties, setParties] = useState<PartyRow[]>(() => createdRecord
     ? createdRecord.partyScopes.map(({ party }) => ({ party, operator: 'current.user', operationTime: now() }))
     : [{ party: 'TMUL', operator: 'zihao.ye', operationTime: '2026-08-24 07:33:56' }]);
-  const [owners, setOwners] = useState<OwnerSettings>({
+  const [owners, setOwners] = useState<OwnerSettings>(createdRecord?.owners || {
     productOwners: ['Nadia Rahman'],
     technicalOwners: ['Chen Rui'],
     operationOwners: ['Amina Bello'],
@@ -153,7 +171,7 @@ export default function ChannelProfilePage() {
     sre: ['Li Ming'],
     businessOwners: [],
   });
-  const [approvers, setApprovers] = useState<ApproverSettings>({
+  const [approvers, setApprovers] = useState<ApproverSettings>(createdRecord?.approvers || {
     productApprover: 'Fatima Khan',
     technicalApprover: 'Zhang Wei',
     operationsApprover: 'Rahul Mehta',
@@ -169,7 +187,7 @@ export default function ChannelProfilePage() {
       recordName: 'TMUL Wallet Debit Initial Integration',
       partyScopes: [{ party: 'TMUL', capabilities: [{ businessType: 'WALLET_DEBIT', integrationType: 'CONFIG', ability: 'TRANSFER', countries: ['TZ'] }] }],
       prdDocuments: 'TMUL Wallet Debit PRD.pdf',
-      gatewayDeliverables: 'Gateway delivery checklist.xlsx',
+      gatewayDeliverables: 'https://yuque.com/omnicore/gateway-delivery/tmul-wallet-debit',
       operator: 'zihao.ye',
       operationTime: '2026-08-24 07:36:12',
       linkedToGroup: true,
@@ -265,15 +283,18 @@ export default function ChannelProfilePage() {
   const saveRecord = async () => {
     try {
       const values = await recordForm.validateFields();
-      const validationError = validateRecordScopes(values.partyScopes);
+      const partyScopes = toPartyScopes(values.businessTypeScopes);
+      const validationError = validateRecordScopes(partyScopes);
       if (validationError) {
         message.error(validationError);
         return;
       }
       const nextRecords = [...records, {
         ...values,
-        contracts: values.contracts?.map((file: { name: string }) => file.name).join(', '),
-        accessApprovalRecords: values.accessApprovalRecords?.map((file: { name: string }) => file.name).join(', '),
+        partyScopes,
+        contracts: fileNames(values.contracts),
+        debugReports: documentValue(values.debugReportFiles, values.debugReportLink),
+        prdDocuments: documentValue(values.prdDocumentFiles, values.prdDocumentLink),
         recordId: `IR-${String(129 + records.length).padStart(6, '0')}`,
         operator: 'current.user',
         operationTime: now(),
@@ -282,6 +303,7 @@ export default function ChannelProfilePage() {
       setRecords(nextRecords);
       syncBasicConfiguration(nextRecords);
       setRecordModalOpen(false);
+      setRecordCreateStep(0);
       recordForm.resetFields();
       message.success('Integration Record created');
     } catch {}
@@ -289,10 +311,16 @@ export default function ChannelProfilePage() {
 
   const openRecordDetail = (record: IntegrationRecord) => {
     setSelectedRecord(record);
+    const debugReport = documentFormValue(record.debugReports, `${record.recordId}-debug`);
+    const prdDocument = documentFormValue(record.prdDocuments, `${record.recordId}-prd`);
     recordDetailForm.setFieldsValue({
       ...record,
-      contracts: record.contracts ? [{ uid: `${record.recordId}-contract`, name: record.contracts, status: 'done' }] : [],
-      accessApprovalRecords: record.accessApprovalRecords ? [{ uid: `${record.recordId}-approval`, name: record.accessApprovalRecords, status: 'done' }] : [],
+      businessTypeScopes: toBusinessTypeScopes(record.partyScopes),
+      contracts: record.contracts ? record.contracts.split(', ').map((name, index) => ({ uid: `${record.recordId}-contract-${index}`, name, status: 'done' })) : [],
+      debugReportFiles: debugReport.files,
+      debugReportLink: debugReport.link,
+      prdDocumentFiles: prdDocument.files,
+      prdDocumentLink: prdDocument.link,
     });
     setRecordDetailOpen(true);
   };
@@ -301,7 +329,8 @@ export default function ChannelProfilePage() {
     if (!selectedRecord) return;
     try {
       const values = await recordDetailForm.validateFields();
-      const validationError = validateRecordScopes(values.partyScopes);
+      const submittedPartyScopes = toPartyScopes(values.businessTypeScopes);
+      const validationError = validateRecordScopes(submittedPartyScopes);
       if (validationError) {
         message.error(validationError);
         return;
@@ -309,10 +338,11 @@ export default function ChannelProfilePage() {
       const nextRecords = records.map((record) => record.recordId === selectedRecord.recordId ? {
         ...record,
         ...values,
-        partyScopes: record.linkedToGroup ? [...record.partyScopes, ...values.partyScopes.slice(record.partyScopes.length)] : values.partyScopes,
+        partyScopes: record.linkedToGroup ? [...record.partyScopes, ...submittedPartyScopes.slice(record.partyScopes.length)] : submittedPartyScopes,
         recordName: record.linkedToGroup ? record.recordName : values.recordName,
-        contracts: values.contracts?.map((file: { name: string }) => file.name).join(', '),
-        accessApprovalRecords: values.accessApprovalRecords?.map((file: { name: string }) => file.name).join(', '),
+        contracts: fileNames(values.contracts),
+        debugReports: documentValue(values.debugReportFiles, values.debugReportLink),
+        prdDocuments: documentValue(values.prdDocumentFiles, values.prdDocumentLink),
         operator: 'current.user',
         operationTime: now(),
       } : record);
@@ -331,57 +361,87 @@ export default function ChannelProfilePage() {
     message.success('Integration Record deleted');
   };
 
-  const renderPartyScopes = (form: any, lockedExistingPartyCount = 0) => (
+  const closeRecordCreate = () => {
+    setRecordModalOpen(false);
+    setRecordCreateStep(0);
+    recordForm.resetFields();
+  };
+
+  const nextRecordCreateStep = async () => {
+    const fields = recordCreateStep === 0
+      ? ['recordName', 'businessTypeScopes']
+      : ['debugReportLink', 'prdDocumentLink'];
+    try {
+      await recordForm.validateFields(fields, { recursive: true });
+      setRecordCreateStep((step) => step + 1);
+    } catch {}
+  };
+
+  const canContinueRecordCreate = recordCreateStep === 0
+    ? Boolean(recordCreateValues.recordName?.trim()) && isBusinessTypeScopeComplete(recordCreateValues.businessTypeScopes)
+    : Boolean((recordCreateValues.debugReportFiles?.length || recordCreateValues.debugReportLink?.trim())
+      && (recordCreateValues.prdDocumentFiles?.length || recordCreateValues.prdDocumentLink?.trim()));
+
+  const renderRequiredDocuments = (form: any) => (
+    <div className="document-source-grid">
+      {(['debugReport', 'prdDocument'] as const).map((key) => <div className="document-source-field" key={key}>
+        <div className="document-source-label"><span>*</span>{key === 'debugReport' ? 'Debug Report' : 'PRD Document'}</div>
+        <div className="document-source-help">Upload a file or provide a Yuque link. At least one is required.</div>
+        <Form.Item name={`${key}Files`} valuePropName="fileList" getValueFromEvent={uploadValue}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload File</Button></Upload></Form.Item>
+        <div className="document-source-or"><span>or</span></div>
+        <Form.Item name={`${key}Link`} dependencies={[`${key}Files`]} rules={[{ validator: (_: unknown, value: string) => value || form.getFieldValue(`${key}Files`)?.length ? Promise.resolve() : Promise.reject(new Error('Upload a file or enter a Yuque link')) }]}><Input placeholder="Enter Yuque link" /></Form.Item>
+      </div>)}
+    </div>
+  );
+
+  const renderPartyScopes = (form: any, lockedExistingBusinessTypeCount = 0) => (
     <Form.Item label="Integration Scope" required>
-      <Form.List name="partyScopes" initialValue={[{ capabilities: [{}] }]} rules={[{ validator: async (_, scopes) => { if (!scopes?.length) throw new Error('Please add at least one Party'); } }]}>
-        {(partyFields, { add: addParty, remove: removeParty }, { errors: partyErrors }) => (
+      <Form.List name="businessTypeScopes" initialValue={[{ partyAbilities: [{}] }]} rules={[{ validator: async (_, scopes) => {
+        if (!scopes?.length) throw new Error('Please add at least one Business Type');
+        const values = scopes.map((scope: { businessType?: string }) => scope.businessType).filter(Boolean);
+        if (new Set(values).size !== values.length) throw new Error('Each Business Type can only be configured once');
+      } }]}>
+        {(businessTypeFields, { add: addBusinessType, remove: removeBusinessType }, { errors: scopeErrors }) => (
           <>
             <div className="record-party-scope-list">
-              {partyFields.map((partyField, partyIndex) => (
-                <section className="record-party-scope" key={partyField.key}>
+              {businessTypeFields.map((businessTypeField, businessTypeIndex) => (
+                <section className="record-party-scope" key={businessTypeField.key}>
                   {(() => {
-                    const scopeLocked = partyIndex < lockedExistingPartyCount;
+                    const scopeLocked = businessTypeIndex < lockedExistingBusinessTypeCount;
                     return <>
-                  <div className="record-party-scope-heading"><strong>Party {partyIndex + 1}</strong>{!scopeLocked && <Button type="text" danger disabled={partyFields.length === 1} onClick={() => removeParty(partyField.name)}>Remove Party</Button>}</div>
-                  <Form.Item name={[partyField.name, 'party']} label="Party" rules={[{ required: true, message: 'Select Party' }]}>
-                    <Select disabled={scopeLocked} placeholder="Party" options={allPartyOptions} />
-                  </Form.Item>
-                  <Form.List name={[partyField.name, 'capabilities']} initialValue={[{}]} rules={[{ validator: async (_, rows) => { if (!rows?.length) throw new Error('Please add at least one capability'); } }]}>
-                    {(capabilityFields, { add: addCapability, remove: removeCapability }, { errors: capabilityErrors }) => (
+                  <div className="record-party-scope-heading"><strong>Business Type {businessTypeIndex + 1}</strong>{!scopeLocked && <Button type="text" danger disabled={businessTypeFields.length === 1} onClick={() => removeBusinessType(businessTypeField.name)}>Remove Business Type</Button>}</div>
+                  <div className="profile-form-grid two-columns">
+                    <Form.Item name={[businessTypeField.name, 'businessType']} label="Business Type" rules={[{ required: true, message: 'Select Business Type' }]}><Select disabled={scopeLocked} options={businessTypeOptions.map((bt) => ({ label: bt, value: bt }))} onChange={(businessType) => {
+                      form.setFieldValue(['businessTypeScopes', businessTypeField.name, 'integrationType'], businessTypes.find(({ bt }) => bt === businessType)?.mode);
+                      form.setFieldValue(['businessTypeScopes', businessTypeField.name, 'partyAbilities'], [{}]);
+                    }} /></Form.Item>
+                    <Form.Item noStyle shouldUpdate>{() => {
+                      const businessType = form.getFieldValue(['businessTypeScopes', businessTypeField.name, 'businessType']);
+                      const existingMode = businessTypes.find(({ bt }) => bt === businessType)?.mode;
+                      return <Form.Item name={[businessTypeField.name, 'integrationType']} label="Integration Type" rules={[{ required: true, message: 'Select Integration Type' }]}><Select disabled={scopeLocked || Boolean(existingMode)} placeholder={existingMode ? 'Defined by Business Type' : 'Integration Type'} options={[{ label: 'CONFIG', value: 'CONFIG' }, { label: 'CODE', value: 'CODE' }]} /></Form.Item>;
+                    }}</Form.Item>
+                  </div>
+                  <Form.List name={[businessTypeField.name, 'partyAbilities']} initialValue={[{}]} rules={[{ validator: async (_, rows) => { if (!rows?.length) throw new Error('Please add at least one Party / Ability'); } }]}>
+                    {(abilityFields, { add: addAbility, remove: removeAbility }, { errors: abilityErrors }) => (
                       <>
-                        <div className="record-capability-table-head"><span>Business Type</span><span>Integration Type</span><span>Ability</span><span>Countries</span><span /></div>
+                        <div className="record-scope-table-head"><span>Party</span><span>Ability</span><span>Countries</span><span /></div>
                         <div className="record-capability-list">
-                          {capabilityFields.map((capabilityField) => (
-                            <div className="record-capability-row" key={capabilityField.key}>
-                              <Form.Item name={[capabilityField.name, 'businessType']} rules={[{ required: true, message: 'Select Business Type' }]}>
-                                <Select disabled={scopeLocked} placeholder="Business Type" options={businessTypeOptions.map((bt) => ({ label: bt, value: bt }))} onChange={() => {
-                                  form.setFieldValue(['partyScopes', partyField.name, 'capabilities', capabilityField.name, 'integrationType'], undefined);
-                                  form.setFieldValue(['partyScopes', partyField.name, 'capabilities', capabilityField.name, 'ability'], undefined);
-                                  form.setFieldValue(['partyScopes', partyField.name, 'capabilities', capabilityField.name, 'countries'], []);
-                                }} />
-                              </Form.Item>
-                              <Form.Item name={[capabilityField.name, 'integrationType']} rules={[{ required: true, message: 'Select Integration Type' }]}>
-                                <Select disabled={scopeLocked} placeholder="Integration Type" options={[{ label: 'CONFIG', value: 'CONFIG' }, { label: 'CODE', value: 'CODE' }]} />
-                              </Form.Item>
+                          {abilityFields.map((abilityField) => (
+                            <div className="record-scope-row" key={abilityField.key}>
+                              <Form.Item name={[abilityField.name, 'party']} rules={[{ required: true, message: 'Select Party' }]}><Select disabled={scopeLocked} placeholder="Party" options={allPartyOptions} /></Form.Item>
                               <Form.Item noStyle shouldUpdate>
                                 {() => {
-                                  const businessType = form.getFieldValue(['partyScopes', partyField.name, 'capabilities', capabilityField.name, 'businessType']);
-                                  return <Form.Item name={[capabilityField.name, 'ability']} rules={[{ required: true, message: 'Select Ability' }]}><Select disabled={scopeLocked || !businessType} placeholder="Ability" options={(abilitiesByBusinessType[businessType] || []).map((ability) => ({ label: ability, value: ability }))} /></Form.Item>;
+                                  const businessType = form.getFieldValue(['businessTypeScopes', businessTypeField.name, 'businessType']);
+                                  return <Form.Item name={[abilityField.name, 'ability']} rules={[{ required: true, message: 'Select Ability' }]}><Select disabled={scopeLocked || !businessType} placeholder="Ability" options={(abilitiesByBusinessType[businessType] || []).map((ability) => ({ label: ability, value: ability }))} /></Form.Item>;
                                 }}
                               </Form.Item>
-                              <Form.Item noStyle shouldUpdate>
-                                {() => {
-                                  const businessType = form.getFieldValue(['partyScopes', partyField.name, 'capabilities', capabilityField.name, 'businessType']);
-                                  const countries = businessTypes.find(({ bt }) => bt === businessType)?.countries || [];
-                                  return <Form.Item name={[capabilityField.name, 'countries']} rules={[{ required: true, message: 'Select at least one Country' }]}><Select mode="multiple" disabled={scopeLocked || !businessType} placeholder="Countries" options={(countries.length ? countries : countryCodeOptions).map((country) => ({ label: country, value: country }))} /></Form.Item>;
-                                }}
-                              </Form.Item>
-                              {!scopeLocked && <Button type="text" danger aria-label="Remove capability" icon={<MinusCircleOutlined />} disabled={capabilityFields.length === 1} onClick={() => removeCapability(capabilityField.name)} />}
+                              <Form.Item name={[abilityField.name, 'countries']} rules={[{ required: true, message: 'Select at least one Country' }]}><Select mode="multiple" disabled={scopeLocked} placeholder="Countries" options={countryCodeOptions.map((country) => ({ label: country, value: country }))} /></Form.Item>
+                              {!scopeLocked && <Button type="text" danger aria-label="Remove Party / Ability" icon={<MinusCircleOutlined />} disabled={abilityFields.length === 1} onClick={() => removeAbility(abilityField.name)} />}
                             </div>
                           ))}
                         </div>
-                        {!scopeLocked && <Button type="dashed" onClick={() => addCapability()}>+ Business Type / Ability / Countries</Button>}
-                        <Form.ErrorList errors={capabilityErrors} />
+                        {!scopeLocked && <Button type="dashed" onClick={() => addAbility()}>+ Party / Ability / Countries</Button>}
+                        <Form.ErrorList errors={abilityErrors} />
                       </>
                     )}
                   </Form.List>
@@ -390,8 +450,8 @@ export default function ChannelProfilePage() {
                 </section>
               ))}
             </div>
-            <Button type="dashed" className="add-party-button" onClick={() => addParty({ capabilities: [{}] })}>+ Party</Button>
-            <Form.ErrorList errors={partyErrors} />
+            <Button type="dashed" className="add-party-button" onClick={() => addBusinessType({ partyAbilities: [{}] })}>+ Business Type</Button>
+            <Form.ErrorList errors={scopeErrors} />
           </>
         )}
       </Form.List>
@@ -540,7 +600,7 @@ export default function ChannelProfilePage() {
   const renderRecords = () => (
     <>
       <Alert className="records-guidance" type="info" showIcon title="A Record can include multiple contracting Parties. Each Party can cover multiple Business Type / Ability combinations, and each combination defines its own supported Countries." />
-      <div className="channel-profile-toolbar"><Button type="primary" onClick={() => setRecordModalOpen(true)}>Create Integration Record</Button></div>
+      <div className="channel-profile-toolbar"><Button type="primary" onClick={() => { recordForm.resetFields(); setRecordCreateStep(0); setRecordModalOpen(true); }}>Create Integration Record</Button></div>
       <Table rowKey="recordId" dataSource={records} pagination={false} columns={[
         { title: 'Record ID', dataIndex: 'recordId', width: 110 },
         { title: 'Record Name', dataIndex: 'recordName', width: 220 },
@@ -554,17 +614,43 @@ export default function ChannelProfilePage() {
           </Popconfirm>
         </Space> },
       ]} />
-      <Modal title="Create Integration Record" open={recordModalOpen} onCancel={() => setRecordModalOpen(false)} onOk={saveRecord} okText="Create" width={860} className="channel-profile-modal integration-record-modal">
-        <Form form={recordForm} layout="vertical">
-          <Form.Item name="recordName" label="Record Name" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="debugReports" label="Debug Report" rules={[{ required: true }]}><Input placeholder="Required file name or document link" /></Form.Item>
-          <Form.Item name="prdDocuments" label="PRD Document" rules={[{ required: true }]}><Input placeholder="Required file name or document link" /></Form.Item>
-          {renderPartyScopes(recordForm)}
-          <div className="profile-form-grid two-columns">
-            <Form.Item name="contracts" label="Contract" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
-            <Form.Item name="accessApprovalRecords" label="Access Approval Records" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
-            <Form.Item name="brdDocuments" label="BRD Document"><Input placeholder="File name or document link" /></Form.Item>
-            <Form.Item name="gatewayDeliverables" label="Gateway Deliverable Documents"><Input placeholder="File name or document link" /></Form.Item>
+      <Modal
+        title="Create Integration Record"
+        open={recordModalOpen}
+        onCancel={closeRecordCreate}
+        width={900}
+        className="channel-profile-modal integration-record-modal"
+        footer={<Space>
+          <Button onClick={closeRecordCreate}>Cancel</Button>
+          {recordCreateStep > 0 && <Button onClick={() => setRecordCreateStep((step) => step - 1)}>Previous</Button>}
+          {recordCreateStep < 2
+            ? <Button type="primary" disabled={!canContinueRecordCreate} onClick={nextRecordCreateStep}>Next</Button>
+            : <Button type="primary" onClick={saveRecord}>Create Record</Button>}
+        </Space>}
+      >
+        <Steps current={recordCreateStep} size="small" items={[
+          { title: 'Record & Scope' },
+          { title: 'Required Documents' },
+          { title: 'Optional Documents' },
+        ]} />
+        <Form form={recordForm} layout="vertical" className="record-create-wizard-form">
+          <div style={{ display: recordCreateStep === 0 ? 'block' : 'none' }}>
+            <Alert type="info" showIcon title="Name this integration and define all Parties, capabilities, and supported Countries included in the Record." />
+            <Form.Item name="recordName" label="Record Name" rules={[{ required: true }]}><Input /></Form.Item>
+            {renderPartyScopes(recordForm)}
+          </div>
+          <div style={{ display: recordCreateStep === 1 ? 'block' : 'none' }}>
+            <Alert type="info" showIcon title="For each required document, upload a file or provide a Yuque link." />
+            {renderRequiredDocuments(recordForm)}
+          </div>
+          <div style={{ display: recordCreateStep === 2 ? 'block' : 'none' }}>
+            <Alert type="info" showIcon title="These documents are optional and can be completed later in Record Config." />
+            <div className="profile-form-grid two-columns">
+              <Form.Item name="contracts" label="Contract" extra="PDF only; multiple files supported" valuePropName="fileList" getValueFromEvent={uploadValue}><Upload beforeUpload={contractPdfOnly} multiple accept=".pdf,application/pdf"><Button icon={<UploadOutlined />}>Upload PDF</Button></Upload></Form.Item>
+              <Form.Item name="accessApprovalRecords" label="Access Approval Records"><Input placeholder="OA number" /></Form.Item>
+              <Form.Item name="brdDocuments" label="BRD Document"><Input placeholder="Yuque link" /></Form.Item>
+              <Form.Item name="gatewayDeliverables" label="Gateway Deliverable Documents" rules={[{ type: 'url', warningOnly: false, message: 'Enter a valid Yuque link' }]}><Input placeholder="Enter Yuque link" /></Form.Item>
+            </div>
           </div>
         </Form>
       </Modal>
@@ -581,14 +667,13 @@ export default function ChannelProfilePage() {
           <div className="record-detail-meta"><span><strong>Record ID:</strong> {selectedRecord.recordId}</span><span><strong>Latest Operator:</strong> {selectedRecord.operator}</span><span><strong>Operation Time:</strong> {selectedRecord.operationTime}</span></div>
           {selectedRecord.linkedToGroup && <Alert type="info" showIcon title="This Record is linked to a Group. Existing configuration cannot be changed and the Record cannot be deleted, but a new Party can still be added." />}
           <Form.Item name="recordName" label="Record Name" rules={[{ required: true }]}><Input disabled={selectedRecord.linkedToGroup} /></Form.Item>
-          <Form.Item name="debugReports" label="Debug Report" rules={[{ required: true }]}><Input placeholder="Required file name or document link" /></Form.Item>
-          <Form.Item name="prdDocuments" label="PRD Document" rules={[{ required: true }]}><Input placeholder="Required file name or document link" /></Form.Item>
-          {renderPartyScopes(recordDetailForm, selectedRecord.linkedToGroup ? selectedRecord.partyScopes.length : 0)}
+          {renderRequiredDocuments(recordDetailForm)}
+          {renderPartyScopes(recordDetailForm, selectedRecord.linkedToGroup ? toBusinessTypeScopes(selectedRecord.partyScopes).length : 0)}
           <div className="profile-form-grid two-columns">
-            <Form.Item name="contracts" label="Contract" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
-            <Form.Item name="accessApprovalRecords" label="Access Approval Records" valuePropName="fileList" getValueFromEvent={(event) => event?.fileList}><Upload beforeUpload={() => false} maxCount={1}><Button icon={<UploadOutlined />}>Upload</Button></Upload></Form.Item>
-            <Form.Item name="brdDocuments" label="BRD Document"><Input placeholder="File name or document link" /></Form.Item>
-            <Form.Item name="gatewayDeliverables" label="Gateway Deliverable Documents"><Input placeholder="File name or document link" /></Form.Item>
+            <Form.Item name="contracts" label="Contract" extra="PDF only; multiple files supported" valuePropName="fileList" getValueFromEvent={uploadValue}><Upload beforeUpload={contractPdfOnly} multiple accept=".pdf,application/pdf"><Button icon={<UploadOutlined />}>Upload PDF</Button></Upload></Form.Item>
+            <Form.Item name="accessApprovalRecords" label="Access Approval Records"><Input placeholder="OA number" /></Form.Item>
+            <Form.Item name="brdDocuments" label="BRD Document"><Input placeholder="Yuque link" /></Form.Item>
+            <Form.Item name="gatewayDeliverables" label="Gateway Deliverable Documents" rules={[{ type: 'url', warningOnly: false, message: 'Enter a valid Yuque link' }]}><Input placeholder="Enter Yuque link" /></Form.Item>
           </div>
         </Form>}
       </Modal>

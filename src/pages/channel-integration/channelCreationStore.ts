@@ -18,6 +18,19 @@ export type CreatedIntegrationRecord = {
   contracts?: string;
   accessApprovalRecords?: string;
   brdDocuments?: string;
+  owners?: {
+    productOwners: string[];
+    technicalOwners: string[];
+    operationOwners: string[];
+    bd: string[];
+    sre: string[];
+    businessOwners: string[];
+  };
+  approvers?: {
+    productApprover: string;
+    technicalApprover: string;
+    operationsApprover: string;
+  };
 };
 
 const storageKey = 'platform-test-created-channel-records';
