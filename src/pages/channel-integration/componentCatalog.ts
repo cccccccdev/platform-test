@@ -37,6 +37,7 @@ export const COMPONENT_CATALOG: ComponentDefinition[] = ([
   { id: 111, name: 'http', alias: 'Send HTTP request', description: 'Send HTTP request', usageCount: 1, needConfig: true, scopes: ['UPSTREAM_TRIGGERED', 'EXTERNAL_TRIGGERED', 'CALLBACK_TRIGGERED', 'ASYNC_TRIGGERED', 'REQUERY_TRIGGERED'], status: 1 },
   { id: 112, name: 'sendCompleteMQ', alias: 'Send completion message', description: 'Send completion message', usageCount: 1, needConfig: false, scopes: ['UPSTREAM_TRIGGERED', 'EXTERNAL_TRIGGERED', 'CALLBACK_TRIGGERED', 'ASYNC_TRIGGERED', 'REQUERY_TRIGGERED'], status: 1 },
   { id: 113, name: 'sendReQueryMQ', alias: 'Send requery message', description: 'Send requery message', usageCount: 1, needConfig: false, scopes: ['CALLBACK_TRIGGERED'], status: 1 },
+  { id: 136, name: 'returnConfiguredSpiResponse', alias: 'Return configured SPI response', description: 'Return configured SPI response without an external request', usageCount: 1, needConfig: true, scopes: ['UPSTREAM_TRIGGERED'], status: 1 },
   { id: 114, name: 'asyncExecuteFlow', alias: 'async execute flow', description: 'async execute flow', usageCount: 1, needConfig: true, scopes: ALL_SCOPES, status: 0 },
   { id: 115, name: 'callbackRequest', alias: 'callback request', description: 'callback request', usageCount: 1, needConfig: true, scopes: ALL_SCOPES, status: 0 },
   { id: 116, name: 'callbackResponse', alias: 'callback response', description: 'callback response', usageCount: 1, needConfig: true, scopes: ALL_SCOPES, status: 0 },

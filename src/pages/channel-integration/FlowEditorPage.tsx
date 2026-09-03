@@ -21,6 +21,7 @@ import type { ReferenceConfigTarget } from './ReferenceGenerationDrawer';
 import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
 import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
 import StateMachinePreviewModal from './StateMachinePreviewModal';
+import ReturnConfiguredSpiResponseDrawer from './ReturnConfiguredSpiResponseDrawer';
 import { componentByName, componentsForScope, componentScopeForTrigger } from './componentCatalog';
 import type { ComponentDefinition } from './componentCatalog';
 
@@ -221,7 +222,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
         )}
       </div>
       {data.description && <div style={{ color: '#8c8c8c', fontSize: 10, margin: '3px 0 0 20px' }}>{data.description}</div>}
-      <Handle type="source" position={Position.Bottom} style={{ background: '#1890ff' }} />
+      {data.code !== 'returnConfiguredSpiResponse' && <Handle type="source" position={Position.Bottom} style={{ background: '#1890ff' }} />}
 
       {showContextMenu && (
         <>
@@ -1863,6 +1864,7 @@ export default function FlowEditorPage() {
   const [referenceConfigTarget, setReferenceConfigTarget] = useState<ReferenceConfigTarget | null>(null);
   const [showInboundRequestDrawer, setShowInboundRequestDrawer] = useState(false);
   const [showInboundResponseDrawer, setShowInboundResponseDrawer] = useState(false);
+  const [showConfiguredSpiResponseDrawer, setShowConfiguredSpiResponseDrawer] = useState(false);
   const [showConditionNodeDrawer, setShowConditionNodeDrawer] = useState(false);
   const [selectedConfigNodeId, setSelectedConfigNodeId] = useState<string | null>(null);
   const [selectedConditionNodeId, setSelectedConditionNodeId] = useState<string | null>(null);
@@ -1954,6 +1956,7 @@ export default function FlowEditorPage() {
   );
   const storedVersion = storedAbility?.versions.find((item) => item.id === params.versionId);
   const storedFlow = storedVersion?.flows.find((item) => item.id === params.flowId);
+  const globalVariables = useChannelScopeStore((state) => state.globalVariablesByChannel[params.channelCode ?? ''] ?? []);
   const inboundEndpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
   const inboundEndpoints = inboundEndpointsByChannel[params.channelCode ?? ''] ?? EMPTY_ENDPOINTS;
   const saveDraftFlow = useConfigIntegrationStore((state) => state.saveDraftFlow);
@@ -2113,8 +2116,9 @@ export default function FlowEditorPage() {
     if (code === 'initInboundOrder') setReferenceConfigTarget({ direction: 'inbound', placement: 'init-order' });
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
+    if (code === 'returnConfiguredSpiResponse') setShowConfiguredSpiResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
-    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'condition'].includes(code);
+    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
     if (!hasDedicatedConfig && definition?.needConfig) setPlaceholderComponent(code);
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
@@ -2546,6 +2550,21 @@ export default function FlowEditorPage() {
           setNodes((current) => current.map((node) => node.id === selectedConfigNodeId ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config } } : node));
           setShowInboundResponseDrawer(false);
           message.success('Inbound Response configuration saved');
+        }}
+      />
+
+      <ReturnConfiguredSpiResponseDrawer
+        open={showConfiguredSpiResponseDrawer}
+        globalVariables={globalVariables}
+        initialValues={selectedConfig}
+        readOnly={readOnly}
+        onClose={() => setShowConfiguredSpiResponseDrawer(false)}
+        onSave={(config) => {
+          setNodes((current) => current.map((node) => node.id === selectedConfigNodeId
+            ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config } }
+            : node));
+          setShowConfiguredSpiResponseDrawer(false);
+          message.success('Configured SPI Response saved');
         }}
       />
 

@@ -165,6 +165,13 @@ export const useChannelScopeStore = create<ChannelScopeStore>((set, get) => ({
   credentialVersionByChannel: { EVEXIN: '20260703095237', GTB_NG: '20260628111000', ZENITH_NG: '20260628111000', PAYSTACK_NG: '20260628111000' },
   globalVariablesByChannel: {
     EVEXIN: [],
+    COBO: [
+      { id: 'global_cobo_success_code', name: 'quoteSuccessCode', value: 'SUCCESS' },
+      { id: 'global_cobo_success_message', name: 'quoteSuccessMessage', value: 'Success' },
+      { id: 'global_cobo_exchange_rate', name: 'contractExchangeRate', value: '1.000000' },
+      { id: 'global_cobo_fee_amount', name: 'contractFeeAmount', value: '0.500000' },
+      { id: 'global_cobo_fee_currency', name: 'contractFeeCurrency', value: 'USDT' },
+    ],
     GTB_NG: [
       { id: 'global_channel_code', name: 'channelCode', value: 'GTB_NG' },
       { id: 'global_country_code', name: 'countryCode', value: 'NG' },
@@ -173,7 +180,7 @@ export const useChannelScopeStore = create<ChannelScopeStore>((set, get) => ({
     ZENITH_NG: [{ id: 'global_zenith_currency', name: 'defaultCurrency', value: 'NGN' }],
     PAYSTACK_NG: [{ id: 'global_paystack_currency', name: 'defaultCurrency', value: 'NGN' }],
   },
-  globalVariableVersionByChannel: { EVEXIN: '20260703095237', GTB_NG: '20260628110000', ZENITH_NG: '20260628110000', PAYSTACK_NG: '20260628110000' },
+  globalVariableVersionByChannel: { EVEXIN: '20260703095237', COBO: '20260904100000', GTB_NG: '20260628110000', ZENITH_NG: '20260628110000', PAYSTACK_NG: '20260628110000' },
   orderVariablesByChannel: {
     EVEXIN: [],
     GTB_NG: [
