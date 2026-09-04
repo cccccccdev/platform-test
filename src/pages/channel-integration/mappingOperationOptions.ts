@@ -41,6 +41,8 @@ export const mappingOperationOptions = [
       { label: 'Read file from URL', value: 'read-file-from-url' },
       { label: 'Chain Code Inner to Outer', value: 'chain-code-inner-to-outer' },
       { label: 'Chain Code Outer to Inner', value: 'chain-code-outer-to-inner' },
+      { label: 'Institution inner to outer', value: 'institution-inner-to-outer' },
+      { label: 'Institution outer to inner', value: 'institution-outer-to-inner' },
       { label: 'Convert to Uppercase', value: 'convert-to-uppercase' },
       { label: 'Convert to Lowercase', value: 'convert-to-lowercase' },
     ],

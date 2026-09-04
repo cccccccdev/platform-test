@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { countryReferenceData, type CountryReference } from '../../mock/countries';
 
 export type CurrencyType = 'Fiat' | 'Stablecoin';
 
@@ -12,8 +13,10 @@ export interface CurrencyRecord {
 
 interface BasicInfoReferenceStore {
   currencies: CurrencyRecord[];
+  countries: CountryReference[];
   addCurrency: (currency: Omit<CurrencyRecord, 'operator' | 'operationTime'>) => void;
   updateCurrency: (code: string, updates: Pick<CurrencyRecord, 'name'>) => void;
+  addCountry: (country: CountryReference) => void;
 }
 
 const DEMO_CURRENCY_BASE: Omit<CurrencyRecord, 'operator' | 'operationTime'>[] = [
@@ -58,6 +61,7 @@ const DEMO_CURRENCIES: CurrencyRecord[] = DEMO_CURRENCY_BASE.map((currency, inde
 
 export const useBasicInfoReferenceStore = create<BasicInfoReferenceStore>((set) => ({
   currencies: DEMO_CURRENCIES,
+  countries: countryReferenceData,
   addCurrency: (currency) => set((state) => ({
     currencies: [...state.currencies, {
       ...currency,
@@ -73,4 +77,5 @@ export const useBasicInfoReferenceStore = create<BasicInfoReferenceStore>((set) 
       operationTime: formatOperationTime(),
     } : currency),
   })),
+  addCountry: (country) => set((state) => ({ countries: [...state.countries, country] })),
 }));

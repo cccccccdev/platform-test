@@ -31,6 +31,8 @@ import TestPage from '../pages/channel-integration/TestPage';
 import BasicInfoBusinessTypePage from '../pages/basic-info/BusinessTypePage';
 import CurrencyPage from '../pages/basic-info/CurrencyPage';
 import CountryPage from '../pages/basic-info/CountryPage';
+import InstitutionTypePage from '../pages/basic-info/InstitutionTypePage';
+import InstitutionPage from '../pages/basic-info/InstitutionPage';
 import ExchangeRatePage from '../pages/basic-info/ExchangeRatePage';
 import ProductPage from '../pages/basic-info/ProductPage';
 import MerchantPage from '../pages/basic-info/MerchantPage';
@@ -124,6 +126,7 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/offline-info', element: <div style={{ padding: 24 }}>OfflineInfo Page - 待实现</div> },
       { path: 'channel-integration/:channelCode/metadata', element: <MetadataPage /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
+      { path: 'channel-integration/:channelCode/channel-info/institution', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/chain', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/asset-route', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matchina', element: <RuntimeRouteMatchingTypoRedirect /> },
@@ -208,8 +211,8 @@ const router = createHashRouter(
           { path: 'party', element: <ComingSoonPage title="Party" /> },
           { path: 'card-bin', element: <ComingSoonPage title="Card Bin" /> },
           { path: 'party-tenant', element: <ComingSoonPage title="Party & Tenant" /> },
-          { path: 'institution-type', element: <ComingSoonPage title="Institution Type" /> },
-          { path: 'institution', element: <ComingSoonPage title="Institution" /> },
+          { path: 'institution-type', element: <InstitutionTypePage /> },
+          { path: 'institution', element: <InstitutionPage /> },
           { path: 'segment', element: <ComingSoonPage title="Segment" /> },
           { path: 'response-code', element: <ComingSoonPage title="Response Code" /> },
           { path: 'application', element: <ComingSoonPage title="Application" /> },
