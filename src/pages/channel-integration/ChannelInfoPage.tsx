@@ -496,18 +496,6 @@ export default function ChannelInfoPage() {
   const internalEndpointOptions = useMemo(() => endpointOptionsFrom(internalPathCapabilities), []);
   const routeMatchingEndpoints = useMemo(() => endpointsByChannel[channelCode] ?? [], [channelCode, endpointsByChannel]);
   const flowGroupAbilities = useMemo(() => abilitiesByChannel[channelCode] ?? [], [abilitiesByChannel, channelCode]);
-  const supportsStablecoin = useMemo(
-    () => flowGroupAbilities.some((item) => item.bt === 'STABLECOIN'),
-    [flowGroupAbilities],
-  );
-
-  useEffect(() => {
-    if (pageKey === 'asset-route' && !supportsStablecoin) {
-      setPageKey('external-internal');
-      navigate(`/channel-integration/${channelCode}/channel-info`, { replace: true });
-    }
-  }, [channelCode, navigate, pageKey, supportsStablecoin]);
-
   const externalBtOptions = useMemo(() => unique(pathCapabilities.filter((item) => item.path === selectedPath).map((item) => item.bt)).map((value) => ({ label: value, value })), [selectedPath]);
   const externalAbilityOptions = useMemo(() => unique(pathCapabilities.filter((item) => item.path === selectedPath && item.bt === selectedBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [selectedBt, selectedPath]);
   const internalBtOptions = useMemo(() => unique(internalPathCapabilities.filter((item) => item.path === selectedPath).map((item) => item.bt)).map((value) => ({ label: value, value })), [selectedPath]);
@@ -1789,7 +1777,7 @@ export default function ChannelInfoPage() {
               { key: 'response-code', label: 'Response Code', children: [{ key: 'external-internal', label: 'External->Internal' }, { key: 'internal-external', label: 'Internal->External' }] },
               { key: 'institution', label: 'Institution' },
               { key: 'chain', label: 'Chain' },
-              ...(supportsStablecoin ? [{ key: 'asset-route', label: 'Asset Route' }] : []),
+              { key: 'asset-route', label: 'Asset Route' },
               { key: 'requery', label: 'Requery Strategy' },
               { key: 'runtime-control', label: 'Runtime Control', children: [{ key: 'runtime-route-matching', label: 'Route Matching' }, { key: 'runtime-flow-groups', label: 'Flow Groups' }] },
               { key: 'service-channel', label: 'Service Channel' },
