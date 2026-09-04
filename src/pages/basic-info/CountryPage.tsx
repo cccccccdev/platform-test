@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Breadcrumb, Button, Form, Input, InputNumber, Modal, Select, Space, Table, Tooltip, Typography, message } from 'antd';
 import { PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
-import { countryReferenceData, type CountryReference } from '../../mock/countries';
+import { type CountryReference } from '../../mock/countries';
 import { useBasicInfoReferenceStore } from './basicInfoReferenceStore';
 
 const { Title } = Typography;
@@ -30,7 +30,8 @@ function formatOperationTime() {
 }
 
 export default function CountryPage() {
-  const [countries, setCountries] = useState<CountryReference[]>(countryReferenceData);
+  const countries = useBasicInfoReferenceStore((state) => state.countries);
+  const addCountry = useBasicInfoReferenceStore((state) => state.addCountry);
   const currencies = useBasicInfoReferenceStore((state) => state.currencies);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm<CountryFormValues>();
@@ -57,8 +58,7 @@ export default function CountryPage() {
         return;
       }
 
-      setCountries((current) => [
-        {
+      addCountry({
           ...values,
           code,
           callingCode: values.callingCode.trim(),
@@ -67,9 +67,7 @@ export default function CountryPage() {
           fractionalUnit: values.fractionalUnit.trim().toUpperCase(),
           operator: 'Current User',
           operationTime: formatOperationTime(),
-        },
-        ...current,
-      ]);
+        });
       setIsModalOpen(false);
       message.success('Country created');
     } catch {}
