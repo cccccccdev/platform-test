@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Button, Space, Tag, Select, Drawer, Form, Input, Switch, Modal, message, Typography, Divider, Collapse, Tabs, Radio } from 'antd';
-import { ArrowLeftOutlined, PlusOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, WarningOutlined, CopyOutlined, SearchOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, PlusOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, WarningOutlined, CopyOutlined } from '@ant-design/icons';
 import { useScenarioStore, useActionStore } from '../../store';
 import type { ScenarioVersion, L3NodeConfig } from '../../store';
 import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, useReactFlow, Handle, Position } from '@xyflow/react';
@@ -1254,6 +1254,12 @@ function RequestBuilderDrawer({
     }
   };
 
+  // Legacy session-import implementation is intentionally kept dormant for data migration reference.
+  void isSessionModalOpen;
+  void importedSession;
+  void getImportableSessions;
+  void handleImportSession;
+
   // Extract fields from object for field mapping
   const extractFieldsFromObject = (obj: any, prefix = ''): { name: string; type: string }[] => {
     const fields: { name: string; type: string }[] = [];
@@ -2149,36 +2155,6 @@ function RequestBuilderDrawer({
         </Form.Item>
       </div>
 
-      {/* Debug Session Import Card */}
-      {importedSession ? (
-        /* 已导入状态卡片 */
-        <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderLeft: '4px solid #52c41a', borderRadius: 6, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Space size="middle">
-              <span style={{ fontSize: 14 }}>📌</span>
-              <span style={{ fontSize: 13, fontWeight: 500 }}>已从 Debug 导入：{importedSession.name}</span>
-              <span style={{ fontSize: 12, color: '#999' }}>{importedSession.timestamp}</span>
-            </Space>
-            <Space size="middle">
-              <Button type="link" size="small" onClick={() => setIsSessionModalOpen(true)} style={{ fontSize: 12, padding: 0, height: 'auto' }}>↺ 重新选择</Button>
-            </Space>
-          </div>
-        </div>
-      ) : (
-        /* 未导入引导卡片 */
-        <div style={{ background: '#e6f7ff', border: '1px solid #91d5ff', borderLeft: '4px solid #1890ff', borderRadius: 6, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Space size="middle">
-              <span style={{ fontSize: 14 }}>💡</span>
-              <span style={{ fontSize: 13, color: '#333' }}>已在 API Debug 调通过此接口？可直接导入配置，节省重复配置时间</span>
-            </Space>
-            <Button type="primary" size="small" onClick={() => setIsSessionModalOpen(true)} style={{ fontSize: 12 }}>
-              从 Debug 记录导入 ↗
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Tabs */}
       <Tabs
         activeKey={activeTab}
@@ -2244,111 +2220,6 @@ function RequestBuilderDrawer({
         <Button type="primary" onClick={handleSave}>Save</Button>
       </div>
 
-      {/* Session Selector Modal */}
-      <Modal
-        title={<Space><span>选择 Debug Session</span></Space>}
-        open={isSessionModalOpen}
-        onCancel={() => setIsSessionModalOpen(false)}
-        width={720}
-        footer={null}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>当前场景：{sceneId}</Text>
-        </div>
-
-        {/* Search */}
-        <Input
-          placeholder="搜索 Session 名称或 URL"
-          prefix={<SearchOutlined style={{ color: '#999' }} />}
-          style={{ marginBottom: 16 }}
-          allowClear
-        />
-
-        {/* Session List */}
-        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-          {getImportableSessions().length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>
-              <Text type="secondary">暂无可导入的 Session（仅展示 2xx 成功记录）</Text>
-            </div>
-          ) : (
-            getImportableSessions().map((session: any) => {
-              const urlMatch = session.url.match(/https?:\/\/[^/]+\/(.*)/);
-              const path = urlMatch ? '/' + urlMatch[1] : session.url;
-              const isSuccess = session.status >= 200 && session.status < 300;
-              let requestFieldCount = 0;
-              let responseFieldCount = 0;
-              try {
-                if (session.body) {
-                  const parsed = JSON.parse(session.body);
-                  requestFieldCount = Object.keys(parsed).length;
-                }
-              } catch {}
-              try {
-                if (session.responseBody) {
-                  const parsed = JSON.parse(session.responseBody);
-                  responseFieldCount = Object.keys(parsed).length;
-                }
-              } catch {}
-
-              return (
-                <div
-                  key={session.id}
-                  onClick={() => handleImportSession(session)}
-                  style={{
-                    border: '1px solid #e8e8e8',
-                    borderRadius: 6,
-                    padding: 12,
-                    marginBottom: 8,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#1890ff';
-                    e.currentTarget.style.background = '#f6fffe';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = '#e8e8e8';
-                    e.currentTarget.style.background = '#fff';
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 12, color: isSuccess ? '#52c41a' : '#ff4d4f', fontWeight: 500 }}>
-                      {session.status} {session.statusText}
-                    </span>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{session.name}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Tag style={{ fontSize: 10, padding: '0 2px', margin: 0, background: session.method === 'GET' ? '#52c41a' : session.method === 'POST' ? '#fa8c16' : '#1890ff', border: 'none', color: '#fff' }}>
-                      {session.method}
-                    </Tag>
-                    <Text style={{ fontSize: 12, color: '#666', fontFamily: 'Monaco, Consolas, monospace' }} ellipsis>
-                      {path}
-                    </Text>
-                  </div>
-                  <div style={{ display: 'flex', gap: 16 }}>
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      Request 字段：{requestFieldCount > 0 ? session.body ? Object.keys(JSON.parse(session.body)).join(' / ') : '无' : '无'}
-                    </Text>
-                    {responseFieldCount > 0 && (
-                      <Text type="secondary" style={{ fontSize: 11 }}>
-                        Response 字段：{Object.keys(JSON.parse(session.responseBody)).join(' / ')}
-                      </Text>
-                    )}
-                  </div>
-                  <div style={{ marginTop: 4 }}>
-                    <Text type="secondary" style={{ fontSize: 11 }}>{session.timestamp}</Text>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* Footer Note */}
-        <div style={{ marginTop: 16, padding: '8px 12px', background: '#fffbe6', borderRadius: 4 }}>
-          <Text style={{ fontSize: 11, color: '#ad6800' }}>⚠ 仅展示请求成功（2xx）的 Session</Text>
-        </div>
-      </Modal>
     </Drawer>
   );
 }

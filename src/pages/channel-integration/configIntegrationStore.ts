@@ -171,6 +171,57 @@ const seedDeployRecords: DeployRecord[] = [
 ];
 
 const seedAbilities: Record<string, ConfigAbility[]> = {
+  COBO: [
+    {
+      bt: 'STABLECOIN',
+      ability: 'ON_RAMP',
+      actions: ['TRANSACTION'],
+      stateMachine: 'NO_STATE_MACHINE',
+      versions: [
+        {
+          id: 'cobo_stablecoin_onramp',
+          groupId: 901,
+          version: '20260902103000',
+          status: 'UNDEPLOYED',
+          badges: [],
+          remark: 'COBO stablecoin on-ramp transaction flow',
+          operator: 'Abe',
+          operationTime: '2026-09-02 10:30:00',
+          deployRecords: [],
+          flows: [
+            {
+              id: 'cobo_onramp_transaction',
+              name: 'STABLECOIN_ON_RAMP_TRANSACTION',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'wait_external',
+              triggerType: 'UPSTREAM_TRIGGERED',
+              template: 'UPSTREAM_TRIGGERED_TRANSACTION',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: [],
+              isConfigured: false,
+              status: 'DRAFT',
+              ...buildTemplateCanvas('UPSTREAM_TRIGGERED_TRANSACTION'),
+            },
+          ],
+        },
+      ],
+    },
+    {
+      bt: 'STABLECOIN',
+      ability: 'OFF_RAMP',
+      actions: ['TRANSACTION'],
+      stateMachine: 'NO_STATE_MACHINE',
+      versions: [],
+    },
+    {
+      bt: 'STABLECOIN',
+      ability: 'PAY_OUT',
+      actions: ['TRANSACTION'],
+      stateMachine: 'NO_STATE_MACHINE',
+      versions: [],
+    },
+  ],
   EVEXIN: [
     {
       bt: 'SMS',
@@ -739,6 +790,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
 };
 
 const seedResourceVersions: Record<string, { globalVariables: string; credentials: string; orderVariables: string }> = {
+  COBO: { globalVariables: '20260902100000', credentials: '20260902100000', orderVariables: '20260902100000' },
   EVEXIN: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
   GTB_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },
   ZENITH_NG: { globalVariables: '20260628110000', credentials: '20260628111000', orderVariables: '20260628110500' },

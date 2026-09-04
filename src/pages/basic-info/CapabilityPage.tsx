@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../channel-integration/configIntegrationStore';
+import { initialBusinessTypeRecords, useBusinessTypeStore } from './businessTypeReferenceData';
 
 const { Title, Text } = Typography;
 
@@ -30,7 +31,7 @@ interface BusinessTypeItem {
   abilities: AbilityItem[];
 }
 
-const INITIAL_DATA: BusinessTypeItem[] = [
+const CONFIGURED_BT_DATA: BusinessTypeItem[] = [
   {
     key: 'bt1',
     name: 'BANK_CARD_DEBIT',
@@ -102,7 +103,18 @@ const INITIAL_DATA: BusinessTypeItem[] = [
   },
 ];
 
-const BUSINESS_TYPE_OPTIONS = INITIAL_DATA.map(({ name }) => ({ label: name, value: name }));
+const configuredByName = new Map(CONFIGURED_BT_DATA.map((item) => [item.name, item]));
+const buildBusinessTypeItem = (name: string): BusinessTypeItem => {
+  const configured = configuredByName.get(name);
+  return configured ? { ...configured, abilities: configured.abilities.map((ability) => ({ ...ability, actions: [...ability.actions] })) } : {
+    key: `bt_${name.toLowerCase()}`,
+    name,
+    isExpand: true,
+    abilities: [],
+  };
+};
+
+const INITIAL_DATA = initialBusinessTypeRecords.map(({ businessType }) => buildBusinessTypeItem(businessType));
 function generateActionName(existingActions: ActionItem[]): string {
   const nums = existingActions
     .map(a => {
@@ -115,6 +127,7 @@ function generateActionName(existingActions: ActionItem[]): string {
 
 export default function CapabilityPage() {
   const navigate = useNavigate();
+  const businessTypeRecords = useBusinessTypeStore((state) => state.records);
   const [data, setData] = useState<BusinessTypeItem[]>(INITIAL_DATA);
   const [filteredBt, setFilteredBt] = useState<string>('');
   const [addAbilityOpen, setAddAbilityOpen] = useState(false);
@@ -126,6 +139,10 @@ export default function CapabilityPage() {
   const [linkSmAbility, setLinkSmAbility] = useState<{ bt: string; ability: string } | null>(null);
   const [linkSmForm] = Form.useForm();
   const [linkSmList, setLinkSmList] = useState<LinkedSMRecord[]>([]);
+
+  useEffect(() => {
+    setData((current) => businessTypeRecords.map(({ businessType }) => current.find((item) => item.name === businessType) ?? buildBusinessTypeItem(businessType)));
+  }, [businessTypeRecords]);
 
   // LocalStorage key for linked state machines
   const LINKED_SM_KEY = 'linkedStateMachines';
@@ -344,7 +361,7 @@ export default function CapabilityPage() {
               allowClear
               placeholder="Select Business Type"
               className="capability-business-type-select"
-              options={BUSINESS_TYPE_OPTIONS}
+              options={businessTypeRecords.map(({ businessType }) => ({ label: businessType, value: businessType }))}
               value={filteredBt || undefined}
               onChange={v => setFilteredBt(v || '')}
             />
