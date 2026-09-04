@@ -174,7 +174,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
   COBO: [
     {
       bt: 'STABLECOIN',
-      ability: 'ONRAMP',
+      ability: 'ON_RAMP',
       actions: ['TRANSACTION'],
       stateMachine: 'NO_STATE_MACHINE',
       versions: [
@@ -191,7 +191,7 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
           flows: [
             {
               id: 'cobo_onramp_transaction',
-              name: 'STABLECOIN_ONRAMP_TRANSACTION',
+              name: 'STABLECOIN_ON_RAMP_TRANSACTION',
               executionType: 'single',
               flowType: 'outbound',
               endType: 'wait_external',
@@ -206,6 +206,20 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
           ],
         },
       ],
+    },
+    {
+      bt: 'STABLECOIN',
+      ability: 'OFF_RAMP',
+      actions: ['TRANSACTION'],
+      stateMachine: 'NO_STATE_MACHINE',
+      versions: [],
+    },
+    {
+      bt: 'STABLECOIN',
+      ability: 'PAY_OUT',
+      actions: ['TRANSACTION'],
+      stateMachine: 'NO_STATE_MACHINE',
+      versions: [],
     },
   ],
   EVEXIN: [

@@ -136,6 +136,7 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/metadata', element: <LegacyMetadataRedirect /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/chain', element: <ChannelInfoPage /> },
+      { path: 'channel-integration/:channelCode/channel-info/asset-route', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matchina', element: <RuntimeRouteMatchingTypoRedirect /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/route-matching', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/runtime-control/flow-groups', element: <ChannelInfoPage /> },

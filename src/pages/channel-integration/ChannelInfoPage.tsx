@@ -37,18 +37,20 @@ import HttpCallDrawer from './HttpCallDrawer';
 import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
 import { Brand } from '../../components/PlatformChrome';
 import ChannelInfoChainPage from './ChannelInfoChainPage';
+import ChannelInfoAssetRoutePage from './ChannelInfoAssetRoutePage';
 
 const { Content, Sider } = Layout;
 const { Text } = Typography;
 
 type MainState = 'INIT' | 'PENDING' | 'TO_BE_VERIFY' | 'SUCCESS' | 'FAIL';
-type PageKey = 'external-internal' | 'internal-external' | 'chain' | 'requery' | 'runtime-route-matching' | 'runtime-flow-groups';
+type PageKey = 'external-internal' | 'internal-external' | 'chain' | 'asset-route' | 'requery' | 'runtime-route-matching' | 'runtime-flow-groups';
 type DetailView = { type: 'event'; record: ExternalRecord } | { type: 'approval'; record: ExternalRecord; approval?: ExternalApprovalRequest };
 type Source = 'httpCall' | 'Route Matching';
 type ResponseCodeType = 'ALL' | 'Include' | 'Exclude';
 
 const pageKeyFromPath = (pathname: string): PageKey => {
   const normalizedPath = pathname.toLowerCase();
+  if (normalizedPath.includes('/channel-info/asset-route')) return 'asset-route';
   if (normalizedPath.includes('/channel-info/chain')) return 'chain';
   if (
     normalizedPath.includes('/channel-info/runtime-control/route-matching')
@@ -481,6 +483,7 @@ export default function ChannelInfoPage() {
   const isExternal = pageKey === 'external-internal';
   const isInternal = pageKey === 'internal-external';
   const isChain = pageKey === 'chain';
+  const isAssetRoute = pageKey === 'asset-route';
   const isRequery = pageKey === 'requery';
   const isRuntimeRouteMatching = pageKey === 'runtime-route-matching';
   const isRuntimeFlowGroups = pageKey === 'runtime-flow-groups';
@@ -493,7 +496,6 @@ export default function ChannelInfoPage() {
   const internalEndpointOptions = useMemo(() => endpointOptionsFrom(internalPathCapabilities), []);
   const routeMatchingEndpoints = useMemo(() => endpointsByChannel[channelCode] ?? [], [channelCode, endpointsByChannel]);
   const flowGroupAbilities = useMemo(() => abilitiesByChannel[channelCode] ?? [], [abilitiesByChannel, channelCode]);
-
   const externalBtOptions = useMemo(() => unique(pathCapabilities.filter((item) => item.path === selectedPath).map((item) => item.bt)).map((value) => ({ label: value, value })), [selectedPath]);
   const externalAbilityOptions = useMemo(() => unique(pathCapabilities.filter((item) => item.path === selectedPath && item.bt === selectedBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [selectedBt, selectedPath]);
   const internalBtOptions = useMemo(() => unique(internalPathCapabilities.filter((item) => item.path === selectedPath).map((item) => item.bt)).map((value) => ({ label: value, value })), [selectedPath]);
@@ -1668,6 +1670,7 @@ export default function ChannelInfoPage() {
     if (detailView?.type === 'event') return renderEventPage(detailView.record);
     if (detailView?.type === 'approval') return renderApprovalDetailPage(detailView.record, detailView.approval);
     if (isChain && applied) return <ChannelInfoChainPage channelCode={channelCode} cloud={applied.cloud} env={applied.env} />;
+    if (isAssetRoute && applied) return <ChannelInfoAssetRoutePage channelCode={channelCode} cloud={applied.cloud} env={applied.env} configuredAbilities={flowGroupAbilities} />;
     if (isRequery) return renderRequeryPage();
     if (isRuntimeRouteMatching) return renderRuntimeRouteMatchingPage();
     if (isRuntimeFlowGroups) return renderRuntimeFlowGroupsPage();
@@ -1711,7 +1714,7 @@ export default function ChannelInfoPage() {
     ? 'Event'
     : detailView?.type === 'approval'
       ? 'Approval Detail'
-      : isExternal ? 'External->Internal' : isInternal ? 'Internal->External' : isChain ? 'Chain' : isRequery ? 'Requery Strategy' : isRuntimeRouteMatching ? 'Route Matching' : 'Flow Groups';
+    : isExternal ? 'External->Internal' : isInternal ? 'Internal->External' : isChain ? 'Chain' : isAssetRoute ? 'Asset Route' : isRequery ? 'Requery Strategy' : isRuntimeRouteMatching ? 'Route Matching' : 'Flow Groups';
 
   const handleRuntimeBack = () => {
     if (runtimeDetailView?.kind === 'flow-canvas') {
@@ -1756,14 +1759,15 @@ export default function ChannelInfoPage() {
             selectedKeys={[pageKey]}
             defaultOpenKeys={['response-code', 'runtime-control']}
             onClick={(item) => {
-              if (item.key === 'external-internal' || item.key === 'internal-external' || item.key === 'chain' || item.key === 'requery' || item.key === 'runtime-route-matching' || item.key === 'runtime-flow-groups') {
+              if (item.key === 'external-internal' || item.key === 'internal-external' || item.key === 'chain' || item.key === 'asset-route' || item.key === 'requery' || item.key === 'runtime-route-matching' || item.key === 'runtime-flow-groups') {
                 setPageKey(item.key);
                 resetForm();
                 resetRequeryForm();
                 if (item.key === 'runtime-route-matching') navigate(`/channel-integration/${channelCode}/channel-info/runtime-control/route-matching`);
                 if (item.key === 'runtime-flow-groups') navigate(`/channel-integration/${channelCode}/channel-info/runtime-control/flow-groups`);
                 if (item.key === 'chain') navigate(`/channel-integration/${channelCode}/channel-info/chain`);
-                if (item.key !== 'chain' && item.key !== 'runtime-route-matching' && item.key !== 'runtime-flow-groups') navigate(`/channel-integration/${channelCode}/channel-info`);
+                if (item.key === 'asset-route') navigate(`/channel-integration/${channelCode}/channel-info/asset-route`);
+                if (item.key !== 'chain' && item.key !== 'asset-route' && item.key !== 'runtime-route-matching' && item.key !== 'runtime-flow-groups') navigate(`/channel-integration/${channelCode}/channel-info`);
               }
             }}
             items={[
@@ -1773,6 +1777,7 @@ export default function ChannelInfoPage() {
               { key: 'response-code', label: 'Response Code', children: [{ key: 'external-internal', label: 'External->Internal' }, { key: 'internal-external', label: 'Internal->External' }] },
               { key: 'institution', label: 'Institution' },
               { key: 'chain', label: 'Chain' },
+              { key: 'asset-route', label: 'Asset Route' },
               { key: 'requery', label: 'Requery Strategy' },
               { key: 'runtime-control', label: 'Runtime Control', children: [{ key: 'runtime-route-matching', label: 'Route Matching' }, { key: 'runtime-flow-groups', label: 'Flow Groups' }] },
               { key: 'service-channel', label: 'Service Channel' },
@@ -1792,7 +1797,7 @@ export default function ChannelInfoPage() {
           </Space>
         </div>
         <Content style={{ padding: 24 }}>
-          <Breadcrumb items={[{ title: channelCode }, ...(runtimeDetailView ? [{ title: 'Runtime Control' }, { title: runtimeDetailView.kind === 'route-matching' ? 'Route Matching' : 'Flow Groups' }, { title }] : isChain ? [{ title: 'Chain' }] : isRequery ? [{ title: 'Requery Strategy' }] : isRuntimeRouteMatching || isRuntimeFlowGroups ? [{ title: 'Runtime Control' }, { title }] : [{ title: 'Response Code' }, { title: detailView ? 'External->Internal' : title }, ...(detailView ? [{ title }] : [])])]} style={{ marginBottom: 12 }} />
+          <Breadcrumb items={[{ title: channelCode }, ...(runtimeDetailView ? [{ title: 'Runtime Control' }, { title: runtimeDetailView.kind === 'route-matching' ? 'Route Matching' : 'Flow Groups' }, { title }] : isChain ? [{ title: 'Chain' }] : isAssetRoute ? [{ title: 'Asset Route' }] : isRequery ? [{ title: 'Requery Strategy' }] : isRuntimeRouteMatching || isRuntimeFlowGroups ? [{ title: 'Runtime Control' }, { title }] : [{ title: 'Response Code' }, { title: detailView ? 'External->Internal' : title }, ...(detailView ? [{ title }] : [])])]} style={{ marginBottom: 12 }} />
           <Space align="center" style={{ marginBottom: 18 }}>
             <Typography.Title level={3} style={{ margin: 0 }}>{title}</Typography.Title>
             {applied && <Tag color="green" style={{ fontSize: 14, padding: '4px 10px' }}>{applied.cloud} - {applied.env}</Tag>}

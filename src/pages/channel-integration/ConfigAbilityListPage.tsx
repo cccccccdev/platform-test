@@ -35,7 +35,9 @@ const linkedStateMachines: Record<string, string[]> = {
   'SMS:BULK_MESSAGE': ['Default_Refund_StateMachine'],
   'KYC:FINGERPRINT_VERIFY': ['Default_Refund_StateMachine'],
   'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['Default_Refund_StateMachine'],
-  'STABLECOIN:ONRAMP': ['NO_STATE_MACHINE'],
+  'STABLECOIN:ON_RAMP': ['NO_STATE_MACHINE'],
+  'STABLECOIN:OFF_RAMP': ['NO_STATE_MACHINE'],
+  'STABLECOIN:PAY_OUT': ['NO_STATE_MACHINE'],
 };
 
 const integrationRecordOptions: Record<string, Array<{ label: string; value: string }>> = {
