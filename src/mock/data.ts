@@ -3,7 +3,7 @@
 
 // 渠道列表
 export const mockChannels = [
-  { code: 'COBO', country: ['GSA'], party: ['Stablecoin'], status: 'Active', operator: 'Abe', operationTime: '2026-09-02 10:00:00' },
+  { code: 'COBO', country: ['GSA'], party: ['ONELOOP'], status: 'Active', operator: 'Abe', operationTime: '2026-09-02 10:00:00' },
   { code: 'EVEXIN', country: ['NG'], party: ['FLEXI'], status: 'Active', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
   { code: 'GTB_NG', country: ['Nigeria'], party: ['PalmPay NG'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 10:00:00' },
   { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: ['PalmPay NG'], status: 'Inactive', operator: 'admin', operationTime: '2026-05-20 11:00:00' },
