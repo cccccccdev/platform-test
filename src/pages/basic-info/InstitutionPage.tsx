@@ -4,19 +4,10 @@ import { CloudUploadOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useBasicInfoReferenceStore } from './basicInfoReferenceStore';
 import { useInstitutionTypeStore } from './institutionTypeReferenceData';
+import { useInstitutionReferenceStore } from './institutionReferenceData';
+import type { InstitutionRecord } from './institutionReferenceData';
 
 const { Title } = Typography;
-
-interface InstitutionRecord {
-  code: string;
-  name: string;
-  country: string;
-  institutionTypes: string[];
-  logo?: string;
-  relationInstitutions: string[];
-  operator: string;
-  operationTime: string;
-}
 
 interface InstitutionFormValues {
   code: string;
@@ -25,22 +16,6 @@ interface InstitutionFormValues {
   relationInstitutions?: string[];
 }
 
-const initialInstitutions: InstitutionRecord[] = [
-  { name: 'NEDBANK LIMITED', code: '198765', country: 'GSA', institutionTypes: ['BANK'], relationInstitutions: [], operator: '胡冰楠', operationTime: '2026-05-22 06:53:57' },
-  { name: 'VISA', code: 'VISA', country: 'ZA', institutionTypes: ['CARD_SCHEME'], relationInstitutions: [], operator: 'haixia.zhang', operationTime: '2026-05-26 07:31:43' },
-  { name: 'MasterCard', code: 'MASTERCARD', country: 'ZA', institutionTypes: ['CARD_SCHEME'], relationInstitutions: [], operator: 'haixia.zhang', operationTime: '2026-05-26 07:31:13' },
-  { name: 'VIRTUAL_INSTITUTION', code: 'VIRTUAL_INSTITUTION', country: 'ZA', institutionTypes: ['BANK'], relationInstitutions: [], operator: 'Rick', operationTime: '2025-10-29 02:32:06' },
-  { name: '3(Hutchison Telecom HK LTD)', code: 'HT_HK_LTD', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:57:47' },
-  { name: 'Multibyte Info Technology Ltd (MVNO)', code: 'MIT_LTD', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:56:50' },
-  { name: 'Hong Kong Telecommunications (HKT/CSL)', code: 'TELECOM_HK', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:55:55' },
-  { name: 'HK China Telecom Global Limited', code: 'HK_CHINA_TELECOM', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:55:16' },
-  { name: 'CITIC Telecom 1616 (CSL MVNO)', code: 'CITIC_TELECOM', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:54:32' },
-  { name: 'China Unicom HK Limited', code: 'UNICOM_HK_LIMITED', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:51:06' },
-  { name: 'China-HongKong Telecom', code: 'HK_TELECOM', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:50:27' },
-  { name: 'China Mobile HK', code: 'CHINA_MOBILE_HK', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:49:35' },
-  { name: 'SmarTone HK', code: 'SMARTONE', country: 'HK', institutionTypes: ['TELECOM_OPERATOR'], relationInstitutions: [], operator: '冯启航 Felix', operationTime: '2025-12-09 13:48:28' },
-];
-
 function operationTimeNow() {
   return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
@@ -48,7 +23,9 @@ function operationTimeNow() {
 export default function InstitutionPage() {
   const countries = useBasicInfoReferenceStore((state) => state.countries);
   const institutionTypes = useInstitutionTypeStore((state) => state.records);
-  const [records, setRecords] = useState(initialInstitutions);
+  const records = useInstitutionReferenceStore((state) => state.records);
+  const addRecord = useInstitutionReferenceStore((state) => state.addRecord);
+  const updateRecord = useInstitutionReferenceStore((state) => state.updateRecord);
   const [activeCountry, setActiveCountry] = useState(countries[0]?.code ?? 'GSA');
   const [typeFilter, setTypeFilter] = useState<string>();
   const [codeFilter, setCodeFilter] = useState('');
@@ -82,7 +59,7 @@ export default function InstitutionPage() {
         form.setFields([{ name: 'code', errors: ['Institution Code already exists in this country'] }]); return;
       }
       const next: InstitutionRecord = { code, name: values.name.trim(), country: activeCountry, institutionTypes: values.institutionTypes, relationInstitutions: values.relationInstitutions ?? [], logo: logoFiles[0]?.name, operator: 'Current User', operationTime: operationTimeNow() };
-      setRecords((current) => editing ? current.map((record) => record.country === editing.country && record.code === editing.code ? next : record) : [next, ...current]);
+      if (editing) updateRecord(editing.country, editing.code, next); else addRecord(next);
       setModalOpen(false);
       message.success(editing ? 'Institution updated' : 'Institution created');
     } catch { /* Field errors are rendered by Ant Design. */ }
