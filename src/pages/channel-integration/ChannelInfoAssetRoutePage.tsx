@@ -349,7 +349,7 @@ export default function ChannelInfoAssetRoutePage({
   const identityLocked = Boolean(editing);
   const scopedInstitutionMappings = institutionMappings.filter((item) => item.channelCode === channelCode && item.bt === 'STABLECOIN' && item.ability === ability && item.country === 'GSA');
   const institutionOptions = [{ value: 'ALL', label: 'ALL' }, ...Array.from(new Set(scopedInstitutionMappings.map((item) => item.institutionCountry))).sort().map((institutionCountry) => ({ value: institutionCountry, label: institutionCountry, children: scopedInstitutionMappings.filter((item) => item.institutionCountry === institutionCountry).map((item) => ({ value: item.institutionCode, label: item.institutionName })) }))];
-  const displayedAssetRouteInstitutionCode = institutionSelection?.at(-1) ?? editing?.institutionCode ?? '-';
+  const displayedAssetRouteInstitutionCode = profile?.showInstitution ? institutionSelection?.at(-1) ?? editing?.institutionCode ?? '-' : 'ALL';
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -415,8 +415,8 @@ export default function ChannelInfoAssetRoutePage({
         destroyOnHidden
         width={720}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 }}>
+        <Form form={form} labelCol={{ span: 8 }} wrapperCol={{ span: 16 }} style={{ marginTop: 20 }}>
+          <div>
             <Form.Item name="sourceCurrency" label="Source Currency" rules={[{ required: true, message: 'Select Source Currency' }]}>
               <Select showSearch optionFilterProp="label" options={sourceCurrencyOptions} disabled={identityLocked} />
             </Form.Item>
@@ -437,9 +437,9 @@ export default function ChannelInfoAssetRoutePage({
             >
               <Select showSearch options={CHAIN_OPTIONS} disabled={identityLocked} />
             </Form.Item>}
-            <Form.Item name="institutionSelection" label="Institution Name" initialValue={['ALL']} rules={[{ required: true, message: 'Select Institution Name' }]}>
-              <Cascader showSearch options={profile?.showInstitution ? institutionOptions : [{ value: 'ALL', label: 'ALL' }]} disabled={identityLocked || !profile?.showInstitution} placeholder="Country / Institution" />
-            </Form.Item>
+            {profile?.showInstitution && <Form.Item name="institutionSelection" label={fieldLabel('Institution Name', 'Select ALL when this Asset Route applies without distinguishing a specific Institution.')} rules={[{ required: true, message: 'Select Institution Name' }]}>
+              <Cascader showSearch options={institutionOptions} disabled={identityLocked} placeholder="Select ALL or Country / Institution" />
+            </Form.Item>}
             <Form.Item label="Institution Code"><span>{displayedAssetRouteInstitutionCode}</span></Form.Item>
             <Form.Item
               name="decimal"
