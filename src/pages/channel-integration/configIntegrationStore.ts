@@ -170,56 +170,73 @@ const seedDeployRecords: DeployRecord[] = [
   { cloud: 'ALIYUN', app: 'omnicore', env: 'PROD', version: '20260601103000', operator: 'admin', operationTime: '2026-06-03 15:00:00' },
 ];
 
+const coboDeploymentBadges = [
+  { cloud: 'ALIYUN' as const, env: 'DAILY' as const },
+  { cloud: 'ALIYUN' as const, env: 'PRE' as const },
+];
+
+const createCoboStablecoinGroup = (ability: 'ON_RAMP' | 'OFF_RAMP' | 'PAY_OUT', groupId: number): FlowGroupVersion => {
+  const version = '20260904100000';
+  const flowName = `STABLECOIN_${ability}_TRANSACTION`;
+  return {
+    id: `cobo_stablecoin_${ability.toLowerCase()}`,
+    groupId,
+    version,
+    status: 'PRE',
+    badges: coboDeploymentBadges,
+    remark: `COBO stablecoin ${ability.toLowerCase().replace('_', '-')} transaction flow`,
+    operator: 'Abe',
+    operationTime: '2026-09-04 10:00:00',
+    deployRecords: coboDeploymentBadges.map(({ cloud, env }) => ({
+      cloud,
+      app: 'omnicore',
+      env,
+      version,
+      operator: 'Abe',
+      operationTime: env === 'DAILY' ? '2026-09-04 10:10:00' : '2026-09-04 10:20:00',
+    })),
+    flows: [{
+      id: `cobo_${ability.toLowerCase()}_transaction`,
+      name: flowName,
+      executionType: 'single',
+      flowType: 'outbound',
+      endType: 'wait_external',
+      triggerType: 'UPSTREAM_TRIGGERED',
+      template: 'UPSTREAM_TRIGGERED_TRANSACTION',
+      triggerEvents: ['TRANSACTION'],
+      contextActions: [],
+      isConfigured: true,
+      status: 'SUBMITTED',
+      ...buildTemplateCanvas('UPSTREAM_TRIGGERED_TRANSACTION'),
+    }],
+  };
+};
+
 const seedAbilities: Record<string, ConfigAbility[]> = {
   COBO: [
     {
       bt: 'STABLECOIN',
       ability: 'ON_RAMP',
+      integrationRecordId: 'IR-000901',
       actions: ['TRANSACTION'],
       stateMachine: 'NO_STATE_MACHINE',
-      versions: [
-        {
-          id: 'cobo_stablecoin_onramp',
-          groupId: 901,
-          version: '20260902103000',
-          status: 'UNDEPLOYED',
-          badges: [],
-          remark: 'COBO stablecoin on-ramp transaction flow',
-          operator: 'Abe',
-          operationTime: '2026-09-02 10:30:00',
-          deployRecords: [],
-          flows: [
-            {
-              id: 'cobo_onramp_transaction',
-              name: 'STABLECOIN_ON_RAMP_TRANSACTION',
-              executionType: 'single',
-              flowType: 'outbound',
-              endType: 'wait_external',
-              triggerType: 'UPSTREAM_TRIGGERED',
-              template: 'UPSTREAM_TRIGGERED_TRANSACTION',
-              triggerEvents: ['TRANSACTION'],
-              contextActions: [],
-              isConfigured: false,
-              status: 'DRAFT',
-              ...buildTemplateCanvas('UPSTREAM_TRIGGERED_TRANSACTION'),
-            },
-          ],
-        },
-      ],
+      versions: [createCoboStablecoinGroup('ON_RAMP', 901)],
     },
     {
       bt: 'STABLECOIN',
       ability: 'OFF_RAMP',
+      integrationRecordId: 'IR-000901',
       actions: ['TRANSACTION'],
       stateMachine: 'NO_STATE_MACHINE',
-      versions: [],
+      versions: [createCoboStablecoinGroup('OFF_RAMP', 902)],
     },
     {
       bt: 'STABLECOIN',
       ability: 'PAY_OUT',
+      integrationRecordId: 'IR-000901',
       actions: ['TRANSACTION'],
       stateMachine: 'NO_STATE_MACHINE',
-      versions: [],
+      versions: [createCoboStablecoinGroup('PAY_OUT', 903)],
     },
   ],
   EVEXIN: [

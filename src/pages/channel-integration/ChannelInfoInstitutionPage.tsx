@@ -1,106 +1,65 @@
-import { useMemo, useState } from 'react';
-import { Button, Form, Input, Modal, Select, Space, Table, Tabs, message } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Cascader, Form, Input, Modal, Space, Table, Tabs, Upload, message } from 'antd';
+import { useInstitutionReferenceStore } from '../basic-info/institutionReferenceData';
+import { useChannelInstitutionStore, type ChannelInstitutionMapping } from './channelInstitutionStore';
 import type { ConfigAbility } from './types';
 
-interface InstitutionMapping {
-  id: string;
-  bt: string;
-  ability: string;
-  country: string;
-  institutionCode: string;
-  institutionName: string;
-  channelInstitutionCode?: string;
-  channelInstitutionName?: string;
-  operator: string;
-  operationTime: string;
-}
-
-interface MappingFormValues {
-  institutionCode: string;
-  channelInstitutionCode?: string;
-  channelInstitutionName?: string;
-}
-
-const basicInfoNgInstitutions = [
-  { code: 'GTBANK_NG', name: 'GUARANTY TRUST BANK' },
-  { code: 'ZENITH_NG', name: 'ZENITH BANK' },
-  { code: 'ACCESS_NG', name: 'ACCESS BANK' },
-  { code: 'UBA_NG', name: 'UNITED BANK FOR AFRICA' },
-  { code: 'FIRST_BANK_NG', name: 'FIRST BANK OF NIGERIA' },
-];
-
-const initialMappings: InstitutionMapping[] = [
-  { id: 'paystack-gtb', bt: 'BANK_ACCOUNT_CREDIT', ability: 'TRANSFER_INTER', country: 'NG', institutionCode: 'GTBANK_NG', institutionName: 'GUARANTY TRUST BANK', channelInstitutionCode: '058', channelInstitutionName: 'Guaranty Trust Bank', operator: 'Bailly', operationTime: '2026-08-19 03:53:28' },
-  { id: 'paystack-zenith', bt: 'BANK_ACCOUNT_CREDIT', ability: 'TRANSFER_INTER', country: 'NG', institutionCode: 'ZENITH_NG', institutionName: 'ZENITH BANK', channelInstitutionCode: '057', channelInstitutionName: 'Zenith Bank', operator: 'Bailly', operationTime: '2026-08-19 03:53:28' },
-  { id: 'paystack-access', bt: 'BANK_ACCOUNT_CREDIT', ability: 'TRANSFER_INTER', country: 'NG', institutionCode: 'ACCESS_NG', institutionName: 'ACCESS BANK', channelInstitutionCode: '044', channelInstitutionName: 'Access Bank', operator: 'Bailly', operationTime: '2026-08-19 03:53:28' },
-  { id: 'paystack-uba', bt: 'BANK_ACCOUNT_CREDIT', ability: 'TRANSFER_INTER', country: 'NG', institutionCode: 'UBA_NG', institutionName: 'UNITED BANK FOR AFRICA', channelInstitutionCode: '033', channelInstitutionName: 'United Bank for Africa', operator: 'Bailly', operationTime: '2026-08-19 03:53:28' },
-  { id: 'paystack-first', bt: 'BANK_ACCOUNT_CREDIT', ability: 'TRANSFER_INTER', country: 'NG', institutionCode: 'FIRST_BANK_NG', institutionName: 'FIRST BANK OF NIGERIA', operator: 'Bailly', operationTime: '2026-08-19 03:53:28' },
-];
+interface MappingFormValues { institutionSelection: string[]; channelInstitutionCode?: string; channelInstitutionName?: string }
+const operationTimeNow = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
 
 export default function ChannelInfoInstitutionPage({ channelCode, cloud, env, configuredAbilities }: { channelCode: string; cloud: string; env: string; configuredAbilities: ConfigAbility[] }) {
-  const [records, setRecords] = useState<InstitutionMapping[]>(channelCode === 'PAYSTACK_NG' ? initialMappings : []);
-  const [bt, setBt] = useState('BANK_ACCOUNT_CREDIT');
-  const [ability, setAbility] = useState('TRANSFER_INTER');
-  const [country, setCountry] = useState('NG');
+  const institutions = useInstitutionReferenceStore((state) => state.records);
+  const records = useChannelInstitutionStore((state) => state.records);
+  const saveRecord = useChannelInstitutionStore((state) => state.save);
+  const [bt, setBt] = useState(channelCode === 'COBO' ? 'STABLECOIN' : 'BANK_ACCOUNT_CREDIT');
+  const [ability, setAbility] = useState(channelCode === 'COBO' ? 'ON_RAMP' : 'TRANSFER_INTER');
+  const [country, setCountry] = useState(channelCode === 'COBO' ? 'GSA' : 'NG');
   const [filters, setFilters] = useState({ institutionName: '', institutionCode: '', channelInstitutionName: '', channelInstitutionCode: '' });
   const [query, setQuery] = useState(filters);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<InstitutionMapping | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [editing, setEditing] = useState<ChannelInstitutionMapping | null>(null);
   const [form] = Form.useForm<MappingFormValues>();
   const deployedAbilities = useMemo(() => configuredAbilities.filter((item) => item.versions.some((version) => version.badges?.some((badge) => badge.cloud === cloud && badge.env === env))), [cloud, configuredAbilities, env]);
   const scopeAbilities = deployedAbilities.length ? deployedAbilities : channelCode === 'PAYSTACK_NG' ? [{ bt: 'BANK_ACCOUNT_CREDIT', ability: 'TRANSFER_INTER' }] : [];
   const btItems = [...new Set(scopeAbilities.map((item) => item.bt))].map((value) => ({ key: value, label: value }));
   const abilityItems = [...new Set(scopeAbilities.filter((item) => item.bt === bt).map((item) => item.ability))].map((value) => ({ key: value, label: value }));
-  const countryItems = channelCode === 'PAYSTACK_NG' && bt === 'BANK_ACCOUNT_CREDIT' ? [{ key: 'NG', label: 'NG' }] : [];
-  const selectedInstitutionCode = Form.useWatch('institutionCode', form);
-  const selectedInstitution = basicInfoNgInstitutions.find((item) => item.code === selectedInstitutionCode);
-  const scoped = useMemo(() => records.filter((record) => record.bt === bt && record.ability === ability && record.country === country), [ability, bt, country, records]);
-  const visible = useMemo(() => scoped.filter((record) => record.institutionName.toLowerCase().includes(query.institutionName.toLowerCase()) && record.institutionCode.toLowerCase().includes(query.institutionCode.toLowerCase()) && (record.channelInstitutionName ?? '').toLowerCase().includes(query.channelInstitutionName.toLowerCase()) && (record.channelInstitutionCode ?? '').toLowerCase().includes(query.channelInstitutionCode.toLowerCase())), [query, scoped]);
+  const countryItems = channelCode === 'COBO' && bt === 'STABLECOIN' ? [{ key: 'GSA', label: 'GSA' }] : channelCode === 'PAYSTACK_NG' ? [{ key: 'NG', label: 'NG' }] : [];
+  const institutionOptions = useMemo(() => Array.from(new Set(institutions.map((item) => item.country))).sort().map((institutionCountry) => ({ value: institutionCountry, label: institutionCountry, children: institutions.filter((item) => item.country === institutionCountry).map((item) => ({ value: item.code, label: item.name })) })), [institutions]);
+  const selectedPath = Form.useWatch('institutionSelection', form);
+  const selectedInstitution = selectedPath?.length === 2 ? institutions.find((item) => item.country === selectedPath[0] && item.code === selectedPath[1]) : undefined;
+  const displayedInstitutionCode = selectedInstitution ? `${selectedInstitution.code}${selectedInstitution.country === country ? '' : `#${selectedInstitution.country}`}` : editing?.institutionCode ?? '-';
+  const scoped = records.filter((item) => item.channelCode === channelCode && item.bt === bt && item.ability === ability && item.country === country);
+  const visible = scoped.filter((record) => record.institutionName.toLowerCase().includes(query.institutionName.toLowerCase()) && record.institutionCode.toLowerCase().includes(query.institutionCode.toLowerCase()) && (record.channelInstitutionName ?? '').toLowerCase().includes(query.channelInstitutionName.toLowerCase()) && (record.channelInstitutionCode ?? '').toLowerCase().includes(query.channelInstitutionCode.toLowerCase()));
 
+  useEffect(() => { if (!abilityItems.some((item) => item.key === ability)) setAbility(abilityItems[0]?.key ?? ''); }, [ability, abilityItems]);
   const openCreate = () => { setEditing(null); form.resetFields(); setModalOpen(true); };
-  const openModify = (record: InstitutionMapping) => { setEditing(record); form.setFieldsValue({ institutionCode: record.institutionCode, channelInstitutionCode: record.channelInstitutionCode, channelInstitutionName: record.channelInstitutionName }); setModalOpen(true); };
+  const openModify = (record: ChannelInstitutionMapping) => { setEditing(record); form.setFieldsValue({ institutionSelection: [record.institutionCountry, record.institutionCode.split('#')[0]], channelInstitutionCode: record.channelInstitutionCode, channelInstitutionName: record.channelInstitutionName }); setModalOpen(true); };
   const save = async () => {
     try {
       const values = await form.validateFields();
-      const institution = basicInfoNgInstitutions.find((item) => item.code === values.institutionCode);
+      const institution = institutions.find((item) => item.country === values.institutionSelection[0] && item.code === values.institutionSelection[1]);
       if (!institution) return;
+      const requestInstitutionCode = institution.code;
+      // The create API receives the raw code; this composes the persisted value returned by the backend.
+      const storedCode = `${requestInstitutionCode}${institution.country === country ? '' : `#${institution.country}`}`;
       const externalCode = values.channelInstitutionCode?.trim();
-      const duplicateInternal = scoped.some((record) => record.id !== editing?.id && record.institutionCode === institution.code);
-      const duplicateExternal = externalCode && scoped.some((record) => record.id !== editing?.id && record.channelInstitutionCode === externalCode);
-      if (duplicateInternal) { form.setFields([{ name: 'institutionCode', errors: ['Institution Code already has a mapping in this scope'] }]); return; }
-      if (duplicateExternal) { form.setFields([{ name: 'channelInstitutionCode', errors: ['Channel Institution Code must be unique in this scope'] }]); return; }
-      const next: InstitutionMapping = { id: editing?.id ?? `mapping-${Date.now()}`, bt, ability, country, institutionCode: institution.code, institutionName: institution.name, channelInstitutionCode: externalCode || undefined, channelInstitutionName: values.channelInstitutionName?.trim() || undefined, operator: 'Current User', operationTime: new Date().toISOString().slice(0, 19).replace('T', ' ') };
-      setRecords((current) => editing ? current.map((record) => record.id === editing.id ? next : record) : [next, ...current]);
+      if (scoped.some((item) => item.id !== editing?.id && item.institutionCode === storedCode)) { form.setFields([{ name: 'institutionSelection', errors: ['Institution Code already has a mapping in this scope'] }]); return; }
+      if (externalCode && scoped.some((item) => item.id !== editing?.id && item.channelInstitutionCode === externalCode)) { form.setFields([{ name: 'channelInstitutionCode', errors: ['Channel Institution Code must be unique in this scope'] }]); return; }
+      const operationTime = operationTimeNow();
+      saveRecord({ id: editing?.id ?? `mapping-${operationTime.replaceAll(/\D/g, '')}`, channelCode, bt, ability, country, institutionCountry: institution.country, institutionCode: storedCode, institutionName: institution.name, channelInstitutionCode: externalCode || undefined, channelInstitutionName: values.channelInstitutionName?.trim() || undefined, operator: 'Current User', operationTime });
       setModalOpen(false); message.success(editing ? 'Institution mapping updated' : 'Institution mapping created');
-    } catch { /* Field errors are rendered by Ant Design. */ }
+    } catch { /* Ant Design renders field errors. */ }
   };
-
   const setFilter = (key: keyof typeof filters, value: string) => setFilters((current) => ({ ...current, [key]: value }));
+
   return <div className="channel-info-institution">
-    <Tabs activeKey={bt} onChange={setBt} items={btItems} />
-    <Tabs activeKey={ability} onChange={setAbility} items={abilityItems} />
-    <Tabs activeKey={country} onChange={setCountry} items={countryItems} />
-    <div className="channel-institution-filters">
-      <label><span>Institution Name :</span><Input value={filters.institutionName} onChange={(event) => setFilter('institutionName', event.target.value)} /></label>
-      <label><span>Channel Institution Name :</span><Input value={filters.channelInstitutionName} onChange={(event) => setFilter('channelInstitutionName', event.target.value)} /></label>
-      <label><span>Institution Code :</span><Input value={filters.institutionCode} onChange={(event) => setFilter('institutionCode', event.target.value)} /></label>
-      <label><span>Channel Institution Code :</span><Input value={filters.channelInstitutionCode} onChange={(event) => setFilter('channelInstitutionCode', event.target.value)} /></label>
-    </div>
+    <Tabs activeKey={bt} onChange={setBt} items={btItems} /><Tabs activeKey={ability} onChange={setAbility} items={abilityItems} /><Tabs activeKey={country} onChange={setCountry} items={countryItems} />
+    <div className="channel-institution-filters"><label><span>Institution Name :</span><Input value={filters.institutionName} onChange={(event) => setFilter('institutionName', event.target.value)} /></label><label><span>Channel Institution Name :</span><Input value={filters.channelInstitutionName} onChange={(event) => setFilter('channelInstitutionName', event.target.value)} /></label><label><span>Institution Code :</span><Input value={filters.institutionCode} onChange={(event) => setFilter('institutionCode', event.target.value)} /></label><label><span>Channel Institution Code :</span><Input value={filters.channelInstitutionCode} onChange={(event) => setFilter('channelInstitutionCode', event.target.value)} /></label></div>
     <div className="channel-institution-query"><Space><Button onClick={() => { const empty = { institutionName: '', institutionCode: '', channelInstitutionName: '', channelInstitutionCode: '' }; setFilters(empty); setQuery(empty); }}>Reset</Button><Button type="primary" onClick={() => setQuery(filters)}>Query</Button></Space></div>
-    <div className="channel-institution-actions"><Space><Button type="primary" onClick={openCreate}>Create</Button><Button type="primary">Bulk Upload</Button><Button type="primary">File List</Button><Button type="primary">Download</Button></Space></div>
-    <Table<InstitutionMapping> rowKey="id" dataSource={visible} scroll={{ x: 1200 }} pagination={{ pageSize: 10, showTotal: (total) => `Total ${total} items` }} columns={[
-      { title: 'Institution Code', dataIndex: 'institutionCode', key: 'institutionCode', width: 170 }, { title: 'Institution Name', dataIndex: 'institutionName', key: 'institutionName', width: 260 },
-      { title: 'Channel Institution Code', dataIndex: 'channelInstitutionCode', key: 'channelInstitutionCode', width: 210, render: (value) => value ?? '-' }, { title: 'Channel Institution Name', dataIndex: 'channelInstitutionName', key: 'channelInstitutionName', width: 260, render: (value) => value ?? '-' },
-      { title: 'Operator', dataIndex: 'operator', key: 'operator', width: 140 }, { title: 'Operation Time', dataIndex: 'operationTime', key: 'operationTime', width: 190 }, { title: 'Operation', key: 'operation', width: 100, render: (_, record) => <Button type="link" onClick={() => openModify(record)}>Modify</Button> },
-    ]} />
-    <Modal title={editing ? 'Modify Supported Institution' : 'Add Supported Institution'} open={modalOpen} width={560} okText="OK" cancelText="Cancel" onOk={save} onCancel={() => setModalOpen(false)} destroyOnHidden forceRender>
-      <Form form={form} labelCol={{ span: 10 }} wrapperCol={{ span: 13 }} preserve={false}>
-        <Form.Item label="Business Type"><span>{bt}</span></Form.Item><Form.Item label="Ability"><span>{ability}</span></Form.Item><Form.Item label="Country"><span>{country}</span></Form.Item>
-        <Form.Item name="institutionCode" label="Institution Name" rules={[{ required: true, message: 'Select Institution Name' }]}><Select showSearch disabled={Boolean(editing)} placeholder="Institution Name" optionFilterProp="searchText" options={basicInfoNgInstitutions.map((item) => ({ value: item.code, label: item.name, searchText: `${item.code} ${item.name}` }))} /></Form.Item>
-        <Form.Item label="Institution Code"><span>{selectedInstitution?.code ?? editing?.institutionCode ?? '-'}</span></Form.Item>
-        <Form.Item name="channelInstitutionName" label="Channel Institution Name"><Input /></Form.Item>
-        <Form.Item name="channelInstitutionCode" label="Channel Institution Code"><Input /></Form.Item>
-      </Form>
-    </Modal>
+    <div className="channel-institution-actions"><Space><Button type="primary" onClick={openCreate}>Create</Button><Button type="primary" onClick={() => setBulkOpen(true)}>Bulk Upload</Button><Button type="primary">File List</Button><Button type="primary">Download</Button></Space></div>
+    <Table<ChannelInstitutionMapping> rowKey="id" dataSource={visible} scroll={{ x: 1200 }} pagination={{ pageSize: 10, showTotal: (total) => `Total ${total} items` }} columns={[{ title: 'Institution Code', dataIndex: 'institutionCode', width: 170 }, { title: 'Institution Name', dataIndex: 'institutionName', width: 260 }, { title: 'Channel Institution Code', dataIndex: 'channelInstitutionCode', width: 210, render: (value) => value ?? '-' }, { title: 'Channel Institution Name', dataIndex: 'channelInstitutionName', width: 260, render: (value) => value ?? '-' }, { title: 'Operator', dataIndex: 'operator', width: 140 }, { title: 'Operation Time', dataIndex: 'operationTime', width: 190 }, { title: 'Operation', width: 100, render: (_, record) => <Button type="link" onClick={() => openModify(record)}>Modify</Button> }]} />
+    <Modal title={editing ? 'Modify Supported Institution' : 'Add Supported Institution'} open={modalOpen} width={600} okText="OK" cancelText="Cancel" onOk={save} onCancel={() => setModalOpen(false)} destroyOnHidden forceRender><Form form={form} labelCol={{ span: 10 }} wrapperCol={{ span: 13 }} preserve={false}><Form.Item label="Business Type"><span>{bt}</span></Form.Item><Form.Item label="Ability"><span>{ability}</span></Form.Item><Form.Item label="Country"><span>{country}</span></Form.Item><Form.Item name="institutionSelection" label="Institution Name" rules={[{ required: true, message: 'Select Institution Name' }]}><Cascader showSearch disabled={Boolean(editing)} placeholder="Country / Institution Name" options={institutionOptions} /></Form.Item><Form.Item label="Institution Code"><span>{displayedInstitutionCode}</span></Form.Item><Form.Item name="channelInstitutionName" label="Channel Institution Name"><Input /></Form.Item><Form.Item name="channelInstitutionCode" label="Channel Institution Code"><Input /></Form.Item></Form></Modal>
+    <Modal title="Bulk Upload Institution Mapping" open={bulkOpen} footer={<Button onClick={() => setBulkOpen(false)}>Close</Button>} onCancel={() => setBulkOpen(false)} destroyOnHidden><Alert type="info" showIcon style={{ marginBottom: 16 }} message="Cross-country Institution Codes must be composed in Excel." description={`For page Country ${country}, use the raw Institution Code for ${country} institutions. For another country, upload <institution_code>#<country_code>. Values such as <institution_code>#${country} are invalid and will be rejected.`} /><Upload.Dragger accept=".xlsx,.xls" beforeUpload={() => false} maxCount={1}><p>Click or drag an Excel file to this area</p></Upload.Dragger></Modal>
   </div>;
 }

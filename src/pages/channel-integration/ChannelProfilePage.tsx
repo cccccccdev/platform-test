@@ -102,6 +102,26 @@ const abilitiesByBusinessType: Record<string, string[]> = {
   SMS: ['SINGLE_MESSAGE', 'BULK_MESSAGE'],
   KYC: ['FINGERPRINT_VERIFY'],
   FUND_NOTIFICATION: ['CUSTOMER_VALIDATION', 'EXTERNAL_CREDIT'],
+  STABLECOIN: ['ON_RAMP', 'OFF_RAMP', 'PAY_OUT'],
+};
+
+const coboIntegrationRecord: IntegrationRecord = {
+  recordId: 'IR-000901',
+  recordName: 'COBO Stablecoin Integration',
+  partyScopes: [{
+    party: 'ONELOOP',
+    capabilities: ['ON_RAMP', 'OFF_RAMP', 'PAY_OUT'].map((ability) => ({
+      businessType: 'STABLECOIN',
+      integrationType: 'CONFIG' as const,
+      ability,
+      countries: ['GSA'],
+    })),
+  }],
+  prdDocuments: 'COBO Stablecoin Integration PRD',
+  gatewayDeliverables: 'Stablecoin Config Integration',
+  operator: 'Abe',
+  operationTime: '2026-09-04 10:00:00',
+  linkedToGroup: true,
 };
 
 const sectionTitles: Record<ProfileSection, string> = {
@@ -151,17 +171,18 @@ export default function ChannelProfilePage() {
 
   const createdRecord = useMemo(() => getCreatedIntegrationRecord(channelCode), [channelCode]);
 
+  const profileRecord = createdRecord ?? (channelCode === 'COBO' ? coboIntegrationRecord : undefined);
   const [businessTypes, setBusinessTypes] = useState<BusinessTypeRow[]>(() => {
-    if (!createdRecord) return [{ bt: 'WALLET_DEBIT', mode: 'CONFIG', countries: ['TZ'], operator: 'zihao.ye', operationTime: '2026-08-24 07:33:39' }];
+    if (!profileRecord) return [{ bt: 'WALLET_DEBIT', mode: 'CONFIG', countries: ['TZ'], operator: 'zihao.ye', operationTime: '2026-08-24 07:33:39' }];
     const rows = new Map<string, BusinessTypeRow>();
-    createdRecord.partyScopes.forEach(({ capabilities }) => capabilities.forEach((capability) => {
+    profileRecord.partyScopes.forEach(({ capabilities }) => capabilities.forEach((capability) => {
       const existing = rows.get(capability.businessType);
       rows.set(capability.businessType, { bt: capability.businessType, mode: capability.integrationType, countries: Array.from(new Set([...(existing?.countries || []), ...capability.countries])), operator: 'current.user', operationTime: now() });
     }));
     return Array.from(rows.values());
   });
-  const [parties, setParties] = useState<PartyRow[]>(() => createdRecord
-    ? createdRecord.partyScopes.map(({ party }) => ({ party, operator: 'current.user', operationTime: now() }))
+  const [parties, setParties] = useState<PartyRow[]>(() => profileRecord
+    ? profileRecord.partyScopes.map(({ party }) => ({ party, operator: 'current.user', operationTime: now() }))
     : [{ party: 'TMUL', operator: 'zihao.ye', operationTime: '2026-08-24 07:33:56' }]);
   const [owners, setOwners] = useState<OwnerSettings>(createdRecord?.owners || {
     productOwners: ['Nadia Rahman'],
@@ -176,12 +197,12 @@ export default function ChannelProfilePage() {
     technicalApprover: 'Zhang Wei',
     operationsApprover: 'Rahul Mehta',
   });
-  const [records, setRecords] = useState<IntegrationRecord[]>(() => createdRecord ? [{
-    ...createdRecord,
-    recordId: 'IR-000001',
-    operator: 'current.user',
-    operationTime: now(),
-    linkedToGroup: false,
+  const [records, setRecords] = useState<IntegrationRecord[]>(() => profileRecord ? [{
+    ...profileRecord,
+    recordId: 'recordId' in profileRecord ? profileRecord.recordId : 'IR-000001',
+    operator: 'operator' in profileRecord ? profileRecord.operator : 'current.user',
+    operationTime: 'operationTime' in profileRecord ? profileRecord.operationTime : now(),
+    linkedToGroup: 'linkedToGroup' in profileRecord ? profileRecord.linkedToGroup : false,
   }] : [{
       recordId: 'IR-000128',
       recordName: 'TMUL Wallet Debit Initial Integration',
@@ -200,7 +221,7 @@ export default function ChannelProfilePage() {
   }, [channelCode, navigate, section]);
 
   const allPartyOptions = useMemo(
-    () => Array.from(new Set([...partyOptions, 'TMUL'])).map((value) => ({ label: value, value })),
+    () => Array.from(new Set([...partyOptions, 'TMUL', 'ONELOOP'])).map((value) => ({ label: value, value })),
     [],
   );
 
