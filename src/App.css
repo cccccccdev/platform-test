@@ -413,6 +413,27 @@
 .channel-info-menu > .ant-menu-item,
 .channel-info-menu > .ant-menu-submenu > .ant-menu-submenu-title { padding-left: 28px !important; }
 .channel-info-menu .ant-menu-sub .ant-menu-item { padding-left: 48px !important; }
+.channel-info-topbar { min-height: 58px; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; background: #fff; border-bottom: 1px solid #edf0f2; }
+.channel-info-topbar > .platform-user { flex: 0 0 auto; }
+
+.service-channel-list,
+.service-channel-detail { min-height: 360px; padding: 22px 32px; background: #fff; }
+.service-channel-list-actions { display: flex; justify-content: flex-end; margin-bottom: 24px; }
+.service-channel-list .ant-btn-primary,
+.service-channel-create-modal .ant-btn-primary,
+.service-channel-ability-modal .ant-btn-primary { background: var(--legacy-purple); box-shadow: none; }
+.service-channel-list .ant-btn-link { color: var(--legacy-purple); }
+.service-channel-context { margin: 2px 0 18px; font-size: 15px; }
+.service-channel-detail .ant-collapse { border-radius: 0; background: #fff; }
+.service-channel-detail .ant-collapse-header { align-items: center !important; }
+.service-channel-detail .ant-tabs-tab { padding-inline: 18px; border: 1px solid #edf0f2; }
+.service-channel-detail .ant-tabs-tab-active .ant-tabs-tab-btn,
+.service-channel-ability-modal .ant-tabs-tab-active .ant-tabs-tab-btn { color: var(--legacy-purple) !important; }
+.service-channel-detail .ant-tabs-ink-bar,
+.service-channel-ability-modal .ant-tabs-ink-bar { background: var(--legacy-purple) !important; }
+.service-channel-create-modal .ant-modal-body { padding-block: 28px 18px; }
+.service-channel-create-modal .ant-form-item { margin-bottom: 28px; }
+.service-channel-ability-modal .ant-modal-body { min-height: 350px; padding-top: 24px; }
 .integration-main { margin-left: 200px; min-height: 100dvh; }
 .integration-topbar { height: 34px; padding: 0 18px; display: flex; justify-content: flex-end; align-items: center; background: #fff; border-bottom: 1px solid #eee; }
 .integration-content { min-height: calc(100vh - 34px); background: var(--legacy-bg); }

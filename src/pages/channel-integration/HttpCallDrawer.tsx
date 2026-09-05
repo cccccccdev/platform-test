@@ -104,7 +104,7 @@ const bodySchemaState = (nodes: unknown, direction: 'request' | 'response' = 're
 
 const mappingState = (rows: unknown): TabState => {
   if (!hasRows(rows)) return 'empty';
-  return rows.every((row) => hasValue(row.source) && hasValue(row.target)) ? 'ok' : 'error';
+  return rows.every((row) => row != null && typeof row === 'object' && hasValue(row.source) && hasValue(row.target)) ? 'ok' : 'error';
 };
 
 const mergeTabStates = (states: TabState[]): TabState => {
@@ -112,9 +112,18 @@ const mergeTabStates = (states: TabState[]): TabState => {
   if (states.includes('ok')) return 'ok';
   return 'empty';
 };
-function OrderVariableMapping({ sourceOptions, targetOptions, name = 'orderWrites', title = 'SPI to Order Variable Mapping', sourceLabel = 'SPI VALUE', targetLabel = 'ORDER VARIABLE' }: { sourceOptions: Array<{ label: string; value: string; type: string }>; targetOptions: Array<{ label: string; value: string; type: string }>; name?: string; title?: string; sourceLabel?: string; targetLabel?: string }) {
-  const sourceType = (value?: string) => sourceOptions.find((item) => item.value === value)?.type ?? 'String';
-  const targetType = (value?: string) => targetOptions.find((item) => item.value === value)?.type ?? 'String';
+type MappingOption = { label: string; value: string; type?: string; children?: MappingOption[] };
+const findMappingOption = (options: MappingOption[], value?: string | string[]): MappingOption | undefined => {
+  const leafValue = Array.isArray(value) ? value[value.length - 1] : value;
+  for (const option of options) {
+    if (option.value === leafValue) return option;
+    const child = findMappingOption(option.children ?? [], leafValue);
+    if (child) return child;
+  }
+};
+function OrderVariableMapping({ sourceOptions, targetOptions, sourceCascader = false, targetCascader = false, name = 'orderWrites', title = 'Value to Order Variable Mapping', sourceLabel = 'SOURCE VALUE', targetLabel = 'ORDER VARIABLE' }: { sourceOptions: MappingOption[]; targetOptions: MappingOption[]; sourceCascader?: boolean; targetCascader?: boolean; name?: string; title?: string; sourceLabel?: string; targetLabel?: string }) {
+  const sourceType = (value?: string | string[]) => findMappingOption(sourceOptions, value)?.type ?? 'String';
+  const targetType = (value?: string | string[]) => findMappingOption(targetOptions, value)?.type ?? 'String';
   return <Form.List name={name}>{(fields, { add, remove }) => <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#fafafa', borderBottom: '1px solid #e8e8e8' }}><Space size={8}><Text strong>{title}</Text><Tag style={{ margin: 0 }}>{fields.length} fields</Tag></Space><Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => add()}>Add Mapping</Button></div>
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 85px 24px 150px 24px minmax(180px,1fr) 85px 36px', gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, borderBottom: '1px solid #f0f0f0' }}><span>{sourceLabel}</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>{targetLabel}</span><span>TARGET TYPE</span><span /></div>
@@ -122,7 +131,7 @@ function OrderVariableMapping({ sourceOptions, targetOptions, name = 'orderWrite
       const source = getFieldValue([name, field.name, 'source']);
       const target = getFieldValue([name, field.name, 'target']);
       return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 85px 24px 150px 24px minmax(180px,1fr) 85px 36px', gap: 8, alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid #f5f5f5' }}>
-        <Form.Item name={[field.name, 'source']} rules={[{ required: true }]} style={{ margin: 0 }}><Select placeholder={sourceLabel} options={sourceOptions} /></Form.Item><Text>{sourceType(source)}</Text><span>→</span><Form.Item name={[field.name, 'operation']} style={{ margin: 0 }}><Cascader allowClear placeholder="Optional" options={mappingOperationOptions} expandTrigger="click" /></Form.Item><span>→</span><Form.Item name={[field.name, 'target']} rules={[{ required: true }]} style={{ margin: 0 }}><Select placeholder={targetLabel} options={targetOptions} /></Form.Item><Text>{targetType(target)}</Text><Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+        <Form.Item name={[field.name, 'source']} rules={[{ required: true }]} style={{ margin: 0 }}>{sourceCascader ? <Cascader placeholder={sourceLabel} options={sourceOptions} /> : <Select placeholder={sourceLabel} options={sourceOptions} />}</Form.Item><Text>{sourceType(source)}</Text><span>→</span><Form.Item name={[field.name, 'operation']} style={{ margin: 0 }}><Cascader allowClear placeholder="Optional" options={mappingOperationOptions} expandTrigger="click" /></Form.Item><span>→</span><Form.Item name={[field.name, 'target']} rules={[{ required: true }]} style={{ margin: 0 }}>{targetCascader ? <Cascader placeholder={targetLabel} options={targetOptions} /> : <Select placeholder={targetLabel} options={targetOptions} />}</Form.Item><Text>{targetType(target)}</Text><Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
       </div>;
     }}</Form.Item>)}
     {fields.length === 0 && <div style={emptyStyle}>No mappings configured.</div>}
@@ -178,8 +187,17 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
     ...requestContextOptions.map((group) => ({ label: group.label, value: group.label, children: group.options.map(({ label, value, type }) => ({ label, value, type })) })),
     { label: 'Generated Data', value: 'generated', children: generated },
   ];
-  const spiReqOptions = spiRequest.map(v => ({ label: v, value: `spi.request.${v}`, type: requestTypes[v] ?? 'String' }));
-  const spiResOptions = spiResponse.map(v => ({ label: v, value: `spi.response.${v}`, type: responseTypes[v] ?? 'String' }));
+  const requestOrderSourceOptions: MappingOption[] = [
+    { label: 'Context Fields', value: 'contextFields', children: [
+      { label: '_order', value: '_order', children: spiRequest.map(v => ({ label: v, value: `_order.${v}`, type: requestTypes[v] ?? 'String' })) },
+      { label: '_globalVariable', value: '_globalVariable', children: globals.map(v => ({ label: v.name, value: `_globalVariable.${v.name}`, type: 'String' })) },
+      { label: '_credential', value: '_credential', children: credentials.map(v => ({ label: v.key, value: `_credential.${v.key}`, type: 'String' })) },
+    ] },
+    { label: 'Generated Data', value: 'generatedData', children: generated },
+  ];
+  const spiResponseTargetOptions: MappingOption[] = [
+    { label: '_order', value: '_order', children: spiResponse.map(v => ({ label: v, value: `_order.${v}`, type: responseTypes[v] ?? 'String' })) },
+  ];
   const globalOptions = globals.map(v => ({ label: `${v.name} · ${v.value}`, value: v.name, type: 'String' }));
   const orderOptions = orders.map(v => ({ label: v.name, value: v.name, type: 'String' }));
   const requestMappingMode = Form.useWatch('requestMappingMode', form) ?? 'configuration';
@@ -303,7 +321,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
               { key: 'params', label: tabLabel('Params', state('params')), children: <Form.Item name="queryParams" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMappingMode === 'script'} title="Query Parameter Fields" addLabel="Add Parameter" fieldPlaceholder="Query parameter name" sourcePlaceholder="Select source value" sourceCascader sourceOptions={requestValueOptions} dataTypeOptions={flatTypes} fixedFieldType="String" operationOptions={mappingOperationOptions} /></Form.Item> },
               { key: 'headers', label: tabLabel('Headers', state('requestHeaders')), children: <Form.Item name="requestHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={requestMappingMode === 'script'} title="Request Header Fields" addLabel="Add Header" fieldPlaceholder="Request header name" sourcePlaceholder="Select source value" sourceCascader sourceOptions={requestValueOptions} dataTypeOptions={flatTypes} fixedFieldType="String" operationOptions={mappingOperationOptions} /></Form.Item> },
               { key: 'body', label: tabLabel('Body', state('requestBody')), children: <Form.Item name="requestBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={requestMappingMode === 'script'} sourcePlaceholder="Select source value" sourceOptions={requestValueOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} /></Form.Item> },
-              { key: 'order', label: tabLabel('Order Variable', state('orderWrites')), children: <OrderVariableMapping sourceOptions={spiReqOptions} targetOptions={orderOptions} /> },
+              { key: 'order', label: tabLabel('Order Variable', state('orderWrites')), children: <OrderVariableMapping sourceCascader sourceOptions={requestOrderSourceOptions} targetOptions={orderOptions} /> },
             ]} />
             {requestMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="requestMappingScript" helpText={requestScriptHelp} /></Card>}
           </> },
@@ -316,8 +334,8 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
           { key: 'response-fields', label: tabLabel('Fields & Mapping', state('responseFields')), children: <><Form.Item name="responseMappingMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item><Tabs type="card" size="small" items={[
             { key: 'headers', label: tabLabel('Headers', state('responseHeaders')), children: <Form.Item name="responseHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={responseMappingMode === 'script'} direction="response" title="Response Header Fields" addLabel="Add Header" fieldPlaceholder="Response header name" targetPlaceholder="Context field" sourceOptions={[]} targetOptions={responseContextOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} /></Form.Item> },
             { key: 'body', label: tabLabel('Body', state('responseBody')), children: <Form.Item name="responseBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={responseMappingMode === 'script'} direction="response" targetPlaceholder="Context field" sourceOptions={[]} targetOptions={responseContextOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} /></Form.Item> },
-            { key: 'global-variable', label: tabLabel('Global Variable', state('responseGlobalMappings')), children: <OrderVariableMapping name="responseGlobalMappings" title="Global Variable to SPI Mapping" sourceLabel="GLOBAL VARIABLE" targetLabel="SPI VALUE" sourceOptions={globalOptions} targetOptions={spiResOptions} /> },
-            { key: 'order-variable', label: tabLabel('Order Variable', state('responseOrderMappings')), children: <OrderVariableMapping name="responseOrderMappings" title="Order Variable to SPI Mapping" sourceLabel="ORDER VARIABLE" targetLabel="SPI VALUE" sourceOptions={orderOptions} targetOptions={spiResOptions} /> },
+            { key: 'global-variable', label: tabLabel('Global Variable', state('responseGlobalMappings')), children: <OrderVariableMapping targetCascader name="responseGlobalMappings" title="Global Variable to SPI Mapping" sourceLabel="GLOBAL VARIABLE" targetLabel="SPI VALUE" sourceOptions={globalOptions} targetOptions={spiResponseTargetOptions} /> },
+            { key: 'order-variable', label: tabLabel('Order Variable', state('responseOrderMappings')), children: <OrderVariableMapping targetCascader name="responseOrderMappings" title="Order Variable to SPI Mapping" sourceLabel="ORDER VARIABLE" targetLabel="SPI VALUE" sourceOptions={orderOptions} targetOptions={spiResponseTargetOptions} /> },
           ]} />{responseMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="responseMappingScript" helpText={responseScriptHelp} /></Card>}</> },
           { key: 'response-security', label: tabLabel('Security', state('responseSecurity')), children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('response').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('response').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
           { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small"><Form.Item name="responseFallback" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('responseFallbackSubState', undefined)} /></Form.Item><Form.Item label="Main State"><Input disabled value={responseFallback ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item><Form.Item name="responseFallbackSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!responseFallback} placeholder={responseFallback ? `Select a ${responseFallback} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item><Form.Item name="responseCodeMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{responseCodeMode === 'custom' ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." /> : <><Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select in assembly order" options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, ...responseBodyOptions.map((option) => ({ label: `Response Body / ${option.label}`, value: `responseBody.${option.value}` }))]} /></Form.Item><Form.Item name="responseMessageField" label="Response Message Field"><Input placeholder="Optional response field path" /></Form.Item></>}</Card> },

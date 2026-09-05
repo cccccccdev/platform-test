@@ -3,13 +3,12 @@ import { Alert, Button, Card, Cascader, Form, Input, InputNumber, Modal, Select,
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import { create } from 'zustand';
 import { useBasicInfoReferenceStore } from '../basic-info/basicInfoReferenceStore';
-import { countryReferenceData } from '../../mock/countries';
 import type { ConfigAbility } from './types';
+import { useChannelInstitutionStore } from './channelInstitutionStore';
 
 const { Text } = Typography;
 
 type AssetRouteAbility = 'ON_RAMP' | 'OFF_RAMP' | 'PAY_OUT';
-type InstitutionMatching = 'EXACT' | 'UNRESTRICTED';
 
 interface AssetRouteProfile {
   ability: AssetRouteAbility;
@@ -31,8 +30,7 @@ interface AssetRoute {
   sourceChain?: string;
   targetCurrency: string;
   targetChain?: string;
-  institutionMatchMode: 'EXACT' | 'UNRESTRICTED' | 'NOT_APPLICABLE';
-  institutionCode?: string;
+  institutionCode: string;
   decimal: number;
   minSourceAmount?: string;
   maxSourceAmount?: string;
@@ -40,15 +38,11 @@ interface AssetRoute {
   operationTime: string;
 }
 
-type AssetRouteForm = Omit<AssetRoute, 'id' | 'businessType' | 'ability' | 'country' | 'operator' | 'operationTime' | 'institutionCode'> & {
-  institutionPath?: string[];
-};
+type AssetRouteForm = Omit<AssetRoute, 'id' | 'businessType' | 'ability' | 'country' | 'operator' | 'operationTime' | 'institutionCode'> & { institutionSelection: string[] };
 
 interface AssetRouteStore {
   recordsByScope: Record<string, AssetRoute[]>;
-  institutionMatchingByScope: Record<string, InstitutionMatching>;
   saveRoute: (scope: string, route: AssetRoute) => void;
-  initializeInstitutionMatching: (scope: string, value: InstitutionMatching) => void;
 }
 
 const ASSET_ROUTE_PROFILES: Record<AssetRouteAbility, AssetRouteProfile> = {
@@ -91,27 +85,6 @@ const CHAIN_OPTIONS = [
   { value: 'ARBITRUM', label: 'ARBITRUM' },
   { value: 'BASE', label: 'BASE' },
 ];
-const INSTITUTION_TYPES = ['CARD_SCHEME', 'BANK', 'BRANCH', 'MMO'] as const;
-const INSTITUTION_REFERENCE = [
-  { country: 'NG', type: 'BANK', code: 'GTBANK' },
-  { country: 'NG', type: 'BANK', code: 'ZENITH_BANK' },
-  { country: 'NG', type: 'BANK', code: 'ACCESS_BANK' },
-  { country: 'NG', type: 'BRANCH', code: 'GTBANK_LAGOS_MAIN' },
-  { country: 'GH', type: 'MMO', code: 'MTN_MOMO_GH' },
-  { country: 'GSA', type: 'CARD_SCHEME', code: 'VISA' },
-  { country: 'GSA', type: 'CARD_SCHEME', code: 'MASTERCARD' },
-];
-const INSTITUTION_CASCADER_OPTIONS = countryReferenceData.map((country) => ({
-  value: country.code,
-  label: country.code,
-  children: INSTITUTION_TYPES.map((type) => ({
-    value: type,
-    label: type,
-    children: INSTITUTION_REFERENCE
-      .filter((institution) => institution.country === country.code && institution.type === type)
-      .map((institution) => ({ value: institution.code, label: institution.code })),
-  })).filter((type) => type.children.length > 0),
-})).filter((country) => country.children.length > 0);
 const EMPTY_ROUTES: AssetRoute[] = [];
 
 const COBO_ROUTES_BY_ABILITY: Record<string, AssetRoute[]> = {
@@ -124,8 +97,7 @@ const COBO_ROUTES_BY_ABILITY: Record<string, AssetRoute[]> = {
     sourceCurrency: 'USD',
     targetCurrency: 'USDT',
     targetChain: 'TRC20',
-    institutionMatchMode: 'EXACT',
-    institutionCode: 'ZENITH_BANK',
+    institutionCode: 'ALL',
     decimal: 6,
     minSourceAmount: '100.00',
     maxSourceAmount: '10000.00',
@@ -140,8 +112,7 @@ const COBO_ROUTES_BY_ABILITY: Record<string, AssetRoute[]> = {
     sourceCurrency: 'USD',
     targetCurrency: 'USDC',
     targetChain: 'ERC20',
-    institutionMatchMode: 'EXACT',
-    institutionCode: 'GTBANK',
+    institutionCode: '198765',
     decimal: 6,
     minSourceAmount: '50.00',
     maxSourceAmount: '5000.00',
@@ -156,7 +127,7 @@ const COBO_ROUTES_BY_ABILITY: Record<string, AssetRoute[]> = {
     sourceCurrency: 'USDT',
     sourceChain: 'TRC20',
     targetCurrency: 'USD',
-    institutionMatchMode: 'UNRESTRICTED',
+    institutionCode: 'ALL',
     decimal: 6,
     minSourceAmount: '10.000000',
     maxSourceAmount: '25000.000000',
@@ -172,7 +143,7 @@ const COBO_ROUTES_BY_ABILITY: Record<string, AssetRoute[]> = {
     sourceChain: 'TRC20',
     targetCurrency: 'USDC',
     targetChain: 'ERC20',
-    institutionMatchMode: 'NOT_APPLICABLE',
+    institutionCode: 'ALL',
     decimal: 6,
     minSourceAmount: '5.000000',
     maxSourceAmount: '100000.000000',
@@ -191,15 +162,8 @@ const initialRecordsByScope = ['ALIYUN', 'BD', 'MFB'].reduce<Record<string, Asse
   return clouds;
 }, {});
 
-const initialInstitutionMatchingByScope = Object.keys(initialRecordsByScope).reduce<Record<string, InstitutionMatching>>((scopes, scope) => {
-  if (scope.endsWith('::ON_RAMP')) scopes[scope] = 'EXACT';
-  if (scope.endsWith('::OFF_RAMP')) scopes[scope] = 'UNRESTRICTED';
-  return scopes;
-}, {});
-
 const useAssetRouteStore = create<AssetRouteStore>((set) => ({
   recordsByScope: initialRecordsByScope,
-  institutionMatchingByScope: initialInstitutionMatchingByScope,
   saveRoute: (scope, route) => set((state) => {
     const current = state.recordsByScope[scope] ?? [];
     const exists = current.some((record) => record.id === route.id);
@@ -212,9 +176,6 @@ const useAssetRouteStore = create<AssetRouteStore>((set) => ({
       },
     };
   }),
-  initializeInstitutionMatching: (scope, value) => set((state) => state.institutionMatchingByScope[scope]
-    ? state
-    : { institutionMatchingByScope: { ...state.institutionMatchingByScope, [scope]: value } }),
 }));
 
 function formatOperationTime() {
@@ -279,18 +240,16 @@ export default function ChannelInfoAssetRoutePage({
   const [ability, setAbility] = useState<AssetRouteAbility>();
   const profile = ability ? ASSET_ROUTE_PROFILES[ability] : undefined;
   const scope = ability ? `${channelCode}::${cloud}::${env}::${ability}` : '';
-  const institutionMatching = useAssetRouteStore((state) => profile?.showInstitution && scope ? state.institutionMatchingByScope[scope] : undefined);
-  const initializeInstitutionMatching = useAssetRouteStore((state) => state.initializeInstitutionMatching);
   const scopedRecords = useAssetRouteStore((state) => scope ? state.recordsByScope[scope] : undefined);
   const records = scopedRecords ?? EMPTY_ROUTES;
   const saveRoute = useAssetRouteStore((state) => state.saveRoute);
+  const institutionMappings = useChannelInstitutionStore((state) => state.records);
   const [modalOpen, setModalOpen] = useState(false);
-  const [matchingModalOpen, setMatchingModalOpen] = useState(false);
-  const [pendingInstitutionMatching, setPendingInstitutionMatching] = useState<InstitutionMatching>();
   const [editing, setEditing] = useState<AssetRoute | null>(null);
   const [form] = Form.useForm<AssetRouteForm>();
   const sourceCurrencyCode = Form.useWatch('sourceCurrency', form);
   const targetCurrencyCode = Form.useWatch('targetCurrency', form);
+  const institutionSelection = Form.useWatch('institutionSelection', form);
   const decimal = Form.useWatch('decimal', form);
   const sourceCurrency = currencies.find((item) => item.code === sourceCurrencyCode);
   const targetCurrency = currencies.find((item) => item.code === targetCurrencyCode);
@@ -301,37 +260,18 @@ export default function ChannelInfoAssetRoutePage({
   }, [ability, abilityOptions]);
 
   useEffect(() => {
-    if (profile?.showInstitution && scope && !institutionMatching) {
-      setPendingInstitutionMatching(undefined);
-      setMatchingModalOpen(true);
-    } else {
-      setMatchingModalOpen(false);
-    }
-  }, [institutionMatching, profile, scope]);
-
-  useEffect(() => {
     if (!modalOpen) return;
     form.resetFields();
     if (editing) {
-      const institution = INSTITUTION_REFERENCE.find((item) => item.code === editing.institutionCode);
-      form.setFieldsValue({
-        ...editing,
-        institutionPath: institution ? [institution.country, institution.type, institution.code] : undefined,
-      });
+      const mapping = institutionMappings.find((item) => item.channelCode === channelCode && item.bt === 'STABLECOIN' && item.ability === ability && item.country === 'GSA' && item.institutionCode === editing.institutionCode);
+      form.setFieldsValue({ ...editing, institutionSelection: editing.institutionCode === 'ALL' ? ['ALL'] : [mapping?.institutionCountry ?? 'GSA', editing.institutionCode] });
     }
-  }, [editing, form, modalOpen]);
+  }, [ability, channelCode, editing, form, institutionMappings, modalOpen]);
 
   useEffect(() => {
     if (!profile?.showSourceChain) form.setFieldValue('sourceChain', undefined);
     if (!profile?.showTargetChain) form.setFieldValue('targetChain', undefined);
-    if (!profile?.showInstitution) {
-      form.setFieldValue('institutionMatchMode', 'NOT_APPLICABLE');
-      form.setFieldValue('institutionPath', undefined);
-      return;
-    }
-    form.setFieldValue('institutionMatchMode', institutionMatching);
-    if (institutionMatching !== 'EXACT') form.setFieldValue('institutionPath', undefined);
-  }, [form, institutionMatching, profile, sourceCurrency, targetCurrency]);
+  }, [form, profile, sourceCurrency, targetCurrency]);
 
   const sourceCurrencyOptions = currencies.filter((currency) => currency.type === profile?.sourceType).map((currency) => ({
     value: currency.code,
@@ -342,14 +282,7 @@ export default function ChannelInfoAssetRoutePage({
     label: `${currency.code} - ${currency.name}`,
   }));
 
-  const openCreate = () => {
-    if (profile?.showInstitution && !institutionMatching) {
-      message.warning('Select Institution Matching before creating an Asset Route.');
-      return;
-    }
-    setEditing(null);
-    setModalOpen(true);
-  };
+  const openCreate = () => { setEditing(null); setModalOpen(true); };
 
   const openEdit = (record: AssetRoute) => {
     setEditing(record);
@@ -360,6 +293,8 @@ export default function ChannelInfoAssetRoutePage({
     if (!ability || !scope) return;
     try {
       const values = await form.validateFields();
+      const institutionCode = profile?.showInstitution ? values.institutionSelection.at(-1) : 'ALL';
+      if (!institutionCode) return;
       const source = currencies.find((item) => item.code === values.sourceCurrency);
       const target = currencies.find((item) => item.code === values.targetCurrency);
       if (!profile || source?.type !== profile.sourceType || target?.type !== profile.targetType) {
@@ -375,33 +310,21 @@ export default function ChannelInfoAssetRoutePage({
         && (record.sourceChain ?? '') === (values.sourceChain ?? '')
         && record.targetCurrency === values.targetCurrency
         && (record.targetChain ?? '') === (values.targetChain ?? ''));
-      let effectiveInstitutionMatchMode: AssetRoute['institutionMatchMode'] = 'NOT_APPLICABLE';
-      if (profile.showInstitution) {
-        if (!institutionMatching) {
-          message.error('Select Institution Matching before saving an Asset Route.');
-          return;
-        }
-        effectiveInstitutionMatchMode = institutionMatching;
-      }
-      const institutionCode = values.institutionPath?.[2];
-      const duplicate = sameRouteRecords.some((record) => effectiveInstitutionMatchMode === 'EXACT'
-        ? record.institutionCode === institutionCode
-        : true);
-      if (duplicate) {
+      const duplicateForInstitution = sameRouteRecords.some((record) => record.institutionCode === institutionCode);
+      if (duplicateForInstitution) {
         message.error('The same Asset Route and Institution rule already exists in the current Ability and environment.');
         return;
       }
-      const { institutionPath: _institutionPath, ...routeValues } = values;
+      const { institutionSelection: _institutionSelection, ...routeValues } = values;
       saveRoute(scope, {
         id: editing?.id ?? `asset_route_${Date.now()}`,
         businessType: 'STABLECOIN',
         ability,
         country: 'GSA',
         ...routeValues,
+        institutionCode,
         sourceChain: profile.showSourceChain ? values.sourceChain : undefined,
         targetChain: profile.showTargetChain ? values.targetChain : undefined,
-        institutionMatchMode: effectiveInstitutionMatchMode,
-        institutionCode: effectiveInstitutionMatchMode === 'EXACT' ? institutionCode : undefined,
         minSourceAmount: normalizeAmount(values.minSourceAmount, profile.sourceType === 'Fiat' ? 2 : values.decimal),
         maxSourceAmount: normalizeAmount(values.maxSourceAmount, profile.sourceType === 'Fiat' ? 2 : values.decimal),
         operator: 'Current User',
@@ -424,6 +347,9 @@ export default function ChannelInfoAssetRoutePage({
     },
   }];
   const identityLocked = Boolean(editing);
+  const scopedInstitutionMappings = institutionMappings.filter((item) => item.channelCode === channelCode && item.bt === 'STABLECOIN' && item.ability === ability && item.country === 'GSA');
+  const institutionOptions = [{ value: 'ALL', label: 'ALL' }, ...Array.from(new Set(scopedInstitutionMappings.map((item) => item.institutionCountry))).sort().map((institutionCountry) => ({ value: institutionCountry, label: institutionCountry, children: scopedInstitutionMappings.filter((item) => item.institutionCountry === institutionCountry).map((item) => ({ value: item.institutionCode, label: item.institutionName })) }))];
+  const displayedAssetRouteInstitutionCode = profile?.showInstitution ? institutionSelection?.at(-1) ?? editing?.institutionCode ?? '-' : 'ALL';
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -454,16 +380,8 @@ export default function ChannelInfoAssetRoutePage({
             style={{ marginBottom: 20 }}
           />
         )}
-        {profile?.showInstitution && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-            <Text strong>{fieldLabel('Institution Matching', 'Determines whether requests for this Ability must match a configured Institution. The setting applies to every Asset Route in the current Cloud and Env and cannot be changed after confirmation.')}</Text>
-            {institutionMatching
-              ? <Text>{institutionMatching === 'EXACT' ? 'Specific Institution Required' : 'No Institution Restriction'}</Text>
-              : <Button type="link" style={{ paddingInline: 0 }} onClick={() => setMatchingModalOpen(true)}>Configure</Button>}
-          </div>
-        )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-          <Button type="primary" disabled={!ability || Boolean(profile?.showInstitution && !institutionMatching)} onClick={openCreate}>Create</Button>
+          <Button type="primary" disabled={!ability} onClick={openCreate}>Create</Button>
         </div>
         <Table<AssetRoute>
           rowKey="id"
@@ -476,12 +394,7 @@ export default function ChannelInfoAssetRoutePage({
             ...(profile?.showSourceChain ? [{ title: 'Source Chain', dataIndex: 'sourceChain', width: 140 }] : []),
             { title: 'Target Currency', dataIndex: 'targetCurrency', width: 150 },
             ...(profile?.showTargetChain ? [{ title: 'Target Chain', dataIndex: 'targetChain', width: 140 }] : []),
-            ...(profile?.showInstitution && institutionMatching === 'EXACT' ? [{
-              title: 'Institution',
-              key: 'institution',
-              width: 220,
-              render: (_: unknown, record: AssetRoute) => record.institutionCode || '-',
-            }] : []),
+            { title: 'Institution', dataIndex: 'institutionCode', width: 190 },
             { title: 'Decimal', dataIndex: 'decimal', width: 100 },
             { title: 'Min Source Amount', dataIndex: 'minSourceAmount', width: 210, render: (value, record) => formatAmount(value, currencies.find((item) => item.code === record.sourceCurrency)?.type === 'Fiat' ? 2 : record.decimal) },
             { title: 'Max Source Amount', dataIndex: 'maxSourceAmount', width: 210, render: (value, record) => formatAmount(value, currencies.find((item) => item.code === record.sourceCurrency)?.type === 'Fiat' ? 2 : record.decimal) },
@@ -493,46 +406,6 @@ export default function ChannelInfoAssetRoutePage({
       </Card>
 
       <Modal
-        title="Configure Institution Matching"
-        open={matchingModalOpen}
-        okText="Confirm"
-        cancelText="Cancel"
-        okButtonProps={{ disabled: !pendingInstitutionMatching }}
-        onCancel={() => setMatchingModalOpen(false)}
-        onOk={() => {
-          if (!scope || !pendingInstitutionMatching) return;
-          initializeInstitutionMatching(scope, pendingInstitutionMatching);
-          setMatchingModalOpen(false);
-          message.success('Institution Matching configured.');
-        }}
-        destroyOnHidden
-      >
-        <Alert
-          type="warning"
-          showIcon
-          message="This setting cannot be changed after confirmation."
-          description="It applies to every Asset Route for the current Ability, Cloud, and Env. Please verify the channel behavior before confirming."
-          style={{ marginBottom: 20 }}
-        />
-        <Form layout="vertical">
-          <Form.Item
-            required
-            label={fieldLabel('Institution Matching', 'Choose whether requests for this Ability must match a configured Institution.')}
-          >
-            <Select<InstitutionMatching>
-              value={pendingInstitutionMatching}
-              placeholder="Select Institution Matching"
-              options={[
-                { value: 'EXACT', label: 'Specific Institution Required' },
-                { value: 'UNRESTRICTED', label: 'No Institution Restriction' },
-              ]}
-              onChange={setPendingInstitutionMatching}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal
         title={editing ? 'Edit Asset Route' : 'Create Asset Route'}
         open={modalOpen}
         onOk={handleSave}
@@ -542,8 +415,8 @@ export default function ChannelInfoAssetRoutePage({
         destroyOnHidden
         width={720}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 16 }}>
+        <Form form={form} labelCol={{ span: 8 }} wrapperCol={{ span: 16 }} style={{ marginTop: 20 }}>
+          <div>
             <Form.Item name="sourceCurrency" label="Source Currency" rules={[{ required: true, message: 'Select Source Currency' }]}>
               <Select showSearch optionFilterProp="label" options={sourceCurrencyOptions} disabled={identityLocked} />
             </Form.Item>
@@ -564,23 +437,13 @@ export default function ChannelInfoAssetRoutePage({
             >
               <Select showSearch options={CHAIN_OPTIONS} disabled={identityLocked} />
             </Form.Item>}
-            {profile?.showInstitution && institutionMatching === 'EXACT' && <Form.Item
-              name="institutionPath"
-              label={fieldLabel('Institution', 'Select Country, Institution Type, and Institution in sequence. Country and Institution Type only help locate the Institution; the Asset Route saves only the final Institution Code.')}
-              rules={[{ required: true, message: 'Select Institution' }]}
-            >
-              <Cascader
-                showSearch
-                expandTrigger="click"
-                options={INSTITUTION_CASCADER_OPTIONS}
-                disabled={identityLocked}
-                placeholder="Select Country / Institution Type / Institution"
-                displayRender={(labels) => identityLocked ? labels[labels.length - 1] : labels.join(' / ')}
-              />
+            {profile?.showInstitution && <Form.Item name="institutionSelection" label={fieldLabel('Institution Name', 'Select ALL when this Asset Route applies without distinguishing a specific Institution.')} rules={[{ required: true, message: 'Select Institution Name' }]}>
+              <Cascader showSearch options={institutionOptions} disabled={identityLocked} placeholder="Select ALL or Country / Institution" />
             </Form.Item>}
+            <Form.Item label="Institution Code"><span>{displayedAssetRouteInstitutionCode}</span></Form.Item>
             <Form.Item
               name="decimal"
-              label={fieldLabel('Decimal', 'The decimal scale accepted by the external channel for this Asset Route.')}
+              label={fieldLabel('Decimal', 'The decimal scale accepted by the external channel for this Asset Route and Institution.')}
               rules={[{ required: true, message: 'Enter Decimal' }]}
             >
               <InputNumber min={0} max={32} precision={0} style={{ width: '100%' }} />

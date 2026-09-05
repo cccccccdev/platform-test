@@ -222,7 +222,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
         )}
       </div>
       {data.description && <div style={{ color: '#8c8c8c', fontSize: 10, margin: '3px 0 0 20px' }}>{data.description}</div>}
-      {data.code !== 'returnConfiguredSpiResponse' && <Handle type="source" position={Position.Bottom} style={{ background: '#1890ff' }} />}
+      {!['directSpiResponse', 'returnConfiguredSpiResponse'].includes(String(data.code)) && <Handle type="source" position={Position.Bottom} style={{ background: '#1890ff' }} />}
 
       {showContextMenu && (
         <>
@@ -2089,7 +2089,7 @@ export default function FlowEditorPage() {
   const [, setMockGlobalVars] = useState<any[]>([
     { name: 'channelCode', value: 'PAYSTACK' },
   ]);
-  const [, setMockOrderVars] = useState<any[]>([
+  const [mockOrderVars, setMockOrderVars] = useState<any[]>([
     { name: 'requestReference', value: '{{order.requestReference}}' },
   ]);
   const [mockGeneratedFields, setMockGeneratedFields] = useState<any[]>([
@@ -2116,9 +2116,9 @@ export default function FlowEditorPage() {
     if (code === 'initInboundOrder') setReferenceConfigTarget({ direction: 'inbound', placement: 'init-order' });
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
-    if (code === 'returnConfiguredSpiResponse') setShowConfiguredSpiResponseDrawer(true);
+    if (['directSpiResponse', 'returnConfiguredSpiResponse'].includes(code)) setShowConfiguredSpiResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
-    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
+    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'directSpiResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
     if (!hasDedicatedConfig && definition?.needConfig) setPlaceholderComponent(code);
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
@@ -2556,6 +2556,7 @@ export default function FlowEditorPage() {
       <ReturnConfiguredSpiResponseDrawer
         open={showConfiguredSpiResponseDrawer}
         globalVariables={globalVariables}
+        orderVariables={mockOrderVars}
         initialValues={selectedConfig}
         readOnly={readOnly}
         onClose={() => setShowConfiguredSpiResponseDrawer(false)}
@@ -2564,7 +2565,7 @@ export default function FlowEditorPage() {
             ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config } }
             : node));
           setShowConfiguredSpiResponseDrawer(false);
-          message.success('Configured SPI Response saved');
+          message.success('Direct SPI Response saved');
         }}
       />
 
