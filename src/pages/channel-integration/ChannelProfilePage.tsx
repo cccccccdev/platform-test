@@ -24,6 +24,7 @@ import { businessTypeOptions, partyOptions } from '../../mock/data';
 import { countryCodeOptions } from '../../mock/countries';
 import { getCreatedIntegrationRecord } from './channelCreationStore';
 import { isBusinessTypeScopeComplete, toBusinessTypeScopes, toPartyScopes } from './integrationScope';
+import { approverPresets, getApproverPreset } from './approvalPresets';
 
 type ProfileSection = 'summary' | 'business-types' | 'parties' | 'owners' | 'approvers' | 'integration-records';
 type IntegrationMode = 'CONFIG' | 'CODE';
@@ -49,6 +50,7 @@ type OwnerSettings = {
 };
 
 type ApproverSettings = {
+  presetId: string;
   productApprover: string;
   technicalApprover: string;
   operationsApprover: string;
@@ -57,7 +59,6 @@ type ApproverSettings = {
 type RecordCapabilityScope = {
   businessType: string;
   integrationType: IntegrationMode;
-  ability: string;
   countries: string[];
 };
 
@@ -92,30 +93,16 @@ const employeeOptions: PersonOption[] = [
   'Zhang Wei',
 ].map((name) => ({ label: name, value: name }));
 
-const abilitiesByBusinessType: Record<string, string[]> = {
-  COLLECTION: ['CARD_PAY', 'USSD_PAY', 'WALLET_PAY'],
-  DISBURSEMENT: ['BANK_TRF', 'WALLET_PAYOUT'],
-  REFUND: ['REFUND_PAY'],
-  TRANSFER: ['WALLET_TRF'],
-  BANK_CARD_DEBIT: ['INFO_PAYMENT'],
-  WALLET_DEBIT: ['TRANSFER'],
-  SMS: ['SINGLE_MESSAGE', 'BULK_MESSAGE'],
-  KYC: ['FINGERPRINT_VERIFY'],
-  FUND_NOTIFICATION: ['CUSTOMER_VALIDATION', 'EXTERNAL_CREDIT'],
-  STABLECOIN: ['ON_RAMP', 'OFF_RAMP', 'PAY_OUT'],
-};
-
 const coboIntegrationRecord: IntegrationRecord = {
   recordId: 'IR-000901',
   recordName: 'COBO Stablecoin Integration',
   partyScopes: [{
     party: 'ONELOOP',
-    capabilities: ['ON_RAMP', 'OFF_RAMP', 'PAY_OUT'].map((ability) => ({
+    capabilities: [{
       businessType: 'STABLECOIN',
       integrationType: 'CONFIG' as const,
-      ability,
       countries: ['GSA'],
-    })),
+    }],
   }],
   prdDocuments: 'COBO Stablecoin Integration PRD',
   gatewayDeliverables: 'Stablecoin Config Integration',
@@ -157,6 +144,7 @@ export default function ChannelProfilePage() {
   const [partyForm] = Form.useForm();
   const [ownersForm] = Form.useForm<OwnerSettings>();
   const [approversForm] = Form.useForm<ApproverSettings>();
+  const draftApproverPresetId = Form.useWatch('presetId', approversForm);
   const [recordForm] = Form.useForm<any>();
   const recordCreateValues = Form.useWatch([], recordForm) || {};
   const [recordDetailForm] = Form.useForm<any>();
@@ -165,6 +153,10 @@ export default function ChannelProfilePage() {
   const [recordModalOpen, setRecordModalOpen] = useState(false);
   const [recordCreateStep, setRecordCreateStep] = useState(0);
   const [recordDetailOpen, setRecordDetailOpen] = useState(false);
+  const [ownerEditing, setOwnerEditing] = useState(false);
+  const [ownerMeta, setOwnerMeta] = useState({ operator: 'zihao.ye', operationTime: '2026-08-24 07:35:08' });
+  const [approverEditing, setApproverEditing] = useState(false);
+  const [approverMeta, setApproverMeta] = useState({ operator: 'zihao.ye', operationTime: '2026-08-24 07:35:36' });
   const [selectedRecord, setSelectedRecord] = useState<IntegrationRecord | null>(null);
   const [channelMenuOpen, setChannelMenuOpen] = useState(true);
   const [editingBusinessType, setEditingBusinessType] = useState<string | null>(null);
@@ -192,10 +184,9 @@ export default function ChannelProfilePage() {
     sre: ['Li Ming'],
     businessOwners: [],
   });
-  const [approvers, setApprovers] = useState<ApproverSettings>(createdRecord?.approvers || {
-    productApprover: 'Fatima Khan',
-    technicalApprover: 'Zhang Wei',
-    operationsApprover: 'Rahul Mehta',
+  const [approvers, setApprovers] = useState<ApproverSettings>(() => {
+    const preset = getApproverPreset(createdRecord?.approverPresetId) || approverPresets[0];
+    return { presetId: preset.id, ...preset };
   });
   const [records, setRecords] = useState<IntegrationRecord[]>(() => profileRecord ? [{
     ...profileRecord,
@@ -206,7 +197,7 @@ export default function ChannelProfilePage() {
   }] : [{
       recordId: 'IR-000128',
       recordName: 'TMUL Wallet Debit Initial Integration',
-      partyScopes: [{ party: 'TMUL', capabilities: [{ businessType: 'WALLET_DEBIT', integrationType: 'CONFIG', ability: 'TRANSFER', countries: ['TZ'] }] }],
+      partyScopes: [{ party: 'TMUL', capabilities: [{ businessType: 'WALLET_DEBIT', integrationType: 'CONFIG', countries: ['TZ'] }] }],
       prdDocuments: 'TMUL Wallet Debit PRD.pdf',
       gatewayDeliverables: 'https://yuque.com/omnicore/gateway-delivery/tmul-wallet-debit',
       operator: 'zihao.ye',
@@ -219,6 +210,11 @@ export default function ChannelProfilePage() {
       navigate(`/channel-integration/${channelCode}/channel-profile/summary`, { replace: true });
     }
   }, [channelCode, navigate, section]);
+
+  useEffect(() => {
+    if (activeSection === 'owners') ownersForm.setFieldsValue(owners);
+    if (activeSection === 'approvers') approversForm.setFieldsValue(approvers);
+  }, [activeSection, approvers, approversForm, owners, ownersForm]);
 
   const allPartyOptions = useMemo(
     () => Array.from(new Set([...partyOptions, 'TMUL', 'ONELOOP'])).map((value) => ({ label: value, value })),
@@ -234,8 +230,8 @@ export default function ChannelProfilePage() {
     if (new Set(partyNames).size !== partyNames.length) return 'Each Party can only be added once';
     const integrationTypes = new Map<string, IntegrationMode>();
     for (const scope of scopes) {
-      const capabilityKeys = scope.capabilities.map(({ businessType, ability }) => `${businessType}::${ability}`);
-      if (new Set(capabilityKeys).size !== capabilityKeys.length) return 'Duplicate Business Type / Ability combinations are not allowed within the same Party';
+      const businessTypeKeys = scope.capabilities.map(({ businessType }) => businessType);
+      if (new Set(businessTypeKeys).size !== businessTypeKeys.length) return 'Each Party can only be configured once within the same Business Type';
       for (const capability of scope.capabilities) {
         const configuredType = businessTypes.find(({ bt }) => bt === capability.businessType)?.mode;
         if (configuredType && configuredType !== capability.integrationType) return `Integration Type for ${capability.businessType} is already ${configuredType}`;
@@ -417,7 +413,7 @@ export default function ChannelProfilePage() {
 
   const renderPartyScopes = (form: any, lockedExistingBusinessTypeCount = 0) => (
     <Form.Item label="Integration Scope" required>
-      <Form.List name="businessTypeScopes" initialValue={[{ partyAbilities: [{}] }]} rules={[{ validator: async (_, scopes) => {
+      <Form.List name="businessTypeScopes" initialValue={[{ partyCountries: [{}] }]} rules={[{ validator: async (_, scopes) => {
         if (!scopes?.length) throw new Error('Please add at least one Business Type');
         const values = scopes.map((scope: { businessType?: string }) => scope.businessType).filter(Boolean);
         if (new Set(values).size !== values.length) throw new Error('Each Business Type can only be configured once');
@@ -434,7 +430,7 @@ export default function ChannelProfilePage() {
                   <div className="profile-form-grid two-columns">
                     <Form.Item name={[businessTypeField.name, 'businessType']} label="Business Type" rules={[{ required: true, message: 'Select Business Type' }]}><Select disabled={scopeLocked} options={businessTypeOptions.map((bt) => ({ label: bt, value: bt }))} onChange={(businessType) => {
                       form.setFieldValue(['businessTypeScopes', businessTypeField.name, 'integrationType'], businessTypes.find(({ bt }) => bt === businessType)?.mode);
-                      form.setFieldValue(['businessTypeScopes', businessTypeField.name, 'partyAbilities'], [{}]);
+                      form.setFieldValue(['businessTypeScopes', businessTypeField.name, 'partyCountries'], [{}]);
                     }} /></Form.Item>
                     <Form.Item noStyle shouldUpdate>{() => {
                       const businessType = form.getFieldValue(['businessTypeScopes', businessTypeField.name, 'businessType']);
@@ -442,27 +438,21 @@ export default function ChannelProfilePage() {
                       return <Form.Item name={[businessTypeField.name, 'integrationType']} label="Integration Type" rules={[{ required: true, message: 'Select Integration Type' }]}><Select disabled={scopeLocked || Boolean(existingMode)} placeholder={existingMode ? 'Defined by Business Type' : 'Integration Type'} options={[{ label: 'CONFIG', value: 'CONFIG' }, { label: 'CODE', value: 'CODE' }]} /></Form.Item>;
                     }}</Form.Item>
                   </div>
-                  <Form.List name={[businessTypeField.name, 'partyAbilities']} initialValue={[{}]} rules={[{ validator: async (_, rows) => { if (!rows?.length) throw new Error('Please add at least one Party / Ability'); } }]}>
-                    {(abilityFields, { add: addAbility, remove: removeAbility }, { errors: abilityErrors }) => (
+                  <Form.List name={[businessTypeField.name, 'partyCountries']} initialValue={[{}]} rules={[{ validator: async (_, rows) => { if (!rows?.length) throw new Error('Please add at least one Party'); } }]}>
+                    {(partyFields, { add: addParty, remove: removeParty }, { errors: partyErrors }) => (
                       <>
-                        <div className="record-scope-table-head"><span>Party</span><span>Ability</span><span>Countries</span><span /></div>
+                        <div className="record-scope-table-head no-ability"><span>Party</span><span>Countries</span><span /></div>
                         <div className="record-capability-list">
-                          {abilityFields.map((abilityField) => (
-                            <div className="record-scope-row" key={abilityField.key}>
-                              <Form.Item name={[abilityField.name, 'party']} rules={[{ required: true, message: 'Select Party' }]}><Select disabled={scopeLocked} placeholder="Party" options={allPartyOptions} /></Form.Item>
-                              <Form.Item noStyle shouldUpdate>
-                                {() => {
-                                  const businessType = form.getFieldValue(['businessTypeScopes', businessTypeField.name, 'businessType']);
-                                  return <Form.Item name={[abilityField.name, 'ability']} rules={[{ required: true, message: 'Select Ability' }]}><Select disabled={scopeLocked || !businessType} placeholder="Ability" options={(abilitiesByBusinessType[businessType] || []).map((ability) => ({ label: ability, value: ability }))} /></Form.Item>;
-                                }}
-                              </Form.Item>
-                              <Form.Item name={[abilityField.name, 'countries']} rules={[{ required: true, message: 'Select at least one Country' }]}><Select mode="multiple" disabled={scopeLocked} placeholder="Countries" options={countryCodeOptions.map((country) => ({ label: country, value: country }))} /></Form.Item>
-                              {!scopeLocked && <Button type="text" danger aria-label="Remove Party / Ability" icon={<MinusCircleOutlined />} disabled={abilityFields.length === 1} onClick={() => removeAbility(abilityField.name)} />}
+                          {partyFields.map((partyField) => (
+                            <div className="record-scope-row no-ability" key={partyField.key}>
+                              <Form.Item name={[partyField.name, 'party']} rules={[{ required: true, message: 'Select Party' }]}><Select disabled={scopeLocked} placeholder="Party" options={allPartyOptions} /></Form.Item>
+                              <Form.Item name={[partyField.name, 'countries']} rules={[{ required: true, message: 'Select at least one Country' }]}><Select mode="multiple" disabled={scopeLocked} placeholder="Countries" options={countryCodeOptions.map((country) => ({ label: country, value: country }))} /></Form.Item>
+                              {!scopeLocked && <Button type="text" danger aria-label="Remove Party" icon={<MinusCircleOutlined />} disabled={partyFields.length === 1} onClick={() => removeParty(partyField.name)} />}
                             </div>
                           ))}
                         </div>
-                        {!scopeLocked && <Button type="dashed" onClick={() => addAbility()}>+ Party / Ability / Countries</Button>}
-                        <Form.ErrorList errors={abilityErrors} />
+                        {!scopeLocked && <Button type="dashed" onClick={() => addParty()}>+ Party / Countries</Button>}
+                        <Form.ErrorList errors={partyErrors} />
                       </>
                     )}
                   </Form.List>
@@ -471,7 +461,7 @@ export default function ChannelProfilePage() {
                 </section>
               ))}
             </div>
-            <Button type="dashed" className="add-party-button" onClick={() => addBusinessType({ partyAbilities: [{}] })}>+ Business Type</Button>
+            <Button type="dashed" className="add-party-button" onClick={() => addBusinessType({ partyCountries: [{}] })}>+ Business Type</Button>
             <Form.ErrorList errors={scopeErrors} />
           </>
         )}
@@ -535,63 +525,113 @@ export default function ChannelProfilePage() {
     </>
   );
 
+  const saveOwners = async () => {
+    try {
+      const values = await ownersForm.validateFields();
+      setOwners(values);
+      setOwnerMeta({ operator: 'current.user', operationTime: now() });
+      setOwnerEditing(false);
+      message.success('Channel Owners updated');
+    } catch {}
+  };
+
+  const cancelOwnerEdit = () => {
+    ownersForm.setFieldsValue(owners);
+    setOwnerEditing(false);
+  };
+
   const renderOwners = () => (
     <div className="profile-settings-panel">
-      <div className="profile-auto-save-meta"><span><strong>Latest Operator:</strong> zihao.ye</span><span><strong>Operation Time:</strong> 2026-08-24 07:35:08</span><span>Changes are saved automatically.</span></div>
+      <div className="profile-auto-save-meta"><span><strong>Latest Operator:</strong> {ownerMeta.operator}</span><span><strong>Operation Time:</strong> {ownerMeta.operationTime}</span></div>
       <Alert type="info" showIcon title="Channel Owners support integration collaboration, daily operations, and runtime incident alerts. Each role can include multiple people." />
-      <Form form={ownersForm} layout="vertical" initialValues={owners} onValuesChange={(_, values) => setOwners(values as OwnerSettings)}>
+      <Form key="channel-owners-form" form={ownersForm} layout="vertical" initialValues={owners}>
         <h3>Primary Owners</h3>
         <div className="profile-form-grid">
-          <Form.Item name="productOwners" label="Product Owners" rules={[{ required: true }]}><Select mode="multiple" options={employeeOptions} /></Form.Item>
-          <Form.Item name="technicalOwners" label="Technical Owners" rules={[{ required: true }]}><Select mode="multiple" options={employeeOptions} /></Form.Item>
-          <Form.Item name="operationOwners" label="Operations Owners" rules={[{ required: true }]}><Select mode="multiple" options={employeeOptions} /></Form.Item>
+          <Form.Item name="productOwners" label="Product Owners" rules={[{ required: true }]}><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
+          <Form.Item name="technicalOwners" label="Technical Owners" rules={[{ required: true }]}><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
+          <Form.Item name="operationOwners" label="Operations Owners" rules={[{ required: true }]}><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
         </div>
         <h3>Supporting Members</h3>
         <div className="profile-form-grid">
-          <Form.Item name="bd" label="BD"><Select mode="multiple" options={employeeOptions} /></Form.Item>
-          <Form.Item name="sre" label="SRE"><Select mode="multiple" options={employeeOptions} /></Form.Item>
-          <Form.Item name="businessOwners" label="Business Owner"><Select mode="multiple" options={employeeOptions} /></Form.Item>
+          <Form.Item name="bd" label="BD"><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
+          <Form.Item name="sre" label="SRE"><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
+          <Form.Item name="businessOwners" label="Business Owner"><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
+        </div>
+        <div className="approver-edit-actions">
+          {ownerEditing
+            ? <Space><Button onClick={cancelOwnerEdit}>Cancel</Button><Button type="primary" onClick={saveOwners}>Submit</Button></Space>
+            : <Button type="primary" onClick={() => { ownersForm.setFieldsValue(owners); setOwnerEditing(true); }}>Edit</Button>}
         </div>
       </Form>
     </div>
   );
 
+  const saveApproverSet = async () => {
+    try {
+      const { presetId } = await approversForm.validateFields(['presetId']);
+      const preset = getApproverPreset(presetId);
+      if (!preset) return;
+      setApprovers({ presetId, ...preset });
+      setApproverMeta({ operator: 'current.user', operationTime: now() });
+      setApproverEditing(false);
+      message.success('Approver Set updated');
+    } catch {}
+  };
+
+  const cancelApproverEdit = () => {
+    approversForm.setFieldValue('presetId', approvers.presetId);
+    setApproverEditing(false);
+  };
+
   const renderApprovers = () => (
     <div className="profile-settings-panel">
-      <div className="profile-auto-save-meta"><span><strong>Latest Operator:</strong> zihao.ye</span><span><strong>Operation Time:</strong> 2026-08-24 07:35:36</span><span>Changes are saved automatically.</span></div>
-      <Alert type="info" showIcon title="Changes on this page affect who receives approval requests. For example, approvals are required when switching Route Matching or Flow Groups in Runtime Control, and when changing Response Codes." />
-      <Form form={approversForm} layout="vertical" initialValues={approvers} onValuesChange={(_, values) => setApprovers(values as ApproverSettings)}>
+      <div className="profile-auto-save-meta"><span><strong>Latest Operator:</strong> {approverMeta.operator}</span><span><strong>Operation Time:</strong> {approverMeta.operationTime}</span></div>
+      {approverEditing && <Alert type="info" showIcon title="Changing the Approver Set affects future approval requests, including Runtime Control changes to Route Matching or Flow Groups and changes to Response Codes." />}
+      <Form key="approvers-form" form={approversForm} layout="vertical" initialValues={approvers}>
         <div className="approver-role-list">
-          <Form.Item name="technicalApprover" label="Technical Approver" rules={[{ required: true }]}><Select options={employeeOptions} /></Form.Item>
-          <Form.Item name="productApprover" label="Product Approver" rules={[{ required: true }]}><Select options={employeeOptions} /></Form.Item>
-          <Form.Item name="operationsApprover" label="Operations Approver" rules={[{ required: true }]}><Select options={employeeOptions} /></Form.Item>
+          <Form.Item name="presetId" label="Approver Set" rules={[{ required: true }]}><Select disabled={!approverEditing} options={approverPresets.map(({ id, name }) => ({ label: name, value: id }))} /></Form.Item>
+          <dl className="summary-role-list approver-preview">
+            <div><dt>Technical Approver</dt><dd>{(approverEditing ? getApproverPreset(draftApproverPresetId) : approvers)?.technicalApprover}</dd></div>
+            <div><dt>Product Approver</dt><dd>{(approverEditing ? getApproverPreset(draftApproverPresetId) : approvers)?.productApprover}</dd></div>
+            <div><dt>Operations Approver</dt><dd>{(approverEditing ? getApproverPreset(draftApproverPresetId) : approvers)?.operationsApprover}</dd></div>
+          </dl>
+          <div className="approver-edit-actions">
+            {approverEditing
+              ? <Space><Button onClick={cancelApproverEdit}>Cancel</Button><Button type="primary" onClick={saveApproverSet}>Submit</Button></Space>
+              : <Button type="primary" onClick={() => { approversForm.setFieldValue('presetId', approvers.presetId); setApproverEditing(true); }}>Edit</Button>}
+          </div>
         </div>
       </Form>
     </div>
   );
 
   const renderSummary = () => {
-    const partyNames = Array.from(new Set(records.flatMap((record) => record.partyScopes.map(({ party }) => party))));
-    const partyScopeMap = new Map<string, Array<RecordCapabilityScope & { key: string }>>();
+    const businessTypeScopeMap = new Map<string, { integrationType: IntegrationMode; parties: Map<string, Set<string>> }>();
     records.forEach((record) => record.partyScopes.forEach((scope) => {
-      const current = partyScopeMap.get(scope.party) || [];
-      current.push(...scope.capabilities.map((capability, index) => ({ ...capability, key: `${record.recordId}-${scope.party}-${capability.businessType}-${capability.ability}-${index}` })));
-      partyScopeMap.set(scope.party, current);
+      scope.capabilities.forEach((capability) => {
+        const current = businessTypeScopeMap.get(capability.businessType) || { integrationType: capability.integrationType, parties: new Map<string, Set<string>>() };
+        const countries = current.parties.get(scope.party) || new Set<string>();
+        capability.countries.forEach((country) => countries.add(country));
+        current.parties.set(scope.party, countries);
+        businessTypeScopeMap.set(capability.businessType, current);
+      });
     }));
+    const businessTypesInScope = Array.from(businessTypeScopeMap.keys());
     return (
       <div className="channel-summary">
         <section className="channel-summary-section">
           <h2>Integration Scope</h2>
-          <Collapse className="summary-party-collapse" defaultActiveKey={partyNames.slice(0, 1)} items={partyNames.map((party) => ({
-            key: party,
-            label: party,
-            children: <Table rowKey="key" pagination={false} dataSource={partyScopeMap.get(party) || []} columns={[
-              { title: 'Business Type', dataIndex: 'businessType', width: '26%' },
-              { title: 'Ability', dataIndex: 'ability', width: '24%' },
-              { title: 'Countries', dataIndex: 'countries', width: '30%', render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value}>{value}</Tag>)}</Space> },
-              { title: 'Integration Type', dataIndex: 'integrationType', width: '20%' },
+          <Collapse className="summary-party-collapse" defaultActiveKey={businessTypesInScope.slice(0, 1)} items={businessTypesInScope.map((businessType) => {
+            const scope = businessTypeScopeMap.get(businessType)!;
+            const rows = Array.from(scope.parties.entries()).map(([party, countries]) => ({ party, countries: Array.from(countries) }));
+            return {
+            key: businessType,
+            label: <Space><strong>{businessType}</strong><Tag>{scope.integrationType}</Tag></Space>,
+            children: <Table rowKey="party" pagination={false} dataSource={rows} columns={[
+              { title: 'Party', dataIndex: 'party', width: '35%' },
+              { title: 'Countries', dataIndex: 'countries', render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value}>{value}</Tag>)}</Space> },
             ]} />,
-          }))} />
+          };})} />
         </section>
         <section className="channel-summary-people">
           <div className="channel-summary-section">
@@ -620,7 +660,7 @@ export default function ChannelProfilePage() {
 
   const renderRecords = () => (
     <>
-      <Alert className="records-guidance" type="info" showIcon title="A Record can include multiple contracting Parties. Each Party can cover multiple Business Type / Ability combinations, and each combination defines its own supported Countries." />
+      <Alert className="records-guidance" type="info" showIcon title="A Record can cover multiple Business Types. Each Business Type defines one Integration Type and can include multiple Party / Countries configurations." />
       <div className="channel-profile-toolbar"><Button type="primary" onClick={() => { recordForm.resetFields(); setRecordCreateStep(0); setRecordModalOpen(true); }}>Create Integration Record</Button></div>
       <Table rowKey="recordId" dataSource={records} pagination={false} columns={[
         { title: 'Record ID', dataIndex: 'recordId', width: 110 },
@@ -656,7 +696,7 @@ export default function ChannelProfilePage() {
         ]} />
         <Form form={recordForm} layout="vertical" className="record-create-wizard-form">
           <div style={{ display: recordCreateStep === 0 ? 'block' : 'none' }}>
-            <Alert type="info" showIcon title="Name this integration and define all Parties, capabilities, and supported Countries included in the Record." />
+            <Alert type="info" showIcon title="Name this integration and define its Business Types, Integration Types, Parties, and supported Countries." />
             <Form.Item name="recordName" label="Record Name" rules={[{ required: true }]}><Input /></Form.Item>
             {renderPartyScopes(recordForm)}
           </div>
@@ -727,10 +767,10 @@ export default function ChannelProfilePage() {
           selectedKeys={[activeSection]}
           onClick={({ key }) => navigateSection(key)}
           items={[
-            { key: 'integration-records', label: 'Integration Records' },
+            { key: 'summary', label: 'Summary' },
             { key: 'owners', label: 'Channel Owners' },
             { key: 'approvers', label: 'Approvers' },
-            { key: 'summary', label: 'Summary' },
+            { key: 'integration-records', label: 'Integration Records' },
           ]}
         />}
       </aside>

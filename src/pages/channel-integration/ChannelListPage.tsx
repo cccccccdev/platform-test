@@ -8,18 +8,7 @@ import type { Channel } from './types';
 import { Brand, UserProfile } from '../../components/PlatformChrome';
 import { saveCreatedIntegrationRecord } from './channelCreationStore';
 import { isBusinessTypeScopeComplete, toPartyScopes } from './integrationScope';
-
-const abilitiesByBusinessType: Record<string, string[]> = {
-  COLLECTION: ['CARD_PAY', 'USSD_PAY', 'WALLET_PAY'],
-  DISBURSEMENT: ['BANK_TRF', 'WALLET_PAYOUT'],
-  REFUND: ['REFUND_PAY'],
-  TRANSFER: ['WALLET_TRF'],
-  BANK_CARD_DEBIT: ['INFO_PAYMENT'],
-  WALLET_DEBIT: ['TRANSFER'],
-  SMS: ['SINGLE_MESSAGE', 'BULK_MESSAGE'],
-  KYC: ['FINGERPRINT_VERIFY'],
-  FUND_NOTIFICATION: ['CUSTOMER_VALIDATION', 'EXTERNAL_CREDIT'],
-};
+import { approverPresets, getApproverPreset } from './approvalPresets';
 
 const uploadValue = (event: any) => event?.fileList;
 const fileNames = (files?: Array<{ name: string }>) => files?.map(({ name }) => name).join(', ');
@@ -80,6 +69,7 @@ export default function ChannelListPage() {
         operator: 'admin',
         operationTime: new Date().toLocaleString(),
       };
+      const selectedApproverPreset = getApproverPreset(values.approverPresetId);
       saveCreatedIntegrationRecord(newChannel.code, {
         recordName: values.recordName,
         partyScopes: toPartyScopes(values.businessTypeScopes),
@@ -89,7 +79,12 @@ export default function ChannelListPage() {
         accessApprovalRecords: values.accessApprovalRecords,
         brdDocuments: values.brdDocuments,
         owners: values.owners,
-        approvers: values.approvers,
+        approvers: selectedApproverPreset ? {
+          technicalApprover: selectedApproverPreset.technicalApprover,
+          productApprover: selectedApproverPreset.productApprover,
+          operationsApprover: selectedApproverPreset.operationsApprover,
+        } : undefined,
+        approverPresetId: values.approverPresetId,
       });
       setChannels((prev) => [...prev, newChannel]);
       message.success('Channel created successfully');
@@ -128,14 +123,12 @@ export default function ChannelListPage() {
         ? Boolean(createValues.owners?.productOwners?.length
           && createValues.owners?.technicalOwners?.length
           && createValues.owners?.operationOwners?.length
-          && createValues.approvers?.technicalApprover
-          && createValues.approvers?.productApprover
-          && createValues.approvers?.operationsApprover)
+          && createValues.approverPresetId)
         : Boolean((createValues.debugReportFiles?.length || createValues.debugReportLink?.trim())
           && (createValues.prdDocumentFiles?.length || createValues.prdDocumentLink?.trim()));
 
   const renderIntegrationScope = () => (
-    <Form.List name="businessTypeScopes" initialValue={[{ partyAbilities: [{}] }]} rules={[{ validator: async (_, scopes) => {
+    <Form.List name="businessTypeScopes" initialValue={[{ partyCountries: [{}] }]} rules={[{ validator: async (_, scopes) => {
       const values = (scopes || []).map((scope: { businessType?: string }) => scope.businessType).filter(Boolean);
       if (new Set(values).size !== values.length) throw new Error('Each Business Type can only be configured once');
     } }]}>
@@ -144,29 +137,25 @@ export default function ChannelListPage() {
           {businessTypeFields.map((businessTypeField, businessTypeIndex) => <section className="record-party-scope" key={businessTypeField.key}>
             <div className="record-party-scope-heading"><strong>Business Type {businessTypeIndex + 1}</strong><Button type="text" danger disabled={businessTypeFields.length === 1} onClick={() => removeBusinessType(businessTypeField.name)}>Remove Business Type</Button></div>
             <div className="profile-form-grid two-columns">
-              <Form.Item name={[businessTypeField.name, 'businessType']} label="Business Type" rules={[{ required: true, message: 'Select Business Type' }]}><Select options={businessTypeOptions.map((value) => ({ label: value, value }))} onChange={() => form.setFieldValue(['businessTypeScopes', businessTypeField.name, 'partyAbilities'], [{}])} /></Form.Item>
+              <Form.Item name={[businessTypeField.name, 'businessType']} label="Business Type" rules={[{ required: true, message: 'Select Business Type' }]}><Select options={businessTypeOptions.map((value) => ({ label: value, value }))} onChange={() => form.setFieldValue(['businessTypeScopes', businessTypeField.name, 'partyCountries'], [{}])} /></Form.Item>
               <Form.Item name={[businessTypeField.name, 'integrationType']} label="Integration Type" rules={[{ required: true, message: 'Select Integration Type' }]}><Select options={['CONFIG', 'CODE'].map((value) => ({ label: value, value }))} /></Form.Item>
             </div>
-            <Form.List name={[businessTypeField.name, 'partyAbilities']} initialValue={[{}]}>
-              {(abilityFields, { add, remove }) => <>
-                <div className="record-scope-table-head"><span>Party</span><span>Ability</span><span>Countries</span><span /></div>
+            <Form.List name={[businessTypeField.name, 'partyCountries']} initialValue={[{}]}>
+              {(partyFields, { add, remove }) => <>
+                <div className="record-scope-table-head no-ability"><span>Party</span><span>Countries</span><span /></div>
                 <div className="record-capability-list">
-                  {abilityFields.map((abilityField) => <div className="record-scope-row" key={abilityField.key}>
-                    <Form.Item name={[abilityField.name, 'party']} rules={[{ required: true, message: 'Select Party' }]}><Select showSearch placeholder="Party" options={partyOptions.map((value) => ({ label: value, value }))} /></Form.Item>
-                    <Form.Item noStyle shouldUpdate>{() => {
-                      const bt = form.getFieldValue(['businessTypeScopes', businessTypeField.name, 'businessType']);
-                      return <Form.Item name={[abilityField.name, 'ability']} rules={[{ required: true, message: 'Select Ability' }]}><Select disabled={!bt} placeholder="Ability" options={(abilitiesByBusinessType[bt] || []).map((value) => ({ label: value, value }))} /></Form.Item>;
-                    }}</Form.Item>
-                    <Form.Item name={[abilityField.name, 'countries']} rules={[{ required: true, message: 'Select at least one Country' }]}><Select mode="multiple" placeholder="Countries" options={countryCodeOptions.map((value) => ({ label: value, value }))} /></Form.Item>
-                    <Button type="text" danger icon={<MinusCircleOutlined />} disabled={abilityFields.length === 1} onClick={() => remove(abilityField.name)} />
+                  {partyFields.map((partyField) => <div className="record-scope-row no-ability" key={partyField.key}>
+                    <Form.Item name={[partyField.name, 'party']} rules={[{ required: true, message: 'Select Party' }]}><Select showSearch placeholder="Party" options={partyOptions.map((value) => ({ label: value, value }))} /></Form.Item>
+                    <Form.Item name={[partyField.name, 'countries']} rules={[{ required: true, message: 'Select at least one Country' }]}><Select mode="multiple" placeholder="Countries" options={countryCodeOptions.map((value) => ({ label: value, value }))} /></Form.Item>
+                    <Button type="text" danger icon={<MinusCircleOutlined />} disabled={partyFields.length === 1} onClick={() => remove(partyField.name)} />
                   </div>)}
                 </div>
-                <Button type="dashed" onClick={() => add()}>+ Party / Ability / Countries</Button>
+                <Button type="dashed" onClick={() => add()}>+ Party / Countries</Button>
               </>}
             </Form.List>
           </section>)}
         </div>
-        <Button type="dashed" className="add-party-button" onClick={() => addBusinessType({ partyAbilities: [{}] })}>+ Business Type</Button>
+        <Button type="dashed" className="add-party-button" onClick={() => addBusinessType({ partyCountries: [{}] })}>+ Business Type</Button>
         <Form.ErrorList errors={errors} />
       </>}
     </Form.List>
@@ -337,11 +326,8 @@ export default function ChannelListPage() {
               <Form.Item name={['owners', 'businessOwners']} label="Business Owner"><Select mode="multiple" options={employeeOptions} /></Form.Item>
             </div>
             <h3>Approvers</h3>
-            <div className="profile-form-grid two-columns">
-              <Form.Item name={['approvers', 'technicalApprover']} label="Technical Approver" rules={[{ required: true }]}><Select options={employeeOptions} /></Form.Item>
-              <Form.Item name={['approvers', 'productApprover']} label="Product Approver" rules={[{ required: true }]}><Select options={employeeOptions} /></Form.Item>
-              <Form.Item name={['approvers', 'operationsApprover']} label="Operations Approver" rules={[{ required: true }]}><Select options={employeeOptions} /></Form.Item>
-            </div>
+            <Form.Item name="approverPresetId" label="Approver Set" rules={[{ required: true }]}><Select options={approverPresets.map(({ id, name }) => ({ label: name, value: id }))} /></Form.Item>
+            {createValues.approverPresetId && (() => { const preset = getApproverPreset(createValues.approverPresetId); return preset ? <dl className="summary-role-list approver-preview"><div><dt>Technical Approver</dt><dd>{preset.technicalApprover}</dd></div><div><dt>Product Approver</dt><dd>{preset.productApprover}</dd></div><div><dt>Operations Approver</dt><dd>{preset.operationsApprover}</dd></div></dl> : null; })()}
           </div>
           <div style={{ display: createStep === 3 ? 'block' : 'none' }}>
             <Alert type="info" showIcon title="Debug Report and PRD Document are required before the channel can be created." />

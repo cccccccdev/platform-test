@@ -189,6 +189,15 @@
 .channel-profile-heading-meta strong { color: #595959; }
 .channel-profile-toolbar { display: flex; justify-content: flex-end; margin-bottom: 16px; }
 .channel-profile-shell .ant-btn-primary, .channel-profile-modal .ant-btn-primary { background: var(--legacy-purple); box-shadow: none; }
+.channel-profile-modal .ant-btn-primary:not(:disabled) { color: #fff; }
+.channel-profile-modal .ant-btn-primary:disabled,
+.channel-profile-modal .ant-btn-primary:disabled:hover {
+  border-color: #d9d9d9;
+  background: #f5f5f5;
+  color: rgba(0, 0, 0, .25);
+  cursor: not-allowed;
+  box-shadow: none;
+}
 .channel-profile-shell .ant-table-thead > tr > th { background: #fafafa; font-size: 12px; }
 .channel-profile-shell .ant-table-tbody > tr > td { font-size: 12px; }
 .channel-profile-shell .ant-btn-link { height: auto; padding: 0; color: var(--legacy-purple); }
@@ -231,6 +240,9 @@
 .record-scope-table-head { margin-bottom: 6px; color: #595959; font-size: 12px; font-weight: 600; }
 .record-scope-row { align-items: start; }
 .record-scope-row .ant-form-item { margin-bottom: 0; }
+.record-scope-table-head.no-ability, .record-scope-row.no-ability { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) 32px; }
+.approver-preview { margin-top: 8px; }
+.approver-edit-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
 .add-party-button { margin-top: 14px; }
 .channel-profile-shell .record-delete-button.ant-btn-dangerous { color: #ff4d4f; }
 .channel-profile-shell .record-delete-button.ant-btn-dangerous:disabled { color: #ff9c9c; }

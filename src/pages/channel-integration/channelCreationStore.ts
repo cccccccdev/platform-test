@@ -1,7 +1,6 @@
 export type CreatedCapabilityScope = {
   businessType: string;
   integrationType: 'CONFIG' | 'CODE';
-  ability: string;
   countries: string[];
 };
 
@@ -31,6 +30,7 @@ export type CreatedIntegrationRecord = {
     technicalApprover: string;
     operationsApprover: string;
   };
+  approverPresetId?: string;
 };
 
 const storageKey = 'platform-test-created-channel-records';
