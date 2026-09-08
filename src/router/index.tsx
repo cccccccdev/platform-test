@@ -40,6 +40,7 @@ import CapabilityPage from '../pages/basic-info/CapabilityPage';
 import StateMachineListPage from '../pages/basic-info/capability/StateMachineListPage';
 import LinkStateMachinePage from '../pages/basic-info/capability/LinkStateMachinePage';
 import StateMachineCanvas from '../pages/basic-info/capability/stateMachine/StateMachineCanvas';
+import CapabilityFeaturesPage from '../pages/basic-info/capability/CapabilityFeaturesPage';
 
 import TestCenterPage from '../pages/tests/TestCenterPage';
 import ContextInspectorPage from '../pages/inspector/ContextInspectorPage';
@@ -228,7 +229,7 @@ const router = createHashRouter(
           { path: 'application', element: <ComingSoonPage title="Application" /> },
           { path: 'service', element: <ComingSoonPage title="Service" /> },
           { path: 'capability', element: <CapabilityPage /> },
-          { path: 'capability/features', element: <ComingSoonPage title="Capability Features" /> },
+          { path: 'capability/features', element: <CapabilityFeaturesPage /> },
           { path: 'capability/spi', element: <ComingSoonPage title="Capability SPI" /> },
           { path: 'capability/stateMachine', element: <StateMachineListPage /> },
           { path: 'capability/link-state-machine', element: <LinkStateMachinePage /> },
