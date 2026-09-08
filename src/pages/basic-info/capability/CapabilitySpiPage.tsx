@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Breadcrumb, Button, Input, Select, Tag, Typography } from 'antd';
+import { Alert, Breadcrumb, Button, Input, Select, Tag, Typography } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import './CapabilitySpiPage.css';
+import { isSubOrderModeEnabled } from './subOrderModeStore';
 
 const { Title } = Typography;
 
@@ -123,6 +124,45 @@ const CODE_SPI: SpiDefinition = {
   ],
 };
 
+const BULK_REQUEST_FIELDS: SpiField[] = [
+  { name: 'mobileNumberList', type: 'Array', description: '手机号码列表', depth: 1, required: true, extension: true },
+  { name: '_items', type: 'String', depth: 2, required: true, extension: true },
+  { name: 'content', type: 'String', description: '消息内容', depth: 1, required: true, extension: true },
+  { name: 'sender', type: 'String', depth: 1, required: true, extension: true },
+];
+
+const SUB_ORDER_REQUEST_FIELDS: SpiField[] = [
+  { name: 'subOrderList', type: 'Array', description: '子单信息' },
+  { name: '_items', type: 'Object', depth: 1 },
+  { name: 'feature', type: 'Object', depth: 2 },
+  { name: 'featureField', type: 'String', description: '关键字段', depth: 3 },
+  { name: 'featureValue', type: 'String', description: '关键字段', depth: 3 },
+  { name: 'identity', type: 'Object', description: '请求身份标识信息', depth: 2 },
+  { name: 'requestReference', type: 'String', description: '关联请求单号', depth: 3 },
+  { name: 'extraRequest', type: 'Object', depth: 2 },
+  { name: 'content', type: 'String', depth: 3, required: true, extension: true },
+];
+
+const SUB_ORDER_RESPONSE_FIELDS: SpiField[] = [
+  { name: 'subOrderList', type: 'Array', description: '子单信息' },
+  { name: '_items', type: 'Object', depth: 1 },
+  { name: 'feature', type: 'Object', depth: 2 },
+  { name: 'featureField', type: 'String', description: '关键字段', depth: 3 },
+  { name: 'featureValue', type: 'String', description: '关键字段', depth: 3 },
+  { name: 'identity', type: 'Object', description: '请求身份标识信息', depth: 2 },
+  { name: 'responseReference', type: 'String', description: '关联响应单号', depth: 3 },
+  { name: 'extraResponse', type: 'Object', depth: 2 },
+  { name: 'sendTime', type: 'String', description: '发送时间', depth: 3, required: true, extension: true },
+  { name: 'sender', type: 'String', depth: 3, required: true, extension: true },
+  { name: 'deliveryTime', type: 'String', depth: 3, required: true, extension: true },
+  { name: 'result', type: 'Object', description: '响应结果', depth: 2 },
+  { name: 'status', type: 'String', description: '交易状态', depth: 3 },
+  { name: 'responseCode', type: 'String', description: 'palmpay响应码', depth: 3 },
+  { name: 'responseMsg', type: 'String', description: 'palmpay响应信息', depth: 3 },
+  { name: 'channelResponseCode', type: 'String', description: '渠道响应码', depth: 3 },
+  { name: 'channelResponseMsg', type: 'String', description: '渠道响应信息', depth: 3 },
+];
+
 function FieldTable({ fields, editable }: { fields: SpiField[]; editable: boolean }) {
   return (
     <div className="capability-spi-field-table" role="table">
@@ -160,7 +200,31 @@ export default function CapabilitySpiPage() {
   const businessType = searchParams.get('bt') || 'SMS';
   const ability = searchParams.get('ability') || 'SINGLE_MESSAGE';
   const action = searchParams.get('action') || 'TRANSACTION';
-  const definition = tab === 'config' ? CONFIG_SPI : CODE_SPI;
+  const subOrderEnabled = isSubOrderModeEnabled(businessType, ability);
+  const isBulkSms = businessType === 'SMS' && ability === 'BULK_MESSAGE' && action === 'TRANSACTION';
+  const configRequestBase = CONFIG_SPI.request.slice(0, -2);
+  const configResponseBase = CONFIG_SPI.response.slice(0, -3);
+  const definition: SpiDefinition = tab === 'config'
+    ? {
+        ...CONFIG_SPI,
+        subOrderMode: subOrderEnabled ? 'Enabled' : 'Disabled',
+        request: [
+          ...configRequestBase,
+          ...(isBulkSms ? BULK_REQUEST_FIELDS : CONFIG_SPI.request.slice(-2)),
+          ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : []),
+        ],
+        response: [
+          ...configResponseBase,
+          ...(!isBulkSms ? CONFIG_SPI.response.slice(-3) : []),
+          ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : []),
+        ],
+      }
+    : {
+        ...CODE_SPI,
+        subOrderMode: subOrderEnabled ? 'Enabled' : 'Disabled',
+        request: [...CODE_SPI.request, ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : [])],
+        response: [...CODE_SPI.response, ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : [])],
+      };
 
   return (
     <div className="capability-spi-page">
@@ -180,10 +244,23 @@ export default function CapabilitySpiPage() {
             <span><strong>Business Type:</strong>{businessType}</span>
             <span><strong>Ability:</strong>{ability}</span>
             <span><strong>Action:</strong>{action}</span>
-            <span><strong>Sub-Order Mode:</strong>{tab === 'config' ? <Tag color="blue">{definition.subOrderMode}</Tag> : definition.subOrderMode}</span>
+            <span><strong>Sub-Order Mode:</strong><Tag color="blue">{definition.subOrderMode}</Tag></span>
           </div>
           <Button type="primary">Config</Button>
         </div>
+
+        {subOrderEnabled && (
+          <Alert
+            className="capability-spi-sub-order-alert"
+            type="info"
+            showIcon
+            message={(
+              <span>
+                Sub-Order Mode is enabled. To store any business information in the sub-order, please add new fields in the sub-order&apos;s <code>extra</code> block. <code>featureValue</code> is the sub-order feature identifier — please map fields such as phone number, email address, or WhatsApp account to it.
+              </span>
+            )}
+          />
+        )}
 
         <div className="capability-spi-meta">
           <div className={`capability-spi-meta-item ${tab === 'code' ? 'capability-spi-input-item' : ''}`}>

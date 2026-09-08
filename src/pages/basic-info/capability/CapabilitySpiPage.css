@@ -82,6 +82,20 @@
   box-shadow: none;
 }
 
+.capability-spi-sub-order-alert {
+  margin-top: 14px;
+  border-color: #91caff;
+  border-radius: 6px;
+  background: #e6f4ff;
+  font-size: 13px;
+}
+
+.capability-spi-sub-order-alert code {
+  padding: 1px 4px;
+  color: #555;
+  background: #fff;
+}
+
 .capability-spi-meta {
   display: grid;
   grid-template-columns: minmax(300px, 1fr) minmax(300px, 1fr);
