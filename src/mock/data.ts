@@ -11,16 +11,16 @@ export const mockChannels = [
   { code: 'NPSB_BD', country: ['Bangladesh'], party: ['NPSB Member Institution'], status: 'Active', operator: 'admin', operationTime: '2026-07-15 10:00:00' },
 ]
 
-// Channel Integration > Party > Accounts 的上游 Mock 数据。
-// Account Code 本身不区分 Cloud / Env；Channel Info 仅消费这些候选项。
-export const mockChannelPartyAccounts: Record<string, Array<{ accountCode: string; operator: string; operationTime: string }>> = {
-  'EVEXIN:FLEXI': [
+// Channel Info > Party > Accounts 的环境级 Mock 数据。
+// Account 在各 Cloud / Env 中分别创建，当前没有跨环境公共配置。
+export const mockChannelInfoPartyAccounts: Record<string, Array<{ accountCode: string; operator: string; operationTime: string }>> = {
+  'EVEXIN:ALIYUN:DAILY:FLEXI': [
     { accountCode: 'EVEXIN_SMS_MAIN', operator: 'Bailly', operationTime: '2026-06-09 10:00:00' },
   ],
-  'COBO:ONELOOP': [
+  'COBO:ALIYUN:DAILY:ONELOOP': [
     { accountCode: 'COBO_SETTLEMENT_MAIN', operator: 'Abe', operationTime: '2026-06-09 10:12:00' },
   ],
-  'GTB_NG:PalmPay NG': [
+  'GTB_NG:ALIYUN:DAILY:PalmPay NG': [
     { accountCode: 'GTB_NG_PRIMARY', operator: 'admin', operationTime: '2026-06-09 10:20:00' },
   ],
 }

@@ -14,11 +14,10 @@ import {
   Table,
   Tabs,
   Tag,
-  Tooltip,
   message,
 } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { mockChannelInfoApplications, mockChannelPartyAccounts, mockChannels, mockCredentials } from '../../mock/data';
+import { mockChannelInfoApplications, mockChannelInfoPartyAccounts, mockChannels, mockCredentials } from '../../mock/data';
 import { getCreatedIntegrationRecord } from './channelCreationStore';
 import { parsePartyPath } from './channelInfoPartyRoute';
 import type { InboundEndpoint } from './types';
@@ -26,6 +25,7 @@ import './ChannelInfoPartyPage.css';
 
 type CredentialRow = { field: string; value: string };
 type CredentialDraft = CredentialRow;
+type AccountRow = { accountCode: string; operator: string; operationTime: string };
 type RequestLineRow = {
   id: string;
   lineName: string;
@@ -91,6 +91,9 @@ export default function ChannelInfoPartyPage({ channelCode, cloud, env, routeMat
   const [credentialMeta, setCredentialMeta] = useState<Record<string, { validity: string; operator: string; operationTime: string }>>({});
   const [credentialOpen, setCredentialOpen] = useState(false);
   const [credentialForm] = Form.useForm<{ rows: CredentialDraft[]; validity: string; notStoredInKms: boolean }>();
+  const [accountRows, setAccountRows] = useState<Record<string, AccountRow[]>>({});
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountForm] = Form.useForm<{ accountCode: string }>();
   const [callbackRows, setCallbackRows] = useState<Record<string, Array<{ id: string; line: string }>>>({});
   const [callbackOpen, setCallbackOpen] = useState(false);
   const [callbackForm] = Form.useForm<{ line: string }>();
@@ -111,10 +114,8 @@ export default function ChannelInfoPartyPage({ channelCode, cloud, env, routeMat
     return Array.from(new Set(configured.length ? configured : seeded));
   }, [channelCode]);
 
-  const accounts = useMemo(
-    () => mockChannelPartyAccounts[`${channelCode}:${route.party}`] ?? [],
-    [channelCode, route.party],
-  );
+  const accountScopeKey = `${environmentKey}:${route.party}`;
+  const accounts = accountRows[accountScopeKey] ?? mockChannelInfoPartyAccounts[accountScopeKey] ?? [];
 
   const credentialKey = `${environmentKey}:${route.party}:${route.account || 'party'}`;
   const defaultCredentials = useMemo<CredentialRow[]>(() => {
@@ -178,6 +179,25 @@ export default function ChannelInfoPartyPage({ channelCode, cloud, env, routeMat
     }));
     setCredentialOpen(false);
     message.success('Credential configuration saved');
+  };
+
+  const createAccount = async () => {
+    const { accountCode } = await accountForm.validateFields();
+    const normalizedCode = accountCode.trim();
+    if (accounts.some((row) => row.accountCode.toLowerCase() === normalizedCode.toLowerCase())) {
+      message.error('Account already exists in the selected Cloud and Environment.');
+      return;
+    }
+    setAccountRows((current) => ({
+      ...current,
+      [accountScopeKey]: [
+        ...accounts,
+        { accountCode: normalizedCode, operator: 'current.user', operationTime: now() },
+      ],
+    }));
+    accountForm.resetFields();
+    setAccountOpen(false);
+    message.success('Account created');
   };
 
   const createCallbackLine = async () => {
@@ -363,17 +383,12 @@ export default function ChannelInfoPartyPage({ channelCode, cloud, env, routeMat
           { title: 'Party', width: '34%', render: (party: string) => party },
           {
             title: 'Operation',
-            render: (party: string) => {
-              const hasAccounts = Boolean(mockChannelPartyAccounts[`${channelCode}:${party}`]?.length);
-              return <Space size={4} wrap>
+            render: (party: string) => <Space size={4} wrap>
                 <Button type="link" onClick={() => go(`/${encodeURIComponent(party)}/credential`)}>Credential</Button>
                 <Button type="link" onClick={() => go(`/${encodeURIComponent(party)}/line`)}>Line</Button>
-                <Tooltip title={hasAccounts ? undefined : 'Please create accounts in Channel Integration first.'}>
-                  <span><Button type="link" disabled={!hasAccounts} onClick={() => go(`/${encodeURIComponent(party)}/accounts`)}>Accounts</Button></span>
-                </Tooltip>
+                <Button type="link" onClick={() => go(`/${encodeURIComponent(party)}/accounts`)}>Accounts</Button>
                 <Button type="link" onClick={() => go(`/${encodeURIComponent(party)}/portal`)}>Portal</Button>
-              </Space>;
-            },
+              </Space>,
           },
         ]}
       />
@@ -385,10 +400,11 @@ export default function ChannelInfoPartyPage({ channelCode, cloud, env, routeMat
   } else if (route.view === 'accounts') {
     content = <Card className="party-runtime-card">
       {context}
+      <div className="party-line-actions"><Button type="primary" onClick={() => setAccountOpen(true)}>Add Account</Button></div>
       <Table
         rowKey="accountCode"
         dataSource={accounts}
-        locale={{ emptyText: <Empty description="No account configured for this party. Please create accounts in Channel Integration first." /> }}
+        locale={{ emptyText: <Empty description="No account configured for this Party in the selected Cloud and Environment." /> }}
         pagination={{ pageSize: 10, showTotal: (total) => `Total ${total} items` }}
         columns={[
           { title: 'Account', dataIndex: 'accountCode', width: '45%' },
@@ -429,6 +445,14 @@ export default function ChannelInfoPartyPage({ channelCode, cloud, env, routeMat
         </Form.List>
         <Form.Item name="validity" label="Credential Value Validity Period" rules={[{ required: true }]} style={{ marginTop: 24 }}><Input type="date" /></Form.Item>
         <Form.Item name="notStoredInKms" valuePropName="checked"><Checkbox>not stored in KMS</Checkbox></Form.Item>
+      </Form>
+    </Modal>
+
+    <Modal title="Add Account" open={accountOpen} onCancel={() => setAccountOpen(false)} onOk={() => void createAccount()} okText="OK" destroyOnHidden>
+      <Form form={accountForm} layout="vertical" style={{ marginTop: 20 }}>
+        <Form.Item name="accountCode" label="Account" rules={[{ required: true, whitespace: true, message: 'Enter Account' }]}>
+          <Input placeholder="Enter Account" maxLength={100} />
+        </Form.Item>
       </Form>
     </Modal>
 
