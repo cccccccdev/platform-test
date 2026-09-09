@@ -41,18 +41,21 @@ import ChannelInfoAssetRoutePage from './ChannelInfoAssetRoutePage';
 import ChannelInfoInstitutionPage from './ChannelInfoInstitutionPage';
 import ChannelInfoCapabilityPage from './ChannelInfoCapabilityPage';
 import ChannelInfoServiceChannelPage from './ChannelInfoServiceChannelPage';
+import ChannelInfoPartyPage from './ChannelInfoPartyPage';
+import { channelInfoPartyTitle } from './channelInfoPartyRoute';
 
 const { Content, Sider } = Layout;
 const { Text } = Typography;
 
 type MainState = 'INIT' | 'PENDING' | 'TO_BE_VERIFY' | 'SUCCESS' | 'FAIL';
-type PageKey = 'capability' | 'external-internal' | 'internal-external' | 'institution' | 'chain' | 'asset-route' | 'requery' | 'runtime-route-matching' | 'runtime-flow-groups' | 'service-channel';
+type PageKey = 'capability' | 'party' | 'external-internal' | 'internal-external' | 'institution' | 'chain' | 'asset-route' | 'requery' | 'runtime-route-matching' | 'runtime-flow-groups' | 'service-channel';
 type DetailView = { type: 'event'; record: ExternalRecord } | { type: 'approval'; record: ExternalRecord; approval?: ExternalApprovalRequest };
 type Source = 'httpCall' | 'Route Matching';
 type ResponseCodeType = 'ALL' | 'Include' | 'Exclude';
 
 const pageKeyFromPath = (pathname: string): PageKey => {
   const normalizedPath = pathname.toLowerCase();
+  if (normalizedPath.includes('/channel-info/party')) return 'party';
   if (normalizedPath.includes('/channel-info/asset-route')) return 'asset-route';
   if (normalizedPath.includes('/channel-info/chain')) return 'chain';
   if (normalizedPath.includes('/channel-info/institution')) return 'institution';
@@ -490,6 +493,7 @@ export default function ChannelInfoPage() {
   const isExternal = pageKey === 'external-internal';
   const isInternal = pageKey === 'internal-external';
   const isCapability = pageKey === 'capability';
+  const isParty = pageKey === 'party';
   const capabilityFeatureParams = new URLSearchParams(location.search);
   const isCapabilityFeatures = isCapability && Boolean(capabilityFeatureParams.get('featureBt') && capabilityFeatureParams.get('featureAbility'));
   const isChain = pageKey === 'chain';
@@ -1686,6 +1690,7 @@ export default function ChannelInfoPage() {
     if (runtimeDetailView?.kind === 'flow-canvas') return renderRuntimeFlowCanvasDetail(runtimeDetailView);
     if (detailView?.type === 'event') return renderEventPage(detailView.record);
     if (detailView?.type === 'approval') return renderApprovalDetailPage(detailView.record, detailView.approval);
+    if (isParty && applied) return <ChannelInfoPartyPage channelCode={channelCode} cloud={applied.cloud} env={applied.env} routeMatchingEndpoints={routeMatchingEndpoints} />;
     if (isCapability && applied) return <ChannelInfoCapabilityPage channelCode={channelCode} cloud={applied.cloud} env={applied.env} configuredAbilities={flowGroupAbilities} />;
     if (isChain && applied) return <ChannelInfoChainPage channelCode={channelCode} cloud={applied.cloud} env={applied.env} />;
     if (isAssetRoute && applied) return <ChannelInfoAssetRoutePage channelCode={channelCode} cloud={applied.cloud} env={applied.env} configuredAbilities={flowGroupAbilities} />;
@@ -1734,7 +1739,7 @@ export default function ChannelInfoPage() {
     ? 'Event'
     : detailView?.type === 'approval'
       ? 'Approval Detail'
-    : isCapabilityFeatures ? 'Features' : isCapability ? 'Capability' : isExternal ? 'External->Internal' : isInternal ? 'Internal->External' : isInstitution ? 'Institution' : isChain ? 'Chain' : isAssetRoute ? 'Asset Route' : isRequery ? 'Requery Strategy' : isRuntimeRouteMatching ? 'Route Matching' : isServiceChannel && serviceChannelDetailCode ? 'Service Channel Capability' : isServiceChannel ? 'Service Channel' : 'Flow Groups';
+    : isCapabilityFeatures ? 'Features' : isCapability ? 'Capability' : isParty ? channelInfoPartyTitle(location.pathname) : isExternal ? 'External->Internal' : isInternal ? 'Internal->External' : isInstitution ? 'Institution' : isChain ? 'Chain' : isAssetRoute ? 'Asset Route' : isRequery ? 'Requery Strategy' : isRuntimeRouteMatching ? 'Route Matching' : isServiceChannel && serviceChannelDetailCode ? 'Service Channel Capability' : isServiceChannel ? 'Service Channel' : 'Flow Groups';
 
   const handleRuntimeBack = () => {
     if (runtimeDetailView?.kind === 'flow-canvas') {
@@ -1779,7 +1784,7 @@ export default function ChannelInfoPage() {
             selectedKeys={[pageKey]}
             defaultOpenKeys={['response-code', 'runtime-control']}
             onClick={(item) => {
-              if (item.key === 'capability' || item.key === 'external-internal' || item.key === 'internal-external' || item.key === 'institution' || item.key === 'chain' || item.key === 'asset-route' || item.key === 'requery' || item.key === 'runtime-route-matching' || item.key === 'runtime-flow-groups' || item.key === 'service-channel') {
+              if (item.key === 'capability' || item.key === 'party' || item.key === 'external-internal' || item.key === 'internal-external' || item.key === 'institution' || item.key === 'chain' || item.key === 'asset-route' || item.key === 'requery' || item.key === 'runtime-route-matching' || item.key === 'runtime-flow-groups' || item.key === 'service-channel') {
                 setPageKey(item.key);
                 setServiceChannelDetailCode(null);
                 resetForm();
@@ -1790,8 +1795,9 @@ export default function ChannelInfoPage() {
                 if (item.key === 'asset-route') navigate(`/channel-integration/${channelCode}/channel-info/asset-route`);
                 if (item.key === 'institution') navigate(`/channel-integration/${channelCode}/channel-info/institution`);
                 if (item.key === 'service-channel') navigate(`/channel-integration/${channelCode}/channel-info/service-channel`);
+                if (item.key === 'party') navigate(`/channel-integration/${channelCode}/channel-info/party`);
                 if (item.key === 'capability') navigate(`/channel-integration/${channelCode}/channel-info`);
-                if (item.key !== 'institution' && item.key !== 'chain' && item.key !== 'asset-route' && item.key !== 'runtime-route-matching' && item.key !== 'runtime-flow-groups' && item.key !== 'service-channel') navigate(`/channel-integration/${channelCode}/channel-info`);
+                if (item.key !== 'party' && item.key !== 'institution' && item.key !== 'chain' && item.key !== 'asset-route' && item.key !== 'runtime-route-matching' && item.key !== 'runtime-flow-groups' && item.key !== 'service-channel') navigate(`/channel-integration/${channelCode}/channel-info`);
               }
             }}
             items={[
@@ -1826,7 +1832,7 @@ export default function ChannelInfoPage() {
           <UserProfile />
         </div>
         <Content style={{ padding: 24 }}>
-          <Breadcrumb items={[{ title: channelCode }, ...(runtimeDetailView ? [{ title: 'Runtime Control' }, { title: runtimeDetailView.kind === 'route-matching' ? 'Route Matching' : 'Flow Groups' }, { title }] : isCapabilityFeatures ? [{ title: 'Capability' }, { title: 'Features' }] : isCapability ? [{ title: 'Capability' }] : isInstitution ? [{ title: 'Institution' }] : isChain ? [{ title: 'Chain' }] : isAssetRoute ? [{ title: 'Asset Route' }] : isRequery ? [{ title: 'Requery Strategy' }] : isServiceChannel ? [{ title: 'Service Channel' }] : isRuntimeRouteMatching || isRuntimeFlowGroups ? [{ title: 'Runtime Control' }, { title }] : [{ title: 'Response Code' }, { title: detailView ? 'External->Internal' : title }, ...(detailView ? [{ title }] : [])])]} style={{ marginBottom: 12 }} />
+          <Breadcrumb items={[{ title: channelCode }, ...(runtimeDetailView ? [{ title: 'Runtime Control' }, { title: runtimeDetailView.kind === 'route-matching' ? 'Route Matching' : 'Flow Groups' }, { title }] : isCapabilityFeatures ? [{ title: 'Capability' }, { title: 'Features' }] : isCapability ? [{ title: 'Capability' }] : isParty ? [{ title: 'Party' }, ...(title !== 'Party' ? [{ title }] : [])] : isInstitution ? [{ title: 'Institution' }] : isChain ? [{ title: 'Chain' }] : isAssetRoute ? [{ title: 'Asset Route' }] : isRequery ? [{ title: 'Requery Strategy' }] : isServiceChannel ? [{ title: 'Service Channel' }] : isRuntimeRouteMatching || isRuntimeFlowGroups ? [{ title: 'Runtime Control' }, { title }] : [{ title: 'Response Code' }, { title: detailView ? 'External->Internal' : title }, ...(detailView ? [{ title }] : [])])]} style={{ marginBottom: 12 }} />
           <Space align="center" style={{ marginBottom: 18 }}>
             <Typography.Title level={3} style={{ margin: 0 }}>{title}</Typography.Title>
             {applied && <Tag color="green" style={{ fontSize: 14, padding: '4px 10px' }}>{applied.cloud} - {applied.env}</Tag>}
