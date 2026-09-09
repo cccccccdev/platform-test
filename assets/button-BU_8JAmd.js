@@ -1,0 +1,1 @@
+import{i as e}from"./useVariants-HtGUaetm.js";var t=e;export{t};

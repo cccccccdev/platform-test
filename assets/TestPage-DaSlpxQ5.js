@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-DAs1UGHr.js";var t=e();function n(){return(0,t.jsxs)(`div`,{style:{padding:50,background:`yellow`},children:[(0,t.jsx)(`h1`,{style:{fontSize:48},children:`TEST PAGE WORKS!`}),(0,t.jsx)(`p`,{children:`If you can see this, routing works.`})]})}export{n as default};
