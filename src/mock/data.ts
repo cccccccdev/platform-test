@@ -11,6 +11,25 @@ export const mockChannels = [
   { code: 'NPSB_BD', country: ['Bangladesh'], party: ['NPSB Member Institution'], status: 'Active', operator: 'admin', operationTime: '2026-07-15 10:00:00' },
 ]
 
+// Channel Integration > Party > Accounts 的上游 Mock 数据。
+// Account Code 本身不区分 Cloud / Env；Channel Info 仅消费这些候选项。
+export const mockChannelPartyAccounts: Record<string, Array<{ accountCode: string; operator: string; operationTime: string }>> = {
+  'EVEXIN:FLEXI': [
+    { accountCode: 'EVEXIN_SMS_MAIN', operator: 'Bailly', operationTime: '2026-06-09 10:00:00' },
+  ],
+  'COBO:ONELOOP': [
+    { accountCode: 'COBO_SETTLEMENT_MAIN', operator: 'Abe', operationTime: '2026-06-09 10:12:00' },
+  ],
+  'GTB_NG:PalmPay NG': [
+    { accountCode: 'GTB_NG_PRIMARY', operator: 'admin', operationTime: '2026-06-09 10:20:00' },
+  ],
+}
+
+// Channel Info > Application 的运行态 Mock。Callback Line 由 Application + Env + Party 自动生成。
+export const mockChannelInfoApplications: Record<string, { applicationName: string; hostSuffix: string }> = {
+  'EVEXIN:ALIYUN:DAILY': { applicationName: 'finance-switch-channel', hostSuffix: 'palmpay-inc.com' },
+}
+
 // Credential 列表（按 channelCode 索引）
 export const mockCredentials: Record<string, Array<{ id: string; key: string; description?: string }>> = {
   COBO: [
