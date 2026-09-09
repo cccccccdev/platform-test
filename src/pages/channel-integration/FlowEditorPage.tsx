@@ -2446,6 +2446,8 @@ export default function FlowEditorPage() {
         readOnly={readOnly}
         channelMerchantInfoAvailable={channelMerchantInfoAvailable}
         stateMachine={storedAbility?.stateMachine ?? ''}
+        businessType={params.bt ?? ''}
+        ability={params.ability ?? ''}
         onClose={() => setShowHttpCallDrawer(false)}
         onSave={(config) => {
           console.log('HTTP Call config saved:', config);
@@ -2528,6 +2530,8 @@ export default function FlowEditorPage() {
         open={showInboundRequestDrawer}
         initialValues={selectedConfig}
         readOnly={readOnly}
+        businessType={params.bt ?? ''}
+        ability={params.ability ?? ''}
         endpointPath={inboundUri?.url}
         pathVariables={inboundPathVariables}
         stateMachine={storedAbility?.stateMachine ?? ''}
@@ -2544,6 +2548,8 @@ export default function FlowEditorPage() {
         open={showInboundResponseDrawer}
         initialValues={selectedConfig}
         readOnly={readOnly}
+        businessType={params.bt ?? ''}
+        ability={params.ability ?? ''}
         onClose={() => setShowInboundResponseDrawer(false)}
         onSave={(config) => {
           console.log('Inbound Response config saved:', config);

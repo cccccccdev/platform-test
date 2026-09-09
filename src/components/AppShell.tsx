@@ -24,7 +24,11 @@ const menuItems = [
 export default function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const selectedKey = location.pathname === '/basic-info' ? '/basic-info/country' : location.pathname;
+  const selectedKey = location.pathname === '/basic-info'
+    ? '/basic-info/country'
+    : location.pathname.startsWith('/basic-info/capability/')
+      ? '/basic-info/capability'
+      : location.pathname;
 
   return (
     <Layout className="legacy-app-shell">

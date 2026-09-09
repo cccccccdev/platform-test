@@ -354,6 +354,24 @@
 .capability-action-row .ant-btn-link { justify-self: start; color: var(--legacy-purple); padding: 0; font-size: 12px; }
 .capability-add-action-row { padding: 10px 0 14px 0; background: #fff; }
 .capability-add-action-row .ant-btn { height: 30px; border-radius: 0; font-size: 12px; }
+.capability-pagination { display: flex; justify-content: flex-end; padding-top: 18px; }
+.sub-order-mode-modal .ant-modal-content { padding: 0; overflow: hidden; border-radius: 2px; }
+.sub-order-mode-modal .ant-modal-header { margin: 0; padding: 18px 24px 14px; border-bottom: 1px solid #ececec; }
+.sub-order-mode-modal .ant-modal-body { padding: 24px; }
+.sub-order-mode-modal .ant-modal-footer { margin: 0; padding: 10px 16px; border-top: 1px solid #ececec; }
+.sub-order-mode-modal .ant-btn { border-radius: 0; }
+.sub-order-mode-modal .ant-btn-primary:not(:disabled) { background: var(--legacy-purple); box-shadow: none; }
+.sub-order-mode-context { display: grid; grid-template-columns: 120px 1fr; gap: 18px 0; margin-bottom: 24px; color: #8a8a8a; font-size: 14px; }
+.sub-order-mode-context strong { color: #252525; font-weight: 400; }
+.sub-order-mode-switch-row { display: flex; min-height: 46px; align-items: center; justify-content: space-between; padding: 0 16px; background: #e6f4ff; }
+.sub-order-mode-switch-row .ant-switch.ant-switch-checked { background: #aa82df; }
+.sub-order-mode-note { margin: 16px 0 0; color: #8b8b8b; font-size: 14px; line-height: 1.55; }
+.http-sub-order-code-mapping { margin-top: 18px; padding-top: 18px; border-top: 1px solid #f0f0f0; }
+.http-sub-order-code-mapping .ant-typography { margin-top: 0; }
+.inbound-parent-code-mapping,
+.inbound-sub-order-code-mapping { margin-top: 12px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
+.inbound-parent-code-mapping .ant-typography,
+.inbound-sub-order-code-mapping .ant-typography { margin-top: 0; }
 
 .linked-state-machine-page { min-height: 100%; background: var(--legacy-bg); }
 .linked-state-machine-heading { height: 86px; padding: 12px 18px 14px; background: #fff; }

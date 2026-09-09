@@ -1,0 +1,17 @@
+.channel-capability-features { min-height: 420px; padding: 24px; background: #fff; }
+.channel-capability-feature-context { display: flex; flex-wrap: wrap; gap: 34px; margin-bottom: 20px; color: #272c35; font-size: 16px; }
+.channel-capability-feature-context strong { margin-right: 8px; }
+.channel-capability-features .ant-table-thead > tr > th { background: #fafafa; font-size: 13px; }
+.channel-capability-features .ant-table-tbody > tr > td { font-size: 13px; }
+.channel-capability-features .ant-btn-link { padding-inline: 0; color: var(--legacy-purple); }
+.channel-capability-feature-modal .ant-modal-content, .channel-capability-approval-modal .ant-modal-content, .channel-capability-history-modal .ant-modal-content { padding: 0; overflow: hidden; border-radius: 2px; }
+.channel-capability-feature-modal .ant-modal-header, .channel-capability-approval-modal .ant-modal-header, .channel-capability-history-modal .ant-modal-header { min-height: 54px; margin: 0; padding: 16px 24px; border-bottom: 1px solid #eceef2; }
+.channel-capability-feature-modal .ant-modal-body, .channel-capability-approval-modal .ant-modal-body, .channel-capability-history-modal .ant-modal-body { padding: 24px 24px 8px; }
+.channel-capability-feature-modal .ant-modal-footer, .channel-capability-approval-modal .ant-modal-footer { margin: 0; padding: 10px 16px; border-top: 1px solid #eceef2; }
+.channel-capability-feature-modal .ant-input, .channel-capability-feature-modal .ant-select-selector, .channel-capability-feature-modal .ant-btn, .channel-capability-approval-modal .ant-input, .channel-capability-approval-modal .ant-btn { border-radius: 0 !important; }
+.channel-capability-feature-modal .ant-select { width: 100%; }
+.channel-capability-feature-modal .ant-btn-primary:not(:disabled), .channel-capability-approval-modal .ant-btn-primary:not(:disabled) { background: var(--legacy-purple); box-shadow: none; }
+.channel-capability-change-summary { margin-bottom: 24px; color: #cf1322; font-size: 18px; line-height: 1.5; }
+.channel-capability-history-context { display: grid; gap: 12px; margin-bottom: 24px; }
+.channel-capability-history-context div { display: grid; grid-template-columns: 160px 1fr; gap: 12px; }
+@media (max-width: 760px) { .channel-capability-feature-context { display: grid; gap: 8px; } .channel-capability-history-context div { grid-template-columns: 1fr; gap: 2px; } }
