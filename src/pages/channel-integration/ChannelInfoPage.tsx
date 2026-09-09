@@ -204,6 +204,7 @@ type RuntimeNodeCard = Omit<RuntimeComponentDetail, 'source'> & {
 
 const pathCapabilities: PathCapability[] = [
   { path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', flowGroups: ['EVEXIN / Group 526 / SMS_SINGLE_MESSAGE_TRANSACTION'] },
+  { path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'BULK_MESSAGE', flowGroups: ['EVEXIN / Group 528 / SMS_BULK_MESSAGE_TRANSACTION'] },
   { path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', flowGroups: ['EVEXIN / Route Matching / SMS Status Callback'] },
   { path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', flowGroups: ['EVEXIN / Route Matching / SMS Status Callback'] },
   { path: '/test/path', source: 'httpCall', bt: 'WALLET_DEBIT', ability: 'TRANSFER', flowGroups: ['Group 1 / Flow 1', 'Group 1 / Flow 2'] },
@@ -489,6 +490,8 @@ export default function ChannelInfoPage() {
   const isExternal = pageKey === 'external-internal';
   const isInternal = pageKey === 'internal-external';
   const isCapability = pageKey === 'capability';
+  const capabilityFeatureParams = new URLSearchParams(location.search);
+  const isCapabilityFeatures = isCapability && Boolean(capabilityFeatureParams.get('featureBt') && capabilityFeatureParams.get('featureAbility'));
   const isChain = pageKey === 'chain';
   const isAssetRoute = pageKey === 'asset-route';
   const isInstitution = pageKey === 'institution';
@@ -1595,6 +1598,8 @@ export default function ChannelInfoPage() {
           open={code === 'inboundRequest'}
           initialValues={data}
           readOnly
+          businessType={bt}
+          ability={ability}
           endpointPath={detail?.endpointPath}
           pathVariables={detail?.pathVariables ?? []}
           onClose={closeRuntimeComponentDetail}
@@ -1605,6 +1610,8 @@ export default function ChannelInfoPage() {
           open={code === 'inboundResponse'}
           initialValues={data}
           readOnly
+          businessType={bt}
+          ability={ability}
           onClose={closeRuntimeComponentDetail}
           onSave={() => undefined}
         />
@@ -1679,7 +1686,7 @@ export default function ChannelInfoPage() {
     if (runtimeDetailView?.kind === 'flow-canvas') return renderRuntimeFlowCanvasDetail(runtimeDetailView);
     if (detailView?.type === 'event') return renderEventPage(detailView.record);
     if (detailView?.type === 'approval') return renderApprovalDetailPage(detailView.record, detailView.approval);
-    if (isCapability && applied) return <ChannelInfoCapabilityPage cloud={applied.cloud} env={applied.env} configuredAbilities={flowGroupAbilities} />;
+    if (isCapability && applied) return <ChannelInfoCapabilityPage channelCode={channelCode} cloud={applied.cloud} env={applied.env} configuredAbilities={flowGroupAbilities} />;
     if (isChain && applied) return <ChannelInfoChainPage channelCode={channelCode} cloud={applied.cloud} env={applied.env} />;
     if (isAssetRoute && applied) return <ChannelInfoAssetRoutePage channelCode={channelCode} cloud={applied.cloud} env={applied.env} configuredAbilities={flowGroupAbilities} />;
     if (isInstitution && applied) return <ChannelInfoInstitutionPage channelCode={channelCode} cloud={applied.cloud} env={applied.env} configuredAbilities={flowGroupAbilities} />;
@@ -1727,7 +1734,7 @@ export default function ChannelInfoPage() {
     ? 'Event'
     : detailView?.type === 'approval'
       ? 'Approval Detail'
-    : isCapability ? 'Capability' : isExternal ? 'External->Internal' : isInternal ? 'Internal->External' : isInstitution ? 'Institution' : isChain ? 'Chain' : isAssetRoute ? 'Asset Route' : isRequery ? 'Requery Strategy' : isRuntimeRouteMatching ? 'Route Matching' : isServiceChannel && serviceChannelDetailCode ? 'Service Channel Capability' : isServiceChannel ? 'Service Channel' : 'Flow Groups';
+    : isCapabilityFeatures ? 'Features' : isCapability ? 'Capability' : isExternal ? 'External->Internal' : isInternal ? 'Internal->External' : isInstitution ? 'Institution' : isChain ? 'Chain' : isAssetRoute ? 'Asset Route' : isRequery ? 'Requery Strategy' : isRuntimeRouteMatching ? 'Route Matching' : isServiceChannel && serviceChannelDetailCode ? 'Service Channel Capability' : isServiceChannel ? 'Service Channel' : 'Flow Groups';
 
   const handleRuntimeBack = () => {
     if (runtimeDetailView?.kind === 'flow-canvas') {
@@ -1819,7 +1826,7 @@ export default function ChannelInfoPage() {
           <UserProfile />
         </div>
         <Content style={{ padding: 24 }}>
-          <Breadcrumb items={[{ title: channelCode }, ...(runtimeDetailView ? [{ title: 'Runtime Control' }, { title: runtimeDetailView.kind === 'route-matching' ? 'Route Matching' : 'Flow Groups' }, { title }] : isCapability ? [{ title: 'Capability' }] : isInstitution ? [{ title: 'Institution' }] : isChain ? [{ title: 'Chain' }] : isAssetRoute ? [{ title: 'Asset Route' }] : isRequery ? [{ title: 'Requery Strategy' }] : isServiceChannel ? [{ title: 'Service Channel' }] : isRuntimeRouteMatching || isRuntimeFlowGroups ? [{ title: 'Runtime Control' }, { title }] : [{ title: 'Response Code' }, { title: detailView ? 'External->Internal' : title }, ...(detailView ? [{ title }] : [])])]} style={{ marginBottom: 12 }} />
+          <Breadcrumb items={[{ title: channelCode }, ...(runtimeDetailView ? [{ title: 'Runtime Control' }, { title: runtimeDetailView.kind === 'route-matching' ? 'Route Matching' : 'Flow Groups' }, { title }] : isCapabilityFeatures ? [{ title: 'Capability' }, { title: 'Features' }] : isCapability ? [{ title: 'Capability' }] : isInstitution ? [{ title: 'Institution' }] : isChain ? [{ title: 'Chain' }] : isAssetRoute ? [{ title: 'Asset Route' }] : isRequery ? [{ title: 'Requery Strategy' }] : isServiceChannel ? [{ title: 'Service Channel' }] : isRuntimeRouteMatching || isRuntimeFlowGroups ? [{ title: 'Runtime Control' }, { title }] : [{ title: 'Response Code' }, { title: detailView ? 'External->Internal' : title }, ...(detailView ? [{ title }] : [])])]} style={{ marginBottom: 12 }} />
           <Space align="center" style={{ marginBottom: 18 }}>
             <Typography.Title level={3} style={{ margin: 0 }}>{title}</Typography.Title>
             {applied && <Tag color="green" style={{ fontSize: 14, padding: '4px 10px' }}>{applied.cloud} - {applied.env}</Tag>}

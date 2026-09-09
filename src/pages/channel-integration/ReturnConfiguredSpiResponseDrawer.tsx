@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Badge, Button, Cascader, Drawer, Dropdown, Input, Select, Space, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd';
+import { Alert, Badge, Button, Card, Cascader, Drawer, Dropdown, Form, Input, Select, Space, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd';
 import type { MenuProps } from 'antd';
 import { ArrowRightOutlined, CaretDownOutlined, CaretRightOutlined, DeleteOutlined, DownOutlined, MinusSquareOutlined, PlusOutlined, PlusSquareOutlined } from '@ant-design/icons';
 import type { VariableItem } from './channelScopeStore';
@@ -8,7 +8,7 @@ const { Text } = Typography;
 type ValueSource = 'flowContext' | 'globalVariable' | 'orderVariable' | 'fixedValue';
 type AssignmentSource = 'contextFields' | 'generatedData' | 'fixedValue';
 type MappingValue = { source: ValueSource; value: string };
-type Assignment = { id: string; source: AssignmentSource; value: string | string[]; operation?: string[]; target: string };
+type Assignment = { id: string; source: AssignmentSource; value: string | string[]; sourceType?: string; operation?: string[]; target: string };
 type ResponseField = { name: string; type: string; children?: ResponseField[] };
 
 const RESPONSE_FIELDS: ResponseField[] = [
@@ -45,10 +45,10 @@ const SUB_STATES = [
 ];
 const isContainer = (field: ResponseField) => ['Object', 'Array'].includes(field.type);
 const collectContainerPaths = (fields: ResponseField[], parent = ''): string[] => fields.flatMap((field) => { const path = parent ? `${parent}.${field.name}` : field.name; return isContainer(field) ? [path, ...collectContainerPaths(field.children ?? [], path)] : []; });
-const isMappablePath = (path: string) => ['result.channelResponseCode', 'result.channelResponseMsg'].includes(path) || path.startsWith('extraResponse.');
+const isMappablePath = (path: string) => path.startsWith('extraResponse.');
 const DEFAULT_COLLAPSED_PATHS = new Set(['route', 'capability', 'identity']);
 
-export type ConfiguredSpiResponseConfig = { subState: string; responseCode: string; mainState: string; assignments: Assignment[]; mappings: Record<string, MappingValue> };
+export type ConfiguredSpiResponseConfig = { subState: string; responseCode: string; mainState: string; channelResponseCode?: string; channelResponseMsg?: string; assignments: Assignment[]; mappings: Record<string, MappingValue> };
 
 export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariables, orderVariables, initialValues, readOnly, onClose, onSave }: {
   open: boolean;
@@ -61,6 +61,8 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
 }) {
   const [subState, setSubState] = useState<string>();
   const [responseCode, setResponseCode] = useState<string>();
+  const [channelResponseCode, setChannelResponseCode] = useState('');
+  const [channelResponseMsg, setChannelResponseMsg] = useState('');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [mappings, setMappings] = useState<Record<string, MappingValue>>({});
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(() => new Set(DEFAULT_COLLAPSED_PATHS));
@@ -72,7 +74,7 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
   const assignmentHasValue = (item: Assignment) => Boolean(assignmentValue(item).trim());
   const assignmentStatus = assignments.length === 0
     ? 'default'
-    : assignments.every((item) => assignmentHasValue(item) && item.target) && new Set(assignmentTargets).size === assignmentTargets.length ? 'success' : 'error';
+    : assignments.every((item) => assignmentHasValue(item) && item.target && (item.source !== 'fixedValue' || item.sourceType)) && new Set(assignmentTargets).size === assignmentTargets.length ? 'success' : 'error';
   const orderResultStatus = subState && responseCode && mainState ? 'success' : 'error';
   const mappingItems = Object.values(mappings);
   const responseMappingStatus = mappingItems.length === 0 ? 'default' : mappingItems.every((item) => item.value.trim()) ? 'success' : 'error';
@@ -82,6 +84,8 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
     const saved = initialValues as (ConfiguredSpiResponseConfig & { valueSource?: ValueSource; mappings?: Record<string, MappingValue | string> }) | undefined;
     setSubState(saved?.subState);
     setResponseCode(saved?.responseCode);
+    setChannelResponseCode(saved?.channelResponseCode ?? '');
+    setChannelResponseMsg(saved?.channelResponseMsg ?? '');
     setAssignments((saved?.assignments ?? []).map((item) => ({ ...item, source: ['contextFields', 'generatedData', 'fixedValue'].includes(item.source) ? item.source : item.source === 'fixedValue' ? 'fixedValue' : 'contextFields', value: Array.isArray(item.value) ? item.value : item.source === 'fixedValue' ? item.value : item.value ? ['_order', item.value] : [] })) as Assignment[]);
     setMappings(Object.fromEntries(Object.entries(saved?.mappings ?? {}).map(([path, item]) => [path, typeof item === 'string' ? { source: saved?.valueSource ?? 'globalVariable', value: item } : item])));
     setCollapsedPaths(new Set(DEFAULT_COLLAPSED_PATHS));
@@ -89,10 +93,10 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
 
   const save = () => {
     if (!subState || !responseCode || !mainState) return void message.error('Configure Gateway Sub State and Response Code before saving.');
-    if (assignments.some((item) => !assignmentHasValue(item) || !item.target)) return void message.error('Complete or remove unfinished Order Variable assignments.');
+    if (assignments.some((item) => !assignmentHasValue(item) || !item.target || (item.source === 'fixedValue' && !item.sourceType))) return void message.error('Complete or remove unfinished Order Variable assignments.');
     const targets = assignments.map((item) => item.target);
     if (new Set(targets).size !== targets.length) return void message.error('An Order Variable can only be assigned once in this component.');
-    onSave({ subState, responseCode, mainState, assignments, mappings: Object.fromEntries(Object.entries(mappings).filter(([, item]) => item.value.trim())) });
+    onSave({ subState, responseCode, mainState, channelResponseCode: channelResponseCode.trim() || undefined, channelResponseMsg: channelResponseMsg.trim() || undefined, assignments, mappings: Object.fromEntries(Object.entries(mappings).filter(([, item]) => item.value.trim())) });
   };
   const sourceKind = (value: string): AssignmentSource => value.startsWith('generated.') ? 'generatedData' : value.startsWith('_') ? 'contextFields' : 'fixedValue';
   const mappingSourceKind = (value: string): ValueSource => value.startsWith('_globalVariable.') ? 'globalVariable' : value.startsWith('_orderVariable.') ? 'orderVariable' : value.startsWith('_') || value.startsWith('generated.') ? 'flowContext' : 'fixedValue';
@@ -106,8 +110,10 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
     { key: 'generated-data', label: 'Generated Data', children: GENERATED_DATA_OPTIONS.map((group) => ({ key: `generated.${group.value}`, label: group.label, children: group.children.map((item) => ({ key: `generated.${group.value}.${item.value}`, label: item.label })) })) },
     { key: 'fixed-value', label: 'Fixed Value — type directly', disabled: true },
   ];
-  const sourceValueControl = (value: string, onChange: (value: string) => void, includeOrderVariable = false) => <Dropdown trigger={['click']} menu={{ items: sourceMenuItems(includeOrderVariable), onClick: ({ key }) => onChange(key) }}><Input size="small" disabled={readOnly} value={value} placeholder="Select or enter a source value" suffix={<DownOutlined style={{ color: '#8c8c8c', fontSize: 10 }} />} onChange={(event) => onChange(event.target.value)} /></Dropdown>;
-  const assignmentValueType = (item: Assignment) => assignmentValue(item).startsWith('generated.date.') ? 'Long' : 'String';
+  const sourceValueControl = (value: string, onChange: (value: string, selected: boolean) => void, includeOrderVariable = false) => <Dropdown trigger={['click']} menu={{ items: sourceMenuItems(includeOrderVariable), onClick: ({ key }) => onChange(key, true) }}><Input size="small" disabled={readOnly} value={value} placeholder="Select or enter a source value" suffix={<DownOutlined style={{ color: '#8c8c8c', fontSize: 10 }} />} onChange={(event) => onChange(event.target.value, false)} /></Dropdown>;
+  const inferredAssignmentValueType = (value: string) => value.startsWith('generated.date.') ? 'Long' : 'String';
+  const assignmentValueType = (item: Assignment) => item.source === 'fixedValue' ? item.sourceType : inferredAssignmentValueType(assignmentValue(item));
+  const dataTypeOptions = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean'].map((value) => ({ value, label: value }));
   const columnTitle = (label: string) => <span style={{ fontSize: 11, fontWeight: 400 }}>{label}</span>;
   const tabLabel = (label: string, status?: 'success' | 'error') => <Space size={8}><span>{label}</span>{status && <Badge status={status} />}</Space>;
   const columns = 'minmax(340px, 1fr) 42px minmax(300px, 1fr) 100px';
@@ -117,10 +123,10 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
     const mappable = !container && isMappablePath(path);
     const collapsed = collapsedPaths.has(path);
     const mapping = mappings[path] ?? { source: 'globalVariable' as ValueSource, value: '' };
-    const systemValue = path === 'result.status' ? (mainState ?? 'Derived from Main State') : path === 'result.responseCode' ? (responseCode ?? 'Selected in Response Code') : path === 'result.responseMsg' ? (RESPONSE_CODES.find((item) => item.value === responseCode)?.message ?? 'Derived from Response Code') : '';
+    const systemValue = path === 'result.status' ? (mainState ?? 'Derived from Main State') : path === 'result.responseCode' ? (responseCode ?? 'Selected in Response Code') : path === 'result.responseMsg' ? (RESPONSE_CODES.find((item) => item.value === responseCode)?.message ?? 'Derived from Response Code') : path === 'result.channelResponseCode' ? (channelResponseCode || 'Optional, configured in Response Code') : path === 'result.channelResponseMsg' ? (channelResponseMsg || 'Optional, configured in Response Code') : '';
     return <div key={path}>
       <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', minHeight: 48, padding: '6px 12px', borderTop: '1px solid #f0f0f0', background: container ? '#fafafa' : '#fff' }}>
-        {mappable ? sourceValueControl(mapping.value, (value) => setMappings((current) => ({ ...current, [path]: { source: mappingSourceKind(value), value } })), true) : <Text type="secondary">{systemValue}</Text>}
+        {mappable ? sourceValueControl(mapping.value, (value, selected) => setMappings((current) => ({ ...current, [path]: { source: selected ? mappingSourceKind(value) : 'fixedValue', value } })), true) : <Text type="secondary">{systemValue}</Text>}
         {mappable ? <ArrowRightOutlined style={{ color: '#8c8c8c', justifySelf: 'center' }} /> : <span />}
         <div style={{ display: 'flex', alignItems: 'center', paddingLeft: depth * 20 }}>{container ? <Button type="text" size="small" icon={collapsed ? <CaretRightOutlined /> : <CaretDownOutlined />} onClick={() => setCollapsedPaths((current) => { const next = new Set(current); if (next.has(path)) next.delete(path); else next.add(path); return next; })} /> : <span style={{ width: 32 }} />}<Text strong={container}>{field.name}</Text></div>
         <Text>{field.type}</Text>
@@ -129,7 +135,7 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
     </div>;
   };
 
-  return <Drawer title="Direct SPI Response" width={1160} open={open} onClose={onClose} extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={save}>Save</Button></Space>}>
+  return <Drawer title="Direct Response" width={1160} open={open} onClose={onClose} extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={save}>Save</Button></Space>}>
     <Alert type="info" showIcon message="Complete the current Flow and return an SPI response without sending an external request." style={{ marginBottom: 16 }} />
     <Tabs items={[
       {
@@ -138,8 +144,8 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
         children: <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#fafafa', borderBottom: '1px solid #e8e8e8', fontSize: 12 }}><Space size={6}><Text strong style={{ fontSize: 12 }}>Value to Order Variable Mapping</Text><Tag style={{ margin: 0, fontSize: 11 }}>{assignments.length} fields</Tag></Space>{!readOnly && <Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => setAssignments((items) => [...items, { id: `assignment-${Date.now()}`, source: 'contextFields', value: [], target: '' }])}>Add Mapping</Button>}</div>
           <Table size="small" style={{ fontSize: 12 }} pagination={false} rowKey="id" dataSource={assignments} locale={{ emptyText: 'No mappings configured.' }} columns={[
-            { title: columnTitle('SOURCE VALUE'), width: 260, render: (_, record) => sourceValueControl(assignmentValue(record), (value) => setAssignments((items) => items.map((item) => item.id === record.id ? { ...item, source: sourceKind(value), value } : item))) },
-            { title: columnTitle('SOURCE TYPE'), width: 82, render: (_, record) => <Text style={{ fontSize: 12 }}>{assignmentValueType(record)}</Text> },
+            { title: columnTitle('SOURCE VALUE'), width: 260, render: (_, record) => sourceValueControl(assignmentValue(record), (value, selected) => setAssignments((items) => items.map((item) => item.id === record.id ? { ...item, source: selected ? sourceKind(value) : 'fixedValue', value, sourceType: selected ? inferredAssignmentValueType(value) : undefined } : item))) },
+            { title: columnTitle('SOURCE TYPE'), width: 100, render: (_, record) => record.source === 'fixedValue' ? <Select size="small" disabled={readOnly} value={record.sourceType} placeholder="Select type" options={dataTypeOptions} onChange={(sourceType) => setAssignments((items) => items.map((item) => item.id === record.id ? { ...item, sourceType } : item))} /> : <Text style={{ fontSize: 12 }}>{assignmentValueType(record)}</Text> },
             { title: '', width: 24, render: () => <ArrowRightOutlined style={{ color: '#8c8c8c', fontSize: 11 }} /> },
             { title: columnTitle('OPERATION'), width: 135, render: (_, record) => <Cascader size="small" allowClear disabled={readOnly} value={record.operation} placeholder="Optional" options={ASSIGNMENT_OPERATION_OPTIONS} onChange={(operation) => setAssignments((items) => items.map((item) => item.id === record.id ? { ...item, operation: operation.map(String) } : item))} /> },
             { title: '', width: 24, render: () => <ArrowRightOutlined style={{ color: '#8c8c8c', fontSize: 11 }} /> },
@@ -152,11 +158,17 @@ export default function ReturnConfiguredSpiResponseDrawer({ open, globalVariable
       {
         key: 'order-result',
         label: tabLabel('Response Code', orderResultStatus),
-        children: <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, paddingTop: 8 }}><div><Text strong>Gateway Sub State</Text><Select style={{ width: '100%', marginTop: 8 }} disabled={readOnly} value={subState} placeholder="Select Gateway Sub State" options={SUB_STATES.map((item) => ({ value: item.value }))} onChange={(value) => { setSubState(value); const nextMainState = SUB_STATES.find((item) => item.value === value)?.mainState; if (RESPONSE_CODES.find((item) => item.value === responseCode)?.mainState !== nextMainState) setResponseCode(undefined); }} /></div><div><Text strong>Main State</Text><Input style={{ marginTop: 8 }} disabled value={mainState} placeholder="Derived from Gateway Sub State" /></div><div><Text strong>Response Code</Text><Select style={{ width: '100%', marginTop: 8 }} disabled={readOnly || !mainState} value={responseCode} placeholder={mainState ? 'Select Response Code' : 'Select Gateway Sub State first'} options={availableResponseCodes} onChange={setResponseCode} /></div></div>,
+        children: <Card size="small"><Form layout="vertical" style={{ maxWidth: 720 }}>
+          <Form.Item label="Gateway Sub State" required><Select style={{ width: '100%' }} disabled={readOnly} value={subState} placeholder="Select Gateway Sub State" options={SUB_STATES.map((item) => ({ value: item.value }))} onChange={(value) => { setSubState(value); const nextMainState = SUB_STATES.find((item) => item.value === value)?.mainState; if (RESPONSE_CODES.find((item) => item.value === responseCode)?.mainState !== nextMainState) setResponseCode(undefined); }} /></Form.Item>
+          <Form.Item label="Main State" required><Input disabled value={mainState} placeholder="Derived from Gateway Sub State" /></Form.Item>
+          <Form.Item label="Response Code" required><Select style={{ width: '100%' }} disabled={readOnly || !mainState} value={responseCode} placeholder={mainState ? 'Select Response Code' : 'Select Gateway Sub State first'} options={availableResponseCodes} onChange={setResponseCode} /></Form.Item>
+          <Form.Item label="Channel Response Code"><Input disabled={readOnly} value={channelResponseCode} placeholder="Optional" onChange={(event) => setChannelResponseCode(event.target.value)} /></Form.Item>
+          <Form.Item label="Channel Response Message" style={{ marginBottom: 0 }}><Input disabled={readOnly} value={channelResponseMsg} placeholder="Optional" onChange={(event) => setChannelResponseMsg(event.target.value)} /></Form.Item>
+        </Form></Card>,
       },
       {
         key: 'spi-response-mapping',
-        label: tabLabel('SPI Response Mapping', responseMappingStatus === 'default' ? undefined : responseMappingStatus),
+        label: tabLabel('Response Mapping', responseMappingStatus === 'default' ? undefined : responseMappingStatus),
         children: <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}><div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: '#fafafa' }}><Tag>{Object.values(mappings).filter((item) => item.value.trim()).length} mapped</Tag><Space><Tooltip title="Expand all"><Button size="small" icon={<PlusSquareOutlined />} onClick={() => setCollapsedPaths(new Set())} /></Tooltip><Tooltip title="Collapse all"><Button size="small" icon={<MinusSquareOutlined />} onClick={() => setCollapsedPaths(new Set(containerPaths))} /></Tooltip></Space></div><div style={{ overflowX: 'auto' }}><div style={{ minWidth: 900 }}><div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '8px 12px', background: '#fcfcfc', color: '#8c8c8c', fontSize: 11 }}><span>SOURCE VALUE</span><span /><span>SPI RESPONSE FIELD</span><span>TYPE</span></div>{RESPONSE_FIELDS.map((field) => renderField(field))}</div></div></div>,
       },
     ]} />

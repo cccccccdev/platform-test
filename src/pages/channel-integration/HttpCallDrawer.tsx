@@ -7,10 +7,12 @@ import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import PathVariableMappingEditor from './PathVariableMappingEditor';
+import type { PathSourceOption } from './PathVariableMappingEditor';
 import { collectFieldTargetMappings, normalizeTargetMappings, validateTargetMappings } from './TargetMappingList';
 import { fallbackStateOptionsFor } from './stateMachineStateOptions';
+import { isSubOrderModeEnabled } from '../basic-info/capability/subOrderModeStore';
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 const types = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
 const flatTypes = types.filter((option) => !['Object', 'Array'].includes(option.value));
 const formats = ['Custom', 'FORM_DATA', 'JSON', 'X_WWW_FORM_URLENCODED', 'XML'].map((value) => ({ label: value, value }));
@@ -70,6 +72,15 @@ const responseMessageScriptHelp = `/**
 const collectBodyOptions = (nodes: BodySchemaNode[], parent = ''): Array<{ label: string; value: string }> => nodes.flatMap((node) => {
   const path = parent ? `${parent}.${node.name}` : node.name;
   return ['Object', 'Array'].includes(node.type) ? collectBodyOptions(node.children ?? [], path) : [{ label: path, value: path }];
+});
+
+type ScopedBodyField = { label: string; value: string; scope: string };
+const collectArrayItemFields = (nodes: BodySchemaNode[], parent = '', insideArray = false): ScopedBodyField[] => nodes.flatMap((node) => {
+  const rawPath = parent ? `${parent}.${node.name}` : node.name;
+  const displayPath = rawPath.replace(/\._items(?=\.|$)/g, '[*]');
+  const nextInsideArray = insideArray || node.type === 'Array';
+  if (['Object', 'Array'].includes(node.type)) return collectArrayItemFields(node.children ?? [], rawPath, nextInsideArray);
+  return insideArray ? [{ label: displayPath, value: rawPath, scope: parent }] : [];
 });
 
 const Dot = ({ color }: { color: string }) => <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 7, background: color }} />;
@@ -145,11 +156,13 @@ type Props = {
   readOnly?: boolean;
   channelMerchantInfoAvailable?: boolean;
   stateMachine?: string;
+  businessType?: string;
+  ability?: string;
   onClose: () => void;
   onSave: (config: Record<string, unknown>) => void;
 };
 
-export default function HttpCallDrawer({ open, channelCode, initialValues = {}, readOnly = false, channelMerchantInfoAvailable = false, stateMachine = '', onClose, onSave }: Props) {
+export default function HttpCallDrawer({ open, channelCode, initialValues = {}, readOnly = false, channelMerchantInfoAvailable = false, stateMachine = '', businessType = '', ability = '', onClose, onSave }: Props) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('request');
   const [, force] = useState(0);
@@ -159,6 +172,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   const orders = store.orderVariablesByChannel[channelCode] ?? [];
   const auth = store.authenticationsByChannel[channelCode] ?? [];
   const endpoints = store.outboundEndpointsByChannel[channelCode] ?? [];
+  const subOrderModeEnabled = Boolean(businessType && ability && isSubOrderModeEnabled(businessType, ability));
   const spiRequest = channelCode === 'EVEXIN'
     ? ['content', 'mobileNumber', 'requestReference', 'responseReference']
     : ['amount', 'currency', 'reference', 'customerId', 'accountNumber', 'bankCode', 'timestamp'];
@@ -167,6 +181,68 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
     : ['responseCode', 'responseMessage', 'status', 'channelReference', 'amount', 'currency', 'customerId'];
   const requestTypes: Record<string, string> = { amount: 'BigDecimal', timestamp: 'Long' };
   const responseTypes: Record<string, string> = { amount: 'BigDecimal' };
+  const subOrderResponseFields = [
+    { path: 'feature.featureField', type: 'String' },
+    { path: 'feature.featureValue', type: 'String' },
+    { path: 'identity.responseReference', type: 'String' },
+    { path: 'extraResponse.sendTime', type: 'String' },
+    { path: 'extraResponse.sender', type: 'String' },
+    { path: 'extraResponse.deliveryTime', type: 'String' },
+    { path: 'result.status', type: 'String' },
+    { path: 'result.responseCode', type: 'String' },
+    { path: 'result.responseMsg', type: 'String' },
+    { path: 'result.channelResponseCode', type: 'String' },
+    { path: 'result.channelResponseMsg', type: 'String' },
+  ];
+  const subOrderListOption: MappingOption = {
+    label: 'subOrderList',
+    value: '_order.subOrderList',
+    type: 'Array',
+    children: [{
+      label: '_items',
+      value: '_order.subOrderList._items',
+      type: 'Object',
+      children: [
+        { label: 'feature', value: '_order.subOrderList._items.feature', type: 'Object', children: [
+          { label: 'featureField', value: '_order.subOrderList._items.feature.featureField', type: 'String' },
+          { label: 'featureValue', value: '_order.subOrderList._items.feature.featureValue', type: 'String' },
+        ] },
+        { label: 'identity', value: '_order.subOrderList._items.identity', type: 'Object', children: [
+          { label: 'requestReference', value: '_order.subOrderList._items.identity.requestReference', type: 'String' },
+          { label: 'responseReference', value: '_order.subOrderList._items.identity.responseReference', type: 'String' },
+        ] },
+        { label: 'extraRequest', value: '_order.subOrderList._items.extraRequest', type: 'Object', children: [
+          { label: 'content', value: '_order.subOrderList._items.extraRequest.content', type: 'String' },
+        ] },
+        { label: 'result', value: '_order.subOrderList._items.result', type: 'Object', children: [
+          { label: 'status', value: '_order.subOrderList._items.result.status', type: 'String' },
+          { label: 'responseCode', value: '_order.subOrderList._items.result.responseCode', type: 'String' },
+          { label: 'responseMsg', value: '_order.subOrderList._items.result.responseMsg', type: 'String' },
+          { label: 'channelResponseCode', value: '_order.subOrderList._items.result.channelResponseCode', type: 'String' },
+          { label: 'channelResponseMsg', value: '_order.subOrderList._items.result.channelResponseMsg', type: 'String' },
+        ] },
+        { label: 'extraResponse', value: '_order.subOrderList._items.extraResponse', type: 'Object', children: [
+          { label: 'sendTime', value: '_order.subOrderList._items.extraResponse.sendTime', type: 'String' },
+          { label: 'sender', value: '_order.subOrderList._items.extraResponse.sender', type: 'String' },
+          { label: 'deliveryTime', value: '_order.subOrderList._items.extraResponse.deliveryTime', type: 'String' },
+        ] },
+      ],
+    }],
+  };
+  const orderContextOption: MappingOption = {
+    label: '_order',
+    value: '_order',
+    type: 'Object',
+    children: [
+      { label: 'route', value: '_order.route', type: 'Object', children: ['channel', 'serviceChannel', 'country', 'tenant', 'party', 'institution'].map((name) => ({ label: name, value: `_order.route.${name}`, type: 'String' })) },
+      { label: 'capability', value: '_order.capability', type: 'Object', children: ['businessType', 'action', 'ability', 'service'].map((name) => ({ label: name, value: `_order.capability.${name}`, type: 'String' })) },
+      { label: 'identity', value: '_order.identity', type: 'Object', children: ['routeOrderId', 'origRouteOrderId', 'requestReference', 'responseReference', 'channelOrderId', 'sessionId'].map((name) => ({ label: name, value: `_order.identity.${name}`, type: name.toLowerCase().includes('orderid') ? 'Long' : 'String' })) },
+      { label: 'extraRequest', value: '_order.extraRequest', type: 'Object', children: ['mobileNumberList', 'content', 'sender'].map((name) => ({ label: name, value: `_order.extraRequest.${name}`, type: name === 'mobileNumberList' ? 'Array' : 'String' })) },
+      ...(subOrderModeEnabled ? [subOrderListOption] : []),
+      { label: 'result', value: '_order.result', type: 'Object', children: ['status', 'responseCode', 'responseMsg', 'channelResponseCode', 'channelResponseMsg'].map((name) => ({ label: name, value: `_order.result.${name}`, type: 'String' })) },
+      { label: 'extraResponse', value: '_order.extraResponse', type: 'Object', children: ['sendTime', 'sender', 'deliveryTime'].map((name) => ({ label: name, value: `_order.extraResponse.${name}`, type: 'String' })) },
+    ],
+  };
   const requestContextOptions = [
     { label: 'SPI Request', options: spiRequest.map(v => ({ label: v, value: `spi.request.${v}`, type: requestTypes[v] ?? 'String' })) },
     { label: 'Global Variables', options: globals.map(v => ({ label: v.name, value: `global.${v.name}`, type: 'String' })) },
@@ -175,28 +251,42 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
     ...(channelMerchantInfoAvailable ? [{ label: 'Channel Merchant Info', options: [{ label: 'channelMerchantId', value: 'channelMerchantInfo.channelMerchantId', type: 'String' }] }] : []),
   ];
   const requestValueOptions = [
+    { label: 'Context Fields', options: [orderContextOption] },
     ...requestContextOptions,
     { label: 'Generated Data', options: generated },
   ];
   const responseContextOptions = [
     { label: 'SPI Response', options: spiResponse.map(v => ({ label: v, value: `spi.response.${v}`, type: responseTypes[v] ?? 'String' })) },
+    ...(subOrderModeEnabled ? [{
+      label: 'SPI Response · subOrderList[*]',
+      options: subOrderResponseFields.map(({ path, type }) => ({
+        label: path,
+        value: `spi.response.subOrderList._items.${path}`,
+        type,
+      })),
+    }] : []),
     { label: 'Global Variables', options: globals.map(v => ({ label: v.name, value: `global.${v.name}`, type: 'String' })) },
     { label: 'Order Variables', options: orders.map(v => ({ label: v.name, value: `order.${v.name}`, type: 'String' })) },
   ];
-  const pathSourceOptions = [
+  const pathOrderContextOption = orderContextOption as PathSourceOption['children'][number];
+  const pathSourceOptions: PathSourceOption[] = [
+    { label: 'Context Fields', value: 'contextFields', children: [pathOrderContextOption] },
     ...requestContextOptions.map((group) => ({ label: group.label, value: group.label, children: group.options.map(({ label, value, type }) => ({ label, value, type })) })),
     { label: 'Generated Data', value: 'generated', children: generated },
   ];
   const requestOrderSourceOptions: MappingOption[] = [
     { label: 'Context Fields', value: 'contextFields', children: [
-      { label: '_order', value: '_order', children: spiRequest.map(v => ({ label: v, value: `_order.${v}`, type: requestTypes[v] ?? 'String' })) },
+      orderContextOption,
       { label: '_globalVariable', value: '_globalVariable', children: globals.map(v => ({ label: v.name, value: `_globalVariable.${v.name}`, type: 'String' })) },
       { label: '_credential', value: '_credential', children: credentials.map(v => ({ label: v.key, value: `_credential.${v.key}`, type: 'String' })) },
     ] },
     { label: 'Generated Data', value: 'generatedData', children: generated },
   ];
   const spiResponseTargetOptions: MappingOption[] = [
-    { label: '_order', value: '_order', children: spiResponse.map(v => ({ label: v, value: `_order.${v}`, type: responseTypes[v] ?? 'String' })) },
+    { label: '_order', value: '_order', children: [
+      ...spiResponse.map(v => ({ label: v, value: `_order.${v}`, type: responseTypes[v] ?? 'String' })),
+      ...(subOrderModeEnabled ? [subOrderListOption] : []),
+    ] },
   ];
   const globalOptions = globals.map(v => ({ label: `${v.name} · ${v.value}`, value: v.name, type: 'String' }));
   const orderOptions = orders.map(v => ({ label: v.name, value: v.name, type: 'String' }));
@@ -206,7 +296,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   const responseFormat = Form.useWatch('responseFormat', form) ?? 'JSON';
   const watchedValues = Form.useWatch([], form) ?? {};
   const initialEndpoint = endpoints.find((endpoint) => endpoint.id === initialValues.endpointId) ?? endpoints.find((endpoint) => endpoint.path === initialValues.path);
-  const initialFormValues = { protocol: initialEndpoint?.protocol ?? 'HTTP', method: initialEndpoint?.method, path: initialEndpoint?.path, endpointId: initialEndpoint?.id, endpointVersion: initialEndpoint?.version, requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all', ...initialValues };
+  const initialFormValues = { protocol: initialEndpoint?.protocol ?? 'HTTP', method: initialEndpoint?.method, path: initialEndpoint?.path, endpointId: initialEndpoint?.id, endpointVersion: initialEndpoint?.version, requestMappingMode: 'configuration', responseMappingMode: 'configuration', requestFormat: 'JSON', responseFormat: 'JSON', authDestination: 'default', responseFallback: 'FAIL', responseCodeMode: 'default', bodyFieldMode: 'all', subOrderMappingEnabled: false, ...initialValues };
   const allValues = { ...initialFormValues, ...form.getFieldsValue(true), ...watchedValues } as Record<string, any>;
   const selectedEndpoint = endpoints.find((endpoint) => endpoint.id === allValues.endpointId);
   const requestBody = allValues.requestBody as BodySchemaNode[] | undefined;
@@ -221,6 +311,18 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   const decryptionEnabled = Form.useWatch('decryptionEnabled', form);
   const responseCodeMode = Form.useWatch('responseCodeMode', form) ?? 'default';
   const responseFallback = Form.useWatch('responseFallback', form);
+  const subOrderMappingEnabled = Boolean(Form.useWatch('subOrderMappingEnabled', form));
+  const subOrderFeatureValueField = Form.useWatch('subOrderFeatureValueField', form);
+  const arrayItemFields = collectArrayItemFields(responseBody ?? []);
+  const featureValueOptions = arrayItemFields.map(({ label, value }) => ({ label, value }));
+  const selectedFeatureScope = arrayItemFields.find((field) => field.value === subOrderFeatureValueField)?.scope;
+  const sameLevelResponseFields = arrayItemFields
+    .filter((field) => field.scope === selectedFeatureScope)
+    .map(({ label, value }) => ({ label, value }));
+  const subOrderAssemblyOptions = [
+    { label: 'HTTP Status Code', value: 'httpStatus' },
+    ...sameLevelResponseFields,
+  ];
   const fallbackSubStates = useMemo(() => fallbackStateOptionsFor(stateMachine), [stateMachine]);
   const matchingFallbackSubStates = fallbackSubStates.filter((item) => item.mainState === responseFallback);
   const path = allValues.path ?? '';
@@ -274,7 +376,15 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
       if (allValues.responseFormat === 'Custom' && !hasValue(allValues.responseMessageScript)) return 'error';
       return 'ok';
     }
-    if (key === 'responseCode') return hasValue(allValues.responseFallback) && hasValue(allValues.responseFallbackSubState) && (responseCodeMode === 'custom' ? hasValue(allValues.responseCodeScript) : hasRows(allValues.responseCodeAssembly)) ? 'ok' : 'error';
+    if (key === 'responseCode') {
+      const parentComplete = hasValue(allValues.responseFallback) && hasValue(allValues.responseFallbackSubState) && (responseCodeMode === 'custom' ? hasValue(allValues.responseCodeScript) : hasRows(allValues.responseCodeAssembly));
+      const subOrderComplete = !subOrderModeEnabled || !subOrderMappingEnabled || (
+        hasValue(allValues.subOrderComponentInstance)
+        && hasValue(allValues.subOrderFeatureValueField)
+        && hasRows(allValues.subOrderResponseCodeAssembly)
+      );
+      return parentComplete && subOrderComplete ? 'ok' : 'error';
+    }
     if (key === 'request') return mergeTabStates([state('requestFields'), state('authorization'), state('requestSecurity'), state('requestFormat')]);
     if (key === 'response') return mergeTabStates([state('responseFormat'), state('responseFields'), state('responseSecurity'), state('responseCode')]);
     return 'empty';
@@ -338,7 +448,41 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
             { key: 'order-variable', label: tabLabel('Order Variable', state('responseOrderMappings')), children: <OrderVariableMapping targetCascader name="responseOrderMappings" title="Order Variable to SPI Mapping" sourceLabel="ORDER VARIABLE" targetLabel="SPI VALUE" sourceOptions={orderOptions} targetOptions={spiResponseTargetOptions} /> },
           ]} />{responseMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="responseMappingScript" helpText={responseScriptHelp} /></Card>}</> },
           { key: 'response-security', label: tabLabel('Security', state('responseSecurity')), children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('response').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('response').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
-          { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small"><Form.Item name="responseFallback" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('responseFallbackSubState', undefined)} /></Form.Item><Form.Item label="Main State"><Input disabled value={responseFallback ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item><Form.Item name="responseFallbackSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!responseFallback} placeholder={responseFallback ? `Select a ${responseFallback} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item><Form.Item name="responseCodeMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{responseCodeMode === 'custom' ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." /> : <><Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select in assembly order" options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, ...responseBodyOptions.map((option) => ({ label: `Response Body / ${option.label}`, value: `responseBody.${option.value}` }))]} /></Form.Item><Form.Item name="responseMessageField" label="Response Message Field"><Input placeholder="Optional response field path" /></Form.Item></>}</Card> },
+          { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small">
+            <Title level={5}>Response Code Mapping</Title>
+            <Form.Item name="responseFallback" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('responseFallbackSubState', undefined)} /></Form.Item>
+            <Form.Item label="Main State"><Input disabled value={responseFallback ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item>
+            <Form.Item name="responseFallbackSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!responseFallback} placeholder={responseFallback ? `Select a ${responseFallback} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item>
+            <Form.Item name="responseCodeMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>
+            {responseCodeMode === 'custom'
+              ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." />
+              : <>
+                <Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select in assembly order" options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, ...responseBodyOptions.map((option) => ({ label: `Response Body / ${option.label}`, value: `responseBody.${option.value}` }))]} /></Form.Item>
+                <Form.Item name="responseMessageField" label="Response Message Field"><Input placeholder="Optional response field path" /></Form.Item>
+              </>}
+            {subOrderModeEnabled && <>
+              <Form.Item name="subOrderMappingEnabled" label="Enable Mapping" valuePropName="checked" required><Switch /></Form.Item>
+              {subOrderMappingEnabled && <div className="http-sub-order-code-mapping">
+                <Title level={5}>Sub Order Response Code Mapping</Title>
+                <Form.Item name="subOrderComponentInstance" label="Component Instance" rules={[{ required: true }]}><Select placeholder="Select Instance" options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} /></Form.Item>
+                <Form.Item name="subOrderFeatureValueField" label="featureValue Field" rules={[{ required: true }]}>
+                  <Select
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="Select featureValue field"
+                    options={featureValueOptions}
+                    onChange={() => form.setFieldsValue({ subOrderResponseCodeAssembly: undefined, subOrderResponseMessageField: undefined })}
+                  />
+                </Form.Item>
+                <Form.Item name="subOrderResponseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}>
+                  <Select mode="multiple" disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select same-level fields in assembly order' : 'Select featureValue Field first'} options={subOrderAssemblyOptions} />
+                </Form.Item>
+                <Form.Item name="subOrderResponseMessageField" label="Response Message Field">
+                  <Select allowClear disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select a same-level response message field' : 'Select featureValue Field first'} options={sameLevelResponseFields} />
+                </Form.Item>
+              </div>}
+            </>}
+          </Card> },
         ]} /> },
       ]} />
     </Form></div>

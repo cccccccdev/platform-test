@@ -136,7 +136,7 @@ export const mockInboundEndpointsByChannel = {
       version: '20260703095237',
       configStatus: 'DAILY' as const,
       badges: [{ cloud: 'ALIYUN', env: 'DAILY' }],
-      referenceCount: 1,
+      referenceCount: 2,
       updatedTime: '2026-07-03 09:52:37',
       operator: 'Bailly',
     },

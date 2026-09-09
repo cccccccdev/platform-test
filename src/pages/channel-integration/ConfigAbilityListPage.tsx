@@ -41,10 +41,12 @@ const linkedStateMachines: Record<string, string[]> = {
 };
 
 const integrationRecordOptions: Record<string, Array<{ label: string; value: string }>> = {
-  'WALLET_DEBIT:TRANSFER': [{ label: 'IR-000128 - TMUL Wallet Debit Initial Integration', value: 'IR-000128' }],
-  'COLLECTION:CARD_PAY': [{ label: 'IR-000086 - Card Collection Integration', value: 'IR-000086' }],
-  'COLLECTION:USSD_PAY': [{ label: 'IR-000094 - USSD Collection Integration', value: 'IR-000094' }],
-  'DISBURSEMENT:BANK_TRF': [{ label: 'IR-000103 - Bank Transfer Payout Integration', value: 'IR-000103' }],
+  WALLET_DEBIT: [{ label: 'IR-000128 - TMUL Wallet Debit Initial Integration', value: 'IR-000128' }],
+  COLLECTION: [
+    { label: 'IR-000086 - Card Collection Integration', value: 'IR-000086' },
+    { label: 'IR-000094 - USSD Collection Integration', value: 'IR-000094' },
+  ],
+  DISBURSEMENT: [{ label: 'IR-000103 - Bank Transfer Payout Integration', value: 'IR-000103' }],
 };
 
 function AddCapabilitiesModal({
@@ -112,14 +114,14 @@ function AddCapabilitiesModal({
           name="integrationRecordId"
           label="Integration Record"
           rules={[{ required: true, message: 'Select an Integration Record for this Capability' }]}
-          extra={ability && !(integrationRecordOptions[`${bt}:${ability}`]?.length)
+          extra={bt && !(integrationRecordOptions[bt]?.length)
             ? <Button type="link" style={{ padding: 0 }} onClick={() => window.location.hash = `/channel-integration/${channelCode}/channel-profile/integration-records`}>No suitable Record. Create Integration Record</Button>
-            : 'Only Records covering the selected Business Type + Ability are available.'}
+            : 'Only Records covering the selected Business Type are available.'}
         >
           <Select
-            disabled={!ability}
+            disabled={!bt}
             placeholder="Select Integration Record"
-            options={integrationRecordOptions[`${bt}:${ability}`] ?? []}
+            options={integrationRecordOptions[bt ?? ''] ?? []}
           />
         </Form.Item>
         <Form.Item name="actions" label="Actions" rules={[{ required: true, type: 'array', min: 1, message: 'Select at least one Action' }]}>

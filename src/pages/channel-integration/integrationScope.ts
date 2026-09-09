@@ -5,7 +5,6 @@ export type PartyCapabilityScope = {
   capabilities: Array<{
     businessType: string;
     integrationType: IntegrationMode;
-    ability: string;
     countries: string[];
   }>;
 };
@@ -13,21 +12,19 @@ export type PartyCapabilityScope = {
 export type BusinessTypeScopeForm = {
   businessType: string;
   integrationType: IntegrationMode;
-  partyAbilities: Array<{
+  partyCountries: Array<{
     party: string;
-    ability: string;
     countries: string[];
   }>;
 };
 
 export function toPartyScopes(scopes: BusinessTypeScopeForm[]): PartyCapabilityScope[] {
   const parties = new Map<string, PartyCapabilityScope>();
-  scopes.forEach((scope) => scope.partyAbilities.forEach((row) => {
+  scopes.forEach((scope) => scope.partyCountries.forEach((row) => {
     const party = parties.get(row.party) || { party: row.party, capabilities: [] };
     party.capabilities.push({
       businessType: scope.businessType,
       integrationType: scope.integrationType,
-      ability: row.ability,
       countries: row.countries,
     });
     parties.set(row.party, party);
@@ -41,9 +38,9 @@ export function toBusinessTypeScopes(partyScopes: PartyCapabilityScope[]): Busin
     const scope = businessTypes.get(capability.businessType) || {
       businessType: capability.businessType,
       integrationType: capability.integrationType,
-      partyAbilities: [],
+      partyCountries: [],
     };
-    scope.partyAbilities.push({ party, ability: capability.ability, countries: capability.countries });
+    scope.partyCountries.push({ party, countries: capability.countries });
     businessTypes.set(capability.businessType, scope);
   }));
   return Array.from(businessTypes.values());
@@ -53,7 +50,7 @@ export function isBusinessTypeScopeComplete(scopes?: BusinessTypeScopeForm[]) {
   if (!scopes?.length) return false;
   const businessTypes = scopes.map(({ businessType }) => businessType).filter(Boolean);
   if (businessTypes.length !== scopes.length || new Set(businessTypes).size !== businessTypes.length) return false;
-  return scopes.every(({ integrationType, partyAbilities }) => Boolean(integrationType)
-    && partyAbilities?.length > 0
-    && partyAbilities.every(({ party, ability, countries }) => Boolean(party && ability && countries?.length)));
+  return scopes.every(({ integrationType, partyCountries }) => Boolean(integrationType)
+    && partyCountries?.length > 0
+    && partyCountries.every(({ party, countries }) => Boolean(party && countries?.length)));
 }

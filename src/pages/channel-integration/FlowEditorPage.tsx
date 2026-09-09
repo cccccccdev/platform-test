@@ -222,7 +222,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
         )}
       </div>
       {data.description && <div style={{ color: '#8c8c8c', fontSize: 10, margin: '3px 0 0 20px' }}>{data.description}</div>}
-      {!['directSpiResponse', 'returnConfiguredSpiResponse'].includes(String(data.code)) && <Handle type="source" position={Position.Bottom} style={{ background: '#1890ff' }} />}
+      {!['directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse'].includes(String(data.code)) && <Handle type="source" position={Position.Bottom} style={{ background: '#1890ff' }} />}
 
       {showContextMenu && (
         <>
@@ -2116,9 +2116,9 @@ export default function FlowEditorPage() {
     if (code === 'initInboundOrder') setReferenceConfigTarget({ direction: 'inbound', placement: 'init-order' });
     if (code === 'inboundRequest') setShowInboundRequestDrawer(true);
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
-    if (['directSpiResponse', 'returnConfiguredSpiResponse'].includes(code)) setShowConfiguredSpiResponseDrawer(true);
+    if (['directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse'].includes(code)) setShowConfiguredSpiResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
-    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'directSpiResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
+    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
     if (!hasDedicatedConfig && definition?.needConfig) setPlaceholderComponent(code);
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
@@ -2446,6 +2446,8 @@ export default function FlowEditorPage() {
         readOnly={readOnly}
         channelMerchantInfoAvailable={channelMerchantInfoAvailable}
         stateMachine={storedAbility?.stateMachine ?? ''}
+        businessType={params.bt ?? ''}
+        ability={params.ability ?? ''}
         onClose={() => setShowHttpCallDrawer(false)}
         onSave={(config) => {
           console.log('HTTP Call config saved:', config);
@@ -2528,6 +2530,8 @@ export default function FlowEditorPage() {
         open={showInboundRequestDrawer}
         initialValues={selectedConfig}
         readOnly={readOnly}
+        businessType={params.bt ?? ''}
+        ability={params.ability ?? ''}
         endpointPath={inboundUri?.url}
         pathVariables={inboundPathVariables}
         stateMachine={storedAbility?.stateMachine ?? ''}
@@ -2544,6 +2548,8 @@ export default function FlowEditorPage() {
         open={showInboundResponseDrawer}
         initialValues={selectedConfig}
         readOnly={readOnly}
+        businessType={params.bt ?? ''}
+        ability={params.ability ?? ''}
         onClose={() => setShowInboundResponseDrawer(false)}
         onSave={(config) => {
           console.log('Inbound Response config saved:', config);
@@ -2565,7 +2571,7 @@ export default function FlowEditorPage() {
             ? { ...node, data: { ...node.data, status: 'complete', isConfigured: true, config } }
             : node));
           setShowConfiguredSpiResponseDrawer(false);
-          message.success('Direct SPI Response saved');
+          message.success('Direct Response saved');
         }}
       />
 

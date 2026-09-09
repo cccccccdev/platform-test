@@ -9,6 +9,7 @@ import EndpointPathVariablesReference from './EndpointPathVariablesReference';
 import TargetMappingList, { collectFieldTargetMappings, normalizeTargetMappings, TargetMappingColumnHeaders, validateTargetMappings } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
 import { fallbackStateOptionsFor } from './stateMachineStateOptions';
+import { isSubOrderModeEnabled } from '../basic-info/capability/subOrderModeStore';
 
 const { Text } = Typography;
 const types = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -18,8 +19,39 @@ const signing = ['Custom', 'HMAC (SHA256)', 'HMAC (SHA512)', 'MD5', 'RSA (SHA1)'
 const encryption = ['AES (CBC)', 'AES (ECB)', 'Custom', 'RSA'].map((value) => ({ label: value, value }));
 const spiRequest = ['amount', 'currency', 'requestReference', 'responseReference', 'customerId', 'accountNumber', 'channelResponseCode', 'channelResponseMessage'];
 const spiResponse = ['responseCode', 'responseMessage', 'status', 'requestReference', 'channelReference', 'amount', 'currency'];
-const spiRequestOptions = [{ label: 'SPI Request', options: spiRequest.map((value) => ({ label: value, value: `spi.request.${value}`, type: value === 'amount' ? 'BigDecimal' : 'String' })) }];
-const spiResponseOptions = [{ label: 'SPI Response', options: spiResponse.map((value) => ({ label: value, value: `spi.response.${value}`, type: value === 'amount' ? 'BigDecimal' : 'String' })) }];
+const subOrderRequestFields = [
+  'feature.featureField',
+  'feature.featureValue',
+  'identity.requestReference',
+  'extraRequest.content',
+];
+const subOrderResponseFields = [
+  'feature.featureField',
+  'feature.featureValue',
+  'identity.responseReference',
+  'result.status',
+  'result.responseCode',
+  'result.responseMsg',
+  'result.channelResponseCode',
+  'result.channelResponseMsg',
+  'extraResponse.sendTime',
+  'extraResponse.sender',
+  'extraResponse.deliveryTime',
+];
+const buildSpiRequestOptions = (subOrderModeEnabled: boolean) => [
+  { label: 'SPI Request', options: spiRequest.map((value) => ({ label: value, value: `spi.request.${value}`, type: value === 'amount' ? 'BigDecimal' : 'String' })) },
+  ...(subOrderModeEnabled ? [{
+    label: 'SPI Request · subOrderList[*]',
+    options: subOrderRequestFields.map((path) => ({ label: path, value: `spi.request.subOrderList._items.${path}`, type: 'String' })),
+  }] : []),
+];
+const buildSpiResponseOptions = (subOrderModeEnabled: boolean) => [
+  { label: 'SPI Response', options: spiResponse.map((value) => ({ label: value, value: `spi.response.${value}`, type: value === 'amount' ? 'BigDecimal' : 'String' })) },
+  ...(subOrderModeEnabled ? [{
+    label: 'SPI Response · subOrderList[*]',
+    options: subOrderResponseFields.map((path) => ({ label: path, value: `spi.response.subOrderList._items.${path}`, type: 'String' })),
+  }] : []),
+];
 const Dot = ({ color }: { color: string }) => <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 7, background: color }} />;
 type TabState = 'empty' | 'ok' | 'error';
 const tabLabel = (label: string, state: TabState) => <Space size={6}><span>{label}</span>{state !== 'empty' && <Dot color={state === 'ok' ? '#52c41a' : '#ff4d4f'} />}</Space>;
@@ -43,11 +75,17 @@ const bodySchemaState = (nodes: unknown): TabState => {
   if (!Array.isArray(nodes) || nodes.length === 0) return 'empty';
   return nodes.every((node) => bodySchemaNodeComplete(node as BodySchemaNode)) ? 'ok' : 'error';
 };
+type ScopedInboundField = { label: string; value: string; scope: string };
+const collectInboundBodyFields = (nodes: BodySchemaNode[], parent = ''): ScopedInboundField[] => nodes.flatMap((node) => {
+  const path = parent ? `${parent}.${node.name}` : node.name;
+  if (['Object', 'Array'].includes(node.type)) return collectInboundBodyFields(node.children ?? [], path);
+  return [{ label: `Body / ${path.replace(/\._items(?=\.|$)/g, '[*]')}`, value: `body.${path}`, scope: parent ? `body.${parent}` : 'body' }];
+});
 
-type Props = { open: boolean; initialValues?: Record<string, unknown>; readOnly?: boolean; onClose: () => void; onSave: (config: Record<string, unknown>) => void };
+type Props = { open: boolean; initialValues?: Record<string, unknown>; readOnly?: boolean; businessType?: string; ability?: string; onClose: () => void; onSave: (config: Record<string, unknown>) => void };
 type InboundRequestProps = Props & { pathVariables?: string[]; endpointPath?: string; stateMachine?: string };
 
-export function InboundRequestDrawer({ open, initialValues = {}, readOnly = false, pathVariables = [], endpointPath, stateMachine = '', onClose, onSave }: InboundRequestProps) {
+export function InboundRequestDrawer({ open, initialValues = {}, readOnly = false, pathVariables = [], endpointPath, stateMachine = '', businessType = '', ability = '', onClose, onSave }: InboundRequestProps) {
   const [form] = Form.useForm();
   const [activeTab, setActiveTab] = useState('format');
   const watchedValues = Form.useWatch([], form) ?? {};
@@ -61,6 +99,19 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
   const componentInstance = Form.useWatch('componentInstance', form);
   const fallbackSubStates = useMemo(() => fallbackStateOptionsFor(stateMachine), [stateMachine]);
   const matchingFallbackSubStates = fallbackSubStates.filter((item) => item.mainState === componentInstance);
+  const subOrderModeEnabled = Boolean(businessType && ability && isSubOrderModeEnabled(businessType, ability));
+  const spiRequestOptions = buildSpiRequestOptions(subOrderModeEnabled);
+  const subOrderFeatureValueField = Form.useWatch('subOrderFeatureValueField', form);
+  const requestBody = (allValues.requestBody ?? []) as BodySchemaNode[];
+  const scopedRequestFields: ScopedInboundField[] = [
+    ...pathVariables.map((value) => ({ label: `Path / ${value}`, value: `path.${value}`, scope: 'path' })),
+    ...(Array.isArray(allValues.queryParameters) ? allValues.queryParameters : []).filter((field) => hasValue(field?.name)).map((field) => ({ label: `Params / ${field.name}`, value: `query.${field.name}`, scope: 'query' })),
+    ...(Array.isArray(allValues.requestHeaders) ? allValues.requestHeaders : []).filter((field) => hasValue(field?.name)).map((field) => ({ label: `Headers / ${field.name}`, value: `header.${field.name}`, scope: 'header' })),
+    ...collectInboundBodyFields(requestBody),
+  ];
+  const selectedFeatureScope = scopedRequestFields.find((field) => field.value === subOrderFeatureValueField)?.scope;
+  const sameLevelRequestFields = scopedRequestFields.filter((field) => field.scope === selectedFeatureScope).map(({ label, value }) => ({ label, value }));
+  const allRequestFieldOptions = scopedRequestFields.map(({ label, value }) => ({ label, value }));
   const effectiveRequestMappingMode = allValues.requestMappingMode ?? requestMappingMode;
   const effectiveDecryptionEnabled = Boolean(allValues.decryptionEnabled ?? decryptionEnabled);
   const effectiveVerificationEnabled = Boolean(allValues.verificationEnabled ?? verificationEnabled);
@@ -88,6 +139,16 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
       return mergeTabStates([decryptionState, verificationState]);
     }
     if (key === 'code') {
+      if (subOrderModeEnabled) {
+        const subOrderComplete = hasValue(allValues.subOrderComponentInstance)
+          && hasValue(allValues.subOrderFeatureValueField)
+          && hasRows(allValues.subOrderResponseCodeAssembly);
+        const parentComplete = !effectiveCodeMappingEnabled || (
+          hasValue(allValues.componentInstance)
+          && (effectiveCodeMappingMode === 'custom' ? hasValue(allValues.codeMappingScript) : hasRows(allValues.responseCodeAssembly))
+        );
+        return subOrderComplete && parentComplete ? 'ok' : 'error';
+      }
       if (!effectiveCodeMappingEnabled) return 'empty';
       if (!hasValue(allValues.componentInstance) || !hasValue(allValues.componentSubState)) return 'error';
       return effectiveCodeMappingMode === 'custom'
@@ -126,7 +187,7 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
             <Tabs type="card" size="small" items={[
               { key: 'path', label: tabLabel('Path Vars', state('path')), children: effectiveRequestMappingMode === 'script'
                 ? <EndpointPathVariablesReference variables={pathVariables} endpointPath={endpointPath} />
-                : <InboundPathVariableMapping variables={pathVariables} endpointPath={endpointPath} /> },
+                : <InboundPathVariableMapping variables={pathVariables} endpointPath={endpointPath} targetOptions={spiRequestOptions} /> },
               { key: 'query', label: tabLabel('Params', state('query')), children: <Form.Item name="queryParameters" initialValue={[]}><FlatFieldMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Query Parameter Fields" addLabel="Add Parameter" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
               { key: 'header', label: tabLabel('Headers', state('header')), children: <Form.Item name="requestHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Request Header Fields" addLabel="Add Header" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
               { key: 'body', label: tabLabel('Body', state('body')), children: <Form.Item name="requestBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} direction="response" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
@@ -137,14 +198,33 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
             <SecuritySection title="Decryption" enabledName="decryptionEnabled" enabled={effectiveDecryptionEnabled}><Form.Item name="decryptionAlgorithm" label="Algorithm" rules={[{ required: true }]}><Select options={encryption} /></Form.Item><Form.Item name="encryptedField" label="Encrypted Field"><Input placeholder="Request field not decrypted by A" /></Form.Item><Form.Item name="decryptionSources" label="Decryption Source Fields"><Checkbox.Group options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body']} /></Form.Item></SecuritySection>
             <SecuritySection title="Signature Verification" enabledName="verificationEnabled" enabled={effectiveVerificationEnabled}><Form.Item name="verificationAlgorithm" label="Algorithm" rules={[{ required: true }]}><Select options={signing} /></Form.Item><Form.Item name="signatureField" label="Request Signature Field"><Input placeholder="Request header or body field" /></Form.Item><Form.Item name="verificationSources" label="Verification Source Fields"><Checkbox.Group options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body']} /></Form.Item></SecuritySection>
           </div></Card> },
-          { key: 'code', label: tabLabel('Code Mapping', state('code')), children: <Card size="small" title={<Space><Form.Item name="codeMappingEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Channel Response Code</Space>}>{effectiveCodeMappingEnabled ? <><Alert type="info" showIcon message="Interpret this inbound callback request as the channel response to an earlier outbound request." style={{ marginBottom: 12 }} /><Form.Item name="componentInstance" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('componentSubState', undefined)} /></Form.Item><Form.Item label="Main State"><Input disabled value={componentInstance ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item><Form.Item name="componentSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!componentInstance} placeholder={componentInstance ? `Select a ${componentInstance} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item><Form.Item name="codeMappingMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom Script', value: 'custom' }]} /></Form.Item>{effectiveCodeMappingMode === 'custom' ? <GroovyScriptEditor name="codeMappingScript" helpText="Return channelResponseCode from the available inbound request fields." /> : <><Form.Item name="responseCodeAssembly" label="Channel Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select request fields in assembly order" options={['Path Variable', 'Query Parameter', 'Request Header', 'Request Body'].map((value) => ({ value }))} /></Form.Item><Form.Item name="responseMessageField" label="Channel Response Message Field"><Input placeholder="Optional request field path" /></Form.Item></>}</> : <Text type="secondary">Enable only when the inbound request reports the result of a previous channel request.</Text>}</Card> },
+          { key: 'code', label: tabLabel('Code Mapping', state('code')), children: subOrderModeEnabled
+            ? <Card size="small">
+              <Form.Item name="codeMappingEnabled" label="Enable Mapping" valuePropName="checked" required><Switch /></Form.Item>
+              {effectiveCodeMappingEnabled && <div className="inbound-parent-code-mapping">
+                <Typography.Title level={5}>Response Code Mapping</Typography.Title>
+                <Form.Item name="componentInstance" label="Component Instance" rules={[{ required: true }]}><Select placeholder="Select Instance" options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} /></Form.Item>
+                <Form.Item name="codeMappingMode" label="Custom Script" valuePropName="checked" getValueProps={(value) => ({ checked: value === 'custom' })} normalize={(checked) => checked ? 'custom' : 'default'}><Switch /></Form.Item>
+                {effectiveCodeMappingMode === 'custom'
+                  ? <GroovyScriptEditor name="codeMappingScript" helpText="Return the main-order response code from the available inbound request fields." />
+                  : <><Form.Item name="responseCodeAssembly" label="Request Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select request fields in assembly order" options={allRequestFieldOptions} /></Form.Item><Form.Item name="responseMessageField" label="Message Field"><Select allowClear placeholder="Select request message field" options={allRequestFieldOptions} /></Form.Item></>}
+              </div>}
+              <div className="inbound-sub-order-code-mapping">
+                <Typography.Title level={5}>Sub Order Response Code Mapping</Typography.Title>
+                <Form.Item name="subOrderComponentInstance" label="Component Instance" rules={[{ required: true }]}><Select placeholder="Select Instance" options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} /></Form.Item>
+                <Form.Item name="subOrderFeatureValueField" label="featurevalue Field" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" placeholder="Select featurevalue field" options={allRequestFieldOptions} onChange={() => form.setFieldsValue({ subOrderResponseCodeAssembly: undefined, subOrderResponseMessageField: undefined })} /></Form.Item>
+                <Form.Item name="subOrderResponseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select same-level fields in assembly order' : 'Select featurevalue Field first'} options={sameLevelRequestFields} /></Form.Item>
+                <Form.Item name="subOrderResponseMessageField" label="responseMessage"><Select allowClear disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select a same-level response message field' : 'Select featurevalue Field first'} options={sameLevelRequestFields} /></Form.Item>
+              </div>
+            </Card>
+            : <Card size="small" title={<Space><Form.Item name="codeMappingEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Channel Response Code</Space>}>{effectiveCodeMappingEnabled ? <><Alert type="info" showIcon message="Interpret this inbound callback request as the channel response to an earlier outbound request." style={{ marginBottom: 12 }} /><Form.Item name="componentInstance" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('componentSubState', undefined)} /></Form.Item><Form.Item label="Main State"><Input disabled value={componentInstance ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item><Form.Item name="componentSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!componentInstance} placeholder={componentInstance ? `Select a ${componentInstance} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item><Form.Item name="codeMappingMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom Script', value: 'custom' }]} /></Form.Item>{effectiveCodeMappingMode === 'custom' ? <GroovyScriptEditor name="codeMappingScript" helpText="Return channelResponseCode from the available inbound request fields." /> : <><Form.Item name="responseCodeAssembly" label="Channel Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select request fields in assembly order" options={['Path Variable', 'Query Parameter', 'Request Header', 'Request Body'].map((value) => ({ value }))} /></Form.Item><Form.Item name="responseMessageField" label="Channel Response Message Field"><Input placeholder="Optional request field path" /></Form.Item></>}</> : <Text type="secondary">Enable only when the inbound request reports the result of a previous channel request.</Text>}</Card> },
         ]} />
       </Form>
     </ConfigProvider>
   </Drawer>;
 }
 
-function InboundPathVariableMapping({ variables, endpointPath }: { variables: string[]; endpointPath?: string }) {
+function InboundPathVariableMapping({ variables, endpointPath, targetOptions }: { variables: string[]; endpointPath?: string; targetOptions: ReturnType<typeof buildSpiRequestOptions> }) {
   if (variables.length === 0) return <EndpointPathVariablesReference variables={variables} endpointPath={endpointPath} />;
   const columns = 'minmax(180px,1fr) 80px minmax(460px,2fr)';
   return <div>
@@ -156,13 +236,13 @@ function InboundPathVariableMapping({ variables, endpointPath }: { variables: st
       {variables.map((variable) => <div key={variable} style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
         <Input value={`{${variable}}`} disabled />
         <Text>String</Text>
-        <InboundPathVariableTargetMappings variable={variable} variables={variables} />
+        <InboundPathVariableTargetMappings variable={variable} variables={variables} targetOptions={targetOptions} />
       </div>)}
     </div>
   </div>;
 }
 
-function InboundPathVariableTargetMappings({ variable, variables }: { variable: string; variables: string[] }) {
+function InboundPathVariableTargetMappings({ variable, variables, targetOptions }: { variable: string; variables: string[]; targetOptions: ReturnType<typeof buildSpiRequestOptions> }) {
   const form = Form.useFormInstance();
   const allPathMappings = Form.useWatch('pathVariableMappings', form) ?? {};
   const current = allPathMappings[variable] ?? {};
@@ -181,7 +261,7 @@ function InboundPathVariableTargetMappings({ variable, variables }: { variable: 
   };
   return <TargetMappingList
     value={mappings}
-    targetOptions={spiRequestOptions}
+    targetOptions={targetOptions}
     operationOptions={mappingOperationOptions}
     targetPlaceholder="SPI request field"
     reservedTargetValues={reservedTargetValues}
@@ -189,7 +269,7 @@ function InboundPathVariableTargetMappings({ variable, variables }: { variable: 
   />;
 }
 
-export function InboundResponseDrawer({ open, initialValues = {}, readOnly = false, onClose, onSave }: Props) {
+export function InboundResponseDrawer({ open, initialValues = {}, readOnly = false, businessType = '', ability = '', onClose, onSave }: Props) {
   const [form] = Form.useForm();
   const watchedValues = Form.useWatch([], form) ?? {};
   const initialFormValues = { responseMappingMode: 'configuration', responseFormat: 'JSON', ...initialValues };
@@ -198,6 +278,7 @@ export function InboundResponseDrawer({ open, initialValues = {}, readOnly = fal
   const responseFormat = Form.useWatch('responseFormat', form) ?? 'JSON';
   const signingEnabled = Form.useWatch('signingEnabled', form);
   const encryptionEnabled = Form.useWatch('encryptionEnabled', form);
+  const spiResponseOptions = buildSpiResponseOptions(Boolean(businessType && ability && isSubOrderModeEnabled(businessType, ability)));
   const state = (key: string): TabState => {
     if (key === 'headers') return flatSchemaState(allValues.responseHeaders);
     if (key === 'body') return bodySchemaState(allValues.responseBody);

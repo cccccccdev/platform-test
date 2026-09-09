@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag } from 'antd';
+import { Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag, Switch, Pagination } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { PlusOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../channel-integration/configIntegrationStore';
 import { initialBusinessTypeRecords, useBusinessTypeStore } from './businessTypeReferenceData';
+import { enableSubOrderMode, getEnabledSubOrderModes, getSubOrderModeKey } from './capability/subOrderModeStore';
 
 const { Title, Text } = Typography;
+const BUSINESS_TYPES_PER_PAGE = 10;
 
 interface ActionItem {
   key: string;
@@ -139,6 +141,10 @@ export default function CapabilityPage() {
   const [linkSmAbility, setLinkSmAbility] = useState<{ bt: string; ability: string } | null>(null);
   const [linkSmForm] = Form.useForm();
   const [linkSmList, setLinkSmList] = useState<LinkedSMRecord[]>([]);
+  const [enabledSubOrderModes, setEnabledSubOrderModes] = useState<Set<string>>(() => getEnabledSubOrderModes());
+  const [subOrderModeTarget, setSubOrderModeTarget] = useState<{ businessType: string; ability: string } | null>(null);
+  const [subOrderModeDraft, setSubOrderModeDraft] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     setData((current) => businessTypeRecords.map(({ businessType }) => current.find((item) => item.name === businessType) ?? buildBusinessTypeItem(businessType)));
@@ -180,6 +186,28 @@ export default function CapabilityPage() {
   const saveLinkedSM = useCallback((records: LinkedSMRecord[]) => {
     localStorage.setItem(LINKED_SM_KEY, JSON.stringify(records));
   }, []);
+
+  const openSubOrderMode = (businessType: string, ability: string) => {
+    const enabled = enabledSubOrderModes.has(getSubOrderModeKey(businessType, ability));
+    setSubOrderModeTarget({ businessType, ability });
+    setSubOrderModeDraft(enabled);
+  };
+
+  const closeSubOrderMode = () => {
+    setSubOrderModeTarget(null);
+    setSubOrderModeDraft(false);
+  };
+
+  const saveSubOrderMode = () => {
+    if (!subOrderModeTarget) return;
+    if (!subOrderModeDraft) {
+      closeSubOrderMode();
+      return;
+    }
+    setEnabledSubOrderModes(enableSubOrderMode(subOrderModeTarget.businessType, subOrderModeTarget.ability));
+    closeSubOrderMode();
+    message.success('Sub Order Mode enabled.');
+  };
 
   const SM_LIST_KEY = 'stateMachineList';
   const STORAGE_KEY = 'stateMachineStatuses';
@@ -247,6 +275,15 @@ export default function CapabilityPage() {
   const filteredData = filteredBt
     ? data.filter(bt => bt.name === filteredBt)
     : data;
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * BUSINESS_TYPES_PER_PAGE,
+    currentPage * BUSINESS_TYPES_PER_PAGE,
+  );
+
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(filteredData.length / BUSINESS_TYPES_PER_PAGE));
+    setCurrentPage((page) => Math.min(page, lastPage));
+  }, [filteredData.length]);
 
   const toggleBusinessType = useCallback((btKey: string) => {
     setData(prev => prev.map(bt =>
@@ -363,12 +400,15 @@ export default function CapabilityPage() {
               className="capability-business-type-select"
               options={businessTypeRecords.map(({ businessType }) => ({ label: businessType, value: businessType }))}
               value={filteredBt || undefined}
-              onChange={v => setFilteredBt(v || '')}
+              onChange={v => {
+                setFilteredBt(v || '');
+                setCurrentPage(1);
+              }}
             />
           </Form.Item>
           <Form.Item>
             <Space className="capability-filter-actions">
-              <Button onClick={() => setFilteredBt('')}>Reset</Button>
+              <Button onClick={() => { setFilteredBt(''); setCurrentPage(1); }}>Reset</Button>
               <Button type="primary" onClick={() => {}}>Query</Button>
             </Space>
           </Form.Item>
@@ -376,7 +416,7 @@ export default function CapabilityPage() {
       </section>
 
       <main className="capability-groups">
-        {filteredData.map(bt => (
+        {paginatedData.map(bt => (
           <section key={bt.key} className="capability-group">
             <div
               className="capability-group-header"
@@ -422,9 +462,9 @@ export default function CapabilityPage() {
                   <Space className="capability-operation-links" onClick={e => e.stopPropagation()}>
                     <Button
                       type="link"
-                      onClick={() => message.info('SubOrderMode configuration is not implemented in this demo.')}
+                      onClick={() => openSubOrderMode(bt.name, ab.name)}
                     >
-                      SubOrderMode
+                      SubOrderMode{enabledSubOrderModes.has(getSubOrderModeKey(bt.name, ab.name)) ? ' ✓' : ''}
                     </Button>
                     <Button
                       type="link"
@@ -493,7 +533,50 @@ export default function CapabilityPage() {
             ))}
           </section>
         ))}
+        <div className="capability-pagination">
+          <Pagination
+            current={currentPage}
+            pageSize={BUSINESS_TYPES_PER_PAGE}
+            total={filteredData.length}
+            showSizeChanger={false}
+            showTotal={(total) => `Total ${total} items`}
+            onChange={setCurrentPage}
+          />
+        </div>
       </main>
+
+      <Modal
+        title="Sub Order Mode Configuration"
+        open={Boolean(subOrderModeTarget)}
+        onCancel={closeSubOrderMode}
+        onOk={saveSubOrderMode}
+        okText="Save"
+        cancelText="Cancel"
+        okButtonProps={{
+          disabled: !subOrderModeTarget
+            || enabledSubOrderModes.has(getSubOrderModeKey(subOrderModeTarget.businessType, subOrderModeTarget.ability)),
+        }}
+        width={640}
+        className="sub-order-mode-modal"
+      >
+        <div className="sub-order-mode-context">
+          <span>Business Type</span><strong>{subOrderModeTarget?.businessType}</strong>
+          <span>Ability</span><strong>{subOrderModeTarget?.ability}</strong>
+        </div>
+        <div className="sub-order-mode-switch-row">
+          <span>Sub Order Mode</span>
+          <Switch
+            checked={subOrderModeDraft}
+            checkedChildren="ON"
+            unCheckedChildren="OFF"
+            disabled={Boolean(subOrderModeTarget && enabledSubOrderModes.has(getSubOrderModeKey(subOrderModeTarget.businessType, subOrderModeTarget.ability)))}
+            onChange={setSubOrderModeDraft}
+          />
+        </div>
+        <p className="sub-order-mode-note">
+          Note: This setting affects sub-order mode support for all Flows under this Business Type+Ability. Once enabled, the SPI config page will display subOrderList related fields, and the Flow&apos;s Network / callbackRequest will also show sub-order response code mapping configuration.
+        </p>
+      </Modal>
 
       <Modal
         title="Add Capability"
