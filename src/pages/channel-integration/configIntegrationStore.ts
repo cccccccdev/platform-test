@@ -161,6 +161,116 @@ const evexinCallbackCanvasEdges = [
   { id: 'evexin_in_e2', source: 'evexin_in_2', target: 'evexin_in_3' },
 ];
 
+const evexinBulkSendHttpConfig = {
+  method: 'POST',
+  protocol: 'HTTP',
+  path: '/api/msg/v2/sendMsg',
+  endpointId: 'endpoint_evexin_send_sms',
+  endpointVersion: '20260820122454',
+  requestMappingMode: 'configuration',
+  responseMappingMode: 'configuration',
+  requestFormat: 'JSON',
+  responseFormat: 'JSON',
+  bodyFieldMode: 'all',
+  responseFallback: 'PENDING',
+  responseFallbackSubState: 'SUBMITTED',
+  responseCodeMode: 'default',
+  responseCodeAssembly: ['httpStatus', 'responseBody.code', 'responseBody.status'],
+  responseMessageField: 'msg',
+  subOrderMappingEnabled: false,
+  timeout: 5000,
+  requestHeaders: [
+    { id: 'evexin_bulk_header_app_key', sourceValue: ['Credentials', 'credential.appKey'], name: 'appKey', type: 'String', required: true, description: '' },
+    { id: 'evexin_bulk_header_app_secret', sourceValue: ['Credentials', 'credential.appSecret'], name: 'appSecret', type: 'String', required: true, description: '' },
+  ],
+  requestBody: [
+    {
+      id: 'evexin_bulk_messages',
+      name: 'messages',
+      type: 'Array',
+      required: true,
+      sourceId: ['Context Fields', '_order', '_order.subOrderList'],
+      description: 'One item per SMS sub-order',
+      children: [{
+        id: 'evexin_bulk_messages_item',
+        name: '_items',
+        type: 'Object',
+        required: true,
+        children: [
+          { id: 'evexin_bulk_to', name: 'to', type: 'String', required: true, sourceId: ['Context Fields', '_order', '_order.subOrderList', '_order.subOrderList._items', '_order.subOrderList._items.feature', '_order.subOrderList._items.feature.featureValue'], operation: ['phone-number', 'remove-front-zero'], description: 'Sub-order feature value: recipient mobile number' },
+          { id: 'evexin_bulk_content', name: 'content', type: 'String', required: true, sourceId: ['Context Fields', '_order', '_order.subOrderList', '_order.subOrderList._items', '_order.subOrderList._items.extraRequest', '_order.subOrderList._items.extraRequest.content'], description: 'SMS content for this sub-order' },
+        ],
+      }],
+    },
+    { id: 'evexin_bulk_sender_code', name: 'senderCode', type: 'String', required: true, sourceId: ['Credentials', 'credential.senderCode'], description: 'Sender code' },
+    { id: 'evexin_bulk_short_link', name: 'shortLinkReplaceFlag', type: 'String', required: true, sourceId: ['Credentials', 'credential.shortLinkReplaceFlag'], description: 'Short-link replacement flag' },
+  ],
+  responseBody: [
+    { id: 'evexin_bulk_res_code', name: 'code', type: 'String', required: true, targetValue: 'spi.response.channelResponseCode', description: 'Batch request response code' },
+    { id: 'evexin_bulk_res_msg', name: 'msg', type: 'String', required: true, targetValue: 'spi.response.responseMessage', description: 'Batch request response message' },
+    { id: 'evexin_bulk_res_batch_id', name: 'batchId', type: 'String', required: true, targetValue: 'spi.response.responseReference', description: 'Batch request reference' },
+    { id: 'evexin_bulk_res_status', name: 'status', type: 'String', required: true, description: 'Overall batch acceptance status' },
+  ],
+};
+
+const evexinBulkSendCanvasNodes = [
+  { id: 'evexin_bulk_out_1', componentCode: 'initOutboundFirstOrder', x: 320, y: 40, status: 'complete' as const },
+  { id: 'evexin_bulk_out_2', componentCode: 'http', x: 320, y: 160, status: 'complete' as const, config: evexinBulkSendHttpConfig },
+  { id: 'evexin_bulk_out_3', componentCode: 'updateOutboundOrder', x: 320, y: 280, status: 'complete' as const, config: { targetSubState: 'SUBMITTED', failureSubState: 'FAILED' } },
+];
+
+const evexinBulkSendCanvasEdges = [
+  { id: 'evexin_bulk_out_e1', source: 'evexin_bulk_out_1', target: 'evexin_bulk_out_2' },
+  { id: 'evexin_bulk_out_e2', source: 'evexin_bulk_out_2', target: 'evexin_bulk_out_3' },
+];
+
+const evexinBulkCallbackCanvasNodes = [
+  {
+    id: 'evexin_bulk_in_1',
+    componentCode: 'inboundRequest',
+    x: 320,
+    y: 80,
+    status: 'complete' as const,
+    config: {
+      requestMappingMode: 'configuration',
+      codeMappingEnabled: false,
+      codeMappingMode: 'default',
+      subOrderComponentInstance: 'PENDING',
+      subOrderFeatureValueField: 'body.to',
+      subOrderResponseCodeAssembly: ['body.status'],
+      subOrderResponseMessageField: 'body.message',
+      requestBody: [
+        { id: 'evexin_bulk_cb_msg_id', name: 'msgId', type: 'String', required: true, targetValue: 'spi.request.subOrderList._items.identity.responseReference', description: 'Single SMS message id' },
+        { id: 'evexin_bulk_cb_to', name: 'to', type: 'String', required: true, targetValue: 'spi.request.subOrderList._items.feature.featureValue', description: 'Sub-order feature value: recipient mobile number' },
+        { id: 'evexin_bulk_cb_status', name: 'status', type: 'String', required: true, description: 'Single SMS delivery status' },
+        { id: 'evexin_bulk_cb_message', name: 'message', type: 'String', required: false, description: 'Single SMS delivery result message' },
+      ],
+    },
+  },
+  { id: 'evexin_bulk_in_2', componentCode: 'updateOutboundOrderCallback', x: 320, y: 200, status: 'complete' as const, config: { targetSubStates: ['SUBMITTED', 'DELIVERED', 'FAILED'] } },
+  {
+    id: 'evexin_bulk_in_3',
+    componentCode: 'inboundResponse',
+    x: 320,
+    y: 320,
+    status: 'complete' as const,
+    config: {
+      responseMappingMode: 'configuration',
+      responseFormat: 'JSON',
+      responseHeaders: [],
+      responseBody: [
+        { id: 'evexin_bulk_cb_ack_code', name: 'code', type: 'String', required: true, sourceId: ['SPI Response', 'spi.response.responseCode'], description: 'Callback acknowledgement code' },
+        { id: 'evexin_bulk_cb_ack_message', name: 'message', type: 'String', required: false, sourceId: ['SPI Response', 'spi.response.responseMessage'], description: 'Callback acknowledgement message' },
+      ],
+    },
+  },
+];
+
+const evexinBulkCallbackCanvasEdges = [
+  { id: 'evexin_bulk_in_e1', source: 'evexin_bulk_in_1', target: 'evexin_bulk_in_2' },
+  { id: 'evexin_bulk_in_e2', source: 'evexin_bulk_in_2', target: 'evexin_bulk_in_3' },
+];
+
 const seedDeployRecords: DeployRecord[] = [
   { cloud: 'BD', app: 'omnicore', env: 'DAILY', version: '20260601103000', operator: 'Amina Yusuf', operationTime: '2026-06-01 11:00:00' },
   { cloud: 'BD', app: 'omnicore', env: 'PRE', version: '20260601103000', operator: 'Daniel Chen', operationTime: '2026-06-02 09:00:00' },
@@ -336,6 +446,60 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               status: 'SUBMITTED',
               canvasNodes: evexinCallbackCanvasNodes,
               canvasEdges: evexinCallbackCanvasEdges,
+            },
+          ],
+        },
+      ],
+    },
+    {
+      bt: 'SMS',
+      ability: 'BULK_MESSAGE',
+      actions: ['TRANSACTION'],
+      stateMachine: 'SMS_Single_Message_StateMachine',
+      versions: [
+        {
+          id: 'evexin_sms_bulk_message_daily',
+          groupId: 528,
+          version: '20260909103000',
+          status: 'DAILY',
+          badges: [{ cloud: 'ALIYUN', env: 'DAILY' }],
+          remark: 'EVEXIN bulk SMS sub-order mode demo',
+          operator: 'Bailly',
+          operationTime: '2026-09-09 10:30:00',
+          deployRecords: [
+            { cloud: 'ALIYUN', app: 'omnicore', env: 'DAILY', version: '20260909103000', operator: 'Bailly', operationTime: '2026-09-09 10:40:00' },
+          ],
+          flows: [
+            {
+              id: '27',
+              name: 'SMS_BULK_MESSAGE_TRANSACTION',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'wait_external',
+              triggerType: 'UPSTREAM_TRIGGERED',
+              template: 'UPSTREAM_TRIGGERED_TRANSACTION',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: [],
+              isConfigured: true,
+              status: 'SUBMITTED',
+              canvasNodes: evexinBulkSendCanvasNodes,
+              canvasEdges: evexinBulkSendCanvasEdges,
+            },
+            {
+              id: '28',
+              name: 'SMS_BULK_MESSAGE_CALLBACK',
+              executionType: 'single',
+              flowType: 'inbound',
+              endType: 'wait_external',
+              triggerType: 'CALLBACK_TRIGGERED',
+              template: 'CALLBACK_TRIGGERED_OUTBOUND_ORDER',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: ['TRANSACTION'],
+              inboundUriId: 'evexin_sms_status_callback',
+              isConfigured: true,
+              status: 'SUBMITTED',
+              canvasNodes: evexinBulkCallbackCanvasNodes,
+              canvasEdges: evexinBulkCallbackCanvasEdges,
             },
           ],
         },

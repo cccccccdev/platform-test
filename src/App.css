@@ -366,6 +366,12 @@
 .sub-order-mode-switch-row { display: flex; min-height: 46px; align-items: center; justify-content: space-between; padding: 0 16px; background: #e6f4ff; }
 .sub-order-mode-switch-row .ant-switch.ant-switch-checked { background: #aa82df; }
 .sub-order-mode-note { margin: 16px 0 0; color: #8b8b8b; font-size: 14px; line-height: 1.55; }
+.http-sub-order-code-mapping { margin-top: 18px; padding-top: 18px; border-top: 1px solid #f0f0f0; }
+.http-sub-order-code-mapping .ant-typography { margin-top: 0; }
+.inbound-parent-code-mapping,
+.inbound-sub-order-code-mapping { margin-top: 12px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
+.inbound-parent-code-mapping .ant-typography,
+.inbound-sub-order-code-mapping .ant-typography { margin-top: 0; }
 
 .linked-state-machine-page { min-height: 100%; background: var(--legacy-bg); }
 .linked-state-machine-heading { height: 86px; padding: 12px 18px 14px; background: #fff; }

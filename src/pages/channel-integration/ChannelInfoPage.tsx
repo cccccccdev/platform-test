@@ -204,6 +204,7 @@ type RuntimeNodeCard = Omit<RuntimeComponentDetail, 'source'> & {
 
 const pathCapabilities: PathCapability[] = [
   { path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', flowGroups: ['EVEXIN / Group 526 / SMS_SINGLE_MESSAGE_TRANSACTION'] },
+  { path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'BULK_MESSAGE', flowGroups: ['EVEXIN / Group 528 / SMS_BULK_MESSAGE_TRANSACTION'] },
   { path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'SINGLE_MESSAGE', flowGroups: ['EVEXIN / Route Matching / SMS Status Callback'] },
   { path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', flowGroups: ['EVEXIN / Route Matching / SMS Status Callback'] },
   { path: '/test/path', source: 'httpCall', bt: 'WALLET_DEBIT', ability: 'TRANSFER', flowGroups: ['Group 1 / Flow 1', 'Group 1 / Flow 2'] },
@@ -1597,6 +1598,8 @@ export default function ChannelInfoPage() {
           open={code === 'inboundRequest'}
           initialValues={data}
           readOnly
+          businessType={bt}
+          ability={ability}
           endpointPath={detail?.endpointPath}
           pathVariables={detail?.pathVariables ?? []}
           onClose={closeRuntimeComponentDetail}
@@ -1607,6 +1610,8 @@ export default function ChannelInfoPage() {
           open={code === 'inboundResponse'}
           initialValues={data}
           readOnly
+          businessType={bt}
+          ability={ability}
           onClose={closeRuntimeComponentDetail}
           onSave={() => undefined}
         />
