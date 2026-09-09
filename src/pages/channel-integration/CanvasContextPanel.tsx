@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Button, Collapse, Input, Modal, Space, Tag, Tooltip, message } from 'antd';
 import { EditOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { timestampVersion, useChannelScopeStore } from './channelScopeStore';
 import type { AuthConfig, CredentialItem, VariableItem } from './channelScopeStore';
 import type { OutboundEndpoint } from './channelScopeStore';
-import AuthenticationDrawer from './sharedAuthenticationDrawer';
-import OutboundEndpointDrawer from './OutboundEndpointDrawer';
-import TcpProfileDrawer from './TcpProfileDrawer';
 import type { TcpProfile } from './channelScopeStore';
+
+const AuthenticationDrawer = lazy(() => import('./sharedAuthenticationDrawer'));
+const OutboundEndpointDrawer = lazy(() => import('./OutboundEndpointDrawer'));
+const TcpProfileDrawer = lazy(() => import('./TcpProfileDrawer'));
 
 const EMPTY_VARIABLES: VariableItem[] = [];
 const EMPTY_CREDENTIALS: CredentialItem[] = [];
@@ -308,8 +309,8 @@ export default function CanvasContextPanel({
       </div>
     </div>
 
-    <AuthenticationDrawer visible={showAuthenticationDrawer} channelCode={channelCode} auth={editingAuthentication} onClose={() => { setShowAuthenticationDrawer(false); setEditingAuthentication(null); }} />
-    <OutboundEndpointDrawer open={showEndpointDrawer} endpoint={editingEndpoint} onClose={() => { setShowEndpointDrawer(false); setEditingEndpoint(null); }} onSave={(values) => {
+    {showAuthenticationDrawer && <Suspense fallback={null}><AuthenticationDrawer visible channelCode={channelCode} auth={editingAuthentication} onClose={() => { setShowAuthenticationDrawer(false); setEditingAuthentication(null); }} /></Suspense>}
+    {showEndpointDrawer && <Suspense fallback={null}><OutboundEndpointDrawer open endpoint={editingEndpoint} onClose={() => { setShowEndpointDrawer(false); setEditingEndpoint(null); }} onSave={(values) => {
       if (editingEndpoint) updateOutboundEndpoint(channelCode, editingEndpoint.id, values);
       else {
         const segment = values.path.split('/').filter(Boolean).at(-1) ?? 'Endpoint';
@@ -319,8 +320,8 @@ export default function CanvasContextPanel({
       setShowEndpointDrawer(false);
       setEditingEndpoint(null);
       message.success('Endpoint saved');
-    }} />
-    <TcpProfileDrawer open={showTcpProfileDrawer} profile={editingTcpProfile} readOnly={readOnly} onClose={() => { setShowTcpProfileDrawer(false); setEditingTcpProfile(null); }} onSave={(profile) => { if (editingTcpProfile) updateTcpProfile(channelCode, profile.id, profile); else addTcpProfile(channelCode, profile); setShowTcpProfileDrawer(false); setEditingTcpProfile(null); message.success('TCP Profile saved'); }} />
+    }} /></Suspense>}
+    {showTcpProfileDrawer && <Suspense fallback={null}><TcpProfileDrawer open profile={editingTcpProfile} readOnly={readOnly} onClose={() => { setShowTcpProfileDrawer(false); setEditingTcpProfile(null); }} onSave={(profile) => { if (editingTcpProfile) updateTcpProfile(channelCode, profile.id, profile); else addTcpProfile(channelCode, profile); setShowTcpProfileDrawer(false); setEditingTcpProfile(null); message.success('TCP Profile saved'); }} /></Suspense>}
     <Modal title="Credential Guidance" open={showCredentialGuidance} footer={null} onCancel={() => setShowCredentialGuidance(false)}>
       <ol style={{ paddingLeft: 22, marginBottom: 0, lineHeight: 1.8 }}>
         <li>Create the required credential field names for the Channel here, such as username and password.</li>

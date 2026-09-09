@@ -1,50 +1,51 @@
+import { lazy, Suspense } from 'react';
 import { createHashRouter, RouterProvider, Navigate, useLocation, useParams } from 'react-router-dom';
-import AppShell from '../components/AppShell';
-import IntegrationLayout from '../components/IntegrationLayout';
-import NoSidebarLayout from '../components/NoSidebarLayout';
-import HomePage from '../pages/home/HomePage';
+
+const AppShell = lazy(() => import('../components/AppShell'));
+const IntegrationLayout = lazy(() => import('../components/IntegrationLayout'));
+const NoSidebarLayout = lazy(() => import('../components/NoSidebarLayout'));
+const IntegrationDetailLayout = lazy(() => import('../components/IntegrationDetailLayout'));
+const HomePage = lazy(() => import('../pages/home/HomePage'));
 
 // Channel Integration pages (no sidebar)
-import ChannelListPage from '../pages/channel-integration/ChannelListPage';
-import MatchCapabilityPage from '../pages/channel-integration/MatchCapabilityPage';
-import MatchCapabilityEditorPage from '../pages/channel-integration/MatchCapabilityEditorPage';
-import ConfigAbilityListPage from '../pages/channel-integration/ConfigAbilityListPage';
-import ConfigEditorPage from '../pages/channel-integration/ConfigEditorPage';
-import CodeAbilityListPage from '../pages/channel-integration/CodeAbilityListPage';
-import CodeGuidePage from '../pages/channel-integration/CodeGuidePage';
-import ChannelInfoPage from '../pages/channel-integration/ChannelInfoPage';
-import RuntimeFlowCanvasPage from '../pages/channel-integration/RuntimeFlowCanvasPage';
-import MetadataPage from '../pages/channel-integration/MetadataPage';
-import ConfigIntegrationOverviewPage from '../pages/channel-integration/ConfigIntegrationOverviewPage';
-import ChannelProfilePage from '../pages/channel-integration/ChannelProfilePage';
-
+const ChannelListPage = lazy(() => import('../pages/channel-integration/ChannelListPage'));
+const MatchCapabilityPage = lazy(() => import('../pages/channel-integration/MatchCapabilityPage'));
+const MatchCapabilityEditorPage = lazy(() => import('../pages/channel-integration/MatchCapabilityEditorPage'));
+const ConfigAbilityListPage = lazy(() => import('../pages/channel-integration/ConfigAbilityListPage'));
+const ConfigEditorPage = lazy(() => import('../pages/channel-integration/ConfigEditorPage'));
+const CodeAbilityListPage = lazy(() => import('../pages/channel-integration/CodeAbilityListPage'));
+const CodeGuidePage = lazy(() => import('../pages/channel-integration/CodeGuidePage'));
+const ChannelInfoPage = lazy(() => import('../pages/channel-integration/ChannelInfoPage'));
+const RuntimeFlowCanvasPage = lazy(() => import('../pages/channel-integration/RuntimeFlowCanvasPage'));
+const MetadataPage = lazy(() => import('../pages/channel-integration/MetadataPage'));
+const ConfigIntegrationOverviewPage = lazy(() => import('../pages/channel-integration/ConfigIntegrationOverviewPage'));
+const ChannelProfilePage = lazy(() => import('../pages/channel-integration/ChannelProfilePage'));
 
 // Scene pages (existing)
-import SceneListPage from '../pages/channel-integration/SceneListPage';
-import SceneEditPage from '../pages/channel-integration/SceneEditPage';
-import SceneDetailPage from '../pages/channel-integration/SceneDetailPage';
-import FlowEditorPage from '../pages/channel-integration/FlowEditorPage';
-import IntegrationDetailLayout from '../components/IntegrationDetailLayout';
-import TestPage from '../pages/channel-integration/TestPage';
+const SceneListPage = lazy(() => import('../pages/channel-integration/SceneListPage'));
+const SceneEditPage = lazy(() => import('../pages/channel-integration/SceneEditPage'));
+const SceneDetailPage = lazy(() => import('../pages/channel-integration/SceneDetailPage'));
+const FlowEditorPage = lazy(() => import('../pages/channel-integration/FlowEditorPage'));
+const TestPage = lazy(() => import('../pages/channel-integration/TestPage'));
 
 // Basic Info pages (has sidebar)
-import BasicInfoBusinessTypePage from '../pages/basic-info/BusinessTypePage';
-import CurrencyPage from '../pages/basic-info/CurrencyPage';
-import CountryPage from '../pages/basic-info/CountryPage';
-import InstitutionTypePage from '../pages/basic-info/InstitutionTypePage';
-import InstitutionPage from '../pages/basic-info/InstitutionPage';
-import ExchangeRatePage from '../pages/basic-info/ExchangeRatePage';
-import ProductPage from '../pages/basic-info/ProductPage';
-import MerchantPage from '../pages/basic-info/MerchantPage';
-import CapabilityPage from '../pages/basic-info/CapabilityPage';
-import StateMachineListPage from '../pages/basic-info/capability/StateMachineListPage';
-import LinkStateMachinePage from '../pages/basic-info/capability/LinkStateMachinePage';
-import StateMachineCanvas from '../pages/basic-info/capability/stateMachine/StateMachineCanvas';
-import CapabilityFeaturesPage from '../pages/basic-info/capability/CapabilityFeaturesPage';
-import CapabilitySpiPage from '../pages/basic-info/capability/CapabilitySpiPage';
+const BasicInfoBusinessTypePage = lazy(() => import('../pages/basic-info/BusinessTypePage'));
+const CurrencyPage = lazy(() => import('../pages/basic-info/CurrencyPage'));
+const CountryPage = lazy(() => import('../pages/basic-info/CountryPage'));
+const InstitutionTypePage = lazy(() => import('../pages/basic-info/InstitutionTypePage'));
+const InstitutionPage = lazy(() => import('../pages/basic-info/InstitutionPage'));
+const ExchangeRatePage = lazy(() => import('../pages/basic-info/ExchangeRatePage'));
+const ProductPage = lazy(() => import('../pages/basic-info/ProductPage'));
+const MerchantPage = lazy(() => import('../pages/basic-info/MerchantPage'));
+const CapabilityPage = lazy(() => import('../pages/basic-info/CapabilityPage'));
+const StateMachineListPage = lazy(() => import('../pages/basic-info/capability/StateMachineListPage'));
+const LinkStateMachinePage = lazy(() => import('../pages/basic-info/capability/LinkStateMachinePage'));
+const StateMachineCanvas = lazy(() => import('../pages/basic-info/capability/stateMachine/StateMachineCanvas'));
+const CapabilityFeaturesPage = lazy(() => import('../pages/basic-info/capability/CapabilityFeaturesPage'));
+const CapabilitySpiPage = lazy(() => import('../pages/basic-info/capability/CapabilitySpiPage'));
 
-import TestCenterPage from '../pages/tests/TestCenterPage';
-import ContextInspectorPage from '../pages/inspector/ContextInspectorPage';
+const TestCenterPage = lazy(() => import('../pages/tests/TestCenterPage'));
+const ContextInspectorPage = lazy(() => import('../pages/inspector/ContextInspectorPage'));
 
 function ComingSoonPage({ title }: { title: string }) {
   return <div style={{ padding: 24 }}>{title} Page - 待实现</div>;
@@ -244,5 +245,9 @@ const router = createHashRouter(
 ]);
 
 export default function Router() {
-  return <RouterProvider router={router} />;
+  return (
+    <Suspense fallback={<div style={{ padding: 24 }}>Loading...</div>}>
+      <RouterProvider router={router} />
+    </Suspense>
+  );
 }
