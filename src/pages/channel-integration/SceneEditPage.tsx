@@ -4,7 +4,7 @@ import { Card, Button, Space, Tag, Select, Drawer, Form, Input, Switch, Modal, m
 import { ArrowLeftOutlined, PlusOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, WarningOutlined, CopyOutlined } from '@ant-design/icons';
 import { useScenarioStore, useActionStore } from '../../store';
 import type { ScenarioVersion, L3NodeConfig } from '../../store';
-import { ReactFlow, Background, Controls, MiniMap, useNodesState, useEdgesState, useReactFlow, Handle, Position } from '@xyflow/react';
+import { ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, useNodesState, useEdgesState, useReactFlow, Handle, Position } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import L2StepWizardDrawer from './components/L2StepWizardDrawer';
@@ -2370,7 +2370,7 @@ function DeleteConfirmModal({
   );
 }
 
-export default function SceneEditPage() {
+function SceneEditPageContent() {
   const { channelCode, sceneId } = useParams<{ channelCode: string; sceneId: string }>();
   const navigate = useNavigate();
   const { scenarios, scenarioVersions, addScenarioVersion } = useScenarioStore();
@@ -3191,5 +3191,13 @@ export default function SceneEditPage() {
         onConfirm={confirmDelete}
       />
     </div>
+  );
+}
+
+export default function SceneEditPage() {
+  return (
+    <ReactFlowProvider>
+      <SceneEditPageContent />
+    </ReactFlowProvider>
   );
 }

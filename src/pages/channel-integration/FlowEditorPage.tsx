@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio, Switch, Tooltip } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -10,20 +10,23 @@ import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
 import { useChannelScopeStore } from './channelScopeStore';
 import type { AuthType, AuthConfig, CredentialItem } from './channelScopeStore';
-import CredentialDrawer from './sharedCredentialDrawer';
-import AuthenticationDrawer from './sharedAuthenticationDrawer';
 import CanvasContextPanel from './CanvasContextPanel';
-import HttpCallDrawer from './HttpCallDrawer';
-import TcpCallDrawer from './TcpCallDrawer';
-import LoadChannelMerchantInfoDrawer from './LoadChannelMerchantInfoDrawer';
-import ReferenceGenerationDrawer from './ReferenceGenerationDrawer';
 import type { ReferenceConfigTarget } from './ReferenceGenerationDrawer';
-import { InboundRequestDrawer, InboundResponseDrawer } from './InboundComponentDrawer';
-import ConditionConfigurationDrawer, { ConditionNodeDrawer } from './ConditionConfigurationDrawer';
-import StateMachinePreviewModal from './StateMachinePreviewModal';
-import ReturnConfiguredSpiResponseDrawer from './ReturnConfiguredSpiResponseDrawer';
 import { componentByName, componentsForScope, componentScopeForTrigger } from './componentCatalog';
 import type { ComponentDefinition } from './componentCatalog';
+
+const CredentialDrawer = lazy(() => import('./sharedCredentialDrawer'));
+const AuthenticationDrawer = lazy(() => import('./sharedAuthenticationDrawer'));
+const HttpCallDrawer = lazy(() => import('./HttpCallDrawer'));
+const TcpCallDrawer = lazy(() => import('./TcpCallDrawer'));
+const LoadChannelMerchantInfoDrawer = lazy(() => import('./LoadChannelMerchantInfoDrawer'));
+const ReferenceGenerationDrawer = lazy(() => import('./ReferenceGenerationDrawer'));
+const InboundRequestDrawer = lazy(() => import('./InboundComponentDrawer').then((module) => ({ default: module.InboundRequestDrawer })));
+const InboundResponseDrawer = lazy(() => import('./InboundComponentDrawer').then((module) => ({ default: module.InboundResponseDrawer })));
+const ConditionConfigurationDrawer = lazy(() => import('./ConditionConfigurationDrawer'));
+const ConditionNodeDrawer = lazy(() => import('./ConditionConfigurationDrawer').then((module) => ({ default: module.ConditionNodeDrawer })));
+const StateMachinePreviewModal = lazy(() => import('./StateMachinePreviewModal'));
+const ReturnConfiguredSpiResponseDrawer = lazy(() => import('./ReturnConfiguredSpiResponseDrawer'));
 
 const { Text, Title } = Typography;
 
@@ -2439,8 +2442,9 @@ export default function FlowEditorPage() {
         onConfirm={(spi) => setSpiData(spi)}
       />
 
-      <HttpCallDrawer
-        open={showHttpCallDrawer}
+      <Suspense fallback={null}>
+      {showHttpCallDrawer && <HttpCallDrawer
+        open
         channelCode={params.channelCode ?? ''}
         initialValues={selectedConfig}
         readOnly={readOnly}
@@ -2459,7 +2463,7 @@ export default function FlowEditorPage() {
           }));
           setShowHttpCallDrawer(false);
         }}
-      />
+      />}
 
       <NetworkConfigDrawer
         visible={showNetworkDrawer}
@@ -2483,8 +2487,8 @@ export default function FlowEditorPage() {
         }}
       />
 
-      <TcpCallDrawer
-        open={showTcpCallDrawer}
+      {showTcpCallDrawer && <TcpCallDrawer
+        open
         channelCode={params.channelCode ?? ''}
         initialValues={selectedConfig}
         readOnly={readOnly}
@@ -2495,10 +2499,10 @@ export default function FlowEditorPage() {
             : n));
           setShowTcpCallDrawer(false);
         }}
-      />
+      />}
 
-      <LoadChannelMerchantInfoDrawer
-        open={showLoadChannelMerchantInfoDrawer}
+      {showLoadChannelMerchantInfoDrawer && <LoadChannelMerchantInfoDrawer
+        open
         initialValues={selectedConfig}
         readOnly={readOnly}
         onClose={() => setShowLoadChannelMerchantInfoDrawer(false)}
@@ -2509,10 +2513,10 @@ export default function FlowEditorPage() {
           setShowLoadChannelMerchantInfoDrawer(false);
           message.success('Channel Merchant Info configuration saved');
         }}
-      />
+      />}
 
-      <ReferenceGenerationDrawer
-        open={referenceConfigTarget !== null}
+      {referenceConfigTarget !== null && <ReferenceGenerationDrawer
+        open
         target={referenceConfigTarget ?? { direction: 'outbound', placement: 'init-order' }}
         initialValues={selectedConfig}
         readOnly={readOnly}
@@ -2524,10 +2528,10 @@ export default function FlowEditorPage() {
           setReferenceConfigTarget(null);
           message.success('Reference configuration saved');
         }}
-      />
+      />}
 
-      <InboundRequestDrawer
-        open={showInboundRequestDrawer}
+      {showInboundRequestDrawer && <InboundRequestDrawer
+        open
         initialValues={selectedConfig}
         readOnly={readOnly}
         businessType={params.bt ?? ''}
@@ -2542,10 +2546,10 @@ export default function FlowEditorPage() {
           setShowInboundRequestDrawer(false);
           message.success('Inbound Request configuration saved');
         }}
-      />
+      />}
 
-      <InboundResponseDrawer
-        open={showInboundResponseDrawer}
+      {showInboundResponseDrawer && <InboundResponseDrawer
+        open
         initialValues={selectedConfig}
         readOnly={readOnly}
         businessType={params.bt ?? ''}
@@ -2557,10 +2561,10 @@ export default function FlowEditorPage() {
           setShowInboundResponseDrawer(false);
           message.success('Inbound Response configuration saved');
         }}
-      />
+      />}
 
-      <ReturnConfiguredSpiResponseDrawer
-        open={showConfiguredSpiResponseDrawer}
+      {showConfiguredSpiResponseDrawer && <ReturnConfiguredSpiResponseDrawer
+        open
         globalVariables={globalVariables}
         orderVariables={mockOrderVars}
         initialValues={selectedConfig}
@@ -2573,7 +2577,7 @@ export default function FlowEditorPage() {
           setShowConfiguredSpiResponseDrawer(false);
           message.success('Direct Response saved');
         }}
-      />
+      />}
 
       {placeholderComponent && componentByName(placeholderComponent)?.status === 0 ? <Modal
         title={`${placeholderComponent} Configuration`}
@@ -2597,8 +2601,8 @@ export default function FlowEditorPage() {
       </Drawer>}
 
       {/* Edge Condition Modal */}
-      <ConditionConfigurationDrawer
-        open={showEdgeConditionDrawer}
+      {showEdgeConditionDrawer && <ConditionConfigurationDrawer
+        open
         targetComponent={String(nodes.find((node) => node.id === selectedEdgeForCondition?.target)?.data.code ?? '')}
         fieldOptions={[
           { label: 'Channel Response Code', value: 'channelResponse.code', type: 'String' },
@@ -2624,10 +2628,10 @@ export default function FlowEditorPage() {
           setSelectedEdgeForCondition(null);
           message.success('Branch condition saved');
         }}
-      />
+      />}
 
-      <ConditionNodeDrawer
-        open={showConditionNodeDrawer}
+      {showConditionNodeDrawer && <ConditionNodeDrawer
+        open
         branches={edges.filter((edge) => edge.source === selectedConditionNodeId).map((edge, index) => {
           const condition = edge.data?.condition as any;
           return {
@@ -2660,7 +2664,7 @@ export default function FlowEditorPage() {
           setShowConditionNodeDrawer(false);
           message.success('Condition configuration saved');
         }}
-      />
+      />}
 
       {/* Generated Field Drawer */}
       <GeneratedFieldDrawer
@@ -2714,8 +2718,8 @@ export default function FlowEditorPage() {
         }}
       />
 
-      <CredentialDrawer
-        visible={showCredentialDrawer}
+      {showCredentialDrawer && <CredentialDrawer
+        visible
         channelCode={params.channelCode ?? ''}
         credential={editingCredential}
         onSave={() => {}}
@@ -2723,10 +2727,10 @@ export default function FlowEditorPage() {
           setShowCredentialDrawer(false);
           setEditingCredential(null);
         }}
-      />
+      />}
 
-      <AuthenticationDrawer
-        visible={showAuthenticationDrawer}
+      {showAuthenticationDrawer && <AuthenticationDrawer
+        visible
         channelCode={params.channelCode ?? ''}
         auth={editingAuthentication}
         onSave={() => {}}
@@ -2734,14 +2738,15 @@ export default function FlowEditorPage() {
           setShowAuthenticationDrawer(false);
           setEditingAuthentication(null);
         }}
-      />
+      />}
 
-      <StateMachinePreviewModal
-        open={showStateMachinePreview}
+      {showStateMachinePreview && <StateMachinePreviewModal
+        open
         stateMachine={storedAbility?.stateMachine ?? ''}
         highlightedState={triggerSubState}
         onClose={() => setShowStateMachinePreview(false)}
-      />
+      />}
+      </Suspense>
 
       {/* Unsaved Changes Warning Modal */}
       <Modal
