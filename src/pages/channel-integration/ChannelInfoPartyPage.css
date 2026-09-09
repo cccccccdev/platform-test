@@ -1,6 +1,10 @@
 .party-runtime-card { min-height: 360px; border-radius: 2px; }
 .party-runtime-card > .ant-card-body { padding: 28px 32px; }
 .party-list-card > .ant-card-body { padding-top: 34px; }
+.channel-shared-lines-card { min-height: 0; }
+.channel-shared-lines-card .ant-alert { margin: 20px 0; }
+.channel-shared-lines-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.channel-shared-lines-heading h3 { margin: 0 0 4px; color: #27242d; font-size: 16px; }
 .party-runtime-card .ant-table-thead > tr > th { height: 54px; background: #fafafa; font-weight: 600; }
 .party-runtime-card .ant-table-tbody > tr > td { height: 62px; }
 .party-runtime-card .ant-btn-link { color: var(--legacy-purple); }
@@ -19,7 +23,28 @@
 .party-line-shell .ant-tabs-tab-active .ant-tabs-tab-btn { color: var(--legacy-purple) !important; }
 .party-line-shell .ant-tabs-ink-bar { background: var(--legacy-purple); }
 .party-line-card { border-top-left-radius: 0; }
+.party-line-card .ant-alert { margin-bottom: 22px; }
 .party-line-actions { display: flex; justify-content: flex-end; gap: 10px; margin-bottom: 18px; }
+.party-request-line-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+.party-request-line-header .party-page-context { margin-bottom: 0; }
+.party-runtime-card .party-manage-lines-button.ant-btn-primary { background: #1677ff; color: #fff; }
+.party-runtime-card .party-manage-lines-button.ant-btn-primary:hover { background: #4096ff; }
+.party-associate-line-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.party-path-line-table { margin: 0; }
+.party-path-line-table .ant-table { background: #fcfcfd; }
+.party-path-line-table .ant-table-thead > tr > th { height: 46px; background: #f5f5f7; }
+.party-path-line-table .ant-table-tbody > tr > td { height: 54px; }
+.party-line-weight { font-variant-numeric: tabular-nums; }
+.party-route-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.party-route-tag { margin: 0; }
+.party-route-error { margin-bottom: 5px; color: #cf1322; font-size: 12px; font-weight: 600; }
+.party-routing-form-head,
+.party-routing-form-row { display: grid; grid-template-columns: minmax(260px, 1fr) 150px 90px 34px; gap: 12px; align-items: start; }
+.party-routing-form-head { margin-bottom: 8px; color: #595959; font-size: 12px; font-weight: 600; }
+.party-routing-form-row .ant-form-item { margin-bottom: 14px; }
+.party-routing-create-line { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.party-routing-hint { display: block; margin-top: 10px; }
+.party-inherit-preview { margin-top: 4px; padding: 18px; border: 1px solid #e8e8e8; background: #fafafa; }
 .credential-modal-context { display: flex; gap: 8px 24px; margin: 14px 0 22px; }
 .credential-modal-context strong:not(:first-child) { margin-left: 16px; }
 .credential-modal-grid { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(240px, 1.4fr) 34px; gap: 16px; align-items: start; }
@@ -33,6 +58,9 @@
 .network-route-modal .ant-switch.ant-switch-checked { background: var(--legacy-purple); }
 @media (max-width: 900px) {
   .party-runtime-card > .ant-card-body { padding: 22px 18px; }
+  .party-request-line-header { align-items: flex-start; }
   .party-credential-meta > .ant-btn { margin-left: 0; }
   .credential-modal-grid { grid-template-columns: 1fr 1fr 34px; gap: 10px; }
+  .party-routing-form-head,
+  .party-routing-form-row { grid-template-columns: minmax(180px, 1fr) 120px 70px 34px; gap: 8px; }
 }

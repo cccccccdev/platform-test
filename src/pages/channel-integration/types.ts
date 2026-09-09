@@ -283,6 +283,7 @@ export interface ResourceVersionSnapshot {
   globalVariables?: string;
   credentials?: string;
   orderVariables?: string;
+  endpoints?: Record<string, string>;
 }
 
 // Config Ability main record (BT + Ability)

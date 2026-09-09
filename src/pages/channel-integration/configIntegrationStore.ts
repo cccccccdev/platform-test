@@ -83,6 +83,8 @@ const evexinSendHttpCallConfig = {
   method: 'POST',
   protocol: 'HTTP',
   path: '/api/msg/v2/sendMsg',
+  endpointId: 'endpoint_evexin_send_sms',
+  endpointVersion: '20260820122454',
   requestMappingMode: 'configuration',
   responseMappingMode: 'configuration',
   requestFormat: 'JSON',
@@ -119,6 +121,47 @@ const evexinSendHttpCallConfig = {
     },
   ],
 };
+
+const evexinQueryHttpCallConfig = {
+  method: 'POST',
+  protocol: 'HTTP',
+  path: '/api/msg/v2/queryStatus',
+  endpointId: 'endpoint_evexin_query_status',
+  endpointVersion: '20260820115713',
+  requestMappingMode: 'configuration',
+  responseMappingMode: 'configuration',
+  requestFormat: 'JSON',
+  responseFormat: 'JSON',
+  bodyFieldMode: 'all',
+  responseFallback: 'FAIL',
+  responseCodeMode: 'default',
+  responseCodeAssembly: ['httpStatus', 'responseBody.code'],
+  responseMessageField: 'msg',
+  timeout: 5000,
+  requestHeaders: [
+    { id: 'evexin_query_header_app_key', sourceValue: ['Credentials', 'credential.appKey'], name: 'appKey', type: 'String', required: true, description: '' },
+    { id: 'evexin_query_header_app_secret', sourceValue: ['Credentials', 'credential.appSecret'], name: 'appSecret', type: 'String', required: true, description: '' },
+  ],
+  requestBody: [
+    { id: 'evexin_query_msg_id', name: 'msgId', type: 'String', required: true, sourceId: ['SPI Request', 'spi.request.responseReference'], description: 'Message id returned by Send SMS' },
+  ],
+  responseBody: [
+    { id: 'evexin_query_res_code', name: 'code', type: 'String', required: true, targetValue: 'spi.response.channelResponseCode', description: 'Channel response code' },
+    { id: 'evexin_query_res_msg', name: 'msg', type: 'String', required: true, targetValue: 'spi.response.responseMessage', description: 'Channel response message' },
+    { id: 'evexin_query_res_status', name: 'status', type: 'String', required: true, description: 'Current message delivery status' },
+  ],
+};
+
+const evexinQueryCanvasNodes = [
+  { id: 'evexin_query_1', componentCode: 'initOutboundRequeryOrder', x: 320, y: 40, status: 'complete' as const },
+  { id: 'evexin_query_2', componentCode: 'http', x: 320, y: 160, status: 'complete' as const, config: evexinQueryHttpCallConfig },
+  { id: 'evexin_query_3', componentCode: 'updateOutboundOrder', x: 320, y: 280, status: 'complete' as const, config: { targetSubState: 'DELIVERED', failureSubState: 'FAILED' } },
+];
+
+const evexinQueryCanvasEdges = [
+  { id: 'evexin_query_e1', source: 'evexin_query_1', target: 'evexin_query_2' },
+  { id: 'evexin_query_e2', source: 'evexin_query_2', target: 'evexin_query_3' },
+];
 
 const evexinSendCanvasNodes = [
   { id: 'evexin_out_1', componentCode: 'initOutboundFirstOrder', x: 320, y: 40, status: 'complete' as const },
@@ -365,6 +408,15 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
           remark: 'EVEXIN single SMS daily configuration',
           operator: 'Bailly',
           operationTime: '2026-06-29 11:50:53',
+          resourceVersions: {
+            globalVariables: '20260628110000',
+            credentials: '20260628111000',
+            orderVariables: '20260628110500',
+            endpoints: {
+              endpoint_evexin_send_sms: '20260820122454',
+              endpoint_evexin_query_status: '20260820115713',
+            },
+          },
           deployRecords: [
             { cloud: 'ALIYUN', app: 'omnicore', env: 'DAILY', version: '20260629115053', operator: 'Bailly', operationTime: '2026-06-29 12:00:00' },
             { cloud: 'ALIYUN', app: 'omnicore', env: 'DAILY', version: '20260620103000', operator: 'Amina Yusuf', operationTime: '2026-06-20 10:45:00' },
@@ -402,6 +454,21 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
               status: 'SUBMITTED',
               canvasNodes: evexinCallbackCanvasNodes,
               canvasEdges: evexinCallbackCanvasEdges,
+            },
+            {
+              id: '29',
+              name: 'SMS_SINGLE_MESSAGE_QUERY_STATUS',
+              executionType: 'single',
+              flowType: 'outbound',
+              endType: 'event',
+              triggerType: 'REQUERY_TRIGGERED',
+              template: 'REQUERY_TRIGGERED_OUTBOUND_ORDER',
+              triggerEvents: ['TRANSACTION'],
+              contextActions: ['TRANSACTION'],
+              isConfigured: true,
+              status: 'SUBMITTED',
+              canvasNodes: evexinQueryCanvasNodes,
+              canvasEdges: evexinQueryCanvasEdges,
             },
           ],
         },
@@ -466,6 +533,12 @@ const seedAbilities: Record<string, ConfigAbility[]> = {
           remark: 'EVEXIN bulk SMS sub-order mode demo',
           operator: 'Bailly',
           operationTime: '2026-09-09 10:30:00',
+          resourceVersions: {
+            globalVariables: '20260628110000',
+            credentials: '20260628111000',
+            orderVariables: '20260628110500',
+            endpoints: { endpoint_evexin_send_sms: '20260820122454' },
+          },
           deployRecords: [
             { cloud: 'ALIYUN', app: 'omnicore', env: 'DAILY', version: '20260909103000', operator: 'Bailly', operationTime: '2026-09-09 10:40:00' },
           ],
