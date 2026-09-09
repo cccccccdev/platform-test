@@ -158,14 +158,6 @@ interface RuntimeHistoryTarget {
   enabled: boolean;
 }
 
-interface TimeoutTarget {
-  ability: ConfigAbility;
-  group: FlowGroupVersion;
-  flow: FlowGroupVersion['flows'][number];
-  authenticationEndpoints: Array<{ id: string; path: string; timeout: number }>;
-  flowEndpoints: Array<{ id: string; path: string; timeout: number }>;
-}
-
 type RuntimeConfigTarget = { kind: 'matching'; endpoint: InboundEndpoint } | { kind: 'group'; ability: ConfigAbility };
 type RuntimeDetailView =
   | { kind: 'route-matching'; endpoint: InboundEndpoint; version: CapabilityDecisionVersion }
@@ -446,7 +438,6 @@ export default function ChannelInfoPage() {
   } | null>(null);
   const [approvalRequests, setApprovalRequests] = useState<ExternalApprovalRequest[]>([]);
   const [runtimeHistory, setRuntimeHistory] = useState<RuntimeHistoryTarget | null>(null);
-  const [timeoutTarget, setTimeoutTarget] = useState<TimeoutTarget | null>(null);
   const [matchingWeights, setMatchingWeights] = useState<Record<string, number>>({});
   const [groupWeights, setGroupWeights] = useState<Record<string, number>>({});
   const [matchingSwitches, setMatchingSwitches] = useState<Record<string, boolean>>({});
@@ -472,7 +463,6 @@ export default function ChannelInfoPage() {
   const [eventForm] = Form.useForm<{ eventType: EventOperation['eventType']; pendingDuration?: number; approvalRecords?: Array<{ name?: string }> }>();
   const [approvalForm] = Form.useForm<{ reason: string }>();
   const [requeryForm] = Form.useForm();
-  const [timeoutForm] = Form.useForm();
   const [runtimeApprovalForm] = Form.useForm<{ reason: string }>();
   const endpointsByChannel = useMatchCapabilityStore((state) => state.endpointsByChannel);
   const abilitiesByChannel = useConfigIntegrationStore((state) => state.abilitiesByChannel);
@@ -1022,26 +1012,6 @@ export default function ChannelInfoPage() {
     message.success('Runtime config submitted for approval');
   };
 
-  const openTimeoutConfig = (ability: ConfigAbility, group: FlowGroupVersion, flow: FlowGroupVersion['flows'][number]) => {
-    const httpNodes = flow.canvasNodes?.filter((node) => node.componentCode === 'httpCall') ?? [];
-    const flowEndpoints = httpNodes.map((node, index) => ({
-      id: `${group.groupId}-${flow.id}-${node.id}-${index}`,
-      path: String(node.config?.path ?? '/test/path'),
-      timeout: Number(node.config?.timeout ?? 10000),
-    }));
-    const authenticationEndpoints = httpNodes
-      .filter((node) => Boolean(node.config?.authenticationEndpoint || node.config?.authEndpoint || node.config?.tokenEndpoint))
-      .map((node, index) => ({
-        id: `${group.groupId}-${flow.id}-auth-${node.id}-${index}`,
-        path: String(node.config?.authenticationEndpoint ?? node.config?.authEndpoint ?? node.config?.tokenEndpoint),
-        timeout: Number(node.config?.authenticationTimeout ?? node.config?.timeout ?? 10000),
-      }));
-    setTimeoutTarget({ ability, group, flow, authenticationEndpoints, flowEndpoints });
-    timeoutForm.setFieldsValue({
-      timeouts: Object.fromEntries([...authenticationEndpoints, ...flowEndpoints].map((item) => [item.id, item.timeout])),
-    });
-  };
-
   const openFlowGroupDetail = (ability: ConfigAbility, group: FlowGroupVersion) => {
     setRuntimeDetailView({ kind: 'flow-group', ability, group });
   };
@@ -1168,7 +1138,7 @@ export default function ChannelInfoPage() {
       width: 250,
       render: (_, group) => {
         return <Space size="small" wrap>
-          <Button type="link" size="small" onClick={() => openFlowGroupDetail(ability, group)}>Config</Button>
+          <Button type="link" size="small" onClick={() => openFlowGroupDetail(ability, group)}>Detail</Button>
           <Button type="link" size="small" onClick={() => setRuntimeHistory({ kind: 'Flow Groups', title: `Group ${group.groupId}`, targetId: String(group.groupId), context: [{ label: 'Business Type', value: ability.bt }, { label: 'Ability', value: ability.ability }, { label: 'Version', value: group.version }], weight: 0, enabled: isGroupEnabled(group) })}>Change History</Button>
         </Space>;
       },
@@ -1311,7 +1281,7 @@ export default function ChannelInfoPage() {
 
   const renderRuntimeFlowGroupsPage = () => (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Alert type="info" showIcon message="Runtime Control manages deployed Flow Groups by Business Type + Ability. Open a Group Config to manage Flow-level settings." />
+      <Alert type="info" showIcon message="Runtime Control manages deployed Flow Groups by Business Type + Ability. Open Group Detail to inspect its Flows and components." />
       <Card>
         <Table<ConfigAbility>
           rowKey={(ability) => `${ability.bt}-${ability.ability}`}
@@ -1436,7 +1406,7 @@ export default function ChannelInfoPage() {
               return flow.triggerType === 'REQUERY_TRIGGERED' && triggerState ? <Tag color="gold">{triggerState}</Tag> : <span style={{ color: '#999' }}>N/A</span>;
             },
           },
-          { title: 'Operation', width: 270, fixed: 'right', render: (_, flow) => <Space size="small"><Button type="link" size="small" onClick={() => openTimeoutConfig(detail.ability, detail.group, flow)}>Timeout Config</Button><Button type="link" size="small" onClick={() => setRuntimeDetailView({ kind: 'flow-canvas', ability: detail.ability, group: detail.group, flowId: flow.id })}>View Components</Button></Space> },
+          { title: 'Operation', width: 150, fixed: 'right', render: (_, flow) => <Button type="link" size="small" onClick={() => setRuntimeDetailView({ kind: 'flow-canvas', ability: detail.ability, group: detail.group, flowId: flow.id })}>View Components</Button> },
         ]}
       />
     </Card>
@@ -2123,44 +2093,6 @@ export default function ChannelInfoPage() {
       </Modal>
 
       {renderRuntimeComponentDetailDrawer()}
-
-      <Modal
-        title="Timeout Config"
-        open={!!timeoutTarget}
-        width={760}
-        onCancel={() => setTimeoutTarget(null)}
-        onOk={() => { setTimeoutTarget(null); message.success('Timeout config saved'); }}
-        okText="Confirm"
-      >
-        {timeoutTarget && (
-          <>
-            <div className="flow-group-deploy-status-context">
-              <Space size={20} wrap className="flow-group-deploy-status-line">
-                <span><strong>Flow ID:</strong> {timeoutTarget.flow.id}</span>
-                <span><strong>Flow Name:</strong> {timeoutTarget.flow.name}</span>
-              </Space>
-            </div>
-            <Form form={timeoutForm} layout="vertical">
-              {timeoutTarget.authenticationEndpoints.length > 0 && (
-                <Card size="small" title="Authentication Endpoint Timeout" style={{ marginBottom: 16 }}>
-                  {timeoutTarget.authenticationEndpoints.map((item) => (
-                    <Form.Item key={item.id} name={['timeouts', item.id]} label={item.path} rules={[{ required: true }]}>
-                      <InputNumber min={1} addonAfter="ms" style={{ width: '100%' }} />
-                    </Form.Item>
-                  ))}
-                </Card>
-              )}
-              <Card size="small" title="Flow Endpoint Timeout">
-                {timeoutTarget.flowEndpoints.length > 0 ? timeoutTarget.flowEndpoints.map((item) => (
-                  <Form.Item key={item.id} name={['timeouts', item.id]} label={item.path} rules={[{ required: true }]}>
-                    <InputNumber min={1} addonAfter="ms" style={{ width: '100%' }} />
-                  </Form.Item>
-                )) : <Text type="secondary">No Flow Endpoint is configured for this Flow.</Text>}
-              </Card>
-            </Form>
-          </>
-        )}
-      </Modal>
 
       <Modal title="Change History" open={!!runtimeHistory} onCancel={() => setRuntimeHistory(null)} footer={<Button onClick={() => setRuntimeHistory(null)}>Close</Button>} width={980}>
         {runtimeHistory && (

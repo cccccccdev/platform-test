@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
@@ -24,7 +24,7 @@ import { mockChannelInfoApplications } from '../../mock/data';
 import { useChannelScopeStore, type OutboundEndpoint } from './channelScopeStore';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import type { InboundEndpoint } from './types';
-import { channelLineScopeKey, initialSharedLines, useChannelLineStore, type SharedLine } from './channelInfoPartyLines';
+import { channelLineScopeKey, initialSharedLines, useChannelLineStore, type LineReference, type SharedLine } from './channelInfoPartyLines';
 
 const { Text } = Typography;
 
@@ -121,6 +121,7 @@ function initialAccountLine(channelCode: string, account: string): SharedLine[] 
     line: channelCode === 'EVEXIN' ? 'https://api.evexin.com' : `https://api.${channelCode.toLowerCase().replaceAll('_', '-')}.com`,
     skipSsl: false,
     enableProxy: false,
+    timeout: 10000,
     operator: 'Zhang Wei',
     operationTime: '2026-05-19 14:12:20',
   }];
@@ -143,6 +144,7 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
   const lineScopeKey = channelLineScopeKey(channelCode, cloud, env);
   const storedSharedLines = useChannelLineStore((state) => state.linesByScope[lineScopeKey]);
   const setSharedLines = useChannelLineStore((state) => state.setLines);
+  const setPartyReferences = useChannelLineStore((state) => state.setPartyReferences);
   const sharedLines = storedSharedLines ?? initialSharedLines(channelCode);
   const allOutboundEndpoints = useChannelScopeStore((state) => state.outboundEndpointsByChannel[channelCode] ?? []);
   const abilities = useConfigIntegrationStore((state) => state.abilitiesByChannel[channelCode]);
@@ -189,6 +191,17 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
   const accountLineKey = `${scopeKey}:${account ?? ''}`;
   const accountLines = account ? accountLinesByScope[accountLineKey] ?? initialAccountLine(channelCode, account) : [];
   const accountRouting = accountRoutingByScope[accountLineKey] ?? initialAccountRouting(publishedEndpoints, accountLines);
+
+  useEffect(() => {
+    if (account) return;
+    const references: LineReference[] = pathGroups.flatMap((group) => {
+      const configuration = group.endpointIds.map((endpointId) => routing.endpointConfigurations[endpointId]).find(Boolean);
+      return (configuration?.routes ?? [])
+        .filter((route) => route.enabled)
+        .map((route) => ({ lineId: route.lineId, party, path: group.path }));
+    });
+    setPartyReferences(lineScopeKey, party, references);
+  }, [account, lineScopeKey, party, pathGroups, routing, setPartyReferences]);
 
   const saveRouting = (next: RoutingConfiguration) => setRoutingByScope((current) => ({ ...current, [scopeKey]: next }));
   const enabledRoutes = (routes: RouteEntry[]) => routes.filter((route) => route.enabled);
@@ -296,7 +309,7 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
   };
 
   const openQuickLine = () => {
-    quickLineForm.setFieldsValue({ lineName: '', line: '', skipSsl: false, enableProxy: false });
+    quickLineForm.setFieldsValue({ lineName: '', line: '', skipSsl: false, enableProxy: false, timeout: undefined });
     setQuickLineOpen(true);
   };
 
@@ -481,6 +494,7 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
       <Form form={quickLineForm} labelCol={{ span: 7 }} wrapperCol={{ span: 14 }}>
         <Form.Item name="lineName" label="Line Name" rules={[{ required: true, whitespace: true }]}><Input /></Form.Item>
         <Form.Item label="Line" required><Space.Compact block><Form.Item name="line" noStyle rules={[{ required: true }, { type: 'url', message: 'Enter a valid URL' }]}><Input /></Form.Item><Form.Item name="skipSsl" valuePropName="checked" noStyle><Checkbox className="network-route-skip-ssl">Skip SSL</Checkbox></Form.Item></Space.Compact></Form.Item>
+        <Form.Item name="timeout" label="Timeout" rules={[{ required: true }]}><InputNumber min={1} addonAfter="ms" style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="enableProxy" label="Enable Proxy" valuePropName="checked"><Switch /></Form.Item>
         {quickProxyEnabled && <><Form.Item name="proxyServer" label="Proxy - Server" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name="proxyPort" label="Proxy - Port" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></>}
       </Form>
