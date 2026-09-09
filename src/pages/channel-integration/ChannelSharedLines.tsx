@@ -81,7 +81,7 @@ export default function ChannelSharedLines({ lines, references, onChange }: Prop
             const activeReferences = references.filter((reference) => reference.lineId === row.id);
             return <Space size="small">
               <Button type="link" onClick={() => setReferenceLine(row)}>References</Button>
-              <Tooltip title={activeReferences.length ? 'This Line has active Party and Path references and cannot be configured.' : undefined}>
+              <Tooltip title={activeReferences.length ? 'This Line has active Party and Endpoint references and cannot be configured.' : undefined}>
                 <span><Button type="link" icon={<EditOutlined />} disabled={activeReferences.length > 0} onClick={() => openEditor(row)}>Config</Button></span>
               </Tooltip>
             </Space>;
@@ -111,15 +111,15 @@ export default function ChannelSharedLines({ lines, references, onChange }: Prop
     <Modal title="Line References" open={Boolean(referenceLine)} onCancel={() => setReferenceLine(null)} footer={<Button onClick={() => setReferenceLine(null)}>Close</Button>} width={720}>
       {referenceLine && <>
         <div className="credential-modal-context"><strong>Line:</strong> {referenceLine.lineName}</div>
-        <Alert type="info" showIcon message="Only enabled Party and Path references are shown." style={{ marginBottom: 16 }} />
+        <Alert type="info" showIcon message="Only enabled Party and Endpoint references are shown." style={{ marginBottom: 16 }} />
         <Table<LineReference>
           rowKey={(reference) => `${reference.party}:${reference.path}`}
           dataSource={references.filter((reference) => reference.lineId === referenceLine.id)}
           pagination={false}
-          locale={{ emptyText: <Empty description="This Line has no active Party and Path references." /> }}
+          locale={{ emptyText: <Empty description="This Line has no active Party and Endpoint references." /> }}
           columns={[
             { title: 'Party', dataIndex: 'party', width: '35%' },
-            { title: 'Path', dataIndex: 'path' },
+            { title: 'Endpoint', dataIndex: 'path' },
           ]}
         />
       </>}

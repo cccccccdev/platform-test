@@ -238,7 +238,7 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
     const active = enabledRoutes(routes);
     const everActivated = everActivatedForTarget(target);
     if (nextEnabled && active.length >= 2) {
-      message.error('At most two Lines can be enabled for one Path.');
+      message.error('At most two Lines can be enabled for one Endpoint.');
       return;
     }
     if (!nextEnabled && everActivated && active.length <= 1) {
@@ -403,18 +403,18 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
       type="info"
       showIcon
       message={account
-        ? 'Each Path must have its own Account Line configuration. Account Lines are isolated from Channel-level shared Lines, and runtime requests fail when a Path has no enabled Line.'
-        : 'Each Path must have its own Line configuration. Runtime requests fail when a Path has no enabled Line.'}
+        ? 'Each Endpoint must have its own Account Line configuration. Account Lines are isolated from Channel-level shared Lines, and runtime requests fail when an Endpoint has no enabled Line.'
+        : 'Each Endpoint must have its own Line configuration. Runtime requests fail when an Endpoint has no enabled Line.'}
     />
-    {missingCount > 0 && <Alert type="error" showIcon message={`${missingCount} Path${missingCount > 1 ? 's have' : ' has'} no enabled Line.`} />}
+    {missingCount > 0 && <Alert type="error" showIcon message={`${missingCount} Endpoint${missingCount > 1 ? 's have' : ' has'} no enabled Line.`} />}
     <Table<PathGroup>
       rowKey="key"
       dataSource={pathGroups}
-      locale={{ emptyText: <Empty description={`No outbound Path is published to ${cloud} / ${env}.`} /> }}
+      locale={{ emptyText: <Empty description={`No outbound Endpoint is published to ${cloud} / ${env}.`} /> }}
       pagination={false}
       columns={[
         { title: '', width: 50, render: (_: unknown, group: PathGroup) => pathSpecific(group, routingOwner) ? <Button type="text" icon={expandedPathRows.includes(group.key) ? <DownOutlined /> : <RightOutlined />} onClick={() => setExpandedPathRows((rows) => rows.includes(group.key) ? rows.filter((key) => key !== group.key) : [...rows, group.key])} /> : null },
-        { title: 'Path', dataIndex: 'path', render: (value: string) => <Text>{value}</Text> },
+        { title: 'Endpoint', dataIndex: 'path', render: (value: string) => <Text>{value}</Text> },
         { title: 'Method', dataIndex: 'methods', width: 180, render: (methods: string[]) => <Space wrap>{methods.map((method) => <Tag color="geekblue" key={method}>{method}</Tag>)}</Space> },
         { title: 'Operation', width: 240, render: (_: unknown, group: PathGroup) => <Space size="small">
           <Button type="link" size="small" onClick={() => openAssociateLine({ kind: 'path', group, owner: routingOwner })}>Associate Line</Button>
