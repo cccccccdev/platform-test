@@ -5,6 +5,7 @@ export type SharedLine = {
   lineName: string;
   line: string;
   skipSsl: boolean;
+  crossSiteRequest: boolean;
   enableProxy: boolean;
   proxyServer?: string;
   proxyPort?: number;
@@ -27,6 +28,7 @@ export function initialSharedLines(channelCode: string): SharedLine[] {
         lineName: 'EVEXIN Primary Gateway',
         line: 'https://api.evexin.com',
         skipSsl: false,
+        crossSiteRequest: false,
         enableProxy: false,
         operator: 'Adeleye Adedolapo',
         operationTime: '2026-06-26 08:55:57',
@@ -36,6 +38,7 @@ export function initialSharedLines(channelCode: string): SharedLine[] {
         lineName: 'EVEXIN Secondary Gateway',
         line: 'https://api-backup.evexin.com',
         skipSsl: false,
+        crossSiteRequest: false,
         enableProxy: false,
         operator: 'Bailly',
         operationTime: '2026-09-09 09:20:00',
@@ -45,6 +48,7 @@ export function initialSharedLines(channelCode: string): SharedLine[] {
         lineName: 'EVEXIN Status Service',
         line: 'https://status.evexin.com',
         skipSsl: false,
+        crossSiteRequest: false,
         enableProxy: false,
         operator: 'Bailly',
         operationTime: '2026-09-09 09:25:00',
@@ -56,6 +60,7 @@ export function initialSharedLines(channelCode: string): SharedLine[] {
     lineName: 'PRIMARY',
     line: `https://api.${channelCode.toLowerCase().replaceAll('_', '-')}.com`,
     skipSsl: false,
+    crossSiteRequest: false,
     enableProxy: false,
     operator: 'Zhang Wei',
     operationTime: '2026-05-19 14:12:20',

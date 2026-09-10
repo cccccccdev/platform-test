@@ -29,10 +29,11 @@ export default function ChannelSharedLines({ lines, references, onChange }: Prop
       lineName: line.lineName,
       line: line.line,
       skipSsl: line.skipSsl,
+      crossSiteRequest: line.crossSiteRequest,
       enableProxy: line.enableProxy,
       proxyServer: line.proxyServer,
       proxyPort: line.proxyPort,
-    } : { lineName: '', line: '', skipSsl: false, enableProxy: false });
+    } : { lineName: '', line: '', skipSsl: false, crossSiteRequest: false, enableProxy: false });
     setOpen(true);
   };
 
@@ -67,6 +68,7 @@ export default function ChannelSharedLines({ lines, references, onChange }: Prop
         { title: 'Line Name', dataIndex: 'lineName', width: 220 },
         { title: 'Line', dataIndex: 'line', width: 300, render: (value: string) => <Text>{value}</Text> },
         { title: 'Skip SSL', dataIndex: 'skipSsl', width: 100, render: (value: boolean) => value ? 'Yes' : 'No' },
+        { title: 'Cross-site', dataIndex: 'crossSiteRequest', width: 130, render: (value: boolean) => value ? 'Yes' : 'No' },
         { title: 'Proxy', dataIndex: 'enableProxy', width: 170, render: (value: boolean, row: SharedLine) => value ? `${row.proxyServer}:${row.proxyPort}` : 'Disabled' },
         { title: 'Operator', dataIndex: 'operator', width: 150 },
         { title: 'Operation Time', dataIndex: 'operationTime', width: 190 },
@@ -91,6 +93,7 @@ export default function ChannelSharedLines({ lines, references, onChange }: Prop
             <Form.Item name="skipSsl" valuePropName="checked" noStyle><Checkbox className="network-route-skip-ssl">Skip SSL</Checkbox></Form.Item>
           </Space.Compact>
         </Form.Item>
+        <Form.Item name="crossSiteRequest" label="Cross-site" valuePropName="checked"><Switch /></Form.Item>
         <Form.Item name="enableProxy" label="Enable Proxy" valuePropName="checked"><Switch /></Form.Item>
         {proxyEnabled && <>
           <Form.Item name="proxyServer" label="Proxy - Server" rules={[{ required: true }]}><Input /></Form.Item>

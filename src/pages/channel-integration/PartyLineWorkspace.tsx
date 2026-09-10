@@ -137,6 +137,7 @@ function initialAccountLine(channelCode: string, account: string): SharedLine[] 
     lineName: `${account} Primary`,
     line: channelCode === 'EVEXIN' ? 'https://api.evexin.com' : `https://api.${channelCode.toLowerCase().replaceAll('_', '-')}.com`,
     skipSsl: false,
+    crossSiteRequest: false,
     enableProxy: false,
     operator: 'Zhang Wei',
     operationTime: '2026-05-19 14:12:20',
