@@ -8,6 +8,15 @@ import { enableSubOrderMode, getEnabledSubOrderModes, getSubOrderModeKey } from 
 
 const { Title, Text } = Typography;
 const BUSINESS_TYPES_PER_PAGE = 10;
+const ACTION_OPTIONS = [
+  'TRANSACTION',
+  'VERIFY',
+  'TRIGGER_VERIFY',
+  'RE_QUERY',
+  'QUERY',
+  'INBOUND_TRANSACTION',
+  'INBOUND_QUERY',
+] as const;
 
 interface ActionItem {
   key: string;
@@ -33,7 +42,216 @@ interface BusinessTypeItem {
   abilities: AbilityItem[];
 }
 
+interface AddActionTarget {
+  btKey: string;
+  btName: string;
+  abilityKey: string;
+  abilityName: string;
+  existingActions: string[];
+}
+
 const CONFIGURED_BT_DATA: BusinessTypeItem[] = [
+  {
+    key: 'bt_viber',
+    name: 'VIBER',
+    isExpand: true,
+    abilities: [
+      {
+        key: 'ab_viber_bulk_message', name: 'BULK_MESSAGE', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_viber_bulk_transaction', name: 'TRANSACTION', operateTime: '2026-08-21 02:53:05', operator: '顾丰荣 gufengrong' }],
+      },
+      {
+        key: 'ab_viber_single_message', name: 'SINGLE_MESSAGE', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_viber_single_requery', name: 'RE_QUERY', operateTime: '2026-08-26 02:12:05', operator: '顾丰荣 gufengrong' },
+          { key: 'act_viber_single_transaction', name: 'TRANSACTION', operateTime: '2026-08-21 02:52:45', operator: '顾丰荣 gufengrong' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'bt_insurance',
+    name: 'INSURANCE',
+    isExpand: true,
+    abilities: [
+      {
+        key: 'ab_insurance_get_policy_info', name: 'GET_POLICY_INFO', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_insurance_get_policy_info_query', name: 'QUERY', operateTime: '2026-08-17 08:35:56', operator: '王斌 Bin' }],
+      },
+      {
+        key: 'ab_insurance_get_policy_subject_kyc', name: 'GET_POLICY_SUBJECT_KYC', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_insurance_policy_kyc_inbound_query', name: 'INBOUND_QUERY', operateTime: '2026-08-26 15:48:12', operator: '叶子豪 Abe' }],
+      },
+      {
+        key: 'ab_insurance_update_policy_status', name: 'UPDATE_POLICY_LIFECYCLE_STATUS', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_insurance_update_policy_status_inbound_query', name: 'INBOUND_QUERY', operateTime: '2026-08-26 15:44:00', operator: '叶子豪 Abe' }],
+      },
+    ],
+  },
+  {
+    key: 'bt_giftcard',
+    name: 'GIFTCARD',
+    isExpand: true,
+    abilities: [
+      {
+        key: 'ab_giftcard_get_products', name: 'GET_PRODUCTS', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_giftcard_get_products_query', name: 'QUERY', operateTime: '2026-07-15 10:37:54', operator: '潘一泓' }],
+      },
+      {
+        key: 'ab_giftcard_products_update_notify', name: 'PRODUCTS_UPDATE_NOTIFY', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_giftcard_products_update_notify_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-07-22 03:04:04', operator: '潘一泓' }],
+      },
+      {
+        key: 'ab_giftcard_recharge', name: 'RECHARGE', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_giftcard_recharge_requery', name: 'RE_QUERY', operateTime: '2026-07-16 02:29:31', operator: '潘一泓' },
+          { key: 'act_giftcard_recharge_transaction', name: 'TRANSACTION', operateTime: '2026-07-16 02:29:31', operator: '潘一泓' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'bt_stablecoin',
+    name: 'STABLECOIN',
+    isExpand: true,
+    abilities: [
+      {
+        key: 'ab_stablecoin_query_payout_list', name: 'QUERY_PAYOUT_LIST', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_stablecoin_query_payout_list_query', name: 'QUERY', operateTime: '2026-05-21 03:05:15', operator: '潘一泓' }],
+      },
+      {
+        key: 'ab_stablecoin_fund_allocation', name: 'FUND_ALLOCATION', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_stablecoin_fund_allocation_requery', name: 'RE_QUERY', operateTime: '2026-08-28 08:40:25', operator: '胡亮亮 Jack' },
+          { key: 'act_stablecoin_fund_allocation_transaction', name: 'TRANSACTION', operateTime: '2026-08-28 08:40:25', operator: '胡亮亮 Jack' },
+        ],
+      },
+      {
+        key: 'ab_stablecoin_transfer', name: 'TRANSFER', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_stablecoin_transfer_requery', name: 'RE_QUERY', operateTime: '2026-05-21 02:51:43', operator: '潘一泓' },
+          { key: 'act_stablecoin_transfer_transaction', name: 'TRANSACTION', operateTime: '2026-05-21 02:51:43', operator: '潘一泓' },
+          { key: 'act_stablecoin_transfer_verify', name: 'VERIFY', operateTime: '2026-05-21 02:51:43', operator: '潘一泓' },
+        ],
+      },
+      {
+        key: 'ab_stablecoin_query_rate', name: 'STABLECOIN_QUERY_RATE', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_stablecoin_query_rate_query', name: 'QUERY', operateTime: '2026-08-25 05:59:20', operator: '胡亮亮 Jack' }],
+      },
+      {
+        key: 'ab_stablecoin_query_fee', name: 'QUERY_FEE', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_stablecoin_query_fee_query', name: 'QUERY', operateTime: '2026-05-21 02:45:54', operator: '潘一泓' }],
+      },
+      {
+        key: 'ab_stablecoin_pay_out', name: 'PAY_OUT', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_stablecoin_pay_out_requery', name: 'RE_QUERY', operateTime: '2026-08-25 05:50:40', operator: '胡亮亮 Jack' },
+          { key: 'act_stablecoin_pay_out_transaction', name: 'TRANSACTION', operateTime: '2026-08-25 05:50:40', operator: '胡亮亮 Jack' },
+        ],
+      },
+      {
+        key: 'ab_stablecoin_off_ramp', name: 'OFF_RAMP', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_stablecoin_off_ramp_requery', name: 'RE_QUERY', operateTime: '2026-08-25 05:57:33', operator: '胡亮亮 Jack' },
+          { key: 'act_stablecoin_off_ramp_transaction', name: 'TRANSACTION', operateTime: '2026-08-25 05:57:33', operator: '胡亮亮 Jack' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'bt_funds_in',
+    name: 'FUNDS_IN',
+    isExpand: true,
+    abilities: [
+      {
+        key: 'ab_funds_in_payment', name: 'PAYMENT', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_funds_in_payment_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-09-01 03:36:56', operator: '冯启航 Felix' },
+          { key: 'act_funds_in_payment_requery', name: 'RE_QUERY', operateTime: '2026-05-14 03:55:25', operator: 'xiajichen' },
+          { key: 'act_funds_in_payment_transaction', name: 'TRANSACTION', operateTime: '2026-05-14 03:55:25', operator: 'xiajichen' },
+        ],
+      },
+      {
+        key: 'ab_funds_in_stablecoin_notify', name: 'STABLECOIN_NOTIFY', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_funds_in_stablecoin_notify_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-09-07 03:40:32', operator: '胡亮亮 Jack' }],
+      },
+      {
+        key: 'ab_funds_in_biz_type_notify', name: 'BIZ_TYPE_NOTIFY', operateTime: '—', operator: '—', isExpand: true,
+        actions: [{ key: 'act_funds_in_biz_type_notify_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-09-07 07:41:29', operator: '冯启航 Felix' }],
+      },
+    ],
+  },
+  {
+    key: 'bt_product_management',
+    name: 'PRODUCT_MANAGEMENT',
+    isExpand: true,
+    abilities: [
+      { key: 'ab_product_update', name: 'UPDATE_PRODUCT', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_product_update_transaction', name: 'TRANSACTION', operateTime: '2026-05-09 02:40:55', operator: '顾丰荣 gufengrong' }] },
+      { key: 'ab_product_open', name: 'OPEN_PRODUCT', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_product_open_transaction', name: 'TRANSACTION', operateTime: '2026-05-09 02:40:31', operator: '顾丰荣 gufengrong' }] },
+      { key: 'ab_product_close', name: 'CLOSE_PRODUCT', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_product_close_transaction', name: 'TRANSACTION', operateTime: '2026-05-09 02:41:23', operator: '顾丰荣 gufengrong' }] },
+    ],
+  },
+  {
+    key: 'bt_ussd_dial',
+    name: 'USSD_DIAL',
+    isExpand: true,
+    abilities: [
+      { key: 'ab_ussd_start', name: 'START_SESSION', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_ussd_start_inbound_query', name: 'INBOUND_QUERY', operateTime: '2026-04-21 14:40:21', operator: '王斌 Bin' }] },
+      { key: 'ab_ussd_query', name: 'QUERY', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_ussd_query', name: 'QUERY', operateTime: '2026-04-14 13:19:22', operator: '王斌 Bin' }] },
+      { key: 'ab_ussd_continue', name: 'CONTINUE_SESSION', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_ussd_continue_inbound_query', name: 'INBOUND_QUERY', operateTime: '2026-04-21 14:40:34', operator: '王斌 Bin' }] },
+      { key: 'ab_ussd_end', name: 'END_SESSION', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_ussd_end_inbound_query', name: 'INBOUND_QUERY', operateTime: '2026-04-21 14:40:51', operator: '王斌 Bin' }] },
+    ],
+  },
+  {
+    key: 'bt_dispute_in',
+    name: 'DISPUTE_IN',
+    isExpand: true,
+    abilities: [
+      { key: 'ab_dispute_notification', name: 'NOTIFICATION', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_dispute_notification_query', name: 'QUERY', operateTime: '2026-03-13 14:00:01', operator: '顾丰荣 gufengrong' }] },
+      { key: 'ab_dispute_info_modify', name: 'INFO_MODIFY', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_dispute_info_modify_inbound', name: 'INBOUND_QUERY', operateTime: '2026-03-23 15:12:33', operator: '顾丰荣 gufengrong' }] },
+      {
+        key: 'ab_dispute_designate_refund', name: 'DESIGNATE_REFUND', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_dispute_designate_refund_requery', name: 'RE_QUERY', operateTime: '2026-03-13 15:21:04', operator: '顾丰荣 gufengrong' },
+          { key: 'act_dispute_designate_refund_transaction', name: 'TRANSACTION', operateTime: '2026-03-13 15:20:39', operator: '顾丰荣 gufengrong' },
+        ],
+      },
+      { key: 'ab_dispute_create', name: 'CREATE', operateTime: '—', operator: '—', isExpand: true, actions: [{ key: 'act_dispute_create_inbound', name: 'INBOUND_QUERY', operateTime: '2026-03-23 15:11:23', operator: '顾丰荣 gufengrong' }] },
+    ],
+  },
+  {
+    key: 'bt_wallet_account',
+    name: 'WALLET_ACCOUNT',
+    isExpand: true,
+    abilities: [
+      {
+        key: 'ab_wallet_account_create_bind', name: 'CREATE_BIND', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_wallet_account_create_bind_requery', name: 'RE_QUERY', operateTime: '2026-01-23 09:55:04', operator: '顾丰荣 gufengrong' },
+          { key: 'act_wallet_account_create_bind_transaction', name: 'TRANSACTION', operateTime: '2026-01-23 09:53:53', operator: '顾丰荣 gufengrong' },
+        ],
+      },
+      {
+        key: 'ab_wallet_account_auto_debit', name: 'AUTO_DEBIT', operateTime: '—', operator: '—', isExpand: true,
+        actions: [
+          { key: 'act_wallet_account_auto_debit_requery', name: 'RE_QUERY', operateTime: '2026-01-23 09:56:18', operator: '顾丰荣 gufengrong' },
+          { key: 'act_wallet_account_auto_debit_transaction', name: 'TRANSACTION', operateTime: '2026-01-23 09:55:59', operator: '顾丰荣 gufengrong' },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'bt_whatsapp',
+    name: 'WHATSAPP',
+    isExpand: true,
+    abilities: [{
+      key: 'ab_whatsapp_single_message', name: 'SINGLE_MESSAGE', operateTime: '—', operator: '—', isExpand: true,
+      actions: [
+        { key: 'act_whatsapp_single_requery', name: 'RE_QUERY', operateTime: '2026-02-02 11:13:26', operator: '王斌 Bin' },
+        { key: 'act_whatsapp_single_transaction', name: 'TRANSACTION', operateTime: '2026-01-24 09:09:45', operator: '王斌 Bin' },
+      ],
+    }],
+  },
   {
     key: 'bt1',
     name: 'BANK_CARD_DEBIT',
@@ -117,15 +335,6 @@ const buildBusinessTypeItem = (name: string): BusinessTypeItem => {
 };
 
 const INITIAL_DATA = initialBusinessTypeRecords.map(({ businessType }) => buildBusinessTypeItem(businessType));
-function generateActionName(existingActions: ActionItem[]): string {
-  const nums = existingActions
-    .map(a => {
-      const m = a.name.match(/^ACTION_(\d+)$/);
-      return m ? parseInt(m[1]) : 0;
-    });
-  const max = nums.length > 0 ? Math.max(...nums) : 0;
-  return `ACTION_${String(max + 1).padStart(2, '0')}`;
-}
 
 export default function CapabilityPage() {
   const navigate = useNavigate();
@@ -135,6 +344,8 @@ export default function CapabilityPage() {
   const [addAbilityOpen, setAddAbilityOpen] = useState(false);
   const [addAbilityBt, setAddAbilityBt] = useState<string>('');
   const [addAbilityForm] = Form.useForm();
+  const [addActionTarget, setAddActionTarget] = useState<AddActionTarget | null>(null);
+  const [selectedActionNames, setSelectedActionNames] = useState<string[]>([]);
   const [editingActionKey, setEditingActionKey] = useState<string | null>(null);
   const [editingActionName, setEditingActionName] = useState('');
   const [linkSmModalOpen, setLinkSmModalOpen] = useState(false);
@@ -333,25 +544,51 @@ export default function CapabilityPage() {
     } catch {}
   };
 
-  const addAction = useCallback((btKey: string, abKey: string) => {
+  const openAddAction = useCallback((bt: BusinessTypeItem, ability: AbilityItem) => {
+    const existingActions = ability.actions.map((action) => action.name);
+    setAddActionTarget({
+      btKey: bt.key,
+      btName: bt.name,
+      abilityKey: ability.key,
+      abilityName: ability.name,
+      existingActions,
+    });
+    setSelectedActionNames(existingActions);
+  }, []);
+
+  const closeAddAction = useCallback(() => {
+    setAddActionTarget(null);
+    setSelectedActionNames([]);
+  }, []);
+
+  const saveAddAction = useCallback(() => {
+    if (!addActionTarget) return;
+    const actionsToAdd = selectedActionNames.filter((name) => !addActionTarget.existingActions.includes(name));
+    if (actionsToAdd.length === 0) {
+      closeAddAction();
+      return;
+    }
+
     setData(prev => prev.map(bt =>
-      bt.key === btKey
+      bt.key === addActionTarget.btKey
         ? {
             ...bt,
             abilities: bt.abilities.map(ab => {
-              if (ab.key !== abKey) return ab;
-              const newAction: ActionItem = {
-                key: `act_${Date.now()}`,
-                name: generateActionName(ab.actions),
+              if (ab.key !== addActionTarget.abilityKey) return ab;
+              const newActions: ActionItem[] = actionsToAdd.map((name, index) => ({
+                key: `act_${Date.now()}_${index}`,
+                name,
                 operateTime: '—',
                 operator: '—',
-              };
-              return { ...ab, actions: [...ab.actions, newAction] };
+              }));
+              return { ...ab, actions: [...ab.actions, ...newActions] };
             }),
           }
         : bt
     ));
-  }, []);
+    message.success(`Added ${actionsToAdd.length} Action${actionsToAdd.length > 1 ? 's' : ''}.`);
+    closeAddAction();
+  }, [addActionTarget, closeAddAction, selectedActionNames]);
 
   const startEditAction = useCallback((act: ActionItem) => {
     setEditingActionKey(act.key);
@@ -522,7 +759,7 @@ export default function CapabilityPage() {
                     <Button
                       type="dashed"
                       icon={<PlusOutlined />}
-                      onClick={() => addAction(bt.key, ab.key)}
+                      onClick={() => openAddAction(bt, ab)}
                       block
                     >
                       Add Action
@@ -596,6 +833,62 @@ export default function CapabilityPage() {
             rules={[{ required: true, message: 'Please enter Ability name' }]}
           >
             <Input placeholder="Enter Ability name" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Add Action"
+        open={Boolean(addActionTarget)}
+        onCancel={closeAddAction}
+        onOk={saveAddAction}
+        okText="OK"
+        cancelText="Cancel"
+        okButtonProps={{
+          disabled: !addActionTarget
+            || selectedActionNames.every((name) => addActionTarget.existingActions.includes(name)),
+        }}
+        width={720}
+      >
+        <Form
+          className="capability-add-action-form"
+          labelCol={{ span: 7 }}
+          wrapperCol={{ span: 15 }}
+          colon
+        >
+          <Form.Item label="Business Type" required>
+            <Text>{addActionTarget?.btName}</Text>
+          </Form.Item>
+          <Form.Item label="Ability" required>
+            <Text>{addActionTarget?.abilityName}</Text>
+          </Form.Item>
+          <Form.Item label="Action" required>
+            <Select
+              mode="multiple"
+              value={selectedActionNames}
+              placeholder="Select Action"
+              options={ACTION_OPTIONS.map((action) => ({
+                label: action,
+                value: action,
+                disabled: addActionTarget?.existingActions.includes(action),
+              }))}
+              onChange={(values) => {
+                const existingActions = addActionTarget?.existingActions || [];
+                setSelectedActionNames([...existingActions, ...values.filter((value) => !existingActions.includes(value))]);
+              }}
+              tagRender={({ label, value, closable, onClose }) => {
+                const isExisting = addActionTarget?.existingActions.includes(String(value));
+                return (
+                  <Tag
+                    closable={!isExisting && closable}
+                    onClose={onClose}
+                    style={{ marginInlineEnd: 4 }}
+                  >
+                    {label}
+                  </Tag>
+                );
+              }}
+            />
           </Form.Item>
         </Form>
       </Modal>

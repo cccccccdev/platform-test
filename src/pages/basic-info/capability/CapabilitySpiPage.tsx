@@ -22,6 +22,7 @@ interface SpiDefinition {
   url: string;
   timeout: string;
   subOrderMode: string;
+  description?: string;
   request: SpiField[];
   response: SpiField[];
 }
@@ -163,6 +164,176 @@ const SUB_ORDER_RESPONSE_FIELDS: SpiField[] = [
   { name: 'channelResponseMsg', type: 'String', description: '渠道响应信息', depth: 3 },
 ];
 
+interface DemoSpiProfile {
+  request: SpiField[];
+  response: SpiField[];
+}
+
+const demoField = (name: string, type: string, description: string, required = false): SpiField => ({
+  name,
+  type,
+  description,
+  depth: 1,
+  required,
+  extension: true,
+});
+
+const DEMO_SPI_PROFILES: Record<string, DemoSpiProfile> = {
+  VIBER: {
+    request: [
+      demoField('recipientList', 'Array', '接收方 Viber 账号列表', true),
+      demoField('messageContent', 'String', '消息内容', true),
+      demoField('senderName', 'String', '发送方名称'),
+      demoField('clientMessageId', 'String', '业务方消息标识', true),
+    ],
+    response: [
+      demoField('messageId', 'String', '渠道消息标识'),
+      demoField('deliveryStatus', 'String', '消息投递状态'),
+      demoField('acceptedCount', 'Integer', '已接受的接收方数量'),
+    ],
+  },
+  WHATSAPP: {
+    request: [
+      demoField('whatsappAccount', 'String', 'WhatsApp 接收账号', true),
+      demoField('templateCode', 'String', '消息模板编码'),
+      demoField('messageContent', 'String', '消息内容', true),
+      demoField('clientMessageId', 'String', '业务方消息标识', true),
+    ],
+    response: [
+      demoField('messageId', 'String', '渠道消息标识'),
+      demoField('deliveryStatus', 'String', '消息投递状态'),
+      demoField('deliveryTime', 'String', '投递时间'),
+    ],
+  },
+  INSURANCE: {
+    request: [
+      demoField('policyId', 'String', '保单标识', true),
+      demoField('subjectId', 'String', '被保主体标识'),
+      demoField('customerReference', 'String', '客户参考号'),
+      demoField('requestedStatus', 'String', '目标保单状态'),
+    ],
+    response: [
+      demoField('policyNumber', 'String', '保单号'),
+      demoField('policyStatus', 'String', '保单状态'),
+      demoField('kycStatus', 'String', '被保主体 KYC 状态'),
+      demoField('effectiveTime', 'String', '保单生效时间'),
+    ],
+  },
+  GIFTCARD: {
+    request: [
+      demoField('productCode', 'String', '礼品卡产品编码', true),
+      demoField('cardAmount', 'Long', '礼品卡金额'),
+      demoField('currency', 'String', '币种'),
+      demoField('recipientEmail', 'String', '接收方邮箱'),
+    ],
+    response: [
+      demoField('giftCardOrderId', 'String', '礼品卡订单号'),
+      demoField('giftCardCode', 'String', '礼品卡兑换码'),
+      demoField('orderStatus', 'String', '订单状态'),
+      demoField('expiryTime', 'String', '失效时间'),
+    ],
+  },
+  STABLECOIN: {
+    request: [
+      demoField('assetCode', 'String', '稳定币资产编码', true),
+      demoField('fiatCurrency', 'String', '法币币种', true),
+      demoField('amount', 'Decimal', '交易金额', true),
+      demoField('network', 'String', '区块链网络'),
+      demoField('walletAddress', 'String', '钱包地址'),
+    ],
+    response: [
+      demoField('quoteId', 'String', '报价标识'),
+      demoField('exchangeRate', 'Decimal', '兑换汇率'),
+      demoField('transactionHash', 'String', '链上交易哈希'),
+      demoField('settledAmount', 'Decimal', '实际结算金额'),
+    ],
+  },
+  FUNDS_IN: {
+    request: [
+      demoField('sourceAccount', 'String', '付款方账户'),
+      demoField('destinationAccount', 'String', '收款方账户', true),
+      demoField('amount', 'Long', '入账金额', true),
+      demoField('currency', 'String', '币种', true),
+      demoField('paymentReference', 'String', '外部来账参考号', true),
+    ],
+    response: [
+      demoField('notificationId', 'String', '入账通知标识'),
+      demoField('postingStatus', 'String', '入账状态'),
+      demoField('postedTime', 'String', '入账时间'),
+      demoField('ledgerReference', 'String', '账务参考号'),
+    ],
+  },
+  PRODUCT_MANAGEMENT: {
+    request: [
+      demoField('customerId', 'String', '客户标识', true),
+      demoField('productCode', 'String', '产品编码', true),
+      demoField('effectiveDate', 'String', '生效日期'),
+      demoField('productAttributes', 'Object', '产品扩展属性'),
+    ],
+    response: [
+      demoField('subscriptionId', 'String', '客户产品订阅标识'),
+      demoField('productStatus', 'String', '产品状态'),
+      demoField('effectiveTime', 'String', '实际生效时间'),
+    ],
+  },
+  USSD_DIAL: {
+    request: [
+      demoField('sessionId', 'String', 'USSD 会话标识', true),
+      demoField('msisdn', 'String', '用户手机号', true),
+      demoField('serviceCode', 'String', 'USSD 服务码', true),
+      demoField('userInput', 'String', '用户当前输入'),
+    ],
+    response: [
+      demoField('sessionState', 'String', '会话状态'),
+      demoField('displayMessage', 'String', '展示给用户的文案'),
+      demoField('endSession', 'Boolean', '是否结束会话'),
+    ],
+  },
+  DISPUTE_IN: {
+    request: [
+      demoField('disputeId', 'String', '争议案件标识', true),
+      demoField('originalTransactionId', 'String', '原交易标识', true),
+      demoField('reasonCode', 'String', '争议原因码'),
+      demoField('disputeAmount', 'Long', '争议金额'),
+      demoField('evidenceReference', 'String', '证据材料参考号'),
+    ],
+    response: [
+      demoField('caseId', 'String', '平台案件号'),
+      demoField('caseStatus', 'String', '案件处理状态'),
+      demoField('refundReference', 'String', '指定退款参考号'),
+      demoField('updatedTime', 'String', '状态更新时间'),
+    ],
+  },
+  WALLET_ACCOUNT: {
+    request: [
+      demoField('customerId', 'String', '客户标识', true),
+      demoField('walletId', 'String', '钱包账户标识', true),
+      demoField('bindingToken', 'String', '绑定授权令牌'),
+      demoField('debitAmount', 'Long', '自动扣款金额'),
+      demoField('currency', 'String', '币种'),
+    ],
+    response: [
+      demoField('bindingId', 'String', '钱包绑定标识'),
+      demoField('mandateStatus', 'String', '自动扣款授权状态'),
+      demoField('transactionReference', 'String', '扣款交易参考号'),
+    ],
+  },
+};
+
+const DEFAULT_DEMO_PROFILE: DemoSpiProfile = {
+  request: [
+    demoField('businessReference', 'String', '业务参考号', true),
+    demoField('payload', 'Object', '业务请求数据', true),
+  ],
+  response: [
+    demoField('businessReference', 'String', '业务参考号'),
+    demoField('businessStatus', 'String', '业务处理状态'),
+  ],
+};
+
+const buildDemoUrl = (businessType: string, ability: string, action: string) =>
+  `/api/${businessType.toLowerCase().replaceAll('_', '-')}/${ability.toLowerCase().replaceAll('_', '-')}/${action.toLowerCase().replaceAll('_', '-')}`;
+
 function FieldTable({ fields, editable }: { fields: SpiField[]; editable: boolean }) {
   return (
     <div className="capability-spi-field-table" role="table">
@@ -202,28 +373,33 @@ export default function CapabilitySpiPage() {
   const action = searchParams.get('action') || 'TRANSACTION';
   const subOrderEnabled = isSubOrderModeEnabled(businessType, ability);
   const isBulkSms = businessType === 'SMS' && ability === 'BULK_MESSAGE' && action === 'TRANSACTION';
+  const demoProfile = DEMO_SPI_PROFILES[businessType] || DEFAULT_DEMO_PROFILE;
   const configRequestBase = CONFIG_SPI.request.slice(0, -2);
   const configResponseBase = CONFIG_SPI.response.slice(0, -3);
   const definition: SpiDefinition = tab === 'config'
     ? {
         ...CONFIG_SPI,
+        url: buildDemoUrl(businessType, ability, action),
+        description: `Demo Sample: ${businessType} / ${ability} / ${action}`,
         subOrderMode: subOrderEnabled ? 'Enabled' : 'Disabled',
         request: [
           ...configRequestBase,
-          ...(isBulkSms ? BULK_REQUEST_FIELDS : CONFIG_SPI.request.slice(-2)),
+          ...(isBulkSms ? BULK_REQUEST_FIELDS : demoProfile.request),
           ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : []),
         ],
         response: [
           ...configResponseBase,
-          ...(!isBulkSms ? CONFIG_SPI.response.slice(-3) : []),
+          ...(!isBulkSms ? demoProfile.response : []),
           ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : []),
         ],
       }
     : {
         ...CODE_SPI,
+        url: buildDemoUrl(businessType, ability, action).replace('/api/', '/code/'),
+        description: `Demo Sample: ${businessType} / ${ability} / ${action}`,
         subOrderMode: subOrderEnabled ? 'Enabled' : 'Disabled',
-        request: [...CODE_SPI.request, ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : [])],
-        response: [...CODE_SPI.response, ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : [])],
+        request: [...CODE_SPI.request, ...demoProfile.request, ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : [])],
+        response: [...CODE_SPI.response, ...demoProfile.response, ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : [])],
       };
 
   return (
@@ -277,7 +453,7 @@ export default function CapabilitySpiPage() {
           </div>
           <div className="capability-spi-meta-item capability-spi-input-item">
             <span>Description:</span>
-            <Input value="" disabled />
+            <Input value={definition.description || ''} disabled />
           </div>
         </div>
 
