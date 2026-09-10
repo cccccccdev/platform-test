@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
   Button,
   Card,
-  Checkbox,
   Empty,
   Form,
   Input,
@@ -19,17 +18,17 @@ import {
   message,
 } from 'antd';
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
 import { mockChannelInfoApplications } from '../../mock/data';
 import { useChannelScopeStore, type OutboundEndpoint } from './channelScopeStore';
 import { useConfigIntegrationStore } from './configIntegrationStore';
 import type { InboundEndpoint } from './types';
 import { channelLineScopeKey, initialSharedLines, useChannelLineStore, type LineReference, type SharedLine } from './channelInfoPartyLines';
+import ChannelSharedLines from './ChannelSharedLines';
 
 const { Text } = Typography;
 
 type RouteEntry = { lineId: string; weight: number; enabled: boolean };
-type EndpointSpecificConfiguration = { routes: RouteEntry[]; everActivated: boolean; operator: string; operationTime: string };
+type EndpointSpecificConfiguration = { timeout: number; routes: RouteEntry[]; everActivated: boolean; operator: string; operationTime: string };
 type RoutingConfiguration = { endpointConfigurations: Record<string, EndpointSpecificConfiguration> };
 
 type PublishedEndpoint = OutboundEndpoint & {
@@ -60,6 +59,23 @@ function now() {
   return new Date().toLocaleString('sv-SE').replace('T', ' ').slice(0, 19);
 }
 
+function redistributeIntegerWeights(routes: RouteEntry[]): Map<string, number> {
+  const enabled = routes.filter((route) => route.enabled);
+  const total = enabled.reduce((sum, route) => sum + route.weight, 0);
+  if (!enabled.length) return new Map();
+  if (total <= 0) return new Map(enabled.map((route, index) => [route.lineId, index === 0 ? 100 : 0]));
+
+  const allocations = enabled.map((route) => {
+    const exact = route.weight / total * 100;
+    return { lineId: route.lineId, original: route.weight, fraction: exact - Math.floor(exact), weight: Math.floor(exact) };
+  });
+  const ranked = [...allocations].sort((left, right) =>
+    right.fraction - left.fraction || right.original - left.original || left.lineId.localeCompare(right.lineId));
+  const remainder = 100 - allocations.reduce((sum, item) => sum + item.weight, 0);
+  for (let index = 0; index < remainder; index += 1) ranked[index % ranked.length].weight += 1;
+  return new Map(allocations.map((item) => [item.lineId, item.weight]));
+}
+
 function initialRouting(channelCode: string, endpoints: PublishedEndpoint[]): RoutingConfiguration {
   const endpointConfigurations: Record<string, EndpointSpecificConfiguration> = {};
   for (const endpoint of endpoints) {
@@ -72,6 +88,7 @@ function initialRouting(channelCode: string, endpoints: PublishedEndpoint[]): Ro
           ]
         : [{ lineId: 'primary', weight: 100, enabled: true }];
     endpointConfigurations[endpoint.id] = {
+      timeout: channelCode === 'EVEXIN' && endpoint.id === 'endpoint_evexin_query_status' ? 8000 : 10000,
       routes,
       everActivated: true,
       operator: channelCode === 'EVEXIN' ? 'Bailly' : 'current.user',
@@ -121,7 +138,6 @@ function initialAccountLine(channelCode: string, account: string): SharedLine[] 
     line: channelCode === 'EVEXIN' ? 'https://api.evexin.com' : `https://api.${channelCode.toLowerCase().replaceAll('_', '-')}.com`,
     skipSsl: false,
     enableProxy: false,
-    timeout: 10000,
     operator: 'Zhang Wei',
     operationTime: '2026-05-19 14:12:20',
   }];
@@ -131,6 +147,7 @@ function initialAccountRouting(endpoints: PublishedEndpoint[], lines: SharedLine
   const firstLine = lines[0];
   return {
     endpointConfigurations: Object.fromEntries(endpoints.map((endpoint) => [endpoint.id, {
+      timeout: 10000,
       routes: firstLine ? [{ lineId: firstLine.id, weight: 100, enabled: true }] : [],
       everActivated: Boolean(firstLine),
       operator: 'Zhang Wei',
@@ -140,12 +157,10 @@ function initialAccountRouting(endpoints: PublishedEndpoint[], lines: SharedLine
 }
 
 export default function PartyLineWorkspace({ channelCode, cloud, env, party, account, routeMatchingEndpoints }: Props) {
-  const navigate = useNavigate();
-  const lineScopeKey = channelLineScopeKey(channelCode, cloud, env);
-  const storedSharedLines = useChannelLineStore((state) => state.linesByScope[lineScopeKey]);
-  const setSharedLines = useChannelLineStore((state) => state.setLines);
-  const setPartyReferences = useChannelLineStore((state) => state.setPartyReferences);
-  const sharedLines = storedSharedLines ?? initialSharedLines(channelCode);
+  const lineScopeKey = channelLineScopeKey(channelCode, cloud, env, party, account);
+  const storedLines = useChannelLineStore((state) => state.linesByScope[lineScopeKey]);
+  const setLines = useChannelLineStore((state) => state.setLines);
+  const lines = storedLines ?? (account ? initialAccountLine(channelCode, account) : initialSharedLines(channelCode));
   const allOutboundEndpoints = useChannelScopeStore((state) => state.outboundEndpointsByChannel[channelCode] ?? []);
   const abilities = useConfigIntegrationStore((state) => state.abilitiesByChannel[channelCode]);
   const publishedEndpoints = useMemo(
@@ -171,15 +186,14 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
   const [weightDraft, setWeightDraft] = useState<Record<string, number>>({});
   const [associateTarget, setAssociateTarget] = useState<RoutingTarget | null>(null);
   const [associateLineId, setAssociateLineId] = useState<string>();
+  const [timeoutTarget, setTimeoutTarget] = useState<RoutingTarget | null>(null);
+  const [timeoutForm] = Form.useForm<{ timeout: number }>();
+  const [manageLinesOpen, setManageLinesOpen] = useState(false);
   const [callbackRows, setCallbackRows] = useState<Record<string, Array<{ id: string; line: string }>>>({});
   const [callbackOpen, setCallbackOpen] = useState(false);
   const [callbackForm] = Form.useForm<{ line: string }>();
   const [callbackDetail, setCallbackDetail] = useState<string | null>(null);
-  const [accountLinesByScope, setAccountLinesByScope] = useState<Record<string, SharedLine[]>>({});
   const [accountRoutingByScope, setAccountRoutingByScope] = useState<Record<string, RoutingConfiguration>>({});
-  const [quickLineOpen, setQuickLineOpen] = useState(false);
-  const [quickLineForm] = Form.useForm<Omit<SharedLine, 'id' | 'operator' | 'operationTime'>>();
-  const quickProxyEnabled = Form.useWatch('enableProxy', quickLineForm);
 
   const application = mockChannelInfoApplications[`${channelCode}:${cloud}:${env}`] ?? {
     applicationName: 'finance-switch-channel',
@@ -189,24 +203,12 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
   const generatedCallbackBase = `https://${application.applicationName}-${env.toLowerCase()}.${application.hostSuffix}/${party.toLowerCase()}`;
   const callbackData = account ? callbackRows[callbackKey] ?? [] : [{ id: 'generated', line: generatedCallbackBase }];
   const accountLineKey = `${scopeKey}:${account ?? ''}`;
-  const accountLines = account ? accountLinesByScope[accountLineKey] ?? initialAccountLine(channelCode, account) : [];
-  const accountRouting = accountRoutingByScope[accountLineKey] ?? initialAccountRouting(publishedEndpoints, accountLines);
-
-  useEffect(() => {
-    if (account) return;
-    const references: LineReference[] = pathGroups.flatMap((group) => {
-      const configuration = group.endpointIds.map((endpointId) => routing.endpointConfigurations[endpointId]).find(Boolean);
-      return (configuration?.routes ?? [])
-        .filter((route) => route.enabled)
-        .map((route) => ({ lineId: route.lineId, party, path: group.path }));
-    });
-    setPartyReferences(lineScopeKey, party, references);
-  }, [account, lineScopeKey, party, pathGroups, routing, setPartyReferences]);
+  const accountRouting = accountRoutingByScope[accountLineKey] ?? initialAccountRouting(publishedEndpoints, lines);
 
   const saveRouting = (next: RoutingConfiguration) => setRoutingByScope((current) => ({ ...current, [scopeKey]: next }));
   const enabledRoutes = (routes: RouteEntry[]) => routes.filter((route) => route.enabled);
   const routingForOwner = (owner: RoutingOwner) => owner === 'account' ? accountRouting : routing;
-  const linesForOwner = (owner: RoutingOwner) => owner === 'account' ? accountLines : sharedLines;
+  const linesForOwner = (_owner: RoutingOwner) => lines;
   const pathSpecific = (group: PathGroup, owner: RoutingOwner) => group.endpointIds
     .map((endpointId) => routingForOwner(owner).endpointConfigurations[endpointId])
     .find(Boolean);
@@ -220,6 +222,7 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
     const currentRouting = routingForOwner(target.owner);
     const next = { ...currentRouting.endpointConfigurations };
     for (const endpointId of target.group.endpointIds) next[endpointId] = {
+      timeout: pathSpecific(target.group, target.owner)?.timeout ?? 10000,
       routes: routes.map((route) => ({ ...route })),
       everActivated,
       operator: 'current.user',
@@ -237,22 +240,20 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
     const routes = routesForTarget(target);
     const active = enabledRoutes(routes);
     const everActivated = everActivatedForTarget(target);
-    if (nextEnabled && active.length >= 2) {
-      message.error('At most two Lines can be enabled for one Endpoint.');
-      return;
-    }
     if (!nextEnabled && everActivated && active.length <= 1) {
       message.error('At least one Line must remain enabled after this configuration has been activated.');
       return;
     }
-    const remainingLineId = !nextEnabled ? active.find((route) => route.lineId !== lineId)?.lineId : undefined;
-    const next = routes.map((route) => {
+    let next = routes.map((route) => {
       if (route.lineId === lineId) {
         return { ...route, enabled: nextEnabled, weight: nextEnabled && active.length === 0 ? 100 : nextEnabled ? route.weight : 0 };
       }
-      if (remainingLineId && route.lineId === remainingLineId) return { ...route, weight: 100 };
       return route;
     });
+    if (!nextEnabled) {
+      const redistributed = redistributeIntegerWeights(next);
+      next = next.map((route) => route.enabled ? { ...route, weight: redistributed.get(route.lineId) ?? 0 } : route);
+    }
     persistTarget(target, next, everActivated || nextEnabled);
     message.success(nextEnabled ? 'Line enabled' : 'Line disabled');
   };
@@ -272,7 +273,12 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
     if (!weightTarget) return;
     const routes = routesForTarget(weightTarget);
     const active = enabledRoutes(routes);
-    const total = active.reduce((sum, route) => sum + Number(weightDraft[route.lineId] ?? 0), 0);
+    const weights = active.map((route) => Number(weightDraft[route.lineId] ?? 0));
+    if (weights.some((weight) => !Number.isInteger(weight) || weight < 0 || weight > 100)) {
+      message.error('Weight must be an integer between 0 and 100.');
+      return;
+    }
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
     if (total !== 100) {
       message.error('The total Weight of enabled Lines must equal 100%.');
       return;
@@ -308,36 +314,25 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
     message.success('Line associated with configuration');
   };
 
-  const openQuickLine = () => {
-    quickLineForm.setFieldsValue({ lineName: '', line: '', skipSsl: false, enableProxy: false, timeout: undefined });
-    setQuickLineOpen(true);
+  const openTimeoutEditor = (target: RoutingTarget) => {
+    setTimeoutTarget(target);
+    timeoutForm.setFieldsValue({ timeout: pathSpecific(target.group, target.owner)?.timeout ?? 10000 });
   };
 
-  const createQuickLine = async () => {
-    const values = await quickLineForm.validateFields();
-    const owner = associateTarget?.owner ?? 'party';
-    const ownerLines = linesForOwner(owner);
-    const duplicate = ownerLines.some((line) => line.lineName.trim().toLowerCase() === values.lineName.trim().toLowerCase());
-    if (duplicate) {
-      quickLineForm.setFields([{ name: 'lineName', errors: ['Line Name already exists in this Channel environment.'] }]);
-      return;
+  const saveTimeout = async () => {
+    if (!timeoutTarget) return;
+    const { timeout } = await timeoutForm.validateFields();
+    const currentRouting = routingForOwner(timeoutTarget.owner);
+    const nextConfigurations = { ...currentRouting.endpointConfigurations };
+    for (const endpointId of timeoutTarget.group.endpointIds) {
+      const current = nextConfigurations[endpointId];
+      if (current) nextConfigurations[endpointId] = { ...current, timeout, operator: 'current.user', operationTime: now() };
     }
-    const next: SharedLine = {
-      id: `${owner === 'account' ? 'account_line' : 'line'}_${Date.now()}`,
-      ...values,
-      lineName: values.lineName.trim(),
-      line: values.line.trim().replace(/\/$/, ''),
-      operator: 'current.user',
-      operationTime: now(),
-    };
-    if (owner === 'account') {
-      setAccountLinesByScope((current) => ({ ...current, [accountLineKey]: [...accountLines, next] }));
-    } else {
-      setSharedLines(lineScopeKey, [...sharedLines, next]);
-    }
-    if (associateTarget) setAssociateLineId(next.id);
-    setQuickLineOpen(false);
-    message.success(associateTarget ? 'Line created and selected' : 'Line created');
+    const nextRouting = { ...currentRouting, endpointConfigurations: nextConfigurations };
+    if (timeoutTarget.owner === 'account') setAccountRoutingByScope((current) => ({ ...current, [accountLineKey]: nextRouting }));
+    else saveRouting(nextRouting);
+    setTimeoutTarget(null);
+    message.success('Timeout updated');
   };
 
   const createCallbackLine = async () => {
@@ -394,16 +389,22 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
 
   const routingOwner: RoutingOwner = account ? 'account' : 'party';
   const missingCount = missingCountFor(routingOwner);
+  const activeReferences: LineReference[] = pathGroups.flatMap((group) => {
+    const configuration = pathSpecific(group, routingOwner);
+    return (configuration?.routes ?? [])
+      .filter((route) => route.enabled)
+      .map((route) => ({ lineId: route.lineId, party, account, path: group.path }));
+  });
   const requestLinePage = <Card className="party-runtime-card party-line-card">
     <div className="party-request-line-header">
       <div className="party-page-context"><span><strong>Party:</strong> {party}</span>{account && <span><strong>Account:</strong> {account}</span>}</div>
-      {!account && <Button type="primary" className="party-manage-lines-button" onClick={() => navigate(`/channel-integration/${encodeURIComponent(channelCode)}/channel-info/lines`)}>Manage Lines</Button>}
+      <Button type="primary" className="party-manage-lines-button" onClick={() => setManageLinesOpen(true)}>Manage Lines</Button>
     </div>
     <Alert
       type="info"
       showIcon
       message={account
-        ? 'Each Endpoint must have its own Account Line configuration. Account Lines are isolated from Channel-level shared Lines, and runtime requests fail when an Endpoint has no enabled Line.'
+        ? 'Each Endpoint must have its own Account Line configuration. Account Lines are isolated by Account, and runtime requests fail when an Endpoint has no enabled Line.'
         : 'Each Endpoint must have its own Line configuration. Runtime requests fail when an Endpoint has no enabled Line.'}
     />
     {missingCount > 0 && <Alert type="error" showIcon message={`${missingCount} Endpoint${missingCount > 1 ? 's have' : ' has'} no enabled Line.`} />}
@@ -416,9 +417,11 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
         { title: '', width: 50, render: (_: unknown, group: PathGroup) => pathSpecific(group, routingOwner) ? <Button type="text" icon={expandedPathRows.includes(group.key) ? <DownOutlined /> : <RightOutlined />} onClick={() => setExpandedPathRows((rows) => rows.includes(group.key) ? rows.filter((key) => key !== group.key) : [...rows, group.key])} /> : null },
         { title: 'Endpoint', dataIndex: 'path', render: (value: string) => <Text>{value}</Text> },
         { title: 'Method', dataIndex: 'methods', width: 180, render: (methods: string[]) => <Space wrap>{methods.map((method) => <Tag color="geekblue" key={method}>{method}</Tag>)}</Space> },
-        { title: 'Operation', width: 240, render: (_: unknown, group: PathGroup) => <Space size="small">
+        { title: 'Timeout', width: 130, render: (_: unknown, group: PathGroup) => `${pathSpecific(group, routingOwner)?.timeout ?? 10000} ms` },
+        { title: 'Operation', width: 330, render: (_: unknown, group: PathGroup) => <Space size="small">
           <Button type="link" size="small" onClick={() => openAssociateLine({ kind: 'path', group, owner: routingOwner })}>Associate Line</Button>
           <Button type="link" size="small" disabled={!enabledRoutes(pathRoutes(group, routingOwner)).length} onClick={() => openWeightEditor({ kind: 'path', group, owner: routingOwner })}>Weight Config</Button>
+          <Button type="link" size="small" onClick={() => openTimeoutEditor({ kind: 'path', group, owner: routingOwner })}>Timeout Config</Button>
         </Space> },
       ]}
       expandable={{
@@ -471,16 +474,12 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
         dataSource={weightTarget ? enabledRoutes(routesForTarget(weightTarget)) : []}
         columns={[
           { title: 'Line', render: (_: unknown, route: RouteEntry) => weightTarget ? linesForOwner(weightTarget.owner).find((line) => line.id === route.lineId)?.lineName ?? 'Missing Line' : 'Missing Line' },
-          { title: 'Weight', width: 220, render: (_: unknown, route: RouteEntry) => <InputNumber min={0} max={100} addonAfter="%" value={weightDraft[route.lineId]} onChange={(weight) => setWeightDraft((current) => ({ ...current, [route.lineId]: Number(weight ?? 0) }))} style={{ width: '100%' }} /> },
+          { title: 'Weight', width: 220, render: (_: unknown, route: RouteEntry) => <InputNumber min={0} max={100} precision={0} step={1} addonAfter="%" value={weightDraft[route.lineId]} onChange={(weight) => setWeightDraft((current) => ({ ...current, [route.lineId]: Number(weight ?? 0) }))} style={{ width: '100%' }} /> },
         ]}
       />
     </Modal>
     <Modal title="Associate Line" open={Boolean(associateTarget)} onCancel={() => { setAssociateTarget(null); setAssociateLineId(undefined); }} onOk={associateLine} okText="Associate" width={620} destroyOnHidden>
-      <Alert type="info" showIcon message={associateTarget?.owner === 'account' ? 'Select an existing Account Line. The new association starts with Status off and Weight 0.' : 'Select an existing shared Line. The new association starts with Status off and Weight 0.'} style={{ marginBottom: 18 }} />
-      <div className="party-associate-line-actions">
-        <Text type="secondary">Can't find the Line you need?</Text>
-        <Button type="link" onClick={openQuickLine}>+ Create Line</Button>
-      </div>
+      <Alert type="info" showIcon message="Select a Line maintained in the current scope. The new association starts with Status off and Weight 0." style={{ marginBottom: 18 }} />
       <Select
         value={associateLineId}
         onChange={setAssociateLineId}
@@ -489,15 +488,28 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
         options={(associateTarget ? availableLinesFor(associateTarget) : []).map((line) => ({ value: line.id, label: `${line.lineName} — ${line.line}` }))}
       />
     </Modal>
-    <Modal title={associateTarget?.owner === 'account' ? 'Create Account Line' : 'Create Shared Line'} open={quickLineOpen} onCancel={() => setQuickLineOpen(false)} onOk={() => void createQuickLine()} okText="Create" width={720} destroyOnHidden>
-      <Alert type="info" showIcon message={associateTarget?.owner === 'account' ? 'This creates an Account Line isolated to the current Account and selects it for the current association.' : 'This creates a public Line for the current Channel, Cloud and Environment and selects it for the current association.'} style={{ marginBottom: 20 }} />
-      <Form form={quickLineForm} labelCol={{ span: 7 }} wrapperCol={{ span: 14 }}>
-        <Form.Item name="lineName" label="Line Name" rules={[{ required: true, whitespace: true }]}><Input /></Form.Item>
-        <Form.Item label="Line" required><Space.Compact block><Form.Item name="line" noStyle rules={[{ required: true }, { type: 'url', message: 'Enter a valid URL' }]}><Input /></Form.Item><Form.Item name="skipSsl" valuePropName="checked" noStyle><Checkbox className="network-route-skip-ssl">Skip SSL</Checkbox></Form.Item></Space.Compact></Form.Item>
-        <Form.Item name="timeout" label="Timeout" rules={[{ required: true }]}><InputNumber min={1} addonAfter="ms" style={{ width: '100%' }} /></Form.Item>
-        <Form.Item name="enableProxy" label="Enable Proxy" valuePropName="checked"><Switch /></Form.Item>
-        {quickProxyEnabled && <><Form.Item name="proxyServer" label="Proxy - Server" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name="proxyPort" label="Proxy - Port" rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item></>}
-      </Form>
+    <Modal title="Timeout Config" open={Boolean(timeoutTarget)} onCancel={() => setTimeoutTarget(null)} onOk={() => void saveTimeout()} okText="Save" width={560} destroyOnHidden>
+      {timeoutTarget && <>
+        <div className="credential-modal-context">
+          <span><strong>Endpoint:</strong> {timeoutTarget.group.path}</span>
+        </div>
+        <Form form={timeoutForm} layout="vertical">
+          <Form.Item name="timeout" label="Timeout" rules={[{ required: true }, { type: 'integer', min: 1, message: 'Timeout must be a positive integer.' }]}>
+            <InputNumber min={1} precision={0} step={1} addonAfter="ms" style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </>}
+    </Modal>
+    <Modal title="Manage Lines" open={manageLinesOpen} onCancel={() => setManageLinesOpen(false)} footer={null} width={1180} destroyOnHidden>
+      <div className="credential-modal-context">
+        <span><strong>Party:</strong> {party}</span>
+        {account && <span><strong>Account:</strong> {account}</span>}
+      </div>
+      <ChannelSharedLines
+        lines={lines}
+        references={activeReferences}
+        onChange={(next) => setLines(lineScopeKey, next)}
+      />
     </Modal>
     {renderCallbackModals()}
   </div>;

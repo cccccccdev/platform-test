@@ -140,7 +140,6 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/channel-profile/:section', element: <ChannelProfilePage /> },
       { path: 'channel-integration/:channelCode/metadata', element: <LegacyMetadataRedirect /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
-      { path: 'channel-integration/:channelCode/channel-info/lines', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/party/*', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/institution', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/chain', element: <ChannelInfoPage /> },
