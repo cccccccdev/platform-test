@@ -208,8 +208,8 @@ export default function ChannelListPage() {
       width: '50%',
       render: (_: any, record: Channel) => (
         <Space size={[8, 8]} wrap>
-          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/channel-profile/summary`)}>
-            Channel Profile
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/profile/summary`)}>
+            Profile
           </Button>
           <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/integration`)}>
             Integration
@@ -334,7 +334,7 @@ export default function ChannelListPage() {
             <div className="document-source-grid">{renderDocumentSource('debugReport', 'Debug Report')}{renderDocumentSource('prdDocument', 'PRD Document')}</div>
           </div>
           <div style={{ display: createStep === 4 ? 'block' : 'none' }}>
-            <Alert type="info" showIcon title="These documents are optional during channel creation and can be completed later in Channel Profile." />
+            <Alert type="info" showIcon title="These documents are optional during channel creation and can be completed later in Profile." />
             <div className="profile-form-grid two-columns">
               <Form.Item name="contracts" label="Contract" extra="PDF only; multiple files supported" valuePropName="fileList" getValueFromEvent={uploadValue}><Upload beforeUpload={pdfOnly} multiple accept=".pdf,application/pdf"><Button icon={<UploadOutlined />}>Upload PDF</Button></Upload></Form.Item>
               <Form.Item name="accessApprovalRecords" label="Access Approval Records"><Input placeholder="OA number" /></Form.Item>
