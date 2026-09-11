@@ -250,6 +250,11 @@
 .channel-summary-section { padding-top: 2px; }
 .channel-summary-section + .channel-summary-section { padding-top: 20px; border-top: 1px solid #f0f0f0; }
 .channel-summary-section h2 { margin: 0 0 14px; color: #262626; font-size: 15px; font-weight: 600; }
+.channel-summary-section-heading { display: flex; align-items: center; gap: 4px; margin-bottom: 14px; }
+.channel-summary-section-heading h2 { margin: 0; }
+.channel-summary-section-heading .ant-btn { color: #595959; }
+.channel-summary-section-heading .ant-btn:hover { color: #722ed1 !important; background: #f9f0ff !important; }
+.summary-section-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: -6px 0 10px; color: #8c8c8c; font-size: 12px; }
 .channel-summary-people { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px; padding-top: 20px; border-top: 1px solid #f0f0f0; }
 .channel-summary-people .channel-summary-section { padding-top: 0; border-top: 0; }
 .summary-role-list { display: grid; gap: 0; margin: 0; border-top: 1px solid #f0f0f0; }
