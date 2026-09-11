@@ -301,32 +301,27 @@ export default function StateMachineListPage() {
       <section className="state-machine-heading">
         <Breadcrumb
           items={[
-            { title: 'Basic Info', href: '/basic-info' },
+            { title: 'Basic Info', href: '/basic-info/country' },
             ...(isStandalone ? [{ title: 'State Machine' }] : [
-              { title: 'Capability', href: '/basic-info/capability' },
+              { title: 'Capability', href: `/basic-info/capability?bt=${encodeURIComponent(bt)}` },
               { title: 'State Machine' },
             ]),
           ]}
         />
         <div className="state-machine-title-line">
           <Title level={4}>State Machine</Title>
-          <div className="state-machine-description">
-            {isStandalone ? (
-              <Text type="secondary">Create and manage state machines</Text>
-            ) : (
-              <Space>
-                <Text type="secondary">Business Type: </Text>
-                <Tag color="blue">{bt}</Tag>
-                <Text type="secondary">Ability: </Text>
-                <Tag color="purple">{ability}</Tag>
-              </Space>
-            )}
-          </div>
+          {isStandalone && <div className="state-machine-description"><Text type="secondary">Create and manage state machines</Text></div>}
         </div>
       </section>
 
       <main className="state-machine-content">
         <div className="state-machine-actions">
+          {!isStandalone && (
+            <div className="capability-page-context">
+              <Text>Business Type: <Text strong>{bt}</Text></Text>
+              <Text>Ability: <Text strong>{ability}</Text></Text>
+            </div>
+          )}
           <Button type="primary" onClick={() => setCreateModalOpen(true)}>Create</Button>
         </div>
         <Table

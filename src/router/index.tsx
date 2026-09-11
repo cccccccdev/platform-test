@@ -38,6 +38,11 @@ const ExchangeRatePage = lazy(() => import('../pages/basic-info/ExchangeRatePage
 const ProductPage = lazy(() => import('../pages/basic-info/ProductPage'));
 const MerchantPage = lazy(() => import('../pages/basic-info/MerchantPage'));
 const CapabilityPage = lazy(() => import('../pages/basic-info/CapabilityPage'));
+const ServicePage = lazy(() => import('../pages/basic-info/ServicePage'));
+const ServiceCapabilityPage = lazy(() => import('../pages/basic-info/ServiceCapabilityPage'));
+const ServiceFieldMappingPage = lazy(() => import('../pages/basic-info/ServiceFieldMappingPage'));
+const ServiceApiPage = lazy(() => import('../pages/basic-info/ServiceApiPage'));
+const ServiceApiLimitPage = lazy(() => import('../pages/basic-info/ServiceApiLimitPage'));
 const StateMachineListPage = lazy(() => import('../pages/basic-info/capability/StateMachineListPage'));
 const LinkStateMachinePage = lazy(() => import('../pages/basic-info/capability/LinkStateMachinePage'));
 const StateMachineCanvas = lazy(() => import('../pages/basic-info/capability/stateMachine/StateMachineCanvas'));
@@ -230,7 +235,11 @@ const router = createHashRouter(
           { path: 'segment', element: <ComingSoonPage title="Segment" /> },
           { path: 'response-code', element: <ComingSoonPage title="Response Code" /> },
           { path: 'application', element: <ComingSoonPage title="Application" /> },
-          { path: 'service', element: <ComingSoonPage title="Service" /> },
+          { path: 'service', element: <ServicePage /> },
+          { path: 'service/capability', element: <ServiceCapabilityPage /> },
+          { path: 'service/capability/field-mapping', element: <ServiceFieldMappingPage /> },
+          { path: 'service/api', element: <ServiceApiPage /> },
+          { path: 'service/api-limit', element: <ServiceApiLimitPage /> },
           { path: 'capability', element: <CapabilityPage /> },
           { path: 'capability/features', element: <CapabilityFeaturesPage /> },
           { path: 'capability/spi', element: <CapabilitySpiPage /> },

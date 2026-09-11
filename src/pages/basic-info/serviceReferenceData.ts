@@ -1,0 +1,154 @@
+export const SERVICE_MODEL_OPTIONS = [
+  'TRANSACTION_INITIATE',
+  'TRANSACTION_VERIFY',
+  'TRANSACTION_RE_QUERY',
+  'SNAPSHOT_INITIATE',
+  'SNAPSHOT_VERIFY',
+  'SNAPSHOT_RE_QUERY',
+  'QUERY',
+] as const;
+
+export type ServiceRunModel = typeof SERVICE_MODEL_OPTIONS[number];
+
+export interface ServiceActionRecord {
+  key: string;
+  name: string;
+  operateTime: string;
+  operator: string;
+  model?: ServiceRunModel;
+}
+
+export interface ServiceCapabilityReference {
+  ability: string;
+  actionMappings: Record<string, string>;
+}
+
+export interface ServiceRecord {
+  key: string;
+  name: string;
+  actions: ServiceActionRecord[];
+  capabilityReferences?: ServiceCapabilityReference[];
+}
+
+const action = (key: string, name: string, operateTime: string, operator: string): ServiceActionRecord => ({
+  key,
+  name,
+  operateTime,
+  operator,
+});
+
+export const initialServiceRecords: Record<string, ServiceRecord[]> = {
+  VIBER: [{
+    key: 'service_viber_otp',
+    name: 'OTP',
+    actions: [
+      action('service_viber_otp_requery', 'RE_QUERY', '2026-08-26 02:36:41', '顾丰荣 gufengrong'),
+      action('service_viber_otp_transaction', 'TRANSACTION', '2026-08-21 02:51:59', '顾丰荣 gufengrong'),
+    ],
+    capabilityReferences: [{
+      ability: 'SINGLE_MESSAGE',
+      actionMappings: { RE_QUERY: 'RE_QUERY', TRANSACTION: 'TRANSACTION' },
+    }],
+  }],
+  INSURANCE: [
+    {
+      key: 'service_insurance_get_policy_info',
+      name: 'GET_POLICY_INFO',
+      actions: [action('service_insurance_get_policy_info_query', 'QUERY', '2026-08-17 09:48:40', '王斌 Bin')],
+    },
+    {
+      key: 'service_insurance_get_policy_document',
+      name: 'GET_POLICY_DOCUMENT',
+      actions: [action('service_insurance_get_policy_document_query', 'QUERY', '2026-08-17 09:49:06', '王斌 Bin')],
+    },
+    {
+      key: 'service_insurance_apply_life_policy',
+      name: 'APPLY_FOR_LIFE_POLICY',
+      actions: [
+        action('service_insurance_apply_life_policy_requery', 'RE_QUERY', '2026-08-17 09:48:22', '王斌 Bin'),
+        action('service_insurance_apply_life_policy_transaction', 'TRANSACTION', '2026-08-17 09:48:22', '王斌 Bin'),
+      ],
+    },
+  ],
+  GIFTCARD: [{
+    key: 'service_giftcard_recharge',
+    name: 'RECHARGE',
+    actions: [
+      action('service_giftcard_recharge_requery', 'RE_QUERY', '2026-07-23 08:35:16', '徐嘉琪'),
+      action('service_giftcard_recharge_transaction', 'TRANSACTION', '2026-07-23 08:35:16', '徐嘉琪'),
+    ],
+  }],
+  FUNDS_IN: [{
+    key: 'service_funds_in_payment',
+    name: 'PAYMENT',
+    actions: [
+      action('service_funds_in_payment_inbound', 'INBOUND_TRANSACTION', '2026-09-08 05:47:36', '冯启航 Felix'),
+      action('service_funds_in_payment_requery', 'RE_QUERY', '2026-05-14 03:55:19', 'xiajichen'),
+      action('service_funds_in_payment_transaction', 'TRANSACTION', '2026-05-14 03:55:19', 'xiajichen'),
+    ],
+  }],
+  PRODUCT_MANAGEMENT: [
+    { key: 'service_product_update', name: 'UPDATE_PRODUCT', actions: [action('service_product_update_transaction', 'TRANSACTION', '2026-05-09 09:46:52', '胡亮亮 Jack')] },
+    { key: 'service_product_open', name: 'OPEN_PRODUCT', actions: [action('service_product_open_transaction', 'TRANSACTION', '2026-05-09 09:46:33', '胡亮亮 Jack')] },
+    { key: 'service_product_close', name: 'CLOSE_PRODUCT', actions: [action('service_product_close_transaction', 'TRANSACTION', '2026-05-09 09:47:08', '胡亮亮 Jack')] },
+  ],
+  USSD_DIAL: [],
+  DISPUTE_IN: [
+    { key: 'service_dispute_notification', name: 'NOTIFICATION', actions: [action('service_dispute_notification_query', 'QUERY', '2026-03-13 13:34:37', '顾丰荣 gufengrong')] },
+    {
+      key: 'service_dispute_refund',
+      name: 'DESIGNATE_REFUND',
+      actions: [
+        action('service_dispute_refund_requery', 'RE_QUERY', '2026-03-13 13:36:17', '顾丰荣 gufengrong'),
+        action('service_dispute_refund_transaction', 'TRANSACTION', '2026-03-13 13:36:17', '顾丰荣 gufengrong'),
+      ],
+    },
+  ],
+  WALLET_ACCOUNT: [],
+  WHATSAPP: [{
+    key: 'service_whatsapp_otp',
+    name: 'OTP',
+    actions: [
+      action('service_whatsapp_otp_requery', 'RE_QUERY', '2026-02-02 10:54:50', '王斌 Bin'),
+      action('service_whatsapp_otp_transaction', 'TRANSACTION', '2026-01-26 05:38:35', 'yimin.dai@palmpay-inc.com'),
+    ],
+  }],
+  STABLECOIN: [
+    {
+      key: 'service_stablecoin_fund_allocation',
+      name: 'FUND_ALLOCATION',
+      actions: [
+        action('service_stablecoin_fund_allocation_requery', 'RE_QUERY', '2026-09-03 09:08:16', '胡亮亮 Jack'),
+        action('service_stablecoin_fund_allocation_transaction', 'TRANSACTION', '2026-09-03 09:08:16', '胡亮亮 Jack'),
+      ],
+    },
+    {
+      key: 'service_stablecoin_transfer',
+      name: 'TRANSFER',
+      actions: [
+        action('service_stablecoin_transfer_requery', 'RE_QUERY', '2026-06-02 02:46:23', '潘一泓'),
+        action('service_stablecoin_transfer_transaction', 'TRANSACTION', '2026-06-02 02:40:43', '潘一泓'),
+        action('service_stablecoin_transfer_verify', 'VERIFY', '2026-06-02 02:40:43', '潘一泓'),
+      ],
+    },
+    { key: 'service_stablecoin_query_rate', name: 'STABLECOIN_QUERY_RATE', actions: [action('service_stablecoin_query_rate_query', 'QUERY', '2026-08-25 06:21:59', '胡亮亮 Jack')] },
+    { key: 'service_stablecoin_query_fee', name: 'QUERY_FEE', actions: [action('service_stablecoin_query_fee_query', 'QUERY', '2026-06-02 02:50:59', '潘一泓')] },
+    {
+      key: 'service_stablecoin_pay_out',
+      name: 'PAY_OUT',
+      actions: [
+        action('service_stablecoin_pay_out_requery', 'RE_QUERY', '2026-08-25 06:41:56', '胡亮亮 Jack'),
+        action('service_stablecoin_pay_out_transaction', 'TRANSACTION', '2026-08-25 06:22:30', '胡亮亮 Jack'),
+      ],
+    },
+    {
+      key: 'service_stablecoin_off_ramp',
+      name: 'OFF_RAMP',
+      actions: [
+        action('service_stablecoin_off_ramp_requery', 'RE_QUERY', '2026-09-01 09:11:03', '胡亮亮 Jack'),
+        action('service_stablecoin_off_ramp_transaction', 'TRANSACTION', '2026-09-01 09:11:03', '胡亮亮 Jack'),
+      ],
+    },
+    { key: 'service_stablecoin_query_balance', name: 'QUERY_ACCOUNT_BALANCE', actions: [action('service_stablecoin_query_balance_query', 'QUERY', '2026-09-03 02:28:17', '胡亮亮 Jack')] },
+  ],
+};
