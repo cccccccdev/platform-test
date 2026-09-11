@@ -67,15 +67,16 @@ function redistributeIntegerWeights(routes: RouteEntry[]): Map<string, number> {
   if (!enabled.length) return new Map();
   if (total <= 0) return new Map(enabled.map((route, index) => [route.lineId, index === 0 ? 100 : 0]));
 
-  const allocations = enabled.map((route) => {
-    const exact = route.weight / total * 100;
-    return { lineId: route.lineId, original: route.weight, fraction: exact - Math.floor(exact), weight: Math.floor(exact) };
-  });
-  const ranked = [...allocations].sort((left, right) =>
-    right.fraction - left.fraction || right.original - left.original || left.lineId.localeCompare(right.lineId));
+  const largest = enabled.reduce((current, route) => route.weight > current.weight ? route : current);
+  const allocations = enabled.map((route) => ({
+    lineId: route.lineId,
+    weight: Math.floor(route.weight / total * 100),
+  }));
   const remainder = 100 - allocations.reduce((sum, item) => sum + item.weight, 0);
-  for (let index = 0; index < remainder; index += 1) ranked[index % ranked.length].weight += 1;
-  return new Map(allocations.map((item) => [item.lineId, item.weight]));
+  return new Map(allocations.map((item) => [
+    item.lineId,
+    item.weight + (item.lineId === largest.lineId ? remainder : 0),
+  ]));
 }
 
 function initialRouting(channelCode: string, endpoints: PublishedEndpoint[]): RoutingConfiguration {
@@ -243,6 +244,11 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
     const routes = routesForTarget(target);
     const active = enabledRoutes(routes);
     const everActivated = everActivatedForTarget(target);
+    const targetRoute = routes.find((route) => route.lineId === lineId);
+    if (!nextEnabled && targetRoute?.enabled && targetRoute.weight === 100) {
+      message.error('A Line with Weight 100% cannot be disabled. Adjust the enabled Line weights in Weight Config first.');
+      return;
+    }
     if (!nextEnabled && everActivated && active.length <= 1) {
       message.error('At least one Line must remain enabled after this configuration has been activated.');
       return;
