@@ -17,7 +17,7 @@ import {
   Steps,
   message,
 } from 'antd';
-import { ArrowLeftOutlined, DownOutlined, MinusCircleOutlined, RightOutlined, UploadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DownOutlined, EditOutlined, MinusCircleOutlined, RightOutlined, UploadOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Brand, UserProfile } from '../../components/PlatformChrome';
 import { businessTypeOptions, partyOptions } from '../../mock/data';
@@ -26,7 +26,7 @@ import { getCreatedIntegrationRecord } from './channelCreationStore';
 import { isBusinessTypeScopeComplete, toBusinessTypeScopes, toPartyScopes } from './integrationScope';
 import { approverPresets, getApproverPreset } from './approvalPresets';
 
-type ProfileSection = 'summary' | 'business-types' | 'parties' | 'owners' | 'approvers' | 'integration-records';
+type ProfileSection = 'summary' | 'business-types' | 'parties' | 'integration-records';
 type IntegrationMode = 'CONFIG' | 'CODE';
 
 type BusinessTypeRow = {
@@ -115,8 +115,6 @@ const sectionTitles: Record<ProfileSection, string> = {
   summary: 'Summary',
   'business-types': 'Business Types & Countries',
   parties: 'Parties',
-  owners: 'Channel Owners',
-  approvers: 'Approvers',
   'integration-records': 'Integration Records',
 };
 
@@ -206,15 +204,10 @@ export default function ChannelProfilePage() {
     }]);
 
   useEffect(() => {
-    if (section === 'business-types' || section === 'parties') {
+    if (section === 'business-types' || section === 'parties' || section === 'owners' || section === 'approvers') {
       navigate(`/channel-integration/${channelCode}/channel-profile/summary`, { replace: true });
     }
   }, [channelCode, navigate, section]);
-
-  useEffect(() => {
-    if (activeSection === 'owners') ownersForm.setFieldsValue(owners);
-    if (activeSection === 'approvers') approversForm.setFieldsValue(approvers);
-  }, [activeSection, approvers, approversForm, owners, ownersForm]);
 
   const allPartyOptions = useMemo(
     () => Array.from(new Set([...partyOptions, 'TMUL', 'ONELOOP'])).map((value) => ({ label: value, value })),
@@ -540,32 +533,6 @@ export default function ChannelProfilePage() {
     setOwnerEditing(false);
   };
 
-  const renderOwners = () => (
-    <div className="profile-settings-panel">
-      <div className="profile-auto-save-meta"><span><strong>Latest Operator:</strong> {ownerMeta.operator}</span><span><strong>Operation Time:</strong> {ownerMeta.operationTime}</span></div>
-      <Alert type="info" showIcon title="Channel Owners support integration collaboration, daily operations, and runtime incident alerts. Each role can include multiple people." />
-      <Form key="channel-owners-form" form={ownersForm} layout="vertical" initialValues={owners}>
-        <h3>Primary Owners</h3>
-        <div className="profile-form-grid">
-          <Form.Item name="productOwners" label="Product Owners" rules={[{ required: true }]}><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
-          <Form.Item name="technicalOwners" label="Technical Owners" rules={[{ required: true }]}><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
-          <Form.Item name="operationOwners" label="Operations Owners" rules={[{ required: true }]}><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
-        </div>
-        <h3>Supporting Members</h3>
-        <div className="profile-form-grid">
-          <Form.Item name="bd" label="BD"><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
-          <Form.Item name="sre" label="SRE"><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
-          <Form.Item name="businessOwners" label="Business Owner"><Select mode="multiple" disabled={!ownerEditing} options={employeeOptions} /></Form.Item>
-        </div>
-        <div className="approver-edit-actions">
-          {ownerEditing
-            ? <Space><Button onClick={cancelOwnerEdit}>Cancel</Button><Button type="primary" onClick={saveOwners}>Submit</Button></Space>
-            : <Button type="primary" onClick={() => { ownersForm.setFieldsValue(owners); setOwnerEditing(true); }}>Edit</Button>}
-        </div>
-      </Form>
-    </div>
-  );
-
   const saveApproverSet = async () => {
     try {
       const { presetId } = await approversForm.validateFields(['presetId']);
@@ -582,28 +549,6 @@ export default function ChannelProfilePage() {
     approversForm.setFieldValue('presetId', approvers.presetId);
     setApproverEditing(false);
   };
-
-  const renderApprovers = () => (
-    <div className="profile-settings-panel">
-      <div className="profile-auto-save-meta"><span><strong>Latest Operator:</strong> {approverMeta.operator}</span><span><strong>Operation Time:</strong> {approverMeta.operationTime}</span></div>
-      {approverEditing && <Alert type="info" showIcon title="Changing the Approver Set affects future approval requests, including Runtime Control changes to Route Matching or Flow Groups and changes to Response Codes." />}
-      <Form key="approvers-form" form={approversForm} layout="vertical" initialValues={approvers}>
-        <div className="approver-role-list">
-          <Form.Item name="presetId" label="Approver Set" rules={[{ required: true }]}><Select disabled={!approverEditing} options={approverPresets.map(({ id, name }) => ({ label: name, value: id }))} /></Form.Item>
-          <dl className="summary-role-list approver-preview">
-            <div><dt>Technical Approver</dt><dd>{(approverEditing ? getApproverPreset(draftApproverPresetId) : approvers)?.technicalApprover}</dd></div>
-            <div><dt>Product Approver</dt><dd>{(approverEditing ? getApproverPreset(draftApproverPresetId) : approvers)?.productApprover}</dd></div>
-            <div><dt>Operations Approver</dt><dd>{(approverEditing ? getApproverPreset(draftApproverPresetId) : approvers)?.operationsApprover}</dd></div>
-          </dl>
-          <div className="approver-edit-actions">
-            {approverEditing
-              ? <Space><Button onClick={cancelApproverEdit}>Cancel</Button><Button type="primary" onClick={saveApproverSet}>Submit</Button></Space>
-              : <Button type="primary" onClick={() => { approversForm.setFieldValue('presetId', approvers.presetId); setApproverEditing(true); }}>Edit</Button>}
-          </div>
-        </div>
-      </Form>
-    </div>
-  );
 
   const renderSummary = () => {
     const businessTypeScopeMap = new Map<string, { integrationType: IntegrationMode; parties: Map<string, Set<string>> }>();
@@ -635,7 +580,11 @@ export default function ChannelProfilePage() {
         </section>
         <section className="channel-summary-people">
           <div className="channel-summary-section">
-            <h2>Channel Owners</h2>
+            <div className="channel-summary-section-heading">
+              <h2>Channel Owners</h2>
+              <Button type="text" size="small" icon={<EditOutlined />} aria-label="Edit Channel Owners" onClick={() => { ownersForm.setFieldsValue(owners); setOwnerEditing(true); }} />
+            </div>
+            <div className="summary-section-meta"><span>Latest Operator: {ownerMeta.operator}</span><span>Operation Time: {ownerMeta.operationTime}</span></div>
             <dl className="summary-role-list">
               <div><dt>Product Owners</dt><dd>{owners.productOwners.join(', ')}</dd></div>
               <div><dt>Technical Owners</dt><dd>{owners.technicalOwners.join(', ')}</dd></div>
@@ -646,14 +595,49 @@ export default function ChannelProfilePage() {
             </dl>
           </div>
           <div className="channel-summary-section">
-            <h2>Approvers</h2>
+            <div className="channel-summary-section-heading">
+              <h2>Approvers</h2>
+              <Button type="text" size="small" icon={<EditOutlined />} aria-label="Edit Approvers" onClick={() => { approversForm.setFieldValue('presetId', approvers.presetId); setApproverEditing(true); }} />
+            </div>
+            <div className="summary-section-meta"><span>Latest Operator: {approverMeta.operator}</span><span>Operation Time: {approverMeta.operationTime}</span></div>
             <dl className="summary-role-list">
+              <div><dt>Approver Set</dt><dd>{getApproverPreset(approvers.presetId)?.name}</dd></div>
               <div><dt>Technical Approver</dt><dd>{approvers.technicalApprover}</dd></div>
               <div><dt>Product Approver</dt><dd>{approvers.productApprover}</dd></div>
               <div><dt>Operations Approver</dt><dd>{approvers.operationsApprover}</dd></div>
             </dl>
           </div>
         </section>
+        <Modal title="Edit Channel Owners" open={ownerEditing} onCancel={cancelOwnerEdit} onOk={saveOwners} okText="Submit" width={860} className="channel-profile-modal">
+          <Alert type="info" showIcon title="Channel Owners support integration collaboration, daily operations, and runtime incident alerts. Each role can include multiple people." />
+          <Form form={ownersForm} layout="vertical" initialValues={owners}>
+            <h3>Primary Owners</h3>
+            <div className="profile-form-grid">
+              <Form.Item name="productOwners" label="Product Owners" rules={[{ required: true }]}><Select mode="multiple" options={employeeOptions} /></Form.Item>
+              <Form.Item name="technicalOwners" label="Technical Owners" rules={[{ required: true }]}><Select mode="multiple" options={employeeOptions} /></Form.Item>
+              <Form.Item name="operationOwners" label="Operations Owners" rules={[{ required: true }]}><Select mode="multiple" options={employeeOptions} /></Form.Item>
+            </div>
+            <h3>Supporting Members</h3>
+            <div className="profile-form-grid">
+              <Form.Item name="bd" label="BD"><Select mode="multiple" options={employeeOptions} /></Form.Item>
+              <Form.Item name="sre" label="SRE"><Select mode="multiple" options={employeeOptions} /></Form.Item>
+              <Form.Item name="businessOwners" label="Business Owner"><Select mode="multiple" options={employeeOptions} /></Form.Item>
+            </div>
+          </Form>
+        </Modal>
+        <Modal title="Edit Approvers" open={approverEditing} onCancel={cancelApproverEdit} onOk={saveApproverSet} okText="Submit" width={680} className="channel-profile-modal">
+          <Alert type="info" showIcon title="Changing the Approver Set affects future approval requests, including Runtime Control changes to Route Matching or Flow Groups and changes to Response Codes." />
+          <Form form={approversForm} layout="vertical" initialValues={approvers}>
+            <Form.Item name="presetId" label="Approver Set" rules={[{ required: true }]}>
+              <Select options={approverPresets.map(({ id, name }) => ({ label: name, value: id }))} />
+            </Form.Item>
+            <dl className="summary-role-list approver-preview">
+              <div><dt>Technical Approver</dt><dd>{getApproverPreset(draftApproverPresetId)?.technicalApprover || '-'}</dd></div>
+              <div><dt>Product Approver</dt><dd>{getApproverPreset(draftApproverPresetId)?.productApprover || '-'}</dd></div>
+              <div><dt>Operations Approver</dt><dd>{getApproverPreset(draftApproverPresetId)?.operationsApprover || '-'}</dd></div>
+            </dl>
+          </Form>
+        </Modal>
       </div>
     );
   };
@@ -744,9 +728,7 @@ export default function ChannelProfilePage() {
   const content = activeSection === 'summary' ? renderSummary()
     : activeSection === 'business-types' ? renderBusinessTypes()
     : activeSection === 'parties' ? renderParties()
-      : activeSection === 'owners' ? renderOwners()
-        : activeSection === 'approvers' ? renderApprovers()
-          : renderRecords();
+      : renderRecords();
 
   return (
     <div className="channel-profile-shell">
@@ -768,8 +750,6 @@ export default function ChannelProfilePage() {
           onClick={({ key }) => navigateSection(key)}
           items={[
             { key: 'summary', label: 'Summary' },
-            { key: 'owners', label: 'Channel Owners' },
-            { key: 'approvers', label: 'Approvers' },
             { key: 'integration-records', label: 'Integration Records' },
           ]}
         />}
