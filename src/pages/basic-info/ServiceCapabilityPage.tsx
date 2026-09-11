@@ -2,17 +2,10 @@ import { useMemo, useState } from 'react';
 import { Breadcrumb, Button, Empty, Form, Modal, Select, Tag, Typography, message } from 'antd';
 import { LeftOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { capabilityAbilitiesByBusinessType } from './serviceCapabilityReferenceData';
+import { capabilityAbilitiesByBusinessType, getServiceCapabilityConnections } from './serviceCapabilityReferenceData';
 import { useServiceStore } from './serviceStore';
 
 const { Title, Text } = Typography;
-
-function getDefaultConnections(businessType: string, serviceName: string, explicit: string[]) {
-  const sameName = (capabilityAbilitiesByBusinessType[businessType] || [])
-    .filter((ability) => ability.name === serviceName)
-    .map((ability) => ability.name);
-  return Array.from(new Set([...explicit, ...sameName]));
-}
 
 export default function ServiceCapabilityPage() {
   const navigate = useNavigate();
@@ -25,7 +18,7 @@ export default function ServiceCapabilityPage() {
   const [connectOpen, setConnectOpen] = useState(false);
   const [selectedAbility, setSelectedAbility] = useState<string>();
   const explicitConnections = service?.capabilityReferences?.map((reference) => reference.ability) || [];
-  const connections = getDefaultConnections(businessType, serviceName, explicitConnections);
+  const connections = getServiceCapabilityConnections(businessType, serviceName, explicitConnections);
   const connectedAbilities = useMemo(
     () => connections.map((name) => availableAbilities.find((ability) => ability.name === name)).filter(Boolean),
     [availableAbilities, connections],

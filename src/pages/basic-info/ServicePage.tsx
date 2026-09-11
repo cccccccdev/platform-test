@@ -1,10 +1,16 @@
 import { useMemo, useState } from 'react';
-import { Breadcrumb, Button, Empty, Form, Input, Modal, Select, Tag, Typography, message } from 'antd';
+import { Badge, Breadcrumb, Button, Empty, Form, Input, Modal, Select, Tag, Typography, message } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CaretDownOutlined, CaretRightOutlined, PlusOutlined } from '@ant-design/icons';
 import { useBusinessTypeStore } from './businessTypeReferenceData';
-import { type ServiceRecord } from './serviceReferenceData';
+import {
+  SERVICE_MODEL_OPTIONS,
+  type ServiceActionRecord,
+  type ServiceRecord,
+  type ServiceRunModel,
+} from './serviceReferenceData';
 import { useServiceStore } from './serviceStore';
+import { getServiceCapabilityConnections } from './serviceCapabilityReferenceData';
 
 const { Title, Text } = Typography;
 const ACTION_OPTIONS = ['TRANSACTION', 'VERIFY', 'TRIGGER_VERIFY', 'RE_QUERY', 'QUERY', 'INBOUND_TRANSACTION', 'INBOUND_QUERY'];
@@ -24,6 +30,7 @@ export default function ServicePage() {
   const records = useServiceStore((state) => state.records);
   const addService = useServiceStore((state) => state.addService);
   const addActions = useServiceStore((state) => state.addActions);
+  const setActionModel = useServiceStore((state) => state.setActionModel);
   const [expandedServices, setExpandedServices] = useState<Set<string>>(() => new Set(
     Object.entries(useServiceStore.getState().records).flatMap(([bt, services]) => services.map((service) => `${bt}:${service.key}`)),
   ));
@@ -31,6 +38,8 @@ export default function ServicePage() {
   const [addServiceForm] = Form.useForm<{ serviceName: string; actions: string[] }>();
   const [addActionTarget, setAddActionTarget] = useState<ServiceRecord | null>(null);
   const [selectedActions, setSelectedActions] = useState<string[]>([]);
+  const [modelTarget, setModelTarget] = useState<{ service: ServiceRecord; action: ServiceActionRecord } | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ServiceRunModel>();
   const services = records[businessType] || [];
   const existingServiceNames = useMemo(() => new Set(services.map((service) => service.name.toLowerCase())), [services]);
 
@@ -114,6 +123,28 @@ export default function ServicePage() {
     navigate(`/basic-info/service/api-limit?${query.toString()}`);
   };
 
+  const openServiceModel = (service: ServiceRecord, action: ServiceActionRecord) => {
+    setModelTarget({ service, action });
+    setSelectedModel(action.model);
+  };
+
+  const closeServiceModel = () => {
+    setModelTarget(null);
+    setSelectedModel(undefined);
+  };
+
+  const saveServiceModel = () => {
+    if (!modelTarget) return;
+    if (modelTarget.action.model) {
+      closeServiceModel();
+      return;
+    }
+    if (!selectedModel) return;
+    setActionModel(businessType, modelTarget.service.key, modelTarget.action.key, selectedModel);
+    closeServiceModel();
+    message.success('Model configured');
+  };
+
   return (
     <div className="capability-page service-workspace-page">
       <section className="capability-heading">
@@ -136,6 +167,11 @@ export default function ServicePage() {
             <section className="capability-ability-list service-list">
               {services.map((service) => {
                 const expanded = expandedServices.has(`${businessType}:${service.key}`);
+                const capabilityCount = getServiceCapabilityConnections(
+                  businessType,
+                  service.name,
+                  service.capabilityReferences?.map((reference) => reference.ability),
+                ).length;
                 return (
                   <article key={service.key} className="capability-ability-card service-card">
                     <header className="capability-ability-card-header">
@@ -144,7 +180,11 @@ export default function ServicePage() {
                         <span>{service.name}</span>
                       </button>
                       <div className="capability-ability-header-actions service-header-actions">
-                        <Button type="link" className="service-capability-button" onClick={() => openServiceCapability(service)}>Capability</Button>
+                        <div className="capability-settings-controls">
+                          <Badge count={capabilityCount} showZero className={`capability-control-badge ${capabilityCount ? 'active' : 'inactive'}`}>
+                            <button type="button" className="capability-status-chip" onClick={() => openServiceCapability(service)}>Capability</button>
+                          </Badge>
+                        </div>
                         <span className="capability-header-action-divider" aria-hidden="true" />
                         <Button className="capability-add-action-button" size="small" icon={<PlusOutlined />} onClick={() => openAddAction(service)}>Add Action</Button>
                       </div>
@@ -163,6 +203,7 @@ export default function ServicePage() {
                             <div className="capability-action-operations service-action-operations">
                               <Button type="link" onClick={() => openServiceApi(service, serviceAction.name)}>Api</Button>
                               <Button type="link" onClick={() => openServiceApiLimit(service, serviceAction.name)}>API Limit</Button>
+                              <Button type="link" onClick={() => openServiceModel(service, serviceAction)}>Model</Button>
                             </div>
                           </div>
                         ))}
@@ -249,6 +290,42 @@ export default function ServicePage() {
               }}
             />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Model"
+        open={Boolean(modelTarget)}
+        onCancel={closeServiceModel}
+        onOk={saveServiceModel}
+        okText="Submit"
+        cancelText="Cancel"
+        okButtonProps={{ disabled: !modelTarget?.action.model && !selectedModel }}
+        footer={modelTarget?.action.model ? <Button onClick={closeServiceModel}>Cancel</Button> : undefined}
+        width={700}
+        className="capability-add-ability-modal service-model-modal"
+        destroyOnHidden
+      >
+        <Form labelCol={{ span: 8 }} wrapperCol={{ span: 14 }} colon>
+          <Form.Item label="Business Type"><Text>{businessType}</Text></Form.Item>
+          <Form.Item label="Service"><Text>{modelTarget?.service.name}</Text></Form.Item>
+          <Form.Item label="Action"><Text>{modelTarget?.action.name}</Text></Form.Item>
+          <Form.Item label="Model" required>
+            <Select<ServiceRunModel>
+              value={selectedModel}
+              disabled={Boolean(modelTarget?.action.model)}
+              placeholder="Please select a Model"
+              options={SERVICE_MODEL_OPTIONS.map((model) => ({ label: model, value: model }))}
+              onChange={setSelectedModel}
+            />
+          </Form.Item>
+          <div className="service-model-note">
+            <Text type="secondary">
+              {modelTarget?.action.model
+                ? 'This Model has been submitted and can only be viewed.'
+                : 'The Model cannot be changed after submission.'}
+            </Text>
+          </div>
         </Form>
       </Modal>
     </div>

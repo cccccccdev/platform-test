@@ -1,5 +1,10 @@
 import { create } from 'zustand';
-import { initialServiceRecords, type ServiceActionRecord, type ServiceRecord } from './serviceReferenceData';
+import {
+  initialServiceRecords,
+  type ServiceActionRecord,
+  type ServiceRecord,
+  type ServiceRunModel,
+} from './serviceReferenceData';
 
 function cloneInitialRecords(): Record<string, ServiceRecord[]> {
   return Object.fromEntries(Object.entries(initialServiceRecords).map(([businessType, services]) => [
@@ -19,6 +24,7 @@ interface ServiceState {
   records: Record<string, ServiceRecord[]>;
   addService: (businessType: string, service: ServiceRecord) => void;
   addActions: (businessType: string, serviceKey: string, actions: ServiceActionRecord[]) => void;
+  setActionModel: (businessType: string, serviceKey: string, actionKey: string, model: ServiceRunModel) => void;
   connectAbility: (businessType: string, serviceName: string, ability: string) => void;
 }
 
@@ -32,6 +38,19 @@ export const useServiceStore = create<ServiceState>((set) => ({
       ...state.records,
       [businessType]: (state.records[businessType] || []).map((service) => service.key === serviceKey
         ? { ...service, actions: [...service.actions, ...actions] }
+        : service),
+    },
+  })),
+  setActionModel: (businessType, serviceKey, actionKey, model) => set((state) => ({
+    records: {
+      ...state.records,
+      [businessType]: (state.records[businessType] || []).map((service) => service.key === serviceKey
+        ? {
+          ...service,
+          actions: service.actions.map((serviceAction) => serviceAction.key === actionKey && !serviceAction.model
+            ? { ...serviceAction, model }
+            : serviceAction),
+        }
         : service),
     },
   })),

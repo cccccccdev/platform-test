@@ -65,6 +65,17 @@ export const capabilityAbilitiesByBusinessType: Record<string, CapabilityAbility
   WHATSAPP: [ability('SINGLE_MESSAGE', ['RE_QUERY', 'TRANSACTION'])],
 };
 
+export function getServiceCapabilityConnections(
+  businessType: string,
+  serviceName: string,
+  explicitConnections: string[] = [],
+) {
+  const sameNameConnections = (capabilityAbilitiesByBusinessType[businessType] || [])
+    .filter((item) => item.name === serviceName)
+    .map((item) => item.name);
+  return Array.from(new Set([...explicitConnections, ...sameNameConnections]));
+}
+
 export interface FieldMappingRow {
   key: string;
   spi: string;

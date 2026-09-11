@@ -1,8 +1,21 @@
+export const SERVICE_MODEL_OPTIONS = [
+  'TRANSACTION_INITIATE',
+  'TRANSACTION_VERIFY',
+  'TRANSACTION_RE_QUERY',
+  'SNAPSHOT_INITIATE',
+  'SNAPSHOT_VERIFY',
+  'SNAPSHOT_RE_QUERY',
+  'QUERY',
+] as const;
+
+export type ServiceRunModel = typeof SERVICE_MODEL_OPTIONS[number];
+
 export interface ServiceActionRecord {
   key: string;
   name: string;
   operateTime: string;
   operator: string;
+  model?: ServiceRunModel;
 }
 
 export interface ServiceCapabilityReference {
