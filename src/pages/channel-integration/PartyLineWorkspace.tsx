@@ -17,7 +17,7 @@ import {
   Typography,
   message,
 } from 'antd';
-import { DownOutlined, RightOutlined } from '@ant-design/icons';
+import { DownOutlined, EditOutlined, RightOutlined } from '@ant-design/icons';
 import { mockChannelInfoApplications } from '../../mock/data';
 import { useChannelScopeStore, type OutboundEndpoint } from './channelScopeStore';
 import { useConfigIntegrationStore } from './configIntegrationStore';
@@ -45,6 +45,8 @@ type PathGroup = {
 
 type RoutingOwner = 'party' | 'account';
 type RoutingTarget = { kind: 'path'; group: PathGroup; owner: RoutingOwner };
+
+const EMPTY_OUTBOUND_ENDPOINTS: OutboundEndpoint[] = [];
 
 interface Props {
   channelCode: string;
@@ -162,7 +164,7 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
   const storedLines = useChannelLineStore((state) => state.linesByScope[lineScopeKey]);
   const setLines = useChannelLineStore((state) => state.setLines);
   const lines = storedLines ?? (account ? initialAccountLine(channelCode, account) : initialSharedLines(channelCode));
-  const allOutboundEndpoints = useChannelScopeStore((state) => state.outboundEndpointsByChannel[channelCode] ?? []);
+  const allOutboundEndpoints = useChannelScopeStore((state) => state.outboundEndpointsByChannel[channelCode] ?? EMPTY_OUTBOUND_ENDPOINTS);
   const abilities = useConfigIntegrationStore((state) => state.abilitiesByChannel[channelCode]);
   const publishedEndpoints = useMemo(
     () => collectPublishedEndpoints(allOutboundEndpoints, abilities, cloud, env),
@@ -418,11 +420,20 @@ export default function PartyLineWorkspace({ channelCode, cloud, env, party, acc
         { title: '', width: 50, render: (_: unknown, group: PathGroup) => pathSpecific(group, routingOwner) ? <Button type="text" icon={expandedPathRows.includes(group.key) ? <DownOutlined /> : <RightOutlined />} onClick={() => setExpandedPathRows((rows) => rows.includes(group.key) ? rows.filter((key) => key !== group.key) : [...rows, group.key])} /> : null },
         { title: 'Endpoint', dataIndex: 'path', render: (value: string) => <Text>{value}</Text> },
         { title: 'Method', dataIndex: 'methods', width: 180, render: (methods: string[]) => <Space wrap>{methods.map((method) => <Tag color="geekblue" key={method}>{method}</Tag>)}</Space> },
-        { title: 'Timeout', width: 130, render: (_: unknown, group: PathGroup) => `${pathSpecific(group, routingOwner)?.timeout ?? 10000} ms` },
-        { title: 'Operation', width: 330, render: (_: unknown, group: PathGroup) => <Space size="small">
+        { title: 'Timeout', width: 170, render: (_: unknown, group: PathGroup) => <Space size={4}>
+          <span>{pathSpecific(group, routingOwner)?.timeout ?? 10000} ms</span>
+          <Button
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            aria-label={`Modify Timeout for ${group.path}`}
+            title="Modify Timeout"
+            onClick={() => openTimeoutEditor({ kind: 'path', group, owner: routingOwner })}
+          />
+        </Space> },
+        { title: 'Operation', width: 240, render: (_: unknown, group: PathGroup) => <Space size="small">
           <Button type="link" size="small" onClick={() => openAssociateLine({ kind: 'path', group, owner: routingOwner })}>Associate Line</Button>
           <Button type="link" size="small" disabled={!enabledRoutes(pathRoutes(group, routingOwner)).length} onClick={() => openWeightEditor({ kind: 'path', group, owner: routingOwner })}>Weight Config</Button>
-          <Button type="link" size="small" onClick={() => openTimeoutEditor({ kind: 'path', group, owner: routingOwner })}>Timeout Config</Button>
         </Space> },
       ]}
       expandable={{
