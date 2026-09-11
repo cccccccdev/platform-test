@@ -181,21 +181,24 @@ export default function LinkStateMachinePage() {
     <div className="linked-state-machine-page">
       <section className="linked-state-machine-heading">
         <Breadcrumb items={[
-          { title: 'Basic Info', href: '/basic-info' },
-          { title: 'Capability', href: '/basic-info/capability' },
+          { title: 'Basic Info', href: '/basic-info/country' },
+          { title: 'Capability', href: `/basic-info/capability?bt=${encodeURIComponent(bt)}` },
+          { title: bt },
+          { title: ability },
           { title: 'Linked State Machine' },
         ]} />
-        <button className="linked-state-machine-back" type="button" onClick={() => navigate('/basic-info/capability')}>
-          <LeftOutlined /><Title level={4}>Linked State Machine</Title>
+        <button className="linked-state-machine-back" type="button" onClick={() => navigate(`/basic-info/capability?bt=${encodeURIComponent(bt)}&ability=${encodeURIComponent(ability)}`)}>
+          <LeftOutlined />
+          <Title level={4}>Linked State Machine</Title>
         </button>
       </section>
 
       <main className="linked-state-machine-content">
-        <div className="linked-state-machine-meta">
-          <span><strong>Business Type:</strong> {bt}</span>
-          <span><strong>Ability:</strong> {ability}</span>
-        </div>
         <div className="linked-state-machine-actions">
+          <div className="capability-page-context">
+            <Text>Business Type: <Text strong>{bt}</Text></Text>
+            <Text>Ability: <Text strong>{ability}</Text></Text>
+          </div>
           <Button type="primary" onClick={() => setAddModalOpen(true)}>Link</Button>
         </div>
 

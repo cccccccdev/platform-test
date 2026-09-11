@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import { Breadcrumb, Button, Form, Input, Modal, Select, Table, Tag, Typography, message } from 'antd';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { LeftOutlined } from '@ant-design/icons';
 import './CapabilityFeaturesPage.css';
 import {
   FEATURE_OPERATION_TIME,
@@ -44,6 +45,7 @@ const normalizeTokens = (values: string[]) => values
 
 export default function CapabilityFeaturesPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const businessType = searchParams.get('bt') || 'BANK_CARD_DEBIT';
   const ability = searchParams.get('ability') || 'REFUND';
   const rows = useCapabilityFeatureStore((state) => state.definitions);
@@ -180,15 +182,24 @@ export default function CapabilityFeaturesPage() {
   return (
     <div className="capability-features-page">
       <section className="capability-features-heading">
-        <Breadcrumb items={[{ title: 'Basic Info' }, { title: 'Capability' }, { title: 'Features' }]} />
-        <Title level={4}>Features</Title>
+        <Breadcrumb items={[
+          { title: 'Basic Info', href: '/basic-info/country' },
+          { title: 'Capability', href: `/basic-info/capability?bt=${encodeURIComponent(businessType)}` },
+          { title: businessType },
+          { title: ability },
+          { title: 'Features' },
+        ]} />
+        <button className="capability-child-back" type="button" onClick={() => navigate(`/basic-info/capability?bt=${encodeURIComponent(businessType)}&ability=${encodeURIComponent(ability)}`)}>
+          <LeftOutlined />
+          <Title level={4}>Features</Title>
+        </button>
       </section>
 
       <main className="capability-features-panel">
         <div className="capability-features-toolbar">
-          <div className="capability-features-context">
-            <span><strong>Business Type:</strong>{businessType}</span>
-            <span><strong>Ability:</strong>{ability}</span>
+          <div className="capability-page-context">
+            <Text>Business Type: <Text strong>{businessType}</Text></Text>
+            <Text>Ability: <Text strong>{ability}</Text></Text>
           </div>
           <Button type="primary" onClick={openAdd}>Add Feature</Button>
         </div>

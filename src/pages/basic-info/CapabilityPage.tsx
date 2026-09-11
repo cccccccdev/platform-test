@@ -1,13 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag, Switch, Pagination } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useEffect, useMemo } from 'react';
+import { AutoComplete, Badge, Button, Input, Space, message, Breadcrumb, Select, Form, Modal, Typography, Tag, Switch, Empty, Tooltip } from 'antd';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PlusOutlined, CaretRightOutlined, CaretDownOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../channel-integration/configIntegrationStore';
 import { initialBusinessTypeRecords, useBusinessTypeStore } from './businessTypeReferenceData';
 import { enableSubOrderMode, getEnabledSubOrderModes, getSubOrderModeKey } from './capability/subOrderModeStore';
 
 const { Title, Text } = Typography;
-const BUSINESS_TYPES_PER_PAGE = 10;
 const ACTION_OPTIONS = [
   'TRANSACTION',
   'VERIFY',
@@ -17,6 +16,13 @@ const ACTION_OPTIONS = [
   'INBOUND_TRANSACTION',
   'INBOUND_QUERY',
 ] as const;
+const CAPABILITY_OPERATOR = '我爱北京天安门';
+
+function operationTimeNow(): string {
+  const date = new Date();
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
 
 interface ActionItem {
   key: string;
@@ -338,9 +344,9 @@ const INITIAL_DATA = initialBusinessTypeRecords.map(({ businessType }) => buildB
 
 export default function CapabilityPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const businessTypeRecords = useBusinessTypeStore((state) => state.records);
   const [data, setData] = useState<BusinessTypeItem[]>(INITIAL_DATA);
-  const [filteredBt, setFilteredBt] = useState<string>('');
   const [addAbilityOpen, setAddAbilityOpen] = useState(false);
   const [addAbilityBt, setAddAbilityBt] = useState<string>('');
   const [addAbilityForm] = Form.useForm();
@@ -355,11 +361,27 @@ export default function CapabilityPage() {
   const [enabledSubOrderModes, setEnabledSubOrderModes] = useState<Set<string>>(() => getEnabledSubOrderModes());
   const [subOrderModeTarget, setSubOrderModeTarget] = useState<{ businessType: string; ability: string } | null>(null);
   const [subOrderModeDraft, setSubOrderModeDraft] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const selectedBusinessTypeName = searchParams.get('bt') || businessTypeRecords[0]?.businessType || '';
+  const addAbilityOptions = useMemo(() => {
+    const currentAbilityNames = new Set(
+      data.find((businessType) => businessType.name === addAbilityBt)?.abilities.map((ability) => ability.name) || [],
+    );
+    return Array.from(new Set(data.flatMap((businessType) => businessType.abilities.map((ability) => ability.name))))
+      .filter((abilityName) => !currentAbilityNames.has(abilityName))
+      .sort((left, right) => left.localeCompare(right))
+      .map((abilityName) => ({ label: abilityName, value: abilityName }));
+  }, [addAbilityBt, data]);
 
   useEffect(() => {
     setData((current) => businessTypeRecords.map(({ businessType }) => current.find((item) => item.name === businessType) ?? buildBusinessTypeItem(businessType)));
   }, [businessTypeRecords]);
+
+  useEffect(() => {
+    if (!selectedBusinessTypeName || searchParams.get('bt')) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('bt', selectedBusinessTypeName);
+    setSearchParams(next, { replace: true });
+  }, [searchParams, selectedBusinessTypeName, setSearchParams]);
 
   // LocalStorage key for linked state machines
   const LINKED_SM_KEY = 'linkedStateMachines';
@@ -483,24 +505,22 @@ export default function CapabilityPage() {
       .map(sm => ({ label: sm.name, value: sm.name }));
   }, [getStateMachineList, getStoredStatuses, getLinkedSMListForAbility]);
 
-  const filteredData = filteredBt
-    ? data.filter(bt => bt.name === filteredBt)
-    : data;
-  const paginatedData = filteredData.slice(
-    (currentPage - 1) * BUSINESS_TYPES_PER_PAGE,
-    currentPage * BUSINESS_TYPES_PER_PAGE,
-  );
+  const selectedBusinessType = data.find((item) => item.name === selectedBusinessTypeName);
 
-  useEffect(() => {
-    const lastPage = Math.max(1, Math.ceil(filteredData.length / BUSINESS_TYPES_PER_PAGE));
-    setCurrentPage((page) => Math.min(page, lastPage));
-  }, [filteredData.length]);
+  const getFeatureCount = (businessType: string, ability: string) => {
+    const demoCounts: Record<string, number> = {
+      'BANK_CARD_DEBIT:REFUND': 5,
+      'SMS:SINGLE_MESSAGE': 5,
+      'STABLECOIN:TRANSFER': 5,
+      'GIFTCARD:RECHARGE': 5,
+    };
+    return demoCounts[`${businessType}:${ability}`] || 0;
+  };
 
-  const toggleBusinessType = useCallback((btKey: string) => {
-    setData(prev => prev.map(bt =>
-      bt.key === btKey ? { ...bt, isExpand: !bt.isExpand } : bt
-    ));
-  }, []);
+  const openConfig = (businessType: string, ability: string, action: string) => {
+    const query = new URLSearchParams({ bt: businessType, ability, action });
+    navigate(`/basic-info/capability/spi?${query.toString()}`);
+  };
 
   const toggleAbility = useCallback((btKey: string, abKey: string) => {
     setData(prev => prev.map(bt =>
@@ -526,21 +546,34 @@ export default function CapabilityPage() {
       const values = await addAbilityForm.validateFields();
       const bt = data.find(b => b.name === addAbilityBt);
       if (!bt) return;
+      const abilityName = String(values.abilityName).trim();
+      const actionNames = values.actions as string[];
+      const operationTime = operationTimeNow();
+
+      if (bt.abilities.some((ability) => ability.name.toLowerCase() === abilityName.toLowerCase())) {
+        addAbilityForm.setFields([{ name: 'abilityName', errors: ['This Ability already exists under the current Business Type'] }]);
+        return;
+      }
 
       const newAbility: AbilityItem = {
         key: `ab_${Date.now()}`,
-        name: values.abilityName,
-        operateTime: '—',
-        operator: '—',
-        isExpand: false,
-        actions: [],
+        name: abilityName,
+        operateTime: operationTime,
+        operator: CAPABILITY_OPERATOR,
+        isExpand: true,
+        actions: actionNames.map((actionName, index) => ({
+          key: `act_${Date.now()}_${index}`,
+          name: actionName,
+          operateTime: operationTime,
+          operator: CAPABILITY_OPERATOR,
+        })),
       };
 
       setData(prev => prev.map(b =>
         b.key === bt.key ? { ...b, abilities: [...b.abilities, newAbility] } : b
       ));
       setAddAbilityOpen(false);
-      message.success(`已添加 Ability: ${values.abilityName}`);
+      message.success(`Ability ${abilityName} added.`);
     } catch {}
   };
 
@@ -575,11 +608,12 @@ export default function CapabilityPage() {
             ...bt,
             abilities: bt.abilities.map(ab => {
               if (ab.key !== addActionTarget.abilityKey) return ab;
+              const operationTime = operationTimeNow();
               const newActions: ActionItem[] = actionsToAdd.map((name, index) => ({
                 key: `act_${Date.now()}_${index}`,
                 name,
-                operateTime: '—',
-                operator: '—',
+                operateTime: operationTime,
+                operator: CAPABILITY_OPERATOR,
               }));
               return { ...ab, actions: [...ab.actions, ...newActions] };
             }),
@@ -605,7 +639,9 @@ export default function CapabilityPage() {
               ab.key !== abKey ? ab : {
                 ...ab,
                 actions: ab.actions.map(act =>
-                  act.key === editingActionKey ? { ...act, name: editingActionName.trim() } : act
+                  act.key === editingActionKey
+                    ? { ...act, name: editingActionName.trim(), operateTime: operationTimeNow(), operator: CAPABILITY_OPERATOR }
+                    : act
                 ),
               }
             ),
@@ -624,162 +660,115 @@ export default function CapabilityPage() {
   return (
     <div className="capability-page">
       <section className="capability-heading">
-        <Breadcrumb items={[{ title: 'Basic Info' }, { title: 'Capability' }]} />
-        <Title level={4}>Capability</Title>
+        <Breadcrumb items={[{ title: 'Basic Info', href: '/basic-info/country' }, { title: 'Capability' }]} />
+        <div className="capability-title-line">
+          <Title level={4}>Capability</Title>
+        </div>
       </section>
 
-      <section className="capability-filter-section">
-        <Form layout="inline" className="capability-filter-form">
-          <Form.Item label="Business Type">
-            <Select
-              allowClear
-              placeholder="Select Business Type"
-              className="capability-business-type-select"
-              options={businessTypeRecords.map(({ businessType }) => ({ label: businessType, value: businessType }))}
-              value={filteredBt || undefined}
-              onChange={v => {
-                setFilteredBt(v || '');
-                setCurrentPage(1);
-              }}
-            />
-          </Form.Item>
-          <Form.Item>
-            <Space className="capability-filter-actions">
-              <Button onClick={() => { setFilteredBt(''); setCurrentPage(1); }}>Reset</Button>
-              <Button type="primary" onClick={() => {}}>Query</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </section>
-
-      <main className="capability-groups">
-        {paginatedData.map(bt => (
-          <section key={bt.key} className="capability-group">
-            <div
-              className="capability-group-header"
-              onClick={() => toggleBusinessType(bt.key)}
-            >
-              <Space>
-                {bt.isExpand ? <CaretDownOutlined /> : <CaretRightOutlined />}
-                <Text strong>{bt.name}</Text>
-              </Space>
-              <Button
-                type="text"
-                icon={<PlusOutlined />}
-                onClick={e => {
-                  e.stopPropagation();
-                  openAddAbility(bt.name);
-                }}
-                className="capability-add-button"
-              >
-                Add Capability
-              </Button>
-            </div>
-
-            {bt.isExpand && (
-              <div className="capability-column-header">
-                <span>Name</span><span>Operate Time</span><span>Operator</span><span>Operation</span>
+      <main className="capability-workspace">
+        <section className="capability-master-panel">
+          <div className="capability-workspace-actions">
+            {selectedBusinessType && (
+              <div className="capability-page-context">
+                <Text>Business Type: <Text strong>{selectedBusinessType.name}</Text></Text>
               </div>
             )}
+            {selectedBusinessType && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => openAddAbility(selectedBusinessType.name)}>
+                Add Capability
+              </Button>
+            )}
+          </div>
 
-            {bt.isExpand && bt.abilities.map(ab => (
-              <div key={ab.key} className="capability-ability-block">
-                <div
-                  className="capability-ability-row"
-                  onClick={() => ab.actions.length > 0 && toggleAbility(bt.key, ab.key)}
-                >
-                  <div className="capability-ability-name">
-                    {ab.actions.length > 0 ? (
-                      ab.isExpand ? <CaretDownOutlined /> : <CaretRightOutlined />
-                    ) : <span className="capability-icon-placeholder" />}
-                    <Text>{ab.name}</Text>
-                  </div>
-                  <Text type="secondary">{ab.operateTime}</Text>
-                  <Text type="secondary">{ab.operator}</Text>
-                  <Space className="capability-operation-links" onClick={e => e.stopPropagation()}>
-                    <Button
-                      type="link"
-                      onClick={() => openSubOrderMode(bt.name, ab.name)}
-                    >
-                      SubOrderMode{enabledSubOrderModes.has(getSubOrderModeKey(bt.name, ab.name)) ? ' ✓' : ''}
-                    </Button>
-                    <Button
-                      type="link"
-                      onClick={() => navigate(`/basic-info/capability/features?bt=${bt.name}&ability=${ab.name}`)}
-                    >
-                      Features
-                    </Button>
-                    <Button
-                      type="link"
-                      onClick={() => navigate(`/basic-info/capability/link-state-machine?bt=${bt.name}&ability=${ab.name}`)}
-                    >
-                      State Machines
-                    </Button>
-                  </Space>
-                </div>
-
-                {ab.isExpand && ab.actions.length > 0 && (
-                  <div className="capability-action-table">
-                    {ab.actions.map(action => {
-                      const isEditing = editingActionKey === action.key;
-                      return (
-                        <div className="capability-action-row" key={action.key}>
-                          <div className="capability-action-name">
-                            {isEditing ? (
-                              <Input
-                                value={editingActionName}
-                                onChange={event => setEditingActionName(event.target.value)}
-                                onPressEnter={() => saveEditAction(bt.key, ab.key)}
-                                onBlur={() => saveEditAction(bt.key, ab.key)}
-                                autoFocus
-                                onKeyDown={event => {
-                                  if (event.key === 'Escape') cancelEditAction();
-                                }}
-                              />
-                            ) : (
-                              <span onDoubleClick={() => startEditAction(action)}>{action.name}</span>
-                            )}
-                          </div>
-                          <span>{action.operateTime}</span>
-                          <span>{action.operator}</span>
-                          <Button
-                            type="link"
-                            onClick={() => navigate(`/basic-info/capability/spi?bt=${bt.name}&ability=${ab.name}&action=${action.name}`)}
-                          >
-                            Config
-                          </Button>
+          {selectedBusinessType ? (
+            <section key={selectedBusinessType.key} className="capability-ability-list">
+              {selectedBusinessType.abilities.map(ab => {
+                const subOrderEnabled = enabledSubOrderModes.has(getSubOrderModeKey(selectedBusinessType.name, ab.name));
+                const featureCount = getFeatureCount(selectedBusinessType.name, ab.name);
+                const stateMachineCount = getLinkedSMListForAbility(selectedBusinessType.name, ab.name).length;
+                return (
+                  <article key={ab.key} className="capability-ability-card">
+                    <header className="capability-ability-card-header">
+                      <button
+                        type="button"
+                        className="capability-ability-toggle"
+                        onClick={() => ab.actions.length > 0 && toggleAbility(selectedBusinessType.key, ab.key)}
+                      >
+                        {ab.actions.length > 0 && (ab.isExpand ? <CaretDownOutlined /> : <CaretRightOutlined />)}
+                        <span>{ab.name}</span>
+                      </button>
+                      <div className="capability-ability-header-actions">
+                        <div className="capability-settings-controls">
+                          <Badge count={subOrderEnabled ? 'ON' : 'OFF'} className={`capability-control-badge ${subOrderEnabled ? 'active' : 'inactive'}`}>
+                            <button type="button" className="capability-status-chip" onClick={() => openSubOrderMode(selectedBusinessType.name, ab.name)}>Sub-order</button>
+                          </Badge>
+                          <Badge count={featureCount} showZero className={`capability-control-badge ${featureCount ? 'active' : 'inactive'}`}>
+                            <button type="button" className="capability-status-chip" onClick={() => navigate(`/basic-info/capability/features?bt=${selectedBusinessType.name}&ability=${ab.name}`)}>Features</button>
+                          </Badge>
+                          <Badge count={stateMachineCount} showZero className={`capability-control-badge ${stateMachineCount ? 'active' : 'inactive'}`}>
+                            <button type="button" className="capability-status-chip" onClick={() => navigate(`/basic-info/capability/link-state-machine?bt=${selectedBusinessType.name}&ability=${ab.name}`)}>State Machines</button>
+                          </Badge>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <span className="capability-header-action-divider" aria-hidden="true" />
+                        <Button className="capability-add-action-button" size="small" icon={<PlusOutlined />} onClick={() => openAddAction(selectedBusinessType, ab)}>
+                          Add Action
+                        </Button>
+                      </div>
+                    </header>
 
-                {ab.isExpand && (
-                  <div className="capability-add-action-row">
-                    <Button
-                      type="dashed"
-                      icon={<PlusOutlined />}
-                      onClick={() => openAddAction(bt, ab)}
-                      block
-                    >
-                      Add Action
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </section>
-        ))}
-        <div className="capability-pagination">
-          <Pagination
-            current={currentPage}
-            pageSize={BUSINESS_TYPES_PER_PAGE}
-            total={filteredData.length}
-            showSizeChanger={false}
-            showTotal={(total) => `Total ${total} items`}
-            onChange={setCurrentPage}
-          />
-        </div>
+                    {ab.isExpand && (
+                      <>
+                        {ab.actions.length > 0 && (
+                          <div className="capability-action-list">
+                            <div className="capability-action-list-header">
+                              <span>Action</span><span>Operate Time</span><span>Operator</span><span>Operation</span>
+                            </div>
+                            {ab.actions.map(action => {
+                              const isEditing = editingActionKey === action.key;
+                              return (
+                                <div className="capability-action-item" key={action.key}>
+                                  <div className="capability-action-item-name">
+                                    {isEditing ? (
+                                      <Input
+                                        value={editingActionName}
+                                        onChange={event => setEditingActionName(event.target.value)}
+                                        onPressEnter={() => saveEditAction(selectedBusinessType.key, ab.key)}
+                                        onBlur={() => saveEditAction(selectedBusinessType.key, ab.key)}
+                                        autoFocus
+                                        onKeyDown={event => {
+                                          if (event.key === 'Escape') cancelEditAction();
+                                        }}
+                                      />
+                                    ) : (
+                                      <Tooltip title="Double-click to rename">
+                                        <button type="button" onDoubleClick={() => startEditAction(action)}>{action.name}</button>
+                                      </Tooltip>
+                                    )}
+                                  </div>
+                                  <Text type="secondary" className="capability-action-audit">{action.operateTime}</Text>
+                                  <Text type="secondary" className="capability-action-audit">{action.operator}</Text>
+                                  <div className="capability-action-operations">
+                                    <Button type="link" onClick={() => openConfig(selectedBusinessType.name, ab.name, action.name)}>
+                                      Config
+                                    </Button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                      </>
+                    )}
+                  </article>
+                );
+              })}
+            </section>
+          ) : (
+            <Empty description="Select a Business Type from the sidebar" />
+          )}
+        </section>
       </main>
 
       <Modal
@@ -816,23 +805,47 @@ export default function CapabilityPage() {
       </Modal>
 
       <Modal
-        title="Add Capability"
+        title="Add Ability"
         open={addAbilityOpen}
-        onCancel={() => setAddAbilityOpen(false)}
+        onCancel={() => { setAddAbilityOpen(false); addAbilityForm.resetFields(); }}
         onOk={handleAddAbility}
         okText="OK"
         cancelText="Cancel"
+        width={700}
+        className="capability-add-ability-modal"
+        destroyOnHidden
+        forceRender
       >
-        <Form form={addAbilityForm} layout="vertical">
-          <Form.Item label="Business Type">
-            <Text strong>{addAbilityBt}</Text>
+        <Form form={addAbilityForm} labelCol={{ span: 8 }} wrapperCol={{ span: 14 }} colon>
+          <Form.Item label="Business Type" required>
+            <Text>{addAbilityBt}</Text>
           </Form.Item>
           <Form.Item
-            label="Ability Name"
+            label="Ability"
             name="abilityName"
-            rules={[{ required: true, message: 'Please enter Ability name' }]}
+            rules={[
+              { required: true, whitespace: true, message: 'Please select or enter an Ability' },
+              { pattern: /^[A-Za-z0-9_]+$/, message: 'Use letters, numbers, and underscores only' },
+            ]}
           >
-            <Input placeholder="Enter Ability name" />
+            <AutoComplete
+              options={addAbilityOptions}
+              placeholder="Please select or enter new option"
+              filterOption={(inputValue, option) => String(option?.value || '').toLowerCase().includes(inputValue.toLowerCase())}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Action"
+            name="actions"
+            rules={[{ required: true, type: 'array', min: 1, message: 'Please select at least one Action' }]}
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="Please select at least one Action"
+              options={ACTION_OPTIONS.map((action) => ({ label: action, value: action }))}
+              maxTagCount="responsive"
+            />
           </Form.Item>
         </Form>
       </Modal>

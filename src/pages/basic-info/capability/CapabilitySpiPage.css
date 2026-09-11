@@ -4,6 +4,57 @@
   background: var(--legacy-bg);
 }
 
+.capability-spi-embedded {
+  min-height: 0;
+  background: #fff;
+}
+
+.capability-spi-embedded .capability-spi-tabs {
+  height: 48px;
+  padding-left: 18px;
+  border-bottom: 1px solid #ededed;
+  background: #fff;
+}
+
+.capability-spi-embedded .capability-spi-tabs button {
+  height: 48px;
+  border-bottom: 2px solid transparent;
+}
+
+.capability-spi-embedded .capability-spi-tabs button.active {
+  border-bottom-color: var(--legacy-purple);
+}
+
+.capability-spi-embedded .capability-spi-panel {
+  min-height: 0;
+  margin: 0;
+  padding: 18px 20px 32px;
+}
+
+.capability-spi-embedded .capability-spi-toolbar {
+  display: flex;
+  justify-content: space-between;
+}
+
+.capability-spi-embedded .capability-spi-toolbar > .ant-btn {
+  margin-top: 0;
+}
+
+.capability-spi-embedded .capability-spi-context {
+  gap: 8px 16px;
+}
+
+.capability-spi-embedded .capability-spi-meta {
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-inline: 0;
+}
+
+.capability-spi-embedded .capability-spi-field-header,
+.capability-spi-embedded .capability-spi-field-row {
+  grid-template-columns: 38% 24% 38%;
+}
+
 .capability-spi-heading {
   height: 86px;
   padding: 12px 18px 14px;
@@ -14,11 +65,26 @@
   font-size: 12px;
 }
 
-.capability-spi-heading .ant-typography {
-  margin: 15px 0 0;
+.capability-spi-back {
+  margin-top: 14px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  color: #262626;
+  background: transparent;
+  cursor: pointer;
+}
+
+.capability-spi-back .ant-typography {
+  margin: 0;
   font-size: 18px;
   line-height: 1;
 }
+
+.capability-spi-back:hover { color: var(--legacy-purple); }
+.capability-spi-back:focus-visible { outline: 2px solid #b37feb; outline-offset: 3px; }
 
 .capability-spi-tabs {
   display: flex;

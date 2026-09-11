@@ -13,11 +13,26 @@
   font-size: 12px;
 }
 
-.capability-features-heading .ant-typography {
-  margin: 15px 0 0;
+.capability-child-back {
+  margin-top: 14px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  color: #262626;
+  background: transparent;
+  cursor: pointer;
+}
+
+.capability-child-back .ant-typography {
+  margin: 0;
   font-size: 18px;
   line-height: 1;
 }
+
+.capability-child-back:hover { color: var(--legacy-purple); }
+.capability-child-back:focus-visible { outline: 2px solid #b37feb; outline-offset: 3px; }
 
 .capability-features-panel {
   min-height: calc(100vh - 156px);
@@ -28,23 +43,13 @@
 
 .capability-features-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
-.capability-features-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 34px;
-  color: #272c35;
-  font-size: 16px;
-}
-
-.capability-features-context strong {
-  margin-right: 8px;
-}
+.capability-features-toolbar .ant-btn { height: 30px; border-radius: 0; font-size: 12px; }
 
 .capability-features-toolbar .ant-btn-primary,
 .capability-feature-modal .ant-btn-primary:not(:disabled) {
@@ -175,12 +180,4 @@
     padding-inline: 16px;
   }
 
-  .capability-features-toolbar {
-    align-items: flex-start;
-  }
-
-  .capability-features-context {
-    display: grid;
-    gap: 8px;
-  }
 }

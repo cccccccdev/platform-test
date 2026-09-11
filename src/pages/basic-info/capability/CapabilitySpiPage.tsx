@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Breadcrumb, Button, Input, Select, Tag, Typography } from 'antd';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { LeftOutlined } from '@ant-design/icons';
 import './CapabilitySpiPage.css';
 import { isSubOrderModeEnabled } from './subOrderModeStore';
 
@@ -365,18 +366,28 @@ function FieldTable({ fields, editable }: { fields: SpiField[]; editable: boolea
   );
 }
 
-export default function CapabilitySpiPage() {
+interface CapabilitySpiPageProps {
+  embedded?: boolean;
+  businessType?: string;
+  ability?: string;
+  action?: string;
+  spiType?: SpiTab;
+}
+
+export default function CapabilitySpiPage({ embedded = false, ...context }: CapabilitySpiPageProps = {}) {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<SpiTab>('config');
-  const businessType = searchParams.get('bt') || 'SMS';
-  const ability = searchParams.get('ability') || 'SINGLE_MESSAGE';
-  const action = searchParams.get('action') || 'TRANSACTION';
+  const businessType = context.businessType || searchParams.get('bt') || 'SMS';
+  const ability = context.ability || searchParams.get('ability') || 'SINGLE_MESSAGE';
+  const action = context.action || searchParams.get('action') || 'TRANSACTION';
+  const activeTab = embedded && context.spiType ? context.spiType : tab;
   const subOrderEnabled = isSubOrderModeEnabled(businessType, ability);
   const isBulkSms = businessType === 'SMS' && ability === 'BULK_MESSAGE' && action === 'TRANSACTION';
   const demoProfile = DEMO_SPI_PROFILES[businessType] || DEFAULT_DEMO_PROFILE;
   const configRequestBase = CONFIG_SPI.request.slice(0, -2);
   const configResponseBase = CONFIG_SPI.response.slice(0, -3);
-  const definition: SpiDefinition = tab === 'config'
+  const definition: SpiDefinition = activeTab === 'config'
     ? {
         ...CONFIG_SPI,
         url: buildDemoUrl(businessType, ability, action),
@@ -403,16 +414,34 @@ export default function CapabilitySpiPage() {
       };
 
   return (
-    <div className="capability-spi-page">
-      <header className="capability-spi-heading">
-        <Breadcrumb items={[{ title: 'Basic Info' }, { title: 'Capability' }, { title: 'SPI' }]} />
-        <Title level={4}>SPI</Title>
-      </header>
+    <div className={`capability-spi-page ${embedded ? 'capability-spi-embedded' : ''}`}>
+      {!embedded && (
+        <header className="capability-spi-heading">
+          <Breadcrumb items={[
+            { title: 'Basic Info', href: '/basic-info/country' },
+            { title: 'Capability', href: `/basic-info/capability?bt=${encodeURIComponent(businessType)}` },
+            { title: businessType },
+            { title: ability },
+            { title: action },
+            { title: 'Config' },
+          ]} />
+          <button
+            type="button"
+            className="capability-spi-back"
+            onClick={() => navigate(`/basic-info/capability?bt=${encodeURIComponent(businessType)}&ability=${encodeURIComponent(ability)}`)}
+          >
+            <LeftOutlined />
+            <Title level={4}>Config</Title>
+          </button>
+        </header>
+      )}
 
-      <div className="capability-spi-tabs" role="tablist" aria-label="SPI type">
-        <button type="button" role="tab" aria-selected={tab === 'config'} className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>Config SPI</button>
-        <button type="button" role="tab" aria-selected={tab === 'code'} className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}>Code SPI</button>
-      </div>
+      {!embedded && (
+        <div className="capability-spi-tabs" role="tablist" aria-label="SPI type">
+          <button type="button" role="tab" aria-selected={tab === 'config'} className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>Config SPI</button>
+          <button type="button" role="tab" aria-selected={tab === 'code'} className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}>Code SPI</button>
+        </div>
+      )}
 
       <main className="capability-spi-panel">
         <div className="capability-spi-toolbar">
@@ -439,13 +468,13 @@ export default function CapabilitySpiPage() {
         )}
 
         <div className="capability-spi-meta">
-          <div className={`capability-spi-meta-item ${tab === 'code' ? 'capability-spi-input-item' : ''}`}>
+          <div className={`capability-spi-meta-item ${activeTab === 'code' ? 'capability-spi-input-item' : ''}`}>
             <span className="required-label">Method:</span>
-            {tab === 'code' ? <Input value={definition.method} disabled /> : <strong>{definition.method}</strong>}
+            {activeTab === 'code' ? <Input value={definition.method} disabled /> : <strong>{definition.method}</strong>}
           </div>
-          <div className={`capability-spi-meta-item ${tab === 'code' ? 'capability-spi-input-item' : ''}`}>
+          <div className={`capability-spi-meta-item ${activeTab === 'code' ? 'capability-spi-input-item' : ''}`}>
             <span className="required-label">URL:</span>
-            {tab === 'code' ? <Input value={definition.url} disabled /> : <strong>{definition.url}</strong>}
+            {activeTab === 'code' ? <Input value={definition.url} disabled /> : <strong>{definition.url}</strong>}
           </div>
           <div className="capability-spi-meta-item capability-spi-input-item">
             <span className="required-label">Timeout:</span>
@@ -459,12 +488,12 @@ export default function CapabilitySpiPage() {
 
         <section className="capability-spi-section">
           <h2>Request Params</h2>
-          <FieldTable fields={definition.request} editable={tab === 'code'} />
+          <FieldTable fields={definition.request} editable={activeTab === 'code'} />
         </section>
 
         <section className="capability-spi-section">
           <h2>Response Params</h2>
-          <FieldTable fields={definition.response} editable={tab === 'code'} />
+          <FieldTable fields={definition.response} editable={activeTab === 'code'} />
         </section>
       </main>
     </div>
