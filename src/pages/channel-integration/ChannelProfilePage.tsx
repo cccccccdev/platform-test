@@ -26,7 +26,7 @@ import { getCreatedIntegrationRecord } from './channelCreationStore';
 import { isBusinessTypeScopeComplete, toBusinessTypeScopes, toPartyScopes } from './integrationScope';
 import { approverPresets, getApproverPreset } from './approvalPresets';
 
-type ProfileSection = 'summary' | 'business-types' | 'parties' | 'owners' | 'approvers' | 'integration-records';
+type ProfileSection = 'summary' | 'business-types' | 'parties' | 'integration-records';
 type IntegrationMode = 'CONFIG' | 'CODE';
 
 type BusinessTypeRow = {
@@ -115,8 +115,6 @@ const sectionTitles: Record<ProfileSection, string> = {
   summary: 'Summary',
   'business-types': 'Business Types & Countries',
   parties: 'Parties',
-  owners: 'Channel Owners',
-  approvers: 'Approvers',
   'integration-records': 'Integration Records',
 };
 
@@ -143,6 +141,8 @@ export default function ChannelProfilePage() {
   const [businessTypeForm] = Form.useForm();
   const [partyForm] = Form.useForm();
   const [ownersForm] = Form.useForm<OwnerSettings>();
+  const [approversForm] = Form.useForm<ApproverSettings>();
+  const draftApproverPresetId = Form.useWatch('presetId', approversForm);
   const [recordForm] = Form.useForm<any>();
   const recordCreateValues = Form.useWatch([], recordForm) || {};
   const [recordDetailForm] = Form.useForm<any>();
@@ -153,7 +153,8 @@ export default function ChannelProfilePage() {
   const [recordDetailOpen, setRecordDetailOpen] = useState(false);
   const [ownerEditing, setOwnerEditing] = useState(false);
   const [ownerMeta, setOwnerMeta] = useState({ operator: 'zihao.ye', operationTime: '2026-08-24 07:35:08' });
-  const approverMeta = { operator: 'zihao.ye', operationTime: '2026-08-24 07:35:36' };
+  const [approverEditing, setApproverEditing] = useState(false);
+  const [approverMeta, setApproverMeta] = useState({ operator: 'zihao.ye', operationTime: '2026-08-24 07:35:36' });
   const [selectedRecord, setSelectedRecord] = useState<IntegrationRecord | null>(null);
   const [channelMenuOpen, setChannelMenuOpen] = useState(true);
   const [editingBusinessType, setEditingBusinessType] = useState<string | null>(null);
@@ -181,7 +182,7 @@ export default function ChannelProfilePage() {
     sre: ['Li Ming'],
     businessOwners: [],
   });
-  const [approvers] = useState<ApproverSettings>(() => {
+  const [approvers, setApprovers] = useState<ApproverSettings>(() => {
     const preset = getApproverPreset(createdRecord?.approverPresetId) || approverPresets[0];
     return { presetId: preset.id, ...preset };
   });
@@ -203,7 +204,7 @@ export default function ChannelProfilePage() {
     }]);
 
   useEffect(() => {
-    if (section === 'business-types' || section === 'parties') {
+    if (section === 'business-types' || section === 'parties' || section === 'owners' || section === 'approvers') {
       navigate(`/channel-integration/${channelCode}/channel-profile/summary`, { replace: true });
     }
   }, [channelCode, navigate, section]);
@@ -532,32 +533,22 @@ export default function ChannelProfilePage() {
     setOwnerEditing(false);
   };
 
-  const renderOwners = () => (
-    <div className="profile-settings-panel">
-      <div className="profile-auto-save-meta"><span><strong>Latest Operator:</strong> {ownerMeta.operator}</span><span><strong>Operation Time:</strong> {ownerMeta.operationTime}</span></div>
-      <Alert type="info" showIcon title="Channel Owners support integration collaboration, daily operations, and runtime incident alerts. Edit Channel Owners from Summary." />
-      <dl className="summary-role-list">
-        <div><dt>Product Owners</dt><dd>{owners.productOwners.join(', ')}</dd></div>
-        <div><dt>Technical Owners</dt><dd>{owners.technicalOwners.join(', ')}</dd></div>
-        <div><dt>Operations Owners</dt><dd>{owners.operationOwners.join(', ')}</dd></div>
-        <div><dt>BD</dt><dd>{owners.bd.join(', ') || '-'}</dd></div>
-        <div><dt>SRE</dt><dd>{owners.sre.join(', ') || '-'}</dd></div>
-        <div><dt>Business Owner</dt><dd>{owners.businessOwners.join(', ') || '-'}</dd></div>
-      </dl>
-    </div>
-  );
+  const saveApproverSet = async () => {
+    try {
+      const { presetId } = await approversForm.validateFields(['presetId']);
+      const preset = getApproverPreset(presetId);
+      if (!preset) return;
+      setApprovers({ presetId, ...preset });
+      setApproverMeta({ operator: 'current.user', operationTime: now() });
+      setApproverEditing(false);
+      message.success('Approver Set updated');
+    } catch {}
+  };
 
-  const renderApprovers = () => (
-    <div className="profile-settings-panel">
-      <div className="profile-auto-save-meta"><span><strong>Latest Operator:</strong> {approverMeta.operator}</span><span><strong>Operation Time:</strong> {approverMeta.operationTime}</span></div>
-      <dl className="summary-role-list">
-        <div><dt>Approver Set</dt><dd>{getApproverPreset(approvers.presetId)?.name}</dd></div>
-        <div><dt>Technical Approver</dt><dd>{approvers.technicalApprover}</dd></div>
-        <div><dt>Product Approver</dt><dd>{approvers.productApprover}</dd></div>
-        <div><dt>Operations Approver</dt><dd>{approvers.operationsApprover}</dd></div>
-      </dl>
-    </div>
-  );
+  const cancelApproverEdit = () => {
+    approversForm.setFieldValue('presetId', approvers.presetId);
+    setApproverEditing(false);
+  };
 
   const renderSummary = () => {
     const businessTypeScopeMap = new Map<string, { integrationType: IntegrationMode; parties: Map<string, Set<string>> }>();
@@ -604,7 +595,10 @@ export default function ChannelProfilePage() {
             </dl>
           </div>
           <div className="channel-summary-section">
-            <h2>Approvers</h2>
+            <div className="channel-summary-section-heading">
+              <h2>Approvers</h2>
+              <Button type="text" size="small" icon={<EditOutlined />} aria-label="Edit Approvers" onClick={() => { approversForm.setFieldValue('presetId', approvers.presetId); setApproverEditing(true); }} />
+            </div>
             <div className="summary-section-meta"><span>Latest Operator: {approverMeta.operator}</span><span>Operation Time: {approverMeta.operationTime}</span></div>
             <dl className="summary-role-list">
               <div><dt>Approver Set</dt><dd>{getApproverPreset(approvers.presetId)?.name}</dd></div>
@@ -629,6 +623,19 @@ export default function ChannelProfilePage() {
               <Form.Item name="sre" label="SRE"><Select mode="multiple" options={employeeOptions} /></Form.Item>
               <Form.Item name="businessOwners" label="Business Owner"><Select mode="multiple" options={employeeOptions} /></Form.Item>
             </div>
+          </Form>
+        </Modal>
+        <Modal title="Edit Approvers" open={approverEditing} onCancel={cancelApproverEdit} onOk={saveApproverSet} okText="Submit" width={680} className="channel-profile-modal">
+          <Alert type="info" showIcon title="Changing the Approver Set affects future approval requests, including Runtime Control changes to Route Matching or Flow Groups and changes to Response Codes." />
+          <Form form={approversForm} layout="vertical" initialValues={approvers}>
+            <Form.Item name="presetId" label="Approver Set" rules={[{ required: true }]}>
+              <Select options={approverPresets.map(({ id, name }) => ({ label: name, value: id }))} />
+            </Form.Item>
+            <dl className="summary-role-list approver-preview">
+              <div><dt>Technical Approver</dt><dd>{getApproverPreset(draftApproverPresetId)?.technicalApprover || '-'}</dd></div>
+              <div><dt>Product Approver</dt><dd>{getApproverPreset(draftApproverPresetId)?.productApprover || '-'}</dd></div>
+              <div><dt>Operations Approver</dt><dd>{getApproverPreset(draftApproverPresetId)?.operationsApprover || '-'}</dd></div>
+            </dl>
           </Form>
         </Modal>
       </div>
@@ -721,9 +728,7 @@ export default function ChannelProfilePage() {
   const content = activeSection === 'summary' ? renderSummary()
     : activeSection === 'business-types' ? renderBusinessTypes()
     : activeSection === 'parties' ? renderParties()
-      : activeSection === 'owners' ? renderOwners()
-        : activeSection === 'approvers' ? renderApprovers()
-          : renderRecords();
+      : renderRecords();
 
   return (
     <div className="channel-profile-shell">
@@ -745,8 +750,6 @@ export default function ChannelProfilePage() {
           onClick={({ key }) => navigateSection(key)}
           items={[
             { key: 'summary', label: 'Summary' },
-            { key: 'owners', label: 'Channel Owners' },
-            { key: 'approvers', label: 'Approvers' },
             { key: 'integration-records', label: 'Integration Records' },
           ]}
         />}
