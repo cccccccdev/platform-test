@@ -115,7 +115,7 @@ function AddCapabilitiesModal({
           label="Integration Record"
           rules={[{ required: true, message: 'Select an Integration Record for this Capability' }]}
           extra={bt && !(integrationRecordOptions[bt]?.length)
-            ? <Button type="link" style={{ padding: 0 }} onClick={() => window.location.hash = `/channel-integration/${channelCode}/channel-profile/integration-records`}>No suitable Record. Create Integration Record</Button>
+            ? <Button type="link" style={{ padding: 0 }} onClick={() => window.location.hash = `/channel-integration/${channelCode}/profile/integration-records`}>No suitable Record. Create Integration Record</Button>
             : 'Only Records covering the selected Business Type are available.'}
         >
           <Select

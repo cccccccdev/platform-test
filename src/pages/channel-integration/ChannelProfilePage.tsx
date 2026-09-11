@@ -205,7 +205,7 @@ export default function ChannelProfilePage() {
 
   useEffect(() => {
     if (section === 'business-types' || section === 'parties' || section === 'owners' || section === 'approvers') {
-      navigate(`/channel-integration/${channelCode}/channel-profile/summary`, { replace: true });
+      navigate(`/channel-integration/${channelCode}/profile/summary`, { replace: true });
     }
   }, [channelCode, navigate, section]);
 
@@ -215,7 +215,7 @@ export default function ChannelProfilePage() {
   );
 
   const navigateSection = (key: string) => {
-    navigate(`/channel-integration/${channelCode}/channel-profile/${key}`);
+    navigate(`/channel-integration/${channelCode}/profile/${key}`);
   };
 
   const validateRecordScopes = (scopes: RecordPartyScope[]) => {
@@ -757,7 +757,7 @@ export default function ChannelProfilePage() {
       <div className="channel-profile-main">
         <header className="legacy-header"><UserProfile name="Current User" /></header>
         <div className="legacy-page-heading">
-          <Breadcrumb items={[{ title: 'Channel Integration' }, { title: 'Channel List' }, { title: 'Channel Profile' }, { title: sectionTitles[activeSection] }]} />
+          <Breadcrumb items={[{ title: 'Channel Integration' }, { title: 'Channel List' }, { title: 'Profile' }, { title: sectionTitles[activeSection] }]} />
           <h1>{sectionTitles[activeSection]}</h1>
         </div>
         <main className="channel-profile-content">

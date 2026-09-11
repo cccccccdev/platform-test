@@ -96,7 +96,12 @@ function LegacyMetadataRedirect() {
 
 function LegacyChannelProfileRedirect({ section }: { section: string }) {
   const { channelCode = '' } = useParams();
-  return <Navigate to={`/channel-integration/${channelCode}/channel-profile/${section}`} replace />;
+  return <Navigate to={`/channel-integration/${channelCode}/profile/${section}`} replace />;
+}
+
+function LegacyProfilePathRedirect() {
+  const { channelCode = '', section = 'summary' } = useParams();
+  return <Navigate to={`/channel-integration/${channelCode}/profile/${section}`} replace />;
 }
 
 const router = createHashRouter(
@@ -137,7 +142,8 @@ const router = createHashRouter(
       { path: 'channel-integration/:channelCode/party', element: <LegacyChannelProfileRedirect section="summary" /> },
       { path: 'channel-integration/:channelCode/country', element: <LegacyChannelProfileRedirect section="summary" /> },
       { path: 'channel-integration/:channelCode/offline-info', element: <LegacyChannelProfileRedirect section="integration-records" /> },
-      { path: 'channel-integration/:channelCode/channel-profile/:section', element: <ChannelProfilePage /> },
+      { path: 'channel-integration/:channelCode/profile/:section', element: <ChannelProfilePage /> },
+      { path: 'channel-integration/:channelCode/channel-profile/:section', element: <LegacyProfilePathRedirect /> },
       { path: 'channel-integration/:channelCode/metadata', element: <LegacyMetadataRedirect /> },
       { path: 'channel-integration/:channelCode/channel-info', element: <ChannelInfoPage /> },
       { path: 'channel-integration/:channelCode/channel-info/party/*', element: <ChannelInfoPage /> },
