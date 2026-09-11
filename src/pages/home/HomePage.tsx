@@ -1,11 +1,10 @@
-import { Avatar } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import {
   ProfileOutlined,
   ForkOutlined,
   ControlOutlined,
-  UserOutlined,
 } from '@ant-design/icons';
+import { UserProfile } from '../../components/PlatformChrome';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -19,7 +18,7 @@ export default function HomePage() {
     <div className="legacy-home">
       <header className="legacy-home-header">
         <strong>Omnicore Solution</strong>
-        <div className="legacy-home-user"><Avatar size={28} icon={<UserOutlined />} />我爱北京天安门</div>
+        <UserProfile dark />
       </header>
       <main className="legacy-home-modules">
         {modules.map((module) => (

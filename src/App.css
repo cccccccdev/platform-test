@@ -6,7 +6,7 @@
 
 .legacy-home { min-height: 100dvh; background: var(--legacy-bg); color: #262626; }
 .legacy-home-header { height: 38px; padding: 0 13px; background: var(--legacy-navy); color: #fff; display: flex; align-items: center; justify-content: space-between; font-size: 18px; }
-.legacy-home-user, .platform-user { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 500; }
+.platform-user { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
 .legacy-home-modules { display: grid; grid-template-columns: repeat(3, 1fr); padding: 112px 8vw 0; }
 .legacy-module { border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 26px; cursor: pointer; color: #262626; font-size: 16px; }
 .legacy-module-icon { width: 84px; height: 84px; border-radius: 17px; color: #fff; display: grid; place-items: center; font-size: 47px; transition: transform .2s ease, box-shadow .2s ease; }
@@ -53,6 +53,46 @@
 .legacy-main { margin-left: 202px; height: 100vh; overflow: hidden; }
 .legacy-header { height: 36px; min-height: 36px; padding: 0 18px; background: #fff; border-bottom: 1px solid #eee; display: flex; justify-content: flex-end; align-items: center; }
 .platform-user-avatar { background: #722ed1; }
+.platform-header-icon-button,
+.platform-avatar-button { display: grid; place-items: center; border: 0; color: #69717a; background: transparent; cursor: pointer; transition: color .2s ease, background-color .2s ease, transform .2s ease; }
+.platform-header-icon-button { width: 28px; height: 28px; border-radius: 5px; font-size: 15px; }
+.platform-avatar-button { border-radius: 50%; }
+.platform-header-icon-button:hover { color: var(--legacy-purple); background: #f3edf8; }
+.platform-avatar-button:hover .platform-user-avatar { box-shadow: 0 0 0 3px rgba(111, 0, 199, .12); }
+.platform-header-icon-button:active,
+.platform-avatar-button:active { transform: scale(.96); }
+.platform-header-icon-button:focus-visible,
+.platform-avatar-button:focus-visible { outline: 2px solid #8d46bd; outline-offset: 2px; }
+.platform-user-dark .platform-header-icon-button { color: #d7e0e8; }
+.platform-user-dark .platform-header-icon-button:hover { color: #fff; background: rgba(255, 255, 255, .12); }
+
+.account-popover .ant-popover-inner { min-width: 264px; padding: 0; overflow: hidden; border: 1px solid #ebe7ee; border-radius: 8px; box-shadow: 0 14px 34px rgba(42, 28, 52, .16); }
+.account-popover-card { background: #fff; }
+.account-popover-identity { min-height: 92px; padding: 20px; display: flex; align-items: center; gap: 13px; background: #f3edf8; }
+.account-popover-identity > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.account-popover-label { color: #7c7281; font-size: 11px; }
+.account-popover-identity strong { overflow: hidden; color: #2f2932; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.account-popover-action { width: 100%; min-height: 48px; padding: 0 20px; display: flex; align-items: center; gap: 11px; border: 0; color: #554e58; background: #fff; font: inherit; font-size: 13px; text-align: left; cursor: pointer; transition: color .2s ease, background-color .2s ease; }
+.account-popover-action:hover { color: var(--legacy-purple); background: #faf7fc; }
+.account-popover-action:active { background: #f3edf8; }
+.account-popover-action:focus-visible { outline: 2px solid #8d46bd; outline-offset: -3px; }
+
+.cloud-network-modal .ant-modal-content { padding: 0; overflow: hidden; border-radius: 8px; }
+.cloud-network-modal .ant-modal-header { margin: 0; padding: 20px 24px 14px; }
+.cloud-network-modal .ant-modal-title { color: #2f2932; font-size: 18px; font-weight: 600; }
+.cloud-network-modal .ant-modal-close { top: 14px; right: 16px; }
+.cloud-network-table { padding: 0 24px; }
+.cloud-network-table .ant-table { border: 1px solid #ece8ee; border-radius: 5px; }
+.cloud-network-table .ant-table-thead > tr > th { padding: 11px 14px; color: #544d57; background: #f7f5f8; font-size: 12px; font-weight: 600; }
+.cloud-network-table .ant-table-tbody > tr > td { padding: 10px 14px; color: #3f3942; font-size: 12px; }
+.cloud-network-table .ant-table-tbody > tr > td[rowspan] { vertical-align: middle; background: #fcfbfc; }
+.cloud-name-cell { display: flex; flex-direction: column; gap: 3px; }
+.cloud-name-cell strong { color: #3c2548; font-size: 13px; letter-spacing: .02em; }
+.cloud-name-cell span { color: #847b88; font-size: 11px; }
+.environment-code { color: #5b5360; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+.egress-ip { color: #302a33; background: transparent; font-size: 12px; font-variant-numeric: tabular-nums; }
+.cloud-network-footer { margin-top: 20px; padding: 14px 24px; display: flex; justify-content: flex-end; border-top: 1px solid #eeeaf0; }
+.cloud-network-footer .ant-btn:hover { border-color: #8d46bd; color: var(--legacy-purple); }
 .legacy-content { height: calc(100vh - 36px); overflow: hidden; background: var(--legacy-bg); }
 .legacy-content-scroll { height: 100%; overflow: auto; }
 
