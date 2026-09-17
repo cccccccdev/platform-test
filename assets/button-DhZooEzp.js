@@ -1,1 +1,0 @@
-import{i as e}from"./useVariants-CHpwr2CJ.js";var t=e;export{t};
