@@ -282,6 +282,7 @@ export default function CanvasContextPanel({
     label: <Space><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
     children: <div style={{ padding: '4px 0' }}>
       <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>channelMerchantId</div>
+      <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>non3dsChannelMerchantId</div>
     </div>,
   }] : [];
 
