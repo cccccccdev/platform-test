@@ -9,6 +9,7 @@ export const SERVICE_MODEL_OPTIONS = [
 ] as const;
 
 export type ServiceRunModel = typeof SERVICE_MODEL_OPTIONS[number];
+export type ServiceAbilityDirection = 'service-to-ability' | 'ability-to-service';
 
 export interface ServiceActionRecord {
   key: string;
@@ -20,7 +21,9 @@ export interface ServiceActionRecord {
 
 export interface ServiceCapabilityReference {
   ability: string;
-  actionMappings: Record<string, string>;
+  direction?: ServiceAbilityDirection;
+  operateTime?: string;
+  operator?: string;
 }
 
 export interface ServiceRecord {
@@ -47,7 +50,6 @@ export const initialServiceRecords: Record<string, ServiceRecord[]> = {
     ],
     capabilityReferences: [{
       ability: 'SINGLE_MESSAGE',
-      actionMappings: { RE_QUERY: 'RE_QUERY', TRANSACTION: 'TRANSACTION' },
     }],
   }],
   INSURANCE: [
@@ -121,6 +123,7 @@ export const initialServiceRecords: Record<string, ServiceRecord[]> = {
         action('service_stablecoin_fund_allocation_requery', 'RE_QUERY', '2026-09-03 09:08:16', '胡亮亮 Jack'),
         action('service_stablecoin_fund_allocation_transaction', 'TRANSACTION', '2026-09-03 09:08:16', '胡亮亮 Jack'),
       ],
+      capabilityReferences: [{ ability: 'FUND_ALLOCATION', operateTime: '2026-09-03 09:17:47', operator: '胡亮亮 Jack' }],
     },
     {
       key: 'service_stablecoin_transfer',
@@ -130,9 +133,10 @@ export const initialServiceRecords: Record<string, ServiceRecord[]> = {
         action('service_stablecoin_transfer_transaction', 'TRANSACTION', '2026-06-02 02:40:43', '潘一泓'),
         action('service_stablecoin_transfer_verify', 'VERIFY', '2026-06-02 02:40:43', '潘一泓'),
       ],
+      capabilityReferences: [{ ability: 'TRANSFER', operateTime: '2026-06-02 03:01:45', operator: '潘一泓' }],
     },
-    { key: 'service_stablecoin_query_rate', name: 'STABLECOIN_QUERY_RATE', actions: [action('service_stablecoin_query_rate_query', 'QUERY', '2026-08-25 06:21:59', '胡亮亮 Jack')] },
-    { key: 'service_stablecoin_query_fee', name: 'QUERY_FEE', actions: [action('service_stablecoin_query_fee_query', 'QUERY', '2026-06-02 02:50:59', '潘一泓')] },
+    { key: 'service_stablecoin_query_rate', name: 'STABLECOIN_QUERY_RATE', actions: [action('service_stablecoin_query_rate_query', 'QUERY', '2026-08-25 06:21:59', '胡亮亮 Jack')], capabilityReferences: [{ ability: 'STABLECOIN_QUERY_RATE', operateTime: '2026-08-25 06:53:55', operator: '胡亮亮 Jack' }] },
+    { key: 'service_stablecoin_query_fee', name: 'QUERY_FEE', actions: [action('service_stablecoin_query_fee_query', 'QUERY', '2026-06-02 02:50:59', '潘一泓')], capabilityReferences: [{ ability: 'QUERY_FEE', operateTime: '2026-06-02 03:04:40', operator: '潘一泓' }] },
     {
       key: 'service_stablecoin_pay_out',
       name: 'PAY_OUT',
@@ -140,6 +144,7 @@ export const initialServiceRecords: Record<string, ServiceRecord[]> = {
         action('service_stablecoin_pay_out_requery', 'RE_QUERY', '2026-08-25 06:41:56', '胡亮亮 Jack'),
         action('service_stablecoin_pay_out_transaction', 'TRANSACTION', '2026-08-25 06:22:30', '胡亮亮 Jack'),
       ],
+      capabilityReferences: [{ ability: 'PAY_OUT', operateTime: '2026-08-25 06:40:14', operator: '胡亮亮 Jack' }],
     },
     {
       key: 'service_stablecoin_off_ramp',
@@ -148,7 +153,55 @@ export const initialServiceRecords: Record<string, ServiceRecord[]> = {
         action('service_stablecoin_off_ramp_requery', 'RE_QUERY', '2026-09-01 09:11:03', '胡亮亮 Jack'),
         action('service_stablecoin_off_ramp_transaction', 'TRANSACTION', '2026-09-01 09:11:03', '胡亮亮 Jack'),
       ],
+      capabilityReferences: [{ ability: 'OFF_RAMP', operateTime: '2026-09-01 09:46:03', operator: '胡亮亮 Jack' }],
     },
-    { key: 'service_stablecoin_query_balance', name: 'QUERY_ACCOUNT_BALANCE', actions: [action('service_stablecoin_query_balance_query', 'QUERY', '2026-09-03 02:28:17', '胡亮亮 Jack')] },
+    { key: 'service_stablecoin_query_balance', name: 'QUERY_ACCOUNT_BALANCE', actions: [action('service_stablecoin_query_balance_query', 'QUERY', '2026-09-03 02:28:17', '胡亮亮 Jack')], capabilityReferences: [{ ability: 'QUERY_ACCOUNT_BALANCE', operateTime: '2026-09-03 02:32:37', operator: '胡亮亮 Jack' }] },
+  ],
+  BANK_CARD_DEBIT: [{
+    key: 'service_bank_card_debit_card_payin',
+    name: 'CARD_PAYIN',
+    actions: [
+      action('service_bank_card_debit_card_payin_requery', 'RE_QUERY', '2026-08-06 07:53:07', '徐嘉琪'),
+      action('service_bank_card_debit_card_payin_transaction', 'TRANSACTION', '2026-08-06 07:53:07', '徐嘉琪'),
+      action('service_bank_card_debit_card_payin_verify', 'VERIFY', '2026-08-06 07:53:07', '徐嘉琪'),
+    ],
+    capabilityReferences: [
+      { ability: 'INFO_PAYMENT', operateTime: '2026-08-06 08:40:31', operator: '徐嘉琪' },
+      { ability: 'TOKEN_PAYMENT', operateTime: '2026-08-06 08:40:36', operator: '徐嘉琪' },
+    ],
+  }],
+  SMS: [
+    {
+      key: 'service_sms_voice_otp', name: 'VOICE_OTP',
+      actions: [
+        action('service_sms_voice_otp_requery', 'RE_QUERY', '2026-04-15 10:05:03', 'yimin.dai@palmpay-inc.com'),
+        action('service_sms_voice_otp_transaction', 'TRANSACTION', '2026-04-14 11:30:04', 'yimin.dai@palmpay-inc.com'),
+      ],
+      capabilityReferences: [{ ability: 'SINGLE_MESSAGE', operateTime: '2026-04-14 11:30:21', operator: 'yimin.dai@palmpay-inc.com' }],
+    },
+    {
+      key: 'service_sms_notification', name: 'NOTIFICATION',
+      actions: [
+        action('service_sms_notification_requery', 'RE_QUERY', '2026-01-06 11:37:44', '徐嘉琪'),
+        action('service_sms_notification_transaction', 'TRANSACTION', '2026-01-06 11:37:44', '徐嘉琪'),
+      ],
+      capabilityReferences: [{ ability: 'BULK_MESSAGE', operateTime: '2026-01-07 04:02:22', operator: '徐嘉琪' }],
+    },
+    {
+      key: 'service_sms_marketing', name: 'MARKETING',
+      actions: [
+        action('service_sms_marketing_requery', 'RE_QUERY', '2026-01-06 11:07:57', '徐嘉琪'),
+        action('service_sms_marketing_transaction', 'TRANSACTION', '2026-01-06 11:06:48', '徐嘉琪'),
+      ],
+      capabilityReferences: [{ ability: 'BULK_MESSAGE', operateTime: '2026-01-07 03:55:05', operator: '徐嘉琪' }],
+    },
+    {
+      key: 'service_sms_otp', name: 'OTP',
+      actions: [
+        action('service_sms_otp_requery', 'RE_QUERY', '2026-01-05 09:45:26', '徐嘉琪'),
+        action('service_sms_otp_transaction', 'TRANSACTION', '2026-01-05 08:14:25', '徐嘉琪'),
+      ],
+      capabilityReferences: [{ ability: 'SINGLE_MESSAGE', operateTime: '2026-01-05 09:31:30', operator: '徐嘉琪' }],
+    },
   ],
 };

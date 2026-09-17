@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LeftOutlined } from '@ant-design/icons';
 import './CapabilitySpiPage.css';
 import { isSubOrderModeEnabled } from './subOrderModeStore';
+import { getDemoReturnUrl } from '../demoNavigation';
 
 const { Title } = Typography;
 
@@ -381,6 +382,8 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
   const businessType = context.businessType || searchParams.get('bt') || 'SMS';
   const ability = context.ability || searchParams.get('ability') || 'SINGLE_MESSAGE';
   const action = context.action || searchParams.get('action') || 'TRANSACTION';
+  const demoReturnUrl = getDemoReturnUrl(searchParams, businessType);
+  const backUrl = demoReturnUrl || `/basic-info/capability?bt=${encodeURIComponent(businessType)}&ability=${encodeURIComponent(ability)}`;
   const activeTab = embedded && context.spiType ? context.spiType : tab;
   const subOrderEnabled = isSubOrderModeEnabled(businessType, ability);
   const isBulkSms = businessType === 'SMS' && ability === 'BULK_MESSAGE' && action === 'TRANSACTION';
@@ -419,7 +422,7 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
         <header className="capability-spi-heading">
           <Breadcrumb items={[
             { title: 'Basic Info', href: '/basic-info/country' },
-            { title: 'Capability', href: `/basic-info/capability?bt=${encodeURIComponent(businessType)}` },
+            { title: demoReturnUrl ? 'Demo' : 'Capability', href: demoReturnUrl || `/basic-info/capability?bt=${encodeURIComponent(businessType)}` },
             { title: businessType },
             { title: ability },
             { title: action },
@@ -428,7 +431,7 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
           <button
             type="button"
             className="capability-spi-back"
-            onClick={() => navigate(`/basic-info/capability?bt=${encodeURIComponent(businessType)}&ability=${encodeURIComponent(ability)}`)}
+            onClick={() => navigate(backUrl)}
           >
             <LeftOutlined />
             <Title level={4}>Config</Title>

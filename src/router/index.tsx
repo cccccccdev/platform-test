@@ -29,7 +29,6 @@ const FlowEditorPage = lazy(() => import('../pages/channel-integration/FlowEdito
 const TestPage = lazy(() => import('../pages/channel-integration/TestPage'));
 
 // Basic Info pages (has sidebar)
-const BasicInfoBusinessTypePage = lazy(() => import('../pages/basic-info/BusinessTypePage'));
 const CurrencyPage = lazy(() => import('../pages/basic-info/CurrencyPage'));
 const CountryPage = lazy(() => import('../pages/basic-info/CountryPage'));
 const InstitutionTypePage = lazy(() => import('../pages/basic-info/InstitutionTypePage'));
@@ -39,6 +38,8 @@ const ProductPage = lazy(() => import('../pages/basic-info/ProductPage'));
 const MerchantPage = lazy(() => import('../pages/basic-info/MerchantPage'));
 const CapabilityPage = lazy(() => import('../pages/basic-info/CapabilityPage'));
 const ServicePage = lazy(() => import('../pages/basic-info/ServicePage'));
+const BusinessTypeDemoPage = lazy(() => import('../pages/basic-info/BusinessTypeDemoLivePage'));
+const BusinessTypeDemoDetailPage = lazy(() => import('../pages/basic-info/BusinessTypeDemoDetailPage'));
 const ServiceCapabilityPage = lazy(() => import('../pages/basic-info/ServiceCapabilityPage'));
 const ServiceFieldMappingPage = lazy(() => import('../pages/basic-info/ServiceFieldMappingPage'));
 const ServiceApiPage = lazy(() => import('../pages/basic-info/ServiceApiPage'));
@@ -54,6 +55,13 @@ const ContextInspectorPage = lazy(() => import('../pages/inspector/ContextInspec
 
 function ComingSoonPage({ title }: { title: string }) {
   return <div style={{ padding: 24 }}>{title} Page - 待实现</div>;
+}
+
+function LegacyBusinessTypeRedirect() {
+  const { search } = useLocation();
+  const remembered = window.localStorage.getItem('basicInfoBusinessTypeModule');
+  const module = remembered === 'service' || remembered === 'demo' ? remembered : 'capability';
+  return <Navigate to={`/basic-info/${module}${search}`} replace />;
 }
 
 function IntegrationIndexRedirect() {
@@ -227,7 +235,7 @@ const router = createHashRouter(
         path: 'basic-info',
         children: [
           { index: true, element: <Navigate to="country" replace /> },
-          { path: 'business-type', element: <BasicInfoBusinessTypePage /> },
+          { path: 'business-type', element: <LegacyBusinessTypeRedirect /> },
           { path: 'currency', element: <CurrencyPage /> },
           { path: 'country', element: <CountryPage /> },
           { path: 'exchange-rate', element: <ExchangeRatePage /> },
@@ -242,6 +250,8 @@ const router = createHashRouter(
           { path: 'response-code', element: <ComingSoonPage title="Response Code" /> },
           { path: 'application', element: <ComingSoonPage title="Application" /> },
           { path: 'service', element: <ServicePage /> },
+          { path: 'demo', element: <BusinessTypeDemoPage /> },
+          { path: 'demo/detail', element: <BusinessTypeDemoDetailPage /> },
           { path: 'service/capability', element: <ServiceCapabilityPage /> },
           { path: 'service/capability/field-mapping', element: <ServiceFieldMappingPage /> },
           { path: 'service/api', element: <ServiceApiPage /> },

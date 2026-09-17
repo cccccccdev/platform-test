@@ -3,6 +3,7 @@ import { Breadcrumb, Button, Input, Select, Typography, message } from 'antd';
 import { LeftOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useServiceStore } from './serviceStore';
+import { getDemoReturnUrl } from './demoNavigation';
 import {
   EFFECT_TAG_OPTIONS,
   serviceApiRequestFields,
@@ -39,6 +40,8 @@ export default function ServiceApiPage() {
   const businessType = searchParams.get('bt') || '';
   const serviceName = searchParams.get('service') || '';
   const actionName = searchParams.get('action') || '';
+  const demoReturnUrl = getDemoReturnUrl(searchParams, businessType);
+  const backUrl = demoReturnUrl || `/basic-info/service?bt=${encodeURIComponent(businessType)}`;
   const service = useServiceStore((state) => (state.records[businessType] || []).find((item) => item.name === serviceName));
   const action = service?.actions.find((item) => item.name === actionName);
   const [draftTags, setDraftTags] = useState<EffectTag[]>([]);
@@ -60,10 +63,10 @@ export default function ServiceApiPage() {
       <section className="capability-features-heading">
         <Breadcrumb items={[
           { title: 'Basic Info', href: '/basic-info/country' },
-          { title: 'Service', href: `/basic-info/service?bt=${encodeURIComponent(businessType)}` },
+          { title: demoReturnUrl ? 'Demo' : 'Service', href: backUrl },
           { title: 'API' },
         ]} />
-        <button className="capability-child-back" type="button" onClick={() => navigate(`/basic-info/service?bt=${encodeURIComponent(businessType)}`)}>
+        <button className="capability-child-back" type="button" onClick={() => navigate(backUrl)}>
           <LeftOutlined />
           <Title level={4}>API</Title>
         </button>

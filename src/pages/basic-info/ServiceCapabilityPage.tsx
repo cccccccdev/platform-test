@@ -18,7 +18,7 @@ export default function ServiceCapabilityPage() {
   const [connectOpen, setConnectOpen] = useState(false);
   const [selectedAbility, setSelectedAbility] = useState<string>();
   const explicitConnections = service?.capabilityReferences?.map((reference) => reference.ability) || [];
-  const connections = getServiceCapabilityConnections(businessType, serviceName, explicitConnections);
+  const connections = getServiceCapabilityConnections(explicitConnections);
   const connectedAbilities = useMemo(
     () => connections.map((name) => availableAbilities.find((ability) => ability.name === name)).filter(Boolean),
     [availableAbilities, connections],
@@ -78,8 +78,8 @@ export default function ServiceCapabilityPage() {
               <header>
                 <Title level={5}>{ability.name}</Title>
                 <div className="service-capability-audit">
-                  <Text type="secondary">Operator: <Text>{ability.operator}</Text></Text>
-                  <Text type="secondary">Operate Time: <Text>{ability.operateTime}</Text></Text>
+                  <Text type="secondary">Operator: <Text>{service.capabilityReferences?.find((reference) => reference.ability === ability.name)?.operator || ability.operator}</Text></Text>
+                  <Text type="secondary">Operate Time: <Text>{service.capabilityReferences?.find((reference) => reference.ability === ability.name)?.operateTime || ability.operateTime}</Text></Text>
                 </div>
               </header>
               <div className="service-capability-table">

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Badge, Breadcrumb, Button, Empty, Form, Input, Modal, Select, Tag, Typography, message } from 'antd';
+import { Badge, Button, Empty, Form, Input, Modal, Select, Tag, Typography, message } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CaretDownOutlined, CaretRightOutlined, PlusOutlined } from '@ant-design/icons';
 import { useBusinessTypeStore } from './businessTypeReferenceData';
@@ -12,7 +12,7 @@ import {
 import { useServiceStore } from './serviceStore';
 import { getServiceCapabilityConnections } from './serviceCapabilityReferenceData';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const ACTION_OPTIONS = ['TRANSACTION', 'VERIFY', 'TRIGGER_VERIFY', 'RE_QUERY', 'QUERY', 'INBOUND_TRANSACTION', 'INBOUND_QUERY'];
 const CURRENT_OPERATOR = '我爱北京天安门';
 
@@ -147,19 +147,9 @@ export default function ServicePage() {
 
   return (
     <div className="capability-page service-workspace-page">
-      <section className="capability-heading">
-        <Breadcrumb items={[{ title: 'Basic Info', href: '/basic-info/country' }, { title: 'Service' }]} />
-        <div className="capability-title-line">
-          <Title level={4}>Service</Title>
-        </div>
-      </section>
-
       <main className="capability-workspace">
         <section className="capability-master-panel">
           <div className="capability-workspace-actions">
-            <div className="capability-page-context">
-              <Text>Business Type: <Text strong>{businessType}</Text></Text>
-            </div>
             <Button type="primary" icon={<PlusOutlined />} onClick={openAddService}>Add Service</Button>
           </div>
 
@@ -167,11 +157,7 @@ export default function ServicePage() {
             <section className="capability-ability-list service-list">
               {services.map((service) => {
                 const expanded = expandedServices.has(`${businessType}:${service.key}`);
-                const capabilityCount = getServiceCapabilityConnections(
-                  businessType,
-                  service.name,
-                  service.capabilityReferences?.map((reference) => reference.ability),
-                ).length;
+                const capabilityCount = getServiceCapabilityConnections(service.capabilityReferences?.map((reference) => reference.ability)).length;
                 return (
                   <article key={service.key} className="capability-ability-card service-card">
                     <header className="capability-ability-card-header">

@@ -3,35 +3,37 @@ import { Breadcrumb, Button, Select, Tag, Typography, message } from 'antd';
 import { ArrowRightOutlined, LeftOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { requestFieldMappings, responseFieldMappings, type FieldMappingRow } from './serviceCapabilityReferenceData';
+import { getDemoReturnUrl } from './demoNavigation';
 
 const { Title, Text } = Typography;
 
-function MappingSection({ direction, rows }: { direction: 'request' | 'response'; rows: FieldMappingRow[] }) {
+function MappingSection({ direction, rows, reverse }: { direction: 'request' | 'response'; rows: FieldMappingRow[]; reverse: boolean }) {
   const request = direction === 'request';
+  const sourceIsApi = request !== reverse;
   return (
     <section className="field-mapping-section">
-      <Title level={5}><span className="field-mapping-marker" />{request ? 'Request (API to SPI)' : 'Response (SPI to API)'}</Title>
+      <Title level={5}><span className="field-mapping-marker" />{request ? 'Request' : 'Response'} ({sourceIsApi ? 'API to SPI' : 'SPI to API'})</Title>
       <div className="field-mapping-grid field-mapping-head">
-        <span>{request ? 'API' : 'SPI'}</span>
-        <span>{request ? 'API Field Type' : 'SPI Field Type'}</span>
+        <span>{sourceIsApi ? 'API' : 'SPI'}</span>
+        <span>{sourceIsApi ? 'API Field Type' : 'SPI Field Type'}</span>
         <span aria-hidden="true" />
-        <span>{request ? 'SPI' : 'API'}</span>
-        <span>{request ? 'SPI Field Type' : 'API Field Type'}</span>
+        <span>{sourceIsApi ? 'SPI' : 'API'}</span>
+        <span>{sourceIsApi ? 'SPI Field Type' : 'API Field Type'}</span>
         <span>Deploy Status</span>
         <span>Operate Time</span>
         <span>Operator</span>
       </div>
       {rows.map((row) => {
-        const source = request ? row.api : row.spi;
-        const sourceType = request ? row.apiType : row.spiType;
-        const target = request ? row.spi : row.api;
-        const targetType = request ? row.spiType : row.apiType;
+        const source = sourceIsApi ? row.api : row.spi;
+        const sourceType = sourceIsApi ? row.apiType : row.spiType;
+        const target = sourceIsApi ? row.spi : row.api;
+        const targetType = sourceIsApi ? row.spiType : row.apiType;
         return (
           <div className={`field-mapping-grid field-mapping-row ${row.spiType === 'Object' ? 'object-row' : ''}`} key={row.key}>
             <div className={row.level ? 'nested-field' : ''}><Select value={source} placeholder="Not mapped" options={source ? [{ value: source, label: source }] : []} disabled={row.spiType === 'Object'} /></div>
             <Select value={sourceType} placeholder="—" options={sourceType ? [{ value: sourceType, label: sourceType }] : []} disabled />
             <ArrowRightOutlined className="field-mapping-arrow" />
-            <div className={row.level ? 'nested-field' : ''}><Select value={target} placeholder="Not mapped" options={target ? [{ value: target, label: target }] : []} disabled={request || row.spiType === 'Object'} /></div>
+            <div className={row.level ? 'nested-field' : ''}><Select value={target} placeholder="Not mapped" options={target ? [{ value: target, label: target }] : []} disabled={sourceIsApi || row.spiType === 'Object'} /></div>
             <Select value={targetType} placeholder="—" options={targetType ? [{ value: targetType, label: targetType }] : []} disabled />
             <Tag color="green">Prod</Tag>
             <Text className="field-mapping-audit">2026-09-10<br />16:20:00</Text>
@@ -51,18 +53,23 @@ export default function ServiceFieldMappingPage() {
   const service = searchParams.get('service') || '';
   const ability = searchParams.get('ability') || '';
   const action = searchParams.get('action') || '';
+  const abilityAction = searchParams.get('abilityAction') || action;
+  const mappingDirection = searchParams.get('direction');
+  const reverse = mappingDirection === 'ability-to-service';
   const backQuery = new URLSearchParams({ bt: businessType, service });
+  const demoReturnUrl = getDemoReturnUrl(searchParams, businessType);
+  const backUrl = demoReturnUrl || `/basic-info/service/capability?${backQuery.toString()}`;
 
   return (
     <div className="service-field-mapping-page">
       <section className="capability-features-heading">
         <Breadcrumb items={[
           { title: 'Basic Info', href: '/basic-info/country' },
-          { title: 'Service', href: `/basic-info/service?bt=${encodeURIComponent(businessType)}` },
-          { title: 'Service Capability', href: `/basic-info/service/capability?${backQuery.toString()}` },
+          { title: demoReturnUrl ? 'Demo' : 'Service', href: demoReturnUrl || `/basic-info/service?bt=${encodeURIComponent(businessType)}` },
+          ...(!demoReturnUrl ? [{ title: 'Service Capability', href: backUrl }] : []),
           { title: 'Field Mapping' },
         ]} />
-        <button className="capability-child-back" type="button" onClick={() => navigate(`/basic-info/service/capability?${backQuery.toString()}`)}>
+        <button className="capability-child-back" type="button" onClick={() => navigate(backUrl)}>
           <LeftOutlined />
           <Title level={4}>Field Mapping</Title>
         </button>
@@ -79,7 +86,9 @@ export default function ServiceFieldMappingPage() {
             <Text>Business Type: <Text strong>{businessType}</Text></Text>
             <Text>Service: <Text strong>{service}</Text></Text>
             <Text>Ability: <Text strong>{ability}</Text></Text>
-            <Text>Action: <Text strong>{action}</Text></Text>
+            <Text>Service Action: <Text strong>{action}</Text></Text>
+            <Text>Ability Action: <Text strong>{abilityAction}</Text></Text>
+            {mappingDirection && <Text>Direction: <Text strong>{mappingDirection === 'ability-to-service' ? 'Ability → Service' : 'Service → Ability'}</Text></Text>}
           </div>
           <div>
             <Button type="primary" onClick={() => message.success('Mapping configuration saved')}>Config</Button>
@@ -88,8 +97,8 @@ export default function ServiceFieldMappingPage() {
         </div>
         {tab === 'config' ? (
           <>
-            <MappingSection direction="request" rows={requestFieldMappings} />
-            <MappingSection direction="response" rows={responseFieldMappings} />
+            <MappingSection direction="request" rows={requestFieldMappings} reverse={reverse} />
+            <MappingSection direction="response" rows={responseFieldMappings} reverse={reverse} />
           </>
         ) : (
           <div className="field-mapping-code-placeholder">

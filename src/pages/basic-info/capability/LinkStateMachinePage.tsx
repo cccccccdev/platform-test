@@ -3,6 +3,7 @@ import { Table, Button, Space, message, Breadcrumb, Select, Form, Typography, Em
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { LeftOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../../channel-integration/configIntegrationStore';
+import { getDemoReturnUrl } from '../demoNavigation';
 
 const { Title, Text } = Typography;
 
@@ -95,6 +96,8 @@ export default function LinkStateMachinePage() {
   const navigate = useNavigate();
   const bt = searchParams.get('bt') || '';
   const ability = searchParams.get('ability') || '';
+  const demoReturnUrl = getDemoReturnUrl(searchParams, bt);
+  const backUrl = demoReturnUrl || `/basic-info/capability?bt=${encodeURIComponent(bt)}&ability=${encodeURIComponent(ability)}`;
 
   const [form] = Form.useForm();
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -182,12 +185,12 @@ export default function LinkStateMachinePage() {
       <section className="linked-state-machine-heading">
         <Breadcrumb items={[
           { title: 'Basic Info', href: '/basic-info/country' },
-          { title: 'Capability', href: `/basic-info/capability?bt=${encodeURIComponent(bt)}` },
+          { title: demoReturnUrl ? 'Demo' : 'Capability', href: backUrl },
           { title: bt },
           { title: ability },
           { title: 'Linked State Machine' },
         ]} />
-        <button className="linked-state-machine-back" type="button" onClick={() => navigate(`/basic-info/capability?bt=${encodeURIComponent(bt)}&ability=${encodeURIComponent(ability)}`)}>
+        <button className="linked-state-machine-back" type="button" onClick={() => navigate(backUrl)}>
           <LeftOutlined />
           <Title level={4}>Linked State Machine</Title>
         </button>

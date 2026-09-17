@@ -10,6 +10,7 @@ import {
   useCapabilityFeatureStore,
 } from './capabilityFeatureStore';
 import type { FeatureDefinition, FeatureInputMode } from './capabilityFeatureStore';
+import { getDemoReturnUrl } from '../demoNavigation';
 
 const { Title, Text } = Typography;
 
@@ -48,6 +49,8 @@ export default function CapabilityFeaturesPage() {
   const navigate = useNavigate();
   const businessType = searchParams.get('bt') || 'BANK_CARD_DEBIT';
   const ability = searchParams.get('ability') || 'REFUND';
+  const demoReturnUrl = getDemoReturnUrl(searchParams, businessType);
+  const backUrl = demoReturnUrl || `/basic-info/capability?bt=${encodeURIComponent(businessType)}&ability=${encodeURIComponent(ability)}`;
   const rows = useCapabilityFeatureStore((state) => state.definitions);
   const addDefinition = useCapabilityFeatureStore((state) => state.addDefinition);
   const updateDefinition = useCapabilityFeatureStore((state) => state.updateDefinition);
@@ -184,12 +187,12 @@ export default function CapabilityFeaturesPage() {
       <section className="capability-features-heading">
         <Breadcrumb items={[
           { title: 'Basic Info', href: '/basic-info/country' },
-          { title: 'Capability', href: `/basic-info/capability?bt=${encodeURIComponent(businessType)}` },
+          { title: demoReturnUrl ? 'Demo' : 'Capability', href: backUrl },
           { title: businessType },
           { title: ability },
           { title: 'Features' },
         ]} />
-        <button className="capability-child-back" type="button" onClick={() => navigate(`/basic-info/capability?bt=${encodeURIComponent(businessType)}&ability=${encodeURIComponent(ability)}`)}>
+        <button className="capability-child-back" type="button" onClick={() => navigate(backUrl)}>
           <LeftOutlined />
           <Title level={4}>Features</Title>
         </button>

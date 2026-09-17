@@ -4,7 +4,9 @@ import {
   type ServiceActionRecord,
   type ServiceRecord,
   type ServiceRunModel,
+  type ServiceAbilityDirection,
 } from './serviceReferenceData';
+import { useCapabilityDataStore } from './capabilityDataStore';
 
 function cloneInitialRecords(): Record<string, ServiceRecord[]> {
   return Object.fromEntries(Object.entries(initialServiceRecords).map(([businessType, services]) => [
@@ -12,10 +14,7 @@ function cloneInitialRecords(): Record<string, ServiceRecord[]> {
     services.map((service) => ({
       ...service,
       actions: service.actions.map((serviceAction) => ({ ...serviceAction })),
-      capabilityReferences: service.capabilityReferences?.map((reference) => ({
-        ...reference,
-        actionMappings: { ...reference.actionMappings },
-      })),
+      capabilityReferences: service.capabilityReferences?.map((reference) => ({ ...reference })),
     })),
   ]));
 }
@@ -26,9 +25,11 @@ interface ServiceState {
   addActions: (businessType: string, serviceKey: string, actions: ServiceActionRecord[]) => void;
   setActionModel: (businessType: string, serviceKey: string, actionKey: string, model: ServiceRunModel) => void;
   connectAbility: (businessType: string, serviceName: string, ability: string) => void;
+  addConnection: (businessType: string, serviceName: string, abilityName: string, direction: ServiceAbilityDirection) => 'added' | 'duplicate' | 'invalid';
+  removeBusinessType: (businessType: string) => void;
 }
 
-export const useServiceStore = create<ServiceState>((set) => ({
+export const useServiceStore = create<ServiceState>((set, get) => ({
   records: cloneInitialRecords(),
   addService: (businessType, service) => set((state) => ({
     records: { ...state.records, [businessType]: [...(state.records[businessType] || []), service] },
@@ -61,9 +62,31 @@ export const useServiceStore = create<ServiceState>((set) => ({
         if (service.name !== serviceName || service.capabilityReferences?.some((reference) => reference.ability === ability)) return service;
         return {
           ...service,
-          capabilityReferences: [...(service.capabilityReferences || []), { ability, actionMappings: {} }],
+          capabilityReferences: [...(service.capabilityReferences || []), { ability, direction: 'service-to-ability' }],
         };
       }),
     },
   })),
+  addConnection: (businessType, serviceName, abilityName, direction) => {
+    const service = (get().records[businessType] || []).find((item) => item.name === serviceName);
+    const ability = useCapabilityDataStore.getState().data.find((item) => item.name === businessType)?.abilities.find((item) => item.name === abilityName);
+    if (!service || !ability) return 'invalid';
+    const reference = service.capabilityReferences?.find((item) => item.ability === abilityName);
+    if (reference) return 'duplicate';
+    set((state) => ({
+      records: {
+        ...state.records,
+        [businessType]: (state.records[businessType] || []).map((item) => item.name !== serviceName ? item : {
+          ...item,
+          capabilityReferences: [...(item.capabilityReferences || []), { ability: abilityName, direction }],
+        }),
+      },
+    }));
+    return 'added';
+  },
+  removeBusinessType: (businessType) => set((state) => {
+    const records = { ...state.records };
+    delete records[businessType];
+    return { records };
+  }),
 }));

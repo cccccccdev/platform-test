@@ -29,12 +29,22 @@ export const capabilityAbilitiesByBusinessType: Record<string, CapabilityAbility
   ],
   STABLECOIN: [
     ability('QUERY_PAYOUT_LIST', ['QUERY']),
-    ability('FUND_ALLOCATION', ['RE_QUERY', 'TRANSACTION']),
-    ability('TRANSFER', ['RE_QUERY', 'TRANSACTION', 'VERIFY']),
-    ability('STABLECOIN_QUERY_RATE', ['QUERY']),
-    ability('QUERY_FEE', ['QUERY']),
-    ability('PAY_OUT', ['RE_QUERY', 'TRANSACTION']),
-    ability('OFF_RAMP', ['RE_QUERY', 'TRANSACTION']),
+    ability('FUND_ALLOCATION', ['RE_QUERY', 'TRANSACTION'], '2026-09-03 09:17:47', '胡亮亮 Jack'),
+    ability('TRANSFER', ['RE_QUERY', 'TRANSACTION', 'VERIFY'], '2026-06-02 03:01:45', '潘一泓'),
+    ability('STABLECOIN_QUERY_RATE', ['QUERY'], '2026-08-25 06:53:55', '胡亮亮 Jack'),
+    ability('QUERY_FEE', ['QUERY'], '2026-06-02 03:04:40', '潘一泓'),
+    ability('PAY_OUT', ['RE_QUERY', 'TRANSACTION'], '2026-08-25 06:40:14', '胡亮亮 Jack'),
+    ability('OFF_RAMP', ['RE_QUERY', 'TRANSACTION'], '2026-09-01 09:46:03', '胡亮亮 Jack'),
+    ability('QUERY_ACCOUNT_BALANCE', ['QUERY'], '2026-09-03 02:32:37', '胡亮亮 Jack'),
+  ],
+  BANK_CARD_DEBIT: [
+    ability('REFUND', ['RE_QUERY', 'TRANSACTION']),
+    ability('INFO_PAYMENT', ['RE_QUERY', 'TRANSACTION', 'VERIFY'], '2026-08-06 08:40:31', '徐嘉琪'),
+    ability('TOKEN_PAYMENT', ['RE_QUERY', 'TRANSACTION'], '2026-08-06 08:40:36', '徐嘉琪'),
+  ],
+  SMS: [
+    ability('BULK_MESSAGE', ['RE_QUERY', 'TRANSACTION']),
+    ability('SINGLE_MESSAGE', ['RE_QUERY', 'TRANSACTION']),
   ],
   FUNDS_IN: [
     ability('PAYMENT', ['INBOUND_TRANSACTION', 'RE_QUERY', 'TRANSACTION']),
@@ -65,15 +75,8 @@ export const capabilityAbilitiesByBusinessType: Record<string, CapabilityAbility
   WHATSAPP: [ability('SINGLE_MESSAGE', ['RE_QUERY', 'TRANSACTION'])],
 };
 
-export function getServiceCapabilityConnections(
-  businessType: string,
-  serviceName: string,
-  explicitConnections: string[] = [],
-) {
-  const sameNameConnections = (capabilityAbilitiesByBusinessType[businessType] || [])
-    .filter((item) => item.name === serviceName)
-    .map((item) => item.name);
-  return Array.from(new Set([...explicitConnections, ...sameNameConnections]));
+export function getServiceCapabilityConnections(explicitConnections: string[] = []) {
+  return Array.from(new Set(explicitConnections));
 }
 
 export interface FieldMappingRow {

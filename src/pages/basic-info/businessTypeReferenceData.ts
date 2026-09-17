@@ -22,9 +22,10 @@ export const initialBusinessTypeRecords: BusinessTypeRecord[] = [
   ['BANK_ACCOUNT_CREDIT', 'system', '2025-06-30 10:01:30'], ['POS', 'system', '2025-06-24 09:26:58'],
 ].map(([businessType, operator, operationTime]) => ({ businessType, operator, operationTime }));
 
-interface BusinessTypeState { records: BusinessTypeRecord[]; addBusinessType: (record: BusinessTypeRecord) => void; }
+interface BusinessTypeState { records: BusinessTypeRecord[]; addBusinessType: (record: BusinessTypeRecord) => void; removeBusinessType: (name: string) => void; }
 
 export const useBusinessTypeStore = create<BusinessTypeState>((set) => ({
   records: initialBusinessTypeRecords,
   addBusinessType: (record) => set((state) => ({ records: [record, ...state.records].sort((a, b) => b.operationTime.localeCompare(a.operationTime)) })),
+  removeBusinessType: (name) => set((state) => ({ records: state.records.filter((record) => record.businessType !== name) })),
 }));
