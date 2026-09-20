@@ -248,10 +248,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
     { label: 'Global Variables', options: globals.map(v => ({ label: v.name, value: `global.${v.name}`, type: 'String' })) },
     { label: 'Order Variables', options: orders.map(v => ({ label: v.name, value: `order.${v.name}`, type: 'String' })) },
     { label: 'Credentials', options: credentials.map(v => ({ label: v.key, value: `credential.${v.key}`, type: 'String' })) },
-    ...(channelMerchantInfoAvailable ? [{ label: 'Channel Merchant Info', options: [
-      { label: 'channelMerchantId', value: 'channelMerchantInfo.channelMerchantId', type: 'String' },
-      { label: 'non3dsChannelMerchantId', value: 'channelMerchantInfo.non3dsChannelMerchantId', type: 'String' },
-    ] }] : []),
+    ...(channelMerchantInfoAvailable ? [{ label: 'Channel Merchant Info', options: [{ label: 'channelMerchantId', value: 'channelMerchantInfo.channelMerchantId', type: 'String' }] }] : []),
   ];
   const requestValueOptions = [
     { label: 'Context Fields', options: [orderContextOption] },
