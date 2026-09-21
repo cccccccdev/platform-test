@@ -18,7 +18,7 @@ type NodeData = {
   name: string;
   description?: string;
   businessStatus?: string;
-  nodeType?: 'init' | 'state';
+  nodeType?: 'init' | 'state' | 'bal_exception';
   [key: string]: unknown;
 };
 
@@ -189,6 +189,7 @@ export default function PropertyPanel({
   // Node selected
   if (selectedNode) {
     const isInit = isInitNode(selectedNode);
+    const isBalException = selectedNode.data?.nodeType === 'bal_exception';
     // Find incoming and outgoing edges for this node
     const incomingEdges = edges.filter(e => e.target === selectedNode.id);
     const outgoingEdges = edges.filter(e => e.source === selectedNode.id);
@@ -221,17 +222,22 @@ export default function PropertyPanel({
           {/* Node Name */}
           <div>
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-              Node Name {isInit && <span style={{ color: '#ff4d4f' }}>*</span>}
+              Node Name {(isInit || isBalException) && <span style={{ color: '#ff4d4f' }}>*</span>}
             </Text>
             <Input
               value={selectedNode.data.name}
               onChange={e => onNodeUpdate(selectedNode.id, { name: e.target.value })}
-              disabled={isInit}
-              placeholder={isInit ? 'INIT' : 'Enter node name'}
+              disabled={isInit || isBalException}
+              placeholder={isInit ? 'INIT' : isBalException ? 'BAL_EXCEPTION' : 'Enter node name'}
             />
             {isInit && (
               <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
                 INIT node name is fixed
+              </Text>
+            )}
+            {isBalException && (
+              <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
+                BAL_EXCEPTION is a platform defined special state
               </Text>
             )}
           </div>
@@ -261,6 +267,13 @@ export default function PropertyPanel({
                 disabled
                 options={[{ label: 'INIT', value: 'INIT' }]}
               />
+            ) : isBalException ? (
+              <Select
+                style={{ width: '100%' }}
+                value={selectedNode.data.businessStatus}
+                onChange={value => onNodeUpdate(selectedNode.id, { businessStatus: value })}
+                options={BUSINESS_STATUS_OPTIONS.filter(option => option.value === 'PENDING' || option.value === 'FAIL')}
+              />
             ) : (
               <Select
                 style={{ width: '100%' }}
@@ -274,6 +287,11 @@ export default function PropertyPanel({
             {isInit && (
               <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
                 INIT status is fixed
+              </Text>
+            )}
+            {isBalException && (
+              <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
+                BAL_EXCEPTION can only map to PENDING or FAIL
               </Text>
             )}
           </div>

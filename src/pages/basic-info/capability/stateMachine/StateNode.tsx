@@ -12,6 +12,7 @@ const statusColor: Record<string, { color: string; background: string; border: s
 function StateNode({ data, selected }: any) {
   const status = data?.businessStatus || '-';
   const colors = statusColor[status] || { color: '#595959', background: '#fafafa', border: '#d9d9d9' };
+  const isBalException = data?.nodeType === 'bal_exception';
 
   return (
     <div
@@ -19,7 +20,7 @@ function StateNode({ data, selected }: any) {
         width: 190,
         minHeight: 96,
         borderRadius: 9,
-        background: '#fff',
+        background: isBalException ? '#fffaf0' : '#fff',
         border: selected ? '2px solid #6366f1' : `1.5px solid ${colors.border}`,
         boxShadow: selected ? '0 0 0 3px rgba(99,102,241,.13)' : '0 2px 8px rgba(15,23,42,.06)',
         display: 'flex',
@@ -33,6 +34,7 @@ function StateNode({ data, selected }: any) {
       <Handle type="target" position={Position.Top} id="target" style={{ top: -5, background: '#1e293b' }} />
       <Handle type="source" position={Position.Bottom} id="source" style={{ bottom: -5, background: '#1e293b' }} />
       <span style={{ position: 'absolute', top: 7, right: 7, color: colors.color, background: colors.background, border: `1px solid ${colors.border}`, borderRadius: 4, fontSize: 11, lineHeight: '18px', padding: '0 6px' }}>{status}</span>
+      {isBalException && <span style={{ position: 'absolute', top: 8, left: 9, color: '#ad6800', fontSize: 10, fontWeight: 700 }}>SPECIAL</span>}
       <div style={{ textAlign: 'center', padding: '26px 14px 12px' }}>
         <div style={{ color: '#262626', fontSize: 14, fontWeight: 700, wordBreak: 'break-word' }}>{data?.name || '-'}</div>
         <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 8 }}>{data?.description || data?.name || '-'}</div>

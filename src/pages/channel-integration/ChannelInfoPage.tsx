@@ -478,7 +478,11 @@ export default function ChannelInfoPage() {
   const selectedEventType = Form.useWatch('eventType', eventForm);
   const selectedRequeryMainState = Form.useWatch('mainState', requeryForm);
   const selectedRequeryType = Form.useWatch('type', requeryForm);
-  const currentMainState: MainState | undefined = isLegacyNoStateMachineCapability(selectedBt, selectedAbility) ? selectedMainState as MainState | undefined : mainStateForSubState(selectedSubState);
+  const currentMainState: MainState | undefined = pageKey === 'internal-external'
+    ? selectedMainState as MainState | undefined
+    : isLegacyNoStateMachineCapability(selectedBt, selectedAbility)
+      ? selectedMainState as MainState | undefined
+      : mainStateForSubState(selectedSubState);
   const currentRequeryMainState: MainState | undefined = isLegacyNoStateMachineCapability(selectedRequeryBt, selectedRequeryAbility) ? selectedRequeryMainState as MainState | undefined : mainStateForSubState(selectedRequerySubState);
   const isExternal = pageKey === 'external-internal';
   const isInternal = pageKey === 'internal-external';
@@ -512,7 +516,9 @@ export default function ChannelInfoPage() {
   const searchSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', searchBt, searchAbility).map((item) => ({ label: item.value, value: item.value })), [channelCode, searchAbility, searchBt]);
   const bulkBtOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === bulkEndpoint).map((item) => item.bt)).map((value) => ({ label: value, value })), [bulkEndpoint, isExternal]);
   const bulkAbilityOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === bulkEndpoint && item.bt === bulkBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [bulkBt, bulkEndpoint, isExternal]);
-  const modalSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', selectedBt, selectedAbility).map((item) => ({ label: item.value, value: item.value })), [channelCode, selectedAbility, selectedBt]);
+  const modalSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', selectedBt, selectedAbility)
+    .filter((item) => pageKey !== 'internal-external' || !selectedMainState || item.mainState === selectedMainState)
+    .map((item) => ({ label: item.value, value: item.value })), [channelCode, pageKey, selectedAbility, selectedBt, selectedMainState]);
   const requeryBtOptions = useMemo(() => {
     const fromGroups = flowGroupAbilities.map((item) => item.bt);
     const fromStrategies = requeryStrategies.map((item) => item.bt);
@@ -667,16 +673,26 @@ export default function ChannelInfoPage() {
 
   const saveInternal = async () => {
     const values = await form.validateFields();
-    const mainState = isLegacyNoStateMachineCapability(values.bt, values.ability) ? values.mainState : mainStateForSubState(values.subState);
+    const mainState = values.mainState as MainState | undefined;
     if (!mainState) return;
-    if (!values.channelResponseCode && !values.channelStatus) {
-      form.setFields([{ name: 'channelResponseCode', errors: ['Fill Channel Response Code or Channel Status'] }, { name: 'channelStatus', errors: ['Fill Channel Status or Channel Response Code'] }]);
+    const targetSubState = isLegacyNoStateMachineCapability(values.bt, values.ability) ? '' : values.subState ?? '';
+    const conflictingMapping = internalRecords.find((item) =>
+      item.id !== editingInternal?.id
+      && item.path === values.path
+      && item.bt === values.bt
+      && item.ability === values.ability
+      && item.mainState === mainState
+      && item.responseCode === values.responseCode
+      && item.subState !== targetSubState,
+    );
+    if (conflictingMapping) {
+      form.setFields([{ name: 'subState', errors: ['The same Endpoint + BT + Ability + Main State + PP Code already maps to another sub-state'] }]);
       return;
     }
     if (editingInternal) {
-      setInternalRecords((prev) => prev.map((item) => item.id === editingInternal.id ? { ...item, description: values.description, channelResponseCode: values.channelResponseCode, channelStatus: values.channelStatus, channelResponseMessage: values.channelResponseMessage } : item));
+      setInternalRecords((prev) => prev.map((item) => item.id === editingInternal.id ? { ...item, subState: targetSubState, mainState, responseCode: values.responseCode, description: values.description, channelResponseCode: values.channelResponseCode, channelStatus: values.channelStatus, channelResponseMessage: values.channelResponseMessage } : item));
     } else {
-      setInternalRecords((prev) => [{ id: `int-${Date.now()}`, path: values.path, bt: values.bt, ability: values.ability, subState: values.subState ?? '', mainState, responseCode: values.responseCode, description: values.description, channelResponseCode: values.channelResponseCode, channelStatus: values.channelStatus, channelResponseMessage: values.channelResponseMessage }, ...prev]);
+      setInternalRecords((prev) => [{ id: `int-${Date.now()}`, path: values.path, bt: values.bt, ability: values.ability, subState: targetSubState, mainState, responseCode: values.responseCode, description: values.description, channelResponseCode: values.channelResponseCode, channelStatus: values.channelStatus, channelResponseMessage: values.channelResponseMessage }, ...prev]);
     }
     message.success('Internal->External mapping saved');
     resetForm();
@@ -1045,9 +1061,9 @@ export default function ChannelInfoPage() {
     { title: 'Endpoint', dataIndex: 'path', width: 260 },
     { title: 'Business Type', dataIndex: 'bt', width: 180 },
     { title: 'Ability', dataIndex: 'ability', width: 170 },
-    { title: 'Gateway Sub State', dataIndex: 'subState', width: 240 },
     { title: 'Main State', dataIndex: 'mainState', width: 120, render: (value) => <Tag color={mainStateColor(value)}>{value}</Tag> },
     { title: 'Response Code', dataIndex: 'responseCode', width: 150 },
+    { title: 'Gateway Sub State', dataIndex: 'subState', width: 240 },
     { title: 'Description', dataIndex: 'description', width: 220 },
     { title: 'Channel Status', dataIndex: 'channelStatus', width: 180, render: (value) => value || '-' },
     { title: 'Channel Response Code', dataIndex: 'channelResponseCode', width: 210, render: (value) => value || '-' },
@@ -1676,7 +1692,7 @@ export default function ChannelInfoPage() {
           showIcon
           message={isExternal
             ? 'Endpoint options are grouped by source from published Flow Group Versions and Route Matching. Same Endpoint + BT + Ability shares one mapping set.'
-            : 'Endpoint options are values from Route Matching. Select Endpoint and BT, then choose Gateway Sub State to derive Main State and Response Code candidates.'}
+            : 'Endpoint options are values from Route Matching. Select Endpoint, BT and Ability, then choose Main State, PP Code and the matching Gateway Sub State.'}
         />
         {renderSearchCard()}
         <Card>
@@ -1855,52 +1871,65 @@ export default function ChannelInfoPage() {
               )}
             </div>
           )}
-          {!isNoStateMachine(stateMachineName) && <><Form.Item label="Gateway Sub State" required>
-            <Space.Compact style={{ width: '100%' }}>
-              <Form.Item name="subState" noStyle rules={[{ required: true, message: 'Select Gateway Sub State' }]}>
+          {isInternal ? (
+            <>
+              <Form.Item name="mainState" label="Main State" rules={[{ required: true }]}>
                 <Select
-                  disabled={!!editingInternal || (!!editingExternal && subStateLocked)}
-                  options={modalSubStateOptions}
-                  onChange={(value) => {
-                    const nextMainState = mainStateForSubState(value);
-                    if (!editingExternal || nextMainState !== editingExternal.mainState) {
-                      form.setFieldsValue({ responseCode: undefined });
-                    }
-                  }}
-                  placeholder="Loaded by Channel + BT + Ability"
-                  style={{ width: '100%' }}
+                  options={(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'] as MainState[]).map((value) => ({ label: value, value }))}
+                  placeholder="Select Main State"
+                  onChange={() => form.setFieldsValue({ responseCode: undefined, subState: undefined })}
                 />
               </Form.Item>
-              {editingExternal && (
-              <Button
-                icon={subStateLocked ? <LockOutlined /> : <UnlockOutlined />}
-                disabled={!subStateLocked && subStateChanged}
-                onClick={() => setSubStateLocked((locked) => !locked)}
-                style={{ width: 42 }}
-              />
+              <Form.Item name="responseCode" label="Response Code" rules={[{ required: true }]}>
+                <Select
+                  disabled={!selectedMainState}
+                  options={selectedMainState ? responseCodesByState[selectedMainState as MainState] : []}
+                  placeholder={selectedMainState ? 'Select PP Code' : 'Select Main State first'}
+                />
+              </Form.Item>
+              {!isNoStateMachine(stateMachineName) && (
+                <Form.Item name="subState" label="Gateway Sub State" rules={[{ required: true, message: 'Select Gateway Sub State' }]}>
+                  <Select
+                    disabled={!selectedMainState}
+                    options={modalSubStateOptions}
+                    placeholder={selectedMainState ? `Select a sub-state mapped to ${selectedMainState}` : 'Select Main State first'}
+                  />
+                </Form.Item>
               )}
-            </Space.Compact>
-          </Form.Item>
-          {editingExternal && subStateChanged && (
-            <Alert
-              type="warning"
-              showIcon
-              message="Approval required for Gateway Sub State change"
-              description="The selected Gateway Sub State has changed. In PROD, this change must be submitted for approval. The field cannot be locked again until the change is saved or discarded."
-              style={{ marginBottom: 16 }}
-            />
-          )}</>}
-          {isNoStateMachine(stateMachineName)
-            ? <Form.Item name="mainState" label="Main State" rules={[{ required: true }]}><Select options={(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'] as MainState[]).map((value) => ({ label: value, value }))} placeholder="Select main state" /></Form.Item>
-            : <Form.Item label="Main State"><Input value={currentMainState ?? ''} disabled placeholder="Auto-filled from selected Gateway Sub State" /></Form.Item>}
-          <Form.Item name="responseCode" label="Response Code" rules={[{ required: true }]}><Select disabled={!!editingInternal || !currentMainState} options={currentMainState ? responseCodesByState[currentMainState] : []} /></Form.Item>
+            </>
+          ) : (
+            <>
+              {!isNoStateMachine(stateMachineName) && <><Form.Item label="Gateway Sub State" required>
+                <Space.Compact style={{ width: '100%' }}>
+                  <Form.Item name="subState" noStyle rules={[{ required: true, message: 'Select Gateway Sub State' }]}>
+                    <Select
+                      disabled={!!editingExternal && subStateLocked}
+                      options={modalSubStateOptions}
+                      onChange={(value) => {
+                        const nextMainState = mainStateForSubState(value);
+                        if (!editingExternal || nextMainState !== editingExternal.mainState) form.setFieldsValue({ responseCode: undefined });
+                      }}
+                      placeholder="Loaded by Channel + BT + Ability"
+                      style={{ width: '100%' }}
+                    />
+                  </Form.Item>
+                  {editingExternal && <Button icon={subStateLocked ? <LockOutlined /> : <UnlockOutlined />} disabled={!subStateLocked && subStateChanged} onClick={() => setSubStateLocked((locked) => !locked)} style={{ width: 42 }} />}
+                </Space.Compact>
+              </Form.Item>
+              {editingExternal && subStateChanged && <Alert type="warning" showIcon message="Approval required for Gateway Sub State change" description="The selected Gateway Sub State has changed. In PROD, this change must be submitted for approval. The field cannot be locked again until the change is saved or discarded." style={{ marginBottom: 16 }} />}</>}
+              {isNoStateMachine(stateMachineName)
+                ? <Form.Item name="mainState" label="Main State" rules={[{ required: true }]}><Select options={(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'] as MainState[]).map((value) => ({ label: value, value }))} placeholder="Select main state" /></Form.Item>
+                : <Form.Item label="Main State"><Input value={currentMainState ?? ''} disabled placeholder="Auto-filled from selected Gateway Sub State" /></Form.Item>}
+              <Form.Item name="responseCode" label="Response Code" rules={[{ required: true }]}><Select disabled={!currentMainState} options={currentMainState ? responseCodesByState[currentMainState] : []} /></Form.Item>
+            </>
+          )}
           {!isExternal && (
             <>
               <Form.Item name="description" label="Description" rules={[{ required: true }]}><Input /></Form.Item>
               <Form.Item name="channelResponseCode" label="Channel Response Code"><Input maxLength={20} showCount placeholder="Sent to external channels" /></Form.Item>
               <Form.Item name="channelStatus" label="Channel Status"><Input maxLength={40} showCount placeholder="Sent to external channels" /></Form.Item>
               <Form.Item name="channelResponseMessage" label="Channel Response Message"><Input maxLength={60} showCount placeholder="Optional message sent to external channels" /></Form.Item>
-              <Alert type="warning" showIcon message="Channel Response Code and Channel Status cannot both be empty." />
+              <Alert type="info" showIcon message="Channel Status, Channel Response Code and Channel Response Message are optional. Leave them empty to return the internal status, code and message directly." />
             </>
           )}
         </Form>
@@ -2190,6 +2219,15 @@ export default function ChannelInfoPage() {
           <Form.Item name="endpoint" label="Endpoint" required><Select options={isExternal ? externalEndpointOptions : internalEndpointOptions} onChange={() => bulkForm.setFieldsValue({ bt: undefined, ability: undefined })} /></Form.Item>
           <Form.Item name="bt" label="Business Type" required><Select disabled={!bulkEndpoint} options={bulkBtOptions} onChange={() => bulkForm.setFieldsValue({ ability: undefined })} /></Form.Item>
           <Form.Item name="ability" label="Ability" required><Select disabled={!bulkBt} options={bulkAbilityOptions} /></Form.Item>
+          {isInternal && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="Internal → External template column order"
+              description="Main State, Response Code, Gateway Sub State, Description, Channel Status, Channel Response Code, Channel Response Message"
+            />
+          )}
           <Space><Button type="primary">Upload</Button><Button type="link">Download Template</Button></Space>
         </Form>
       </Modal>

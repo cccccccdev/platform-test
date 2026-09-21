@@ -29,6 +29,10 @@ import { LeftOutlined } from '@ant-design/icons';
 import StateNode from './StateNode';
 import ComponentPanel from './ComponentPanel';
 import PropertyPanel from './PropertyPanel';
+import {
+  ADMISSION_EXTERNAL_STATE_MACHINE,
+  BAL_REQUERY_STATE_MACHINE,
+} from '../inboundStateMachineReferenceData';
 
 const { TextArea } = Input;
 // ─────────────────────────────────────────────────
@@ -38,7 +42,7 @@ type NodeData = {
   name: string;
   description?: string;
   businessStatus?: string;
-  nodeType?: 'init' | 'state';
+  nodeType?: 'init' | 'state' | 'bal_exception';
   [key: string]: unknown;
 };
 
@@ -111,7 +115,50 @@ const smsSingleMessageDetailedEdges: AnyEdge[] = [
   { id: 'sms_d_e6', source: 'sms_d_submitted', target: 'sms_d_expired', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'expired' } },
 ];
 
+const balRequeryNodes: AnyNode[] = [
+  { id: 'bal_init', type: 'stateNode', position: { x: 80, y: 220 }, data: { name: 'INIT', description: 'Inbound request received by the gateway', businessStatus: 'INIT', nodeType: 'init' } },
+  { id: 'bal_exception', type: 'stateNode', position: { x: 430, y: 220 }, data: { name: 'BAL_EXCEPTION', description: 'Business access layer system error, timeout, or invalid response', businessStatus: 'PENDING', nodeType: 'bal_exception' } },
+  { id: 'bal_success', type: 'stateNode', position: { x: 790, y: 80 }, data: { name: 'SUCCESS', description: 'Business processing completed successfully', businessStatus: 'SUCCESS' } },
+  { id: 'bal_fail', type: 'stateNode', position: { x: 790, y: 360 }, data: { name: 'FAIL', description: 'Business processing completed with failure', businessStatus: 'FAIL' } },
+];
+
+const balRequeryEdges: AnyEdge[] = [
+  { id: 'bal_e1', source: 'bal_init', target: 'bal_success', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'success' } },
+  { id: 'bal_e2', source: 'bal_init', target: 'bal_fail', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'fail' } },
+  { id: 'bal_e3', source: 'bal_init', target: 'bal_exception', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'bal_exception' } },
+  { id: 'bal_e4', source: 'bal_exception', target: 'bal_success', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'requery_success' } },
+  { id: 'bal_e5', source: 'bal_exception', target: 'bal_fail', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'requery_fail' } },
+];
+
+const admissionExternalNodes: AnyNode[] = [
+  { id: 'ae_init', type: 'stateNode', position: { x: 40, y: 250 }, data: { name: 'INIT', description: 'External admission request received by the gateway', businessStatus: 'INIT', nodeType: 'init' } },
+  { id: 'ae_admitted', type: 'stateNode', position: { x: 350, y: 100 }, data: { name: 'ADMISSION_PASSED', description: 'Business access admission check passed; continue external processing', businessStatus: 'PENDING' } },
+  { id: 'ae_exception', type: 'stateNode', position: { x: 350, y: 400 }, data: { name: 'BAL_EXCEPTION', description: 'Business access layer system error, timeout, or invalid response', businessStatus: 'PENDING', nodeType: 'bal_exception' } },
+  { id: 'ae_pending', type: 'stateNode', position: { x: 700, y: 250 }, data: { name: 'PENDING', description: 'External channel result remains pending', businessStatus: 'PENDING' } },
+  { id: 'ae_success', type: 'stateNode', position: { x: 1030, y: 100 }, data: { name: 'SUCCESS', description: 'External processing completed successfully', businessStatus: 'SUCCESS' } },
+  { id: 'ae_fail', type: 'stateNode', position: { x: 1030, y: 400 }, data: { name: 'FAIL', description: 'Admission rejected or external processing failed', businessStatus: 'FAIL' } },
+];
+
+const admissionExternalEdges: AnyEdge[] = [
+  { id: 'ae_e1', source: 'ae_init', target: 'ae_admitted', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'admission_passed' } },
+  { id: 'ae_e2', source: 'ae_init', target: 'ae_fail', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'admission_rejected' } },
+  { id: 'ae_e3', source: 'ae_init', target: 'ae_exception', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'bal_exception' } },
+  { id: 'ae_e4', source: 'ae_admitted', target: 'ae_success', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'success' } },
+  { id: 'ae_e5', source: 'ae_admitted', target: 'ae_fail', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'fail' } },
+  { id: 'ae_e6', source: 'ae_admitted', target: 'ae_pending', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'pending' } },
+  { id: 'ae_e7', source: 'ae_exception', target: 'ae_admitted', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'admission_passed' } },
+  { id: 'ae_e8', source: 'ae_exception', target: 'ae_fail', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'admission_failed' } },
+  { id: 'ae_e10', source: 'ae_pending', target: 'ae_success', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'success' } },
+  { id: 'ae_e11', source: 'ae_pending', target: 'ae_fail', type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#333', strokeWidth: 2 }, data: { label: 'fail' } },
+];
+
 function getInitialGraph(sm: string): { nodes: AnyNode[]; edges: AnyEdge[] } {
+  if (sm === BAL_REQUERY_STATE_MACHINE) {
+    return { nodes: balRequeryNodes, edges: balRequeryEdges };
+  }
+  if (sm === ADMISSION_EXTERNAL_STATE_MACHINE) {
+    return { nodes: admissionExternalNodes, edges: admissionExternalEdges };
+  }
   if (sm === 'SMS_Single_Message_StateMachine') {
     return { nodes: smsSingleMessageNodes, edges: smsSingleMessageEdges };
   }
@@ -182,6 +229,17 @@ function validateStateMachine(nodes: AnyNode[], edges: AnyEdge[]): ValidationErr
     // INIT must have businessStatus INIT
     if (isInit && node.data?.businessStatus !== 'INIT') {
       errors.push({ type: 'node', message: 'INIT node business status must be INIT', nodeId: node.id });
+    }
+
+    const isBalException = node.data?.nodeType === 'bal_exception';
+    if (!isBalException && node.data?.name === 'BAL_EXCEPTION') {
+      errors.push({ type: 'node', message: 'Use the BAL_EXCEPTION special node instead of renaming a general state', nodeId: node.id });
+    }
+    if (isBalException && node.data?.name !== 'BAL_EXCEPTION') {
+      errors.push({ type: 'node', message: 'BAL_EXCEPTION node name is fixed', nodeId: node.id });
+    }
+    if (isBalException && node.data?.businessStatus !== 'PENDING' && node.data?.businessStatus !== 'FAIL') {
+      errors.push({ type: 'node', message: 'BAL_EXCEPTION can only map to PENDING or FAIL', nodeId: node.id });
     }
   }
 
@@ -407,21 +465,22 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
 
       const id = `${type}_${Date.now()}`;
       const isInit = type === 'init_state';
+      const isBalException = type === 'bal_exception';
 
       const newNode: AnyNode = {
         id,
         type: 'stateNode',
         position,
         data: {
-          name: isInit ? 'INIT' : '',
-          description: '',
-          businessStatus: isInit ? 'INIT' : '',
-          nodeType: isInit ? 'init' : 'state',
+          name: isInit ? 'INIT' : isBalException ? 'BAL_EXCEPTION' : '',
+          description: isBalException ? 'Business access layer system error, timeout, or invalid response' : '',
+          businessStatus: isInit ? 'INIT' : isBalException ? 'PENDING' : '',
+          nodeType: isInit ? 'init' : isBalException ? 'bal_exception' : 'state',
         },
       };
 
       setNodes(nds => nds.concat(newNode));
-      message.success(`Added ${type} node`);
+      message.success(`Added ${isBalException ? 'BAL_EXCEPTION' : type} node`);
     },
     [screenToFlowPosition, setNodes],
   );
@@ -446,16 +505,18 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
       message.warning('Name is required');
       return;
     }
+    const isBalException = currentEditNode?.data.nodeType === 'bal_exception';
+    const nextName = isBalException ? 'BAL_EXCEPTION' : editName.trim();
     setNodes(nds =>
       nds.map(n =>
         n.id === currentEditNode?.id
-          ? { ...n, data: { ...n.data, name: editName.trim(), description: editDescription } }
+          ? { ...n, data: { ...n.data, name: nextName, description: editDescription } }
           : n,
       ),
     );
     setSelectedNode(prev =>
       prev && prev.id === currentEditNode?.id
-        ? { ...prev, data: { ...prev.data, name: editName.trim(), description: editDescription } }
+        ? { ...prev, data: { ...prev.data, name: nextName, description: editDescription } }
         : prev,
     );
     setEditModalOpen(false);
@@ -613,6 +674,17 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
       return;
     }
 
+    const invalidBalExceptionNode = nodes.find(node =>
+      (node.data.nodeType === 'bal_exception'
+        && (node.data.name !== 'BAL_EXCEPTION'
+          || (node.data.businessStatus !== 'PENDING' && node.data.businessStatus !== 'FAIL')))
+      || (node.data.nodeType !== 'bal_exception' && node.data.name === 'BAL_EXCEPTION'),
+    );
+    if (invalidBalExceptionNode) {
+      message.error('Use the BAL_EXCEPTION special node and map it only to PENDING or FAIL');
+      return;
+    }
+
     const saveData = {
       ability: {
         businessType: bt,
@@ -624,6 +696,8 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
           id: n.id,
           name: n.data.name,
           description: n.data.description || '',
+          businessStatus: n.data.businessStatus || '',
+          nodeType: n.data.nodeType || 'state',
           x: n.position.x,
           y: n.position.y,
         })),
@@ -822,6 +896,7 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
               value={editName}
               onChange={e => setEditName(e.target.value)}
               placeholder="Enter node name"
+              disabled={currentEditNode?.data.nodeType === 'bal_exception'}
               autoFocus
               onKeyDown={e => {
                 if (e.key === 'Enter') handleEditOk();

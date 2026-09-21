@@ -15,6 +15,7 @@ export interface AbilityItem {
   operator: string;
   isExpand: boolean;
   actions: ActionItem[];
+  direction?: 'Outbound' | 'Inbound';
   isEditing?: boolean;
 }
 
@@ -143,20 +144,20 @@ const CONFIGURED_BT_DATA: BusinessTypeItem[] = [
     isExpand: true,
     abilities: [
       {
-        key: 'ab_funds_in_payment', name: 'PAYMENT', operateTime: '—', operator: '—', isExpand: true,
-        actions: [
-          { key: 'act_funds_in_payment_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-09-01 03:36:56', operator: '冯启航 Felix' },
-          { key: 'act_funds_in_payment_requery', name: 'RE_QUERY', operateTime: '2026-05-14 03:55:25', operator: 'xiajichen' },
-          { key: 'act_funds_in_payment_transaction', name: 'TRANSACTION', operateTime: '2026-05-14 03:55:25', operator: 'xiajichen' },
-        ],
-      },
-      {
-        key: 'ab_funds_in_stablecoin_notify', name: 'STABLECOIN_NOTIFY', operateTime: '—', operator: '—', isExpand: true,
+        key: 'ab_funds_in_stablecoin_notify', name: 'STABLECOIN_NOTIFY', operateTime: '—', operator: '—', isExpand: true, direction: 'Inbound',
         actions: [{ key: 'act_funds_in_stablecoin_notify_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-09-07 03:40:32', operator: '胡亮亮 Jack' }],
       },
       {
-        key: 'ab_funds_in_biz_type_notify', name: 'BIZ_TYPE_NOTIFY', operateTime: '—', operator: '—', isExpand: true,
+        key: 'ab_funds_in_biz_type_notify', name: 'BIZ_TYPE_NOTIFY', operateTime: '—', operator: '—', isExpand: true, direction: 'Inbound',
         actions: [{ key: 'act_funds_in_biz_type_notify_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-09-07 07:41:29', operator: '冯启航 Felix' }],
+      },
+      {
+        key: 'ab_funds_in_admission_check_internal', name: 'ADMISSION_CHECK_INTERNAL', operateTime: '—', operator: '—', isExpand: true, direction: 'Inbound',
+        actions: [{ key: 'act_funds_in_admission_check_internal_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-09-20 00:00:00', operator: 'System preset' }],
+      },
+      {
+        key: 'ab_funds_in_admission_check_external', name: 'ADMISSION_CHECK_EXTERNAL', operateTime: '—', operator: '—', isExpand: true, direction: 'Inbound',
+        actions: [{ key: 'act_funds_in_admission_check_external_inbound', name: 'INBOUND_TRANSACTION', operateTime: '2026-09-20 00:00:00', operator: 'System preset' }],
       },
     ],
   },
