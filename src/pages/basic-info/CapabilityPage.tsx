@@ -6,17 +6,29 @@ import { useConfigIntegrationStore } from '../channel-integration/configIntegrat
 import { useBusinessTypeStore } from './businessTypeReferenceData';
 import { useCapabilityDataStore, type ActionItem, type AbilityItem, type BusinessTypeItem } from './capabilityDataStore';
 import { enableSubOrderMode, getEnabledSubOrderModes, getSubOrderModeKey } from './capability/subOrderModeStore';
+import {
+  getBusinessAccessRequeryConfig,
+  saveBusinessAccessRequeryConfig,
+  type BusinessAccessRequeryConfig,
+} from './capability/businessAccessRequeryStore';
+import {
+  inboundStateMachineLinks,
+  inboundStateMachines,
+} from './capability/inboundStateMachineReferenceData';
 
 const { Text } = Typography;
-const ACTION_OPTIONS = [
+const OUTBOUND_ACTION_OPTIONS = [
   'TRANSACTION',
   'VERIFY',
   'TRIGGER_VERIFY',
   'RE_QUERY',
   'QUERY',
+] as const;
+const INBOUND_ACTION_OPTIONS = [
   'INBOUND_TRANSACTION',
   'INBOUND_QUERY',
 ] as const;
+const ALL_ACTION_OPTIONS = [...OUTBOUND_ACTION_OPTIONS, ...INBOUND_ACTION_OPTIONS] as const;
 const CAPABILITY_OPERATOR = '我爱北京天安门';
 
 function operationTimeNow(): string {
@@ -31,7 +43,15 @@ interface AddActionTarget {
   abilityKey: string;
   abilityName: string;
   existingActions: string[];
+  direction?: 'Outbound' | 'Inbound';
 }
+
+interface BusinessAccessRequeryTarget {
+  businessType: string;
+  ability: string;
+}
+
+const abilityDirectionFor = (ability: AbilityItem): 'Outbound' | 'Inbound' | undefined => ability.direction;
 
 export default function CapabilityPage() {
   const navigate = useNavigate();
@@ -43,6 +63,7 @@ export default function CapabilityPage() {
   const [addAbilityOpen, setAddAbilityOpen] = useState(false);
   const [addAbilityBt, setAddAbilityBt] = useState<string>('');
   const [addAbilityForm] = Form.useForm();
+  const addAbilityDirection = Form.useWatch<'Outbound' | 'Inbound'>('direction', addAbilityForm) ?? 'Outbound';
   const [addActionTarget, setAddActionTarget] = useState<AddActionTarget | null>(null);
   const [selectedActionNames, setSelectedActionNames] = useState<string[]>([]);
   const [editingActionKey, setEditingActionKey] = useState<string | null>(null);
@@ -54,6 +75,9 @@ export default function CapabilityPage() {
   const [enabledSubOrderModes, setEnabledSubOrderModes] = useState<Set<string>>(() => getEnabledSubOrderModes());
   const [subOrderModeTarget, setSubOrderModeTarget] = useState<{ businessType: string; ability: string } | null>(null);
   const [subOrderModeDraft, setSubOrderModeDraft] = useState(false);
+  const [businessAccessRequeryTarget, setBusinessAccessRequeryTarget] = useState<BusinessAccessRequeryTarget | null>(null);
+  const [businessAccessRequeryDraft, setBusinessAccessRequeryDraft] = useState(false);
+  const [businessAccessRequeryConfigs, setBusinessAccessRequeryConfigs] = useState<Record<string, BusinessAccessRequeryConfig>>({});
   const selectedBusinessTypeName = searchParams.get('bt') || businessTypeRecords[0]?.businessType || '';
   const addAbilityOptions = useMemo(() => {
     const currentAbilityNames = new Set(
@@ -93,6 +117,7 @@ export default function CapabilityPage() {
     { bt: 'BANK_CARD_DEBIT', ability: 'INFO_PAYMENT', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
     { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_StateMachine', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
     { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_Detailed_StateMachine', operator: 'Bailly', operationTime: '2026-08-18 10:00:00' },
+    ...inboundStateMachineLinks,
   ];
 
   const mergeBy = <T,>(records: T[], defaults: T[], keyOf: (record: T) => string): T[] => {
@@ -135,6 +160,42 @@ export default function CapabilityPage() {
     message.success('Sub Order Mode enabled.');
   };
 
+  const requeryConfigKey = (businessType: string, ability: string) => `${businessType}:${ability}`;
+
+  const requeryConfigFor = (businessType: string, ability: string) => {
+    const key = requeryConfigKey(businessType, ability);
+    return businessAccessRequeryConfigs[key] ?? getBusinessAccessRequeryConfig(businessType, ability);
+  };
+
+  const selectedBusinessAccessRequeryConfig = businessAccessRequeryTarget
+    ? requeryConfigFor(businessAccessRequeryTarget.businessType, businessAccessRequeryTarget.ability)
+    : undefined;
+  const openBusinessAccessRequery = (businessType: string, ability: string) => {
+    const config = requeryConfigFor(businessType, ability);
+    setBusinessAccessRequeryTarget({ businessType, ability });
+    setBusinessAccessRequeryDraft(config?.enabled ?? false);
+  };
+
+  const closeBusinessAccessRequery = () => {
+    setBusinessAccessRequeryTarget(null);
+    setBusinessAccessRequeryDraft(false);
+  };
+
+  const saveBusinessAccessRequery = () => {
+    if (!businessAccessRequeryTarget) return;
+    const config = saveBusinessAccessRequeryConfig(
+      businessAccessRequeryTarget.businessType,
+      businessAccessRequeryTarget.ability,
+      businessAccessRequeryDraft,
+    );
+    setBusinessAccessRequeryConfigs((current) => ({
+      ...current,
+      [requeryConfigKey(businessAccessRequeryTarget.businessType, businessAccessRequeryTarget.ability)]: config,
+    }));
+    closeBusinessAccessRequery();
+    message.success('Business access layer requery setting saved.');
+  };
+
   const SM_LIST_KEY = 'stateMachineList';
   const STORAGE_KEY = 'stateMachineStatuses';
 
@@ -150,6 +211,7 @@ export default function CapabilityPage() {
     { id: 'sm2', name: 'BankCard_Debit_StateMachine', description: 'Bank card debit state machine', status: 'SUBMITTED' },
     { id: 'sm_sms_single_message', name: 'SMS_Single_Message_StateMachine', description: 'Single SMS lifecycle', status: 'SUBMITTED' },
     { id: 'sm_sms_single_message_detailed', name: 'SMS_Single_Message_Detailed_StateMachine', description: 'Single SMS lifecycle with detailed failure states', status: 'SUBMITTED' },
+    ...inboundStateMachines,
   ];
 
   const DEFAULT_STATE_MACHINE_STATUSES: Record<string, 'DRAFT' | 'SUBMITTED'> = {
@@ -157,6 +219,7 @@ export default function CapabilityPage() {
     BankCard_Debit_StateMachine: 'SUBMITTED',
     SMS_Single_Message_StateMachine: 'SUBMITTED',
     SMS_Single_Message_Detailed_StateMachine: 'SUBMITTED',
+    ...Object.fromEntries(inboundStateMachines.map((stateMachine) => [stateMachine.name, stateMachine.status])),
   };
 
   const getStateMachineList = useCallback((): StateMachineItem[] => {
@@ -241,6 +304,7 @@ export default function CapabilityPage() {
       if (!bt) return;
       const abilityName = String(values.abilityName).trim();
       const actionNames = values.actions as string[];
+      const direction = values.direction as 'Outbound' | 'Inbound';
       const operationTime = operationTimeNow();
 
       if (bt.abilities.some((ability) => ability.name.toLowerCase() === abilityName.toLowerCase())) {
@@ -254,6 +318,7 @@ export default function CapabilityPage() {
         operateTime: operationTime,
         operator: CAPABILITY_OPERATOR,
         isExpand: true,
+        direction,
         actions: actionNames.map((actionName, index) => ({
           key: `act_${Date.now()}_${index}`,
           name: actionName,
@@ -278,6 +343,7 @@ export default function CapabilityPage() {
       abilityKey: ability.key,
       abilityName: ability.name,
       existingActions,
+      direction: abilityDirectionFor(ability),
     });
     setSelectedActionNames(existingActions);
   }, []);
@@ -368,6 +434,8 @@ export default function CapabilityPage() {
                 const subOrderEnabled = enabledSubOrderModes.has(getSubOrderModeKey(selectedBusinessType.name, ab.name));
                 const featureCount = getFeatureCount(selectedBusinessType.name, ab.name);
                 const stateMachineCount = getLinkedSMListForAbility(selectedBusinessType.name, ab.name).length;
+                const direction = abilityDirectionFor(ab);
+                const businessAccessRequeryConfig = requeryConfigFor(selectedBusinessType.name, ab.name);
                 return (
                   <article key={ab.key} className="capability-ability-card">
                     <header className="capability-ability-card-header">
@@ -378,6 +446,7 @@ export default function CapabilityPage() {
                       >
                         {ab.actions.length > 0 && (ab.isExpand ? <CaretDownOutlined /> : <CaretRightOutlined />)}
                         <span>{ab.name}</span>
+                        {direction && <span className={`capability-direction-tag ${direction.toLowerCase()}`}>{direction}</span>}
                       </button>
                       <div className="capability-ability-header-actions">
                         <div className="capability-settings-controls">
@@ -390,6 +459,14 @@ export default function CapabilityPage() {
                           <Badge count={stateMachineCount} showZero className={`capability-control-badge ${stateMachineCount ? 'active' : 'inactive'}`}>
                             <button type="button" className="capability-status-chip" onClick={() => navigate(`/basic-info/capability/link-state-machine?bt=${selectedBusinessType.name}&ability=${ab.name}`)}>State Machines</button>
                           </Badge>
+                          {direction === 'Inbound' && businessAccessRequeryConfig && (
+                            <Badge
+                              count={businessAccessRequeryConfig.enabled ? 'ON' : 'OFF'}
+                              className={`capability-control-badge ${businessAccessRequeryConfig.enabled ? 'active' : 'inactive'}`}
+                            >
+                              <button type="button" className="capability-status-chip" onClick={() => openBusinessAccessRequery(selectedBusinessType.name, ab.name)}>BAL Requery</button>
+                            </Badge>
+                          )}
                         </div>
                         <span className="capability-header-action-divider" aria-hidden="true" />
                         <Button className="capability-add-action-button" size="small" icon={<PlusOutlined />} onClick={() => openAddAction(selectedBusinessType, ab)}>
@@ -486,6 +563,38 @@ export default function CapabilityPage() {
       </Modal>
 
       <Modal
+        title="BAL Requery Configuration"
+        open={Boolean(businessAccessRequeryTarget)}
+        onCancel={closeBusinessAccessRequery}
+        onOk={saveBusinessAccessRequery}
+        okText="Save"
+        cancelText="Cancel"
+        width={640}
+        className="sub-order-mode-modal"
+        destroyOnHidden
+      >
+        <div className="sub-order-mode-context">
+          <span>Business Type</span><strong>{businessAccessRequeryTarget?.businessType}</strong>
+          <span>Ability</span><strong>{businessAccessRequeryTarget?.ability}</strong>
+        </div>
+
+        <div className="sub-order-mode-switch-row">
+          <span>Requery Business Access Layer</span>
+          <Switch
+            checked={businessAccessRequeryDraft}
+            checkedChildren="ON"
+            unCheckedChildren="OFF"
+            disabled={selectedBusinessAccessRequeryConfig?.configured ?? false}
+            onChange={setBusinessAccessRequeryDraft}
+          />
+        </div>
+
+        <p className="sub-order-mode-note">
+          Note: This setting applies to the current Business Type + Ability. The requery strategy is maintained by the backend and is not configurable on this page. Once saved, the switch cannot be changed.
+        </p>
+      </Modal>
+
+      <Modal
         title="Add Ability"
         open={addAbilityOpen}
         onCancel={() => { setAddAbilityOpen(false); addAbilityForm.resetFields(); }}
@@ -516,6 +625,20 @@ export default function CapabilityPage() {
             />
           </Form.Item>
           <Form.Item
+            label="Direction"
+            name="direction"
+            initialValue="Outbound"
+            rules={[{ required: true, message: 'Please select an Ability direction' }]}
+          >
+            <Select
+              options={[
+                { label: 'Outbound', value: 'Outbound' },
+                { label: 'Inbound', value: 'Inbound' },
+              ]}
+              onChange={() => addAbilityForm.setFieldValue('actions', [])}
+            />
+          </Form.Item>
+          <Form.Item
             label="Action"
             name="actions"
             rules={[{ required: true, type: 'array', min: 1, message: 'Please select at least one Action' }]}
@@ -524,7 +647,8 @@ export default function CapabilityPage() {
               mode="multiple"
               allowClear
               placeholder="Please select at least one Action"
-              options={ACTION_OPTIONS.map((action) => ({ label: action, value: action }))}
+              options={(addAbilityDirection === 'Inbound' ? INBOUND_ACTION_OPTIONS : OUTBOUND_ACTION_OPTIONS)
+                .map((action) => ({ label: action, value: action }))}
               maxTagCount="responsive"
             />
           </Form.Item>
@@ -556,12 +680,15 @@ export default function CapabilityPage() {
           <Form.Item label="Ability" required>
             <Text>{addActionTarget?.abilityName}</Text>
           </Form.Item>
+          <Form.Item label="Direction" required>
+            <Text>{addActionTarget?.direction ?? 'Legacy / Not set'}</Text>
+          </Form.Item>
           <Form.Item label="Action" required>
             <Select
               mode="multiple"
               value={selectedActionNames}
               placeholder="Select Action"
-              options={ACTION_OPTIONS.map((action) => ({
+              options={(addActionTarget?.direction === 'Inbound' ? INBOUND_ACTION_OPTIONS : addActionTarget?.direction === 'Outbound' ? OUTBOUND_ACTION_OPTIONS : ALL_ACTION_OPTIONS).map((action) => ({
                 label: action,
                 value: action,
                 disabled: addActionTarget?.existingActions.includes(action),

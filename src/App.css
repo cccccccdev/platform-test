@@ -668,6 +668,8 @@
 .capability-ability-toggle { min-width: 0; min-height: 42px; padding: 0; display: flex; align-items: center; gap: 10px; border: 0; color: #292d33; background: transparent; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .capability-ability-toggle:hover { color: var(--legacy-purple); }
 .capability-ability-toggle:focus-visible { outline: 2px solid #b37feb; outline-offset: 3px; }
+.capability-direction-tag { padding: 1px 6px; border: 1px solid #d8dbe1; border-radius: 2px; color: #737983; background: #fff; font-size: 9px; font-weight: 600; line-height: 16px; text-transform: uppercase; }
+.capability-direction-tag.inbound { border-color: #c9b2da; color: #754294; background: #faf6fc; }
 .capability-settings-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .capability-status-chip { min-height: 26px; padding: 2px 9px; border: 1px solid #dedfe3; border-radius: 2px; color: #666b75; background: #fff; font: inherit; font-size: 11px; cursor: pointer; transition: color .18s ease, border-color .18s ease, background-color .18s ease; }
 .capability-status-chip:hover { color: var(--legacy-purple); border-color: #c6a6dc; background: #faf6fc; }
