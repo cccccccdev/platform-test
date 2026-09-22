@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button, Dropdown, Input, message, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd';
 import { CaretDownOutlined, CaretRightOutlined, CopyOutlined, DeleteOutlined, DownOutlined, ExclamationCircleFilled, HolderOutlined, MinusSquareOutlined, PlusOutlined, PlusSquareOutlined } from '@ant-design/icons';
-import { appendBusinessNode, appendTemplatePlaceholder, findNode, moveBusinessSibling, spiSchemaToMarkdown, updateNodeTree, validateSpiTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
+import { appendBusinessNode, appendTemplatePlaceholder, findNode, moveBusinessSibling, spiSchemaToMarkdown, updateNodeTree, validateEffectTags, validateSpiTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
 
 const FIELD_TYPES = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((type) => ({ label: type, value: type }));
 type DragState = { parentId: string | null; nodeId: string } | null;
@@ -11,24 +11,26 @@ interface Props {
   fields: SpiFieldNode[];
   catalog: SpiFieldNode[];
   customRoot?: boolean;
+  effectTagOptions?: readonly string[];
+  effectTagHeader?: ReactNode;
   editing: boolean;
   onChange: (fields: SpiFieldNode[]) => void;
 }
 
-export default function SpiSchemaTree({ title, fields, catalog, customRoot = false, editing, onChange }: Props) {
+export default function SpiSchemaTree({ title, fields, catalog, customRoot = false, effectTagOptions, effectTagHeader, editing, onChange }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [newFieldId, setNewFieldId] = useState<string>();
   const [dragState, setDragState] = useState<DragState>(null);
   const [rootCollapsed, setRootCollapsed] = useState(false);
 
   const copyMarkdown = async () => {
-    const fieldError = validateSpiTree(fields);
+    const fieldError = validateSpiTree(fields) || (effectTagOptions ? validateEffectTags(fields) : null);
     if (fieldError) {
       message.warning(`Complete the fields before copying: ${fieldError}`);
       return;
     }
     try {
-      await navigator.clipboard.writeText(spiSchemaToMarkdown(fields));
+      await navigator.clipboard.writeText(spiSchemaToMarkdown(fields, Boolean(effectTagOptions)));
       message.success(`${title} copied as a Markdown table.`);
     } catch {
       message.error('Could not copy to clipboard.');
@@ -52,7 +54,7 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
   });
   const changeType = (node: SpiFieldNode, type: string) => {
     const update = () => onChange(updateNodeTree(fields, node.id, (current) => ({
-      ...current, type,
+      ...current, type, effectTag: type === 'Object' || type === 'Array' ? undefined : current.effectTag,
       children: type === 'Array' ? [{ id: `${current.id}_items`, name: '_items', type: 'String', description: '', required: false, extension: true, children: [] }]
         : type === 'Object' ? (current.type === 'Object' ? current.children : []) : [],
     })));
@@ -80,6 +82,7 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
             : editing && node.extension && !isArrayItem ? <Input autoFocus={node.id === newFieldId} value={node.name} placeholder="Field name" aria-label={`${node.name || 'New'} field name`} onChange={(event) => onChange(updateNodeTree(fields, node.id, (current) => ({ ...current, name: event.target.value })))} /> : <span className="capability-spi-fixed-name" title={node.name}>{node.name}</span>}
         </div>
         <div role="cell">{editing && node.extension ? <Select value={node.type} options={isArrayItem ? FIELD_TYPES.filter((item) => item.value !== 'Array') : FIELD_TYPES} aria-label={`${node.name} field type`} onChange={(type) => changeType(node, type)} /> : node.type || '—'}</div>
+        {effectTagOptions && <div role="cell">{editing && !isContainer ? <Select value={node.effectTag || undefined} placeholder="Select Effect Tag" options={effectTagOptions.map((tag) => ({ label: tag, value: tag }))} aria-label={`${node.name || 'New'} Effect Tag`} onChange={(effectTag) => onChange(updateNodeTree(fields, node.id, (current) => ({ ...current, effectTag })))} /> : <span className="capability-spi-description">{isContainer ? '—' : node.effectTag || '—'}</span>}</div>}
         <div role="cell">{editing ? <Input value={node.description} placeholder="Optional" aria-label={`${node.name} description`} onChange={(event) => onChange(updateNodeTree(fields, node.id, (current) => ({ ...current, description: event.target.value })))} /> : <span className="capability-spi-description">{node.description || '—'}</span>}</div>
         {editing && <div className="capability-spi-tree-actions" role="cell">
           {editing && canAddChild && <Tooltip title={`Add ${isBusinessParent ? 'business ' : ''}field under ${node.name}`}><Button type="text" size="small" icon={<PlusOutlined />} aria-label={`Add field under ${node.name}`} onClick={() => addField(node.id)} /></Tooltip>}
@@ -116,9 +119,15 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
         </Button>
       </Dropdown>
     </div></div>
-    <div className="capability-spi-tree-scroll"><div className={`capability-spi-field-table ${editing ? 'editing' : ''}`} role="table">
-      <div className="capability-spi-tree-header" role="row"><span role="columnheader">FIELD</span><span role="columnheader">TYPE</span><span role="columnheader">DESCRIPTION</span>{editing && <span role="columnheader">OPERATIONS</span>}</div>
-      <div className="capability-spi-tree-root" role="row"><div role="cell"><Button type="text" size="small" icon={rootCollapsed ? <CaretRightOutlined /> : <CaretDownOutlined />} aria-label={`${rootCollapsed ? 'Expand' : 'Collapse'} ${title} _order`} onClick={() => setRootCollapsed(!rootCollapsed)} /><Tag color="purple">_order</Tag></div><div role="cell">Object</div><div role="cell">—</div>{editing && <div role="cell">{(customRoot || catalog.some((node) => !fields.some((field) => field.id === node.id))) && <Tooltip title="Add field under _order"><Button type="text" size="small" icon={<PlusOutlined />} aria-label={`Add field under _order in ${title}`} onClick={() => addField(null)} /></Tooltip>}</div>}</div>
+    <div className="capability-spi-tree-scroll"><div className={`capability-spi-field-table ${editing ? 'editing' : ''} ${effectTagOptions ? 'with-effect-tag' : ''}`} role="table">
+      <div className="capability-spi-tree-header" role="row"><span role="columnheader">FIELD</span><span role="columnheader">TYPE</span>{effectTagOptions && <span role="columnheader">{effectTagHeader || 'EFFECT TAG'}</span>}<span role="columnheader">DESCRIPTION</span>{editing && <span role="columnheader">OPERATIONS</span>}</div>
+      <div className="capability-spi-tree-root" role="row">
+        <div role="cell"><Button type="text" size="small" icon={rootCollapsed ? <CaretRightOutlined /> : <CaretDownOutlined />} aria-label={`${rootCollapsed ? 'Expand' : 'Collapse'} ${title} _order`} onClick={() => setRootCollapsed(!rootCollapsed)} /><Tag color="purple">_order</Tag></div>
+        <div role="cell">Object</div>
+        {effectTagOptions && <div role="cell">—</div>}
+        <div role="cell">—</div>
+        {editing && <div role="cell">{(customRoot || catalog.some((node) => !fields.some((field) => field.id === node.id))) && <Tooltip title="Add field under _order"><Button type="text" size="small" icon={<PlusOutlined />} aria-label={`Add field under _order in ${title}`} onClick={() => addField(null)} /></Tooltip>}</div>}
+      </div>
       {!rootCollapsed && (fields.length ? fields.map((node) => render(node, 0, null)) : <div className="capability-spi-empty">No fields selected. {editing && <Button type="link" onClick={() => addField(null)}>Add field under _order</Button>}</div>)}
     </div></div></div>
   </section>;

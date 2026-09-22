@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Breadcrumb, Button, Input, Modal, Tag, Typography } from 'antd';
+import { Alert, Breadcrumb, Button, Input, Modal, Typography } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ExclamationCircleOutlined, LeftOutlined } from '@ant-design/icons';
 import './CapabilitySpiPage.css';
@@ -446,15 +446,29 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
       )}
 
       <main className={`capability-spi-panel ${editing ? 'editing' : ''}`}>
-        <div className="capability-spi-toolbar">
-          <div className="capability-spi-context">
-            <div><span>Business Type</span><strong>{businessType}</strong></div>
-            <div><span>Ability</span><strong>{ability}</strong></div>
-            <div><span>Action</span><strong>{action}</strong></div>
-            <div><span>Sub-order Mode</span><Tag color="blue">{definition.subOrderMode}</Tag></div>
+        <section className={`interface-overview ${editing ? 'is-editing' : ''}`} aria-label="SPI interface details">
+          <div className="interface-overview-heading">
+            <dl className="interface-overview-context">
+              <div><dt>Business Type</dt><dd>{businessType}</dd></div>
+              <div><dt>Ability</dt><dd>{ability}</dd></div>
+              <div><dt>Action</dt><dd>{action}</dd></div>
+            </dl>
+            {!editing && <div className="interface-overview-actions"><Button type="primary" onClick={() => { setDraft({ ...visibleConfig }); setDraftKey(spiKey); setTimeoutError(false); }}>Config</Button></div>}
           </div>
-          {!editing && <Button type="primary" onClick={() => { setDraft({ ...visibleConfig }); setDraftKey(spiKey); setTimeoutError(false); }}>Config</Button>}
-        </div>
+          <div className="interface-overview-endpoint">
+            {editing && activeTab === 'code' ? <>
+              <label className="interface-overview-field interface-overview-method-field"><span className="required-label">Method</span><Input value={visibleConfig.method} placeholder="Enter method" onChange={(event) => updateDraft({ method: event.target.value })} /></label>
+              <label className="interface-overview-field interface-overview-url-field"><span className="required-label">URL</span><Input value={visibleConfig.url} placeholder="Enter URL path" onChange={(event) => updateDraft({ url: event.target.value })} /></label>
+            </> : <><span className="interface-overview-method">{visibleConfig.method || 'Not configured'}</span><code>{visibleConfig.url || 'Not configured'}</code></>}
+            {editing ? <label className="interface-overview-field interface-overview-timeout-field"><span className="required-label">Timeout</span><div className="capability-spi-timeout-control"><Input value={visibleConfig.timeout} status={timeoutError || (timeoutValue !== '' && !timeoutValid) ? 'error' : undefined} inputMode="numeric" addonAfter="ms" placeholder="Enter timeout" onChange={(event) => { updateDraft({ timeout: event.target.value }); setTimeoutError(false); }} />{!timeoutValid && <span role="alert">{timeoutValue ? 'Enter a positive whole number of milliseconds.' : 'Timeout is required before Submit.'}</span>}</div></label>
+              : <span className="interface-overview-timeout">Timeout <strong>{visibleConfig.timeout ? `${visibleConfig.timeout} ms` : 'Not configured'}</strong></span>}
+          </div>
+          <div className="interface-overview-secondary">
+            {editing ? <label className="interface-overview-description-edit"><span>Description</span><Input value={visibleConfig.description} placeholder="Optional description" onChange={(event) => updateDraft({ description: event.target.value })} /></label>
+              : <span className="interface-overview-description">{visibleConfig.description || 'No description'}</span>}
+            <span className="interface-overview-suborder">Sub-order Mode: {definition.subOrderMode}</span>
+          </div>
+        </section>
 
         {subOrderEnabled && (
           <Alert
@@ -470,18 +484,6 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
             )}
           />
         )}
-
-        <section className="capability-spi-interface" aria-label="SPI interface details">
-          <div className="capability-spi-interface-title">Interface details <span>{editing ? 'Editing' : 'Overview'}</span></div>
-          <div className="capability-spi-meta">
-            <div className="capability-spi-meta-item"><span className="required-label">Method</span>{editing && activeTab === 'code' ? <Input value={visibleConfig.method} placeholder="Enter method" onChange={(event) => updateDraft({ method: event.target.value })} /> : <strong>{visibleConfig.method || 'Not configured'}</strong>}</div>
-            <div className="capability-spi-meta-item"><span className="required-label">URL</span>{editing && activeTab === 'code' ? <Input value={visibleConfig.url} placeholder="Enter URL path" onChange={(event) => updateDraft({ url: event.target.value })} /> : <code>{visibleConfig.url || 'Not configured'}</code>}</div>
-            <div className="capability-spi-meta-item"><span className="required-label">Timeout</span>
-              {editing ? <div className="capability-spi-timeout-control"><Input value={visibleConfig.timeout} status={timeoutError || (timeoutValue !== '' && !timeoutValid) ? 'error' : undefined} inputMode="numeric" addonAfter="ms" placeholder="Enter timeout" onChange={(event) => { updateDraft({ timeout: event.target.value }); setTimeoutError(false); }} />{!timeoutValid && <span role="alert">{timeoutValue ? 'Enter a positive whole number of milliseconds.' : 'Timeout is required before Submit.'}</span>}</div> : <strong>{visibleConfig.timeout ? `${visibleConfig.timeout} ms` : 'Not configured'}</strong>}
-            </div>
-            <div className="capability-spi-meta-item"><span>Description</span>{editing ? <Input value={visibleConfig.description} placeholder="Optional description" onChange={(event) => updateDraft({ description: event.target.value })} /> : <strong>{visibleConfig.description || '—'}</strong>}</div>
-          </div>
-        </section>
 
         <SpiSchemaTree key={`${spiKey}-request`} title="Request Params" fields={visibleConfig.request} catalog={requestCatalog} customRoot={activeTab === 'code'} editing={editing} onChange={(request) => updateDraft({ request })} />
         <SpiSchemaTree key={`${spiKey}-response`} title="Response Params" fields={visibleConfig.response} catalog={responseCatalog} customRoot={activeTab === 'code'} editing={editing} onChange={(response) => updateDraft({ response })} />

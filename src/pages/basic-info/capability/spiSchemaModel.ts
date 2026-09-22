@@ -5,6 +5,7 @@ export interface SpiFieldNode {
   description: string;
   required: boolean;
   extension: boolean;
+  effectTag?: string;
   templatePlaceholder?: boolean;
   children: SpiFieldNode[];
 }
@@ -16,6 +17,7 @@ export interface FlatSpiField {
   depth?: number;
   required?: boolean;
   extension?: boolean;
+  effectTag?: string;
 }
 
 export function fieldsToTree(fields: FlatSpiField[]): SpiFieldNode[] {
@@ -33,6 +35,7 @@ export function fieldsToTree(fields: FlatSpiField[]): SpiFieldNode[] {
       description: field.description || '',
       required: Boolean(field.required),
       extension: Boolean(field.extension),
+      effectTag: field.effectTag,
       children: [],
     };
     siblings.push(node);
@@ -69,7 +72,8 @@ export function insertCatalogNode(nodes: SpiFieldNode[], parentId: string | null
   const restored = candidate.extension ? candidate : withoutBusinessFields([candidate])[0];
   const insert = (current: SpiFieldNode[], reference: SpiFieldNode[]) => {
     const next = [...current, restored];
-    return next.sort((a, b) => reference.findIndex((node) => node.id === a.id) - reference.findIndex((node) => node.id === b.id));
+    const position = (id: string) => { const index = reference.findIndex((node) => node.id === id); return index < 0 ? Number.MAX_SAFE_INTEGER : index; };
+    return next.sort((a, b) => position(a.id) - position(b.id));
   };
   if (parentId === null) return nodes.some((node) => node.id === candidate.id) ? nodes : insert(nodes, catalog);
   return updateNodeTree(nodes, parentId, (parent) => ({
@@ -129,16 +133,29 @@ export function validateSpiTree(nodes: SpiFieldNode[]): string | null {
   return check(nodes, '');
 }
 
+export function validateEffectTags(nodes: SpiFieldNode[]): string | null {
+  for (const node of nodes) {
+    if (node.type !== 'Object' && node.type !== 'Array' && !node.effectTag) return `Select an Effect Tag for ${node.name || 'the new field'}.`;
+    const childError = validateEffectTags(node.children);
+    if (childError) return childError;
+  }
+  return null;
+}
+
 function escapeMarkdownCell(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>');
 }
 
-export function spiSchemaToMarkdown(nodes: SpiFieldNode[]): string {
-  const rows = ['| Name | Type | Description |', '| --- | --- | --- |'];
+export function spiSchemaToMarkdown(nodes: SpiFieldNode[], includeEffectTag = false): string {
+  const rows = includeEffectTag
+    ? ['| Name | Type | Effect Tag | Description |', '| --- | --- | --- | --- |']
+    : ['| Name | Type | Description |', '| --- | --- | --- |'];
   const visit = (items: SpiFieldNode[], depth: number) => {
     items.forEach((node) => {
       const name = `${'&nbsp;'.repeat(depth * 4)}${depth ? '↳ ' : ''}${escapeMarkdownCell(node.name)}`;
-      rows.push(`| ${name} | ${escapeMarkdownCell(node.type)} | ${escapeMarkdownCell(node.description || '-')} |`);
+      rows.push(includeEffectTag
+        ? `| ${name} | ${escapeMarkdownCell(node.type)} | ${escapeMarkdownCell(node.effectTag || '-')} | ${escapeMarkdownCell(node.description || '-')} |`
+        : `| ${name} | ${escapeMarkdownCell(node.type)} | ${escapeMarkdownCell(node.description || '-')} |`);
       visit(node.children, depth + 1);
     });
   };

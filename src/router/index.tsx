@@ -41,6 +41,7 @@ const BusinessTypeDemoDetailPage = lazy(() => import('../pages/basic-info/Busine
 const AbilitySettingsPage = lazy(() => import('../pages/basic-info/AbilitySettingsPage'));
 const ServiceFieldMappingPage = lazy(() => import('../pages/basic-info/ServiceFieldMappingPage'));
 const ServiceApiPage = lazy(() => import('../pages/basic-info/ServiceApiPage'));
+const ServiceApiSharedPage = lazy(() => import('../pages/basic-info/ServiceApiPage').then((module) => ({ default: module.ServiceApiSharedPage })));
 const ServiceApiLimitPage = lazy(() => import('../pages/basic-info/ServiceApiLimitPage'));
 const StateMachineListPage = lazy(() => import('../pages/basic-info/capability/StateMachineListPage'));
 const LinkStateMachinePage = lazy(() => import('../pages/basic-info/capability/LinkStateMachinePage'));
@@ -117,6 +118,7 @@ const router = createHashRouter(
 [
   { index: true, element: <Navigate to="/home" replace /> },
   { path: '/home', element: <HomePage /> },
+  { path: '/shared/service-api', element: <ServiceApiSharedPage /> },
   { path: '/operation-config', element: <ComingSoonPage title="Operation Config" /> },
   { path: '/channel', element: <Navigate to="/channel-integration" replace /> },
   { path: '/actions', element: <ComingSoonPage title="Action Library" /> },
