@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Alert, Breadcrumb, Button, Input, Select, Tag, Typography } from 'antd';
+import { Alert, Breadcrumb, Button, Input, Modal, Tag, Typography } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { LeftOutlined } from '@ant-design/icons';
+import { ExclamationCircleOutlined, LeftOutlined } from '@ant-design/icons';
 import './CapabilitySpiPage.css';
 import { isSubOrderModeEnabled } from './subOrderModeStore';
 import { getDemoReturnUrl } from '../demoNavigation';
+import SpiSchemaTree from './SpiSchemaTree';
+import { fieldsToTree, validateSpiTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
 
 const { Title } = Typography;
 
@@ -88,42 +90,6 @@ const CONFIG_SPI: SpiDefinition = {
     { name: 'sender', type: 'String', description: '发送人', depth: 1, required: true, extension: true },
     { name: 'sendTime', type: 'String', description: '发送时间', depth: 1, required: true, extension: true },
     { name: 'deliveryTime', type: 'String', description: '送达时间', depth: 1, required: true, extension: true },
-  ],
-};
-
-const CODE_SPI: SpiDefinition = {
-  method: 'POST',
-  url: '/sms/sendTextMsg',
-  timeout: '15000',
-  subOrderMode: '—',
-  request: [
-    { name: 'route', type: 'Object' },
-    { name: 'countryCode', type: 'String', depth: 1 },
-    { name: 'channel', type: 'String', depth: 1 },
-    { name: 'serviceChannel', type: 'String', depth: 1 },
-    { name: 'tenant', type: 'String', depth: 1 },
-    { name: 'party', type: 'String', depth: 1 },
-    { name: 'institution', type: 'String', depth: 1 },
-    { name: 'capability', type: 'Object' },
-    { name: 'businessType', type: 'String', depth: 1 },
-    { name: 'service', type: 'String', depth: 1 },
-    { name: 'action', type: 'String', depth: 1 },
-    { name: 'ability', type: 'String', depth: 1 },
-    { name: 'ppGroupId', type: 'String' },
-    { name: 'tenant', type: 'String' },
-    { name: 'content', type: 'String' },
-    { name: 'from', type: 'String' },
-    { name: 'toList', type: 'String', description: '数组，短信发送目标列表' },
-    { name: 'channelConfigRequest', type: 'Object' },
-    { name: 'sender', type: 'String', depth: 1 },
-    { name: 'account', type: 'String', depth: 1 },
-    { name: 'routeOrderId', type: 'Long', depth: 1 },
-  ],
-  response: [
-    { name: 'bulkId', type: 'String' },
-    { name: 'routeOrderId', type: 'String' },
-    { name: 'tenant', type: 'String' },
-    { name: 'toListSendResult', type: 'String', description: '数组，短信发送结果' },
   ],
 };
 
@@ -333,39 +299,42 @@ const DEFAULT_DEMO_PROFILE: DemoSpiProfile = {
   ],
 };
 
+// Explicit Action SPI catalogs can differ even within one Business Type. The
+// Business Type examples below remain a Demo fallback until more catalogs are provided.
+const CONTEXT_DEMO_SPI_PROFILES: Record<string, DemoSpiProfile> = {
+  'SMS/SINGLE_MESSAGE/TRANSACTION': {
+    request: CONFIG_SPI.request.slice(-2),
+    response: CONFIG_SPI.response.slice(-3),
+  },
+  'SMS/BULK_MESSAGE/TRANSACTION': {
+    request: BULK_REQUEST_FIELDS,
+    response: CONFIG_SPI.response.slice(-3),
+  },
+};
+
+const getDemoProfile = (businessType: string, ability: string, action: string) =>
+  CONTEXT_DEMO_SPI_PROFILES[`${businessType}/${ability}/${action}`]
+  || DEMO_SPI_PROFILES[businessType]
+  || DEFAULT_DEMO_PROFILE;
+
 const buildDemoUrl = (businessType: string, ability: string, action: string) =>
   `/api/${businessType.toLowerCase().replaceAll('_', '-')}/${ability.toLowerCase().replaceAll('_', '-')}/${action.toLowerCase().replaceAll('_', '-')}`;
 
-function FieldTable({ fields, editable }: { fields: SpiField[]; editable: boolean }) {
-  return (
-    <div className="capability-spi-field-table" role="table">
-      <div className="capability-spi-field-header" role="row">
-        <span role="columnheader">SPI</span>
-        <span role="columnheader">Field Type</span>
-        <span role="columnheader">Description</span>
-      </div>
-      {fields.map((field, index) => {
-        const showControls = editable || field.extension;
-        return (
-          <div className="capability-spi-field-row" role="row" key={`${field.name}-${index}`}>
-            <div className="capability-spi-field-name" role="cell" style={{ paddingLeft: 10 + (field.depth || 0) * 22 }}>
-              {showControls ? <Input value={field.name} disabled aria-label={`${field.name} field name`} /> : field.name}
-              {field.required && <span className="capability-spi-required" aria-label="required">*</span>}
-            </div>
-            <div role="cell">
-              {showControls ? (
-                <Select value={field.type} disabled aria-label={`${field.name} field type`} options={[{ value: field.type, label: field.type }]} />
-              ) : field.type}
-            </div>
-            <div role="cell">
-              <Input value={field.description || ''} disabled aria-label={`${field.name} description`} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+interface SavedSpiConfig {
+  method: string;
+  url: string;
+  timeout: string;
+  description: string;
+  request: SpiFieldNode[];
+  response: SpiFieldNode[];
 }
+
+
+const SPI_DEMO_STORAGE_KEY = 'basic-info-config-spi-demo-v1';
+const readSavedSpiConfigs = (): Record<string, SavedSpiConfig> => {
+  try { return JSON.parse(localStorage.getItem(SPI_DEMO_STORAGE_KEY) || '{}') as Record<string, SavedSpiConfig>; }
+  catch { return {}; }
+};
 
 interface CapabilitySpiPageProps {
   embedded?: boolean;
@@ -379,6 +348,10 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [tab, setTab] = useState<SpiTab>('config');
+  const [savedConfigs, setSavedConfigs] = useState<Record<string, SavedSpiConfig>>(readSavedSpiConfigs);
+  const [draft, setDraft] = useState<SavedSpiConfig | null>(null);
+  const [draftKey, setDraftKey] = useState<string | null>(null);
+  const [timeoutError, setTimeoutError] = useState(false);
   const businessType = context.businessType || searchParams.get('bt') || 'SMS';
   const ability = context.ability || searchParams.get('ability') || 'SINGLE_MESSAGE';
   const action = context.action || searchParams.get('action') || 'TRANSACTION';
@@ -386,35 +359,61 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
   const backUrl = demoReturnUrl || `/basic-info/capability?bt=${encodeURIComponent(businessType)}&ability=${encodeURIComponent(ability)}`;
   const activeTab = embedded && context.spiType ? context.spiType : tab;
   const subOrderEnabled = isSubOrderModeEnabled(businessType, ability);
-  const isBulkSms = businessType === 'SMS' && ability === 'BULK_MESSAGE' && action === 'TRANSACTION';
-  const demoProfile = DEMO_SPI_PROFILES[businessType] || DEFAULT_DEMO_PROFILE;
+  const demoProfile = getDemoProfile(businessType, ability, action);
   const configRequestBase = CONFIG_SPI.request.slice(0, -2);
   const configResponseBase = CONFIG_SPI.response.slice(0, -3);
-  const definition: SpiDefinition = activeTab === 'config'
-    ? {
-        ...CONFIG_SPI,
-        url: buildDemoUrl(businessType, ability, action),
-        description: `Demo Sample: ${businessType} / ${ability} / ${action}`,
-        subOrderMode: subOrderEnabled ? 'Enabled' : 'Disabled',
-        request: [
-          ...configRequestBase,
-          ...(isBulkSms ? BULK_REQUEST_FIELDS : demoProfile.request),
-          ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : []),
-        ],
-        response: [
-          ...configResponseBase,
-          ...(!isBulkSms ? demoProfile.response : []),
-          ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : []),
-        ],
-      }
-    : {
-        ...CODE_SPI,
-        url: buildDemoUrl(businessType, ability, action).replace('/api/', '/code/'),
-        description: `Demo Sample: ${businessType} / ${ability} / ${action}`,
-        subOrderMode: subOrderEnabled ? 'Enabled' : 'Disabled',
-        request: [...CODE_SPI.request, ...demoProfile.request, ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : [])],
-        response: [...CODE_SPI.response, ...demoProfile.response, ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : [])],
-      };
+  const definition: SpiDefinition = {
+    ...CONFIG_SPI,
+    url: buildDemoUrl(businessType, ability, action),
+    subOrderMode: subOrderEnabled ? 'Enabled' : 'Disabled',
+    request: [...configRequestBase, ...demoProfile.request, ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : [])],
+    response: [...configResponseBase, ...demoProfile.response, ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : [])],
+  };
+  // Config and Code are independent contracts for the same BT + Ability + Action.
+  const spiKey = JSON.stringify([businessType, ability, action, activeTab]);
+  const editing = draft !== null && draftKey === spiKey;
+  const requestCatalog = activeTab === 'config' ? fieldsToTree(definition.request) : [];
+  const responseCatalog = activeTab === 'config' ? fieldsToTree(definition.response) : [];
+  const saved = savedConfigs[spiKey];
+  const initial: SavedSpiConfig = {
+    method: activeTab === 'config' ? definition.method : '',
+    url: activeTab === 'config' ? definition.url : '',
+    timeout: '', description: '',
+    request: activeTab === 'config' ? withoutBusinessFields(requestCatalog) : [],
+    response: activeTab === 'config' ? withoutBusinessFields(responseCatalog) : [],
+  };
+  const visibleConfig: SavedSpiConfig = {
+    ...initial, ...saved, ...(editing ? draft : {}),
+    ...(activeTab === 'config' ? { method: definition.method, url: definition.url } : {}),
+  };
+  const timeoutValue = visibleConfig.timeout.trim();
+  const timeoutValid = /^\d+$/.test(timeoutValue) && Number(timeoutValue) > 0 && Number.isSafeInteger(Number(timeoutValue));
+  const methodValid = Boolean(visibleConfig.method.trim());
+  const urlValid = Boolean(visibleConfig.url.trim());
+  const schemaError = validateSpiTree(visibleConfig.request) || validateSpiTree(visibleConfig.response);
+  const submit = () => {
+    if (!editing || !draft) return;
+    if (!methodValid || !urlValid || !timeoutValid || schemaError) {
+      setTimeoutError(true);
+      return;
+    }
+    const next = { ...savedConfigs, [spiKey]: { ...draft, method: visibleConfig.method.trim(), url: visibleConfig.url.trim(), timeout: timeoutValue } };
+    setSavedConfigs(next);
+    localStorage.setItem(SPI_DEMO_STORAGE_KEY, JSON.stringify(next));
+    setDraft(null);
+    setDraftKey(null);
+    setTimeoutError(false);
+  };
+  const cancel = () => { setDraft(null); setDraftKey(null); setTimeoutError(false); };
+  const confirmCancel = () => Modal.confirm({
+    title: 'Are you sure you want to cancel? All entered content will be lost.',
+    icon: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
+    okText: 'Confirm',
+    okButtonProps: { danger: true, ghost: true },
+    cancelText: 'Cancel',
+    onOk: cancel,
+  });
+  const updateDraft = (changes: Partial<SavedSpiConfig>) => setDraft((current) => current && draftKey === spiKey ? { ...current, ...changes } : current);
 
   return (
     <div className={`capability-spi-page ${embedded ? 'capability-spi-embedded' : ''}`}>
@@ -441,20 +440,20 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
 
       {!embedded && (
         <div className="capability-spi-tabs" role="tablist" aria-label="SPI type">
-          <button type="button" role="tab" aria-selected={tab === 'config'} className={tab === 'config' ? 'active' : ''} onClick={() => setTab('config')}>Config SPI</button>
-          <button type="button" role="tab" aria-selected={tab === 'code'} className={tab === 'code' ? 'active' : ''} onClick={() => setTab('code')}>Code SPI</button>
+          <button type="button" role="tab" aria-selected={tab === 'config'} className={tab === 'config' ? 'active' : ''} onClick={() => { cancel(); setTab('config'); }}>Config SPI</button>
+          <button type="button" role="tab" aria-selected={tab === 'code'} className={tab === 'code' ? 'active' : ''} onClick={() => { cancel(); setTab('code'); }}>Code SPI</button>
         </div>
       )}
 
-      <main className="capability-spi-panel">
+      <main className={`capability-spi-panel ${editing ? 'editing' : ''}`}>
         <div className="capability-spi-toolbar">
           <div className="capability-spi-context">
-            <span><strong>Business Type:</strong>{businessType}</span>
-            <span><strong>Ability:</strong>{ability}</span>
-            <span><strong>Action:</strong>{action}</span>
-            <span><strong>Sub-Order Mode:</strong><Tag color="blue">{definition.subOrderMode}</Tag></span>
+            <div><span>Business Type</span><strong>{businessType}</strong></div>
+            <div><span>Ability</span><strong>{ability}</strong></div>
+            <div><span>Action</span><strong>{action}</strong></div>
+            <div><span>Sub-order Mode</span><Tag color="blue">{definition.subOrderMode}</Tag></div>
           </div>
-          <Button type="primary">Config</Button>
+          {!editing && <Button type="primary" onClick={() => { setDraft({ ...visibleConfig }); setDraftKey(spiKey); setTimeoutError(false); }}>Config</Button>}
         </div>
 
         {subOrderEnabled && (
@@ -464,41 +463,30 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
             showIcon
             message={(
               <span>
-                Sub-Order Mode is enabled. To store any business information in the sub-order, please add new fields in the sub-order&apos;s <code>extra</code> block. <code>featureValue</code> is the sub-order feature identifier — please map fields such as phone number, email address, or WhatsApp account to it.
+                {activeTab === 'config'
+                  ? <>Sub-Order Mode is enabled. To store business information in the sub-order, add fields in the sub-order&apos;s <code>extra</code> block. <code>featureValue</code> is the sub-order feature identifier.</>
+                  : <>Sub-Order Mode is enabled. Code SPI starts empty; define its request and response fields according to the contract needed by this Action.</>}
               </span>
             )}
           />
         )}
 
-        <div className="capability-spi-meta">
-          <div className={`capability-spi-meta-item ${activeTab === 'code' ? 'capability-spi-input-item' : ''}`}>
-            <span className="required-label">Method:</span>
-            {activeTab === 'code' ? <Input value={definition.method} disabled /> : <strong>{definition.method}</strong>}
+        <section className="capability-spi-interface" aria-label="SPI interface details">
+          <div className="capability-spi-interface-title">Interface details <span>{editing ? 'Editing' : 'Overview'}</span></div>
+          <div className="capability-spi-meta">
+            <div className="capability-spi-meta-item"><span className="required-label">Method</span>{editing && activeTab === 'code' ? <Input value={visibleConfig.method} placeholder="Enter method" onChange={(event) => updateDraft({ method: event.target.value })} /> : <strong>{visibleConfig.method || 'Not configured'}</strong>}</div>
+            <div className="capability-spi-meta-item"><span className="required-label">URL</span>{editing && activeTab === 'code' ? <Input value={visibleConfig.url} placeholder="Enter URL path" onChange={(event) => updateDraft({ url: event.target.value })} /> : <code>{visibleConfig.url || 'Not configured'}</code>}</div>
+            <div className="capability-spi-meta-item"><span className="required-label">Timeout</span>
+              {editing ? <div className="capability-spi-timeout-control"><Input value={visibleConfig.timeout} status={timeoutError || (timeoutValue !== '' && !timeoutValid) ? 'error' : undefined} inputMode="numeric" addonAfter="ms" placeholder="Enter timeout" onChange={(event) => { updateDraft({ timeout: event.target.value }); setTimeoutError(false); }} />{!timeoutValid && <span role="alert">{timeoutValue ? 'Enter a positive whole number of milliseconds.' : 'Timeout is required before Submit.'}</span>}</div> : <strong>{visibleConfig.timeout ? `${visibleConfig.timeout} ms` : 'Not configured'}</strong>}
+            </div>
+            <div className="capability-spi-meta-item"><span>Description</span>{editing ? <Input value={visibleConfig.description} placeholder="Optional description" onChange={(event) => updateDraft({ description: event.target.value })} /> : <strong>{visibleConfig.description || '—'}</strong>}</div>
           </div>
-          <div className={`capability-spi-meta-item ${activeTab === 'code' ? 'capability-spi-input-item' : ''}`}>
-            <span className="required-label">URL:</span>
-            {activeTab === 'code' ? <Input value={definition.url} disabled /> : <strong>{definition.url}</strong>}
-          </div>
-          <div className="capability-spi-meta-item capability-spi-input-item">
-            <span className="required-label">Timeout:</span>
-            <Input value={definition.timeout} disabled addonAfter="ms" />
-          </div>
-          <div className="capability-spi-meta-item capability-spi-input-item">
-            <span>Description:</span>
-            <Input value={definition.description || ''} disabled />
-          </div>
-        </div>
-
-        <section className="capability-spi-section">
-          <h2>Request Params</h2>
-          <FieldTable fields={definition.request} editable={activeTab === 'code'} />
         </section>
 
-        <section className="capability-spi-section">
-          <h2>Response Params</h2>
-          <FieldTable fields={definition.response} editable={activeTab === 'code'} />
-        </section>
+        <SpiSchemaTree key={`${spiKey}-request`} title="Request Params" fields={visibleConfig.request} catalog={requestCatalog} customRoot={activeTab === 'code'} editing={editing} onChange={(request) => updateDraft({ request })} />
+        <SpiSchemaTree key={`${spiKey}-response`} title="Response Params" fields={visibleConfig.response} catalog={responseCatalog} customRoot={activeTab === 'code'} editing={editing} onChange={(response) => updateDraft({ response })} />
       </main>
+      {editing && <footer className="capability-spi-edit-footer">{schemaError && <span className="capability-spi-submit-error" role="alert">{schemaError}</span>}<Button onClick={confirmCancel}>Cancel</Button><Button type="primary" disabled={!methodValid || !urlValid || !timeoutValid || Boolean(schemaError)} onClick={submit}>Submit</Button></footer>}
     </div>
   );
 }

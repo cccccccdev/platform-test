@@ -267,6 +267,151 @@
   color: #ff4d4f;
 }
 
+.capability-spi-panel.editing { padding-bottom: 94px; }
+.capability-spi-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.capability-spi-section-head h2 { margin: 0; }
+.capability-spi-section-tools { display: flex; align-items: center; gap: 8px; }
+.capability-spi-tree-header,
+.capability-spi-tree-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(100px, .45fr) minmax(210px, 1fr) 86px;
+  align-items: center;
+  gap: 8px;
+  min-width: 650px;
+}
+.capability-spi-tree-header {
+  min-height: 42px;
+  border-bottom: 1px solid #e8e8e8;
+  color: #30343a;
+  font-weight: 600;
+}
+.capability-spi-tree-header > span,
+.capability-spi-tree-row > div { min-width: 0; padding: 6px 10px; }
+.capability-spi-tree-row { min-height: 42px; border-bottom: 1px solid #ececec; }
+.capability-spi-tree-row.container { background: #faf9fc; }
+.capability-spi-tree-name { display: flex; align-items: center; gap: 6px; overflow: hidden; white-space: nowrap; }
+.capability-spi-tree-name > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
+.capability-spi-tree-toggle {
+  border: 0;
+  background: transparent;
+  color: #5c626e;
+  cursor: pointer;
+  padding: 4px;
+  flex: none;
+}
+.capability-spi-tree-toggle-spacer { width: 22px; flex: none; }
+.capability-spi-tree-actions { display: flex; justify-content: flex-end; gap: 2px; }
+.capability-spi-description { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capability-spi-empty { padding: 20px; color: #8b9098; }
+.capability-spi-add-note { color: #6a707a; font-size: 13px; }
+.capability-spi-timeout-control { flex: 1; min-width: 0; }
+.capability-spi-timeout-control > span { display: block; margin-top: 4px; color: #ff4d4f; font-size: 12px; }
+.capability-spi-edit-footer {
+  position: fixed;
+  left: 202px;
+  right: 0;
+  bottom: 0;
+  z-index: 19;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 30px;
+  border-top: 1px solid #e8e8e8;
+  background: #fff;
+  box-shadow: 0 -5px 18px rgb(28 12 42 / 5%);
+}
+.capability-spi-edit-footer .ant-btn-primary:not(:disabled) { background: var(--legacy-purple); }
+.capability-spi-edit-footer .ant-btn-primary:disabled,
+.capability-spi-edit-footer .ant-btn-primary:disabled:hover {
+  border-color: #d9d9d9;
+  background: #f5f5f5;
+  color: rgb(0 0 0 / 25%);
+  box-shadow: none;
+}
+
+/* Match the HTTP Body schema editor's compact grid and tree controls. */
+.capability-spi-toolbar { align-items: center; gap: 16px; margin-bottom: 18px; }
+.capability-spi-context {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, auto));
+  justify-content: start;
+  align-items: center;
+  gap: 16px 30px;
+  flex: 1;
+}
+.capability-spi-context > div { display: grid; gap: 4px; min-width: 0; }
+.capability-spi-context > div > span:first-child { color: #8b9098; font-size: 11px; }
+.capability-spi-context strong { margin: 0; color: #262a31; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capability-spi-context .ant-tag { width: fit-content; }
+.capability-spi-interface { margin: 0 0 26px; border: 1px solid #e8e8e8; border-radius: 8px; background: #fff; overflow: hidden; }
+.capability-spi-interface-title { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid #e8e8e8; background: #fafafa; color: #343941; font-size: 13px; font-weight: 600; }
+.capability-spi-interface-title span { color: #8b9098; font-size: 11px; font-weight: 400; }
+.capability-spi-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; margin: 0; }
+.capability-spi-meta-item { display: grid; align-content: start; gap: 7px; min-height: 76px; padding: 14px 16px; border-right: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0; }
+.capability-spi-meta-item:nth-child(2n) { border-right: 0; }
+.capability-spi-meta-item:nth-last-child(-n + 2) { border-bottom: 0; }
+.capability-spi-meta-item > span:first-child { color: #767d87; font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.capability-spi-meta-item strong, .capability-spi-meta-item code { min-width: 0; overflow: hidden; color: #30343a; font-size: 13px; font-weight: 500; line-height: 24px; text-overflow: ellipsis; white-space: nowrap; }
+.capability-spi-meta-item code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.capability-spi-meta-item .ant-input, .capability-spi-meta-item .ant-input-group-wrapper { width: 100%; }
+.capability-spi-schema-frame { border: 1px solid #e8e8e8; border-radius: 8px; background: #fff; overflow: hidden; }
+.capability-spi-section-head { min-height: 54px; margin: 0; padding: 8px 12px; border-bottom: 1px solid #e8e8e8; background: #fff; }
+.capability-spi-section-head h2 { font-size: 13px; }
+.capability-spi-section-tools .ant-btn {
+  height: 34px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  color: #30343a;
+}
+.capability-spi-section-tools .ant-btn:hover,
+.capability-spi-section-tools .ant-btn:focus-visible { border-color: #7d2cc8; color: #6814b3; }
+.capability-spi-section-tools .capability-spi-tool-square { width: 34px; padding: 0; font-size: 18px; }
+.capability-spi-section-tools .capability-spi-tool-copy { padding-inline: 11px; font-size: 13px; }
+.capability-spi-tree-scroll { overflow-x: auto; }
+.capability-spi-field-table { min-width: 680px; }
+.capability-spi-tree-header, .capability-spi-tree-root, .capability-spi-tree-row { grid-template-columns: minmax(280px, 1.4fr) 130px minmax(200px, 1fr); gap: 8px; min-width: 680px; }
+.capability-spi-field-table.editing { min-width: 760px; }
+.capability-spi-field-table.editing .capability-spi-tree-header,
+.capability-spi-field-table.editing .capability-spi-tree-root,
+.capability-spi-field-table.editing .capability-spi-tree-row { grid-template-columns: minmax(280px, 1.4fr) 130px minmax(200px, 1fr) 82px; min-width: 760px; }
+.capability-spi-tree-header { min-height: 36px; padding: 0 8px; background: #fcfcfc; color: #8c8c8c; font-size: 11px; font-weight: 500; }
+.capability-spi-tree-header > span { padding: 7px 8px; }
+.capability-spi-tree-root, .capability-spi-tree-row { display: grid; align-items: center; min-height: 44px; padding: 5px 8px; border-bottom: 1px solid #f0f0f0; }
+.capability-spi-tree-root { background: #f5f7ff; }
+.capability-spi-tree-root > div { padding: 0 8px; }
+.capability-spi-tree-root > div:first-child { display: flex; align-items: center; gap: 8px; }
+.capability-spi-tree-root .ant-tag { margin: 0; font-weight: 600; }
+.capability-spi-tree-row.container { background: #fff; }
+.capability-spi-tree-row.dragging { background: #e6f4ff; }
+.capability-spi-tree-row > div { padding: 0 8px; }
+.capability-spi-tree-name { gap: 4px; }
+.capability-spi-tree-name .ant-input, .capability-spi-tree-name .ant-select { min-width: 0; flex: 1; }
+.capability-spi-fixed-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.capability-spi-drag-handle, .capability-spi-drag-spacer { width: 16px; flex: none; }
+.capability-spi-drag-handle { color: #bfbfbf; cursor: grab; }
+.capability-spi-drag-handle:active { cursor: grabbing; }
+.capability-spi-tree-toggle { width: 24px; padding: 2px; }
+.capability-spi-tree-toggle-spacer { width: 24px; }
+.capability-spi-tree-actions { gap: 0; }
+.capability-spi-delete-confirm-button.ant-btn-primary,
+.capability-spi-delete-confirm-button.ant-btn-primary:hover { border-color: var(--legacy-purple); background: var(--legacy-purple); box-shadow: none; }
+.capability-spi-copy-caret { margin-left: 3px; font-size: 10px; }
+.capability-spi-submit-error { margin-right: auto; align-self: center; color: #ff4d4f; font-size: 12px; }
+@media (max-width: 920px) {
+  .capability-spi-context { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .capability-spi-meta { grid-template-columns: 1fr; }
+  .capability-spi-meta-item { border-right: 0; }
+  .capability-spi-meta-item:nth-last-child(2) { border-bottom: 1px solid #f0f0f0; }
+}
+
 @media (max-width: 900px) {
   .capability-spi-panel {
     margin-inline: 12px;
