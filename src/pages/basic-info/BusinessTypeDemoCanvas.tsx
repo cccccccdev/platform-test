@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AutoComplete, Button, Form, Input, Modal, Radio, Select, Tag, Typography, message } from 'antd';
-import { ArrowRightOutlined, DownOutlined, PlusOutlined, SettingOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, DownOutlined, PlusOutlined, SettingOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useCapabilityDataStore, type AbilityItem, type BusinessTypeItem } from './capabilityDataStore';
 import { SERVICE_MODEL_OPTIONS, type ServiceActionRecord, type ServiceRecord, type ServiceRunModel } from './serviceReferenceData';
@@ -37,15 +37,17 @@ function operationTimeNow() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 }
 
-export default function BusinessTypeDemoCanvas({ businessType, services, abilityGroup, connections, focus, collapsedServices, collapsedAbilities, onSelect }: {
+export default function BusinessTypeDemoCanvas({ businessType, services, abilityGroup, connections, focus, showAllActions, onToggleAllActions, collapsedServices, collapsedAbilities, onSelect }: {
   businessType: string;
   services: ServiceRecord[];
   abilityGroup?: BusinessTypeItem;
   connections: ServiceAbilityConnection[];
   focus: Focus;
+  showAllActions: boolean;
+  onToggleAllActions: () => void;
   collapsedServices: string[];
   collapsedAbilities: string[];
-  onSelect: (kind: Kind, name: string, mode?: 'toggle' | 'focus') => void;
+  onSelect: (kind: Kind, name: string, mode?: 'toggle' | 'focus' | 'inspect') => void;
 }) {
   const navigate = useNavigate();
   const setActionModel = useServiceStore((state) => state.setActionModel);
@@ -82,12 +84,12 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
   const abilityRailRef = useRef<HTMLElement>(null);
   const [geometry, setGeometry] = useState<{ width: number; height: number; coarse: Point[]; fine: Point[] }>({ width: 220, height: 60, coarse: [], fine: [] });
 
-  const expandedService = (name: string) => Boolean(focus && !collapsedServices.includes(name) && (focus.kind === 'service'
+  const expandedService = (name: string) => showAllActions || (!collapsedServices.includes(name) && Boolean(focus && (focus.kind === 'service'
     ? focus.name === name
-    : connections.some((connection) => connection.service === name && connection.ability === focus.name)));
-  const expandedAbility = (name: string) => Boolean(focus && !collapsedAbilities.includes(name) && (focus.kind === 'ability'
+    : connections.some((connection) => connection.service === name && connection.ability === focus.name))));
+  const expandedAbility = (name: string) => showAllActions || (!collapsedAbilities.includes(name) && Boolean(focus && (focus.kind === 'ability'
     ? focus.name === name
-    : connections.some((connection) => connection.ability === name && connection.service === focus.name)));
+    : connections.some((connection) => connection.ability === name && connection.service === focus.name))));
   const collapsedKey = `${collapsedServices.join('\0')}|${collapsedAbilities.join('\0')}`;
 
   useLayoutEffect(() => {
@@ -129,9 +131,9 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
     observer.observe(abilityRail);
     window.addEventListener('resize', measure);
     return () => { observer.disconnect(); window.removeEventListener('resize', measure); cancelAnimationFrame(frame); };
-  }, [businessType, connections, focus, mappings, collapsedKey]);
+  }, [businessType, connections, focus, mappings, collapsedKey, showAllActions]);
 
-  useEffect(() => { setHoveredAction(null); setHoveredMappingKey(null); }, [focus, collapsedKey]);
+  useEffect(() => { setHoveredAction(null); setHoveredMappingKey(null); }, [focus, collapsedKey, showAllActions]);
 
   const saveService = async () => {
     try {
@@ -222,7 +224,9 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
     .sort((left, right) => left.localeCompare(right))
     .map((name) => ({ label: name, value: name }));
 
-  const routeQuery = (kind: Kind, name: string) => demoFocusQuery(focus?.kind || kind, focus?.name || name);
+  const routeQuery = (kind: Kind, name: string) => showAllActions && !focus
+    ? { demoActionView: 'all' }
+    : demoFocusQuery(focus?.kind || kind, focus?.name || name, showAllActions ? 'all' : undefined);
   const openServiceAction = (route: 'api' | 'api-limit', service: string, action: string) => navigate(`/basic-info/service/${route}?${new URLSearchParams({ bt: businessType, service, action, ...routeQuery('service', service) })}`);
   const openSpi = (ability: string, action: string) => navigate(`/basic-info/capability/spi?${new URLSearchParams({ bt: businessType, ability, action, ...routeQuery('ability', ability) })}`);
   const openAbilitySettings = (ability: string) => navigate(`/basic-info/demo/ability-settings?${new URLSearchParams({ bt: businessType, ability, ...routeQuery('ability', ability) })}`);
@@ -233,7 +237,8 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
     setSelectedModel(undefined);
     message.success('Model configured');
   };
-  const visibleMapping = (mapping: ActionMapping) => expandedService(mapping.service) && expandedAbility(mapping.ability);
+  const visibleMapping = (mapping: ActionMapping) => expandedService(mapping.service) && expandedAbility(mapping.ability)
+    && (!showAllActions || Boolean(focus && (focus.kind === 'service' ? mapping.service === focus.name : mapping.ability === focus.name)));
   const openAddMapping = () => setConnectionDraft({
     service: focus?.kind === 'service' ? focus.name : undefined,
     ability: focus?.kind === 'ability' ? focus.name : undefined,
@@ -260,11 +265,18 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
 
   const renderService = (service: ServiceRecord) => {
     const expanded = expandedService(service.name);
+    const focused = focus?.kind === 'service' && focus.name === service.name;
     const related = connections.filter((connection) => connection.service === service.name);
-    return <article className={`bt-demo-expand-node ${expanded ? 'expanded' : ''}`} data-demo-kind="service" data-demo-name={service.name} key={service.key}>
-      <button type="button" className={`bt-demo-node ${related.length ? 'mapped' : 'unmapped'}`} aria-expanded={expanded} onClick={() => onSelect('service', service.name)}>
-        <span><span className="bt-demo-node-name">{service.name}</span><span className="bt-demo-node-meta">{related.length ? `${related.length} mapped ${related.length === 1 ? 'Ability' : 'Abilities'}` : 'No mapping'}</span></span><DownOutlined className="bt-demo-expand-chevron" />
-      </button>
+    const mappingActive = focused || Boolean(focus?.kind === 'ability' && related.some((connection) => connection.ability === focus.name));
+    return <article className={`bt-demo-expand-node ${expanded ? 'expanded' : ''} ${focused ? 'focused' : ''} ${mappingActive ? 'mapping-active' : ''}`} data-demo-kind="service" data-demo-name={service.name} key={service.key}>
+      <div className="bt-demo-service-node-header">
+        <button type="button" className={`bt-demo-node ${related.length ? 'mapped' : 'unmapped'}`} aria-expanded={showAllActions ? undefined : expanded} aria-pressed={showAllActions ? focused : undefined}
+          onClick={() => onSelect('service', service.name, showAllActions ? 'inspect' : 'toggle')}>
+          <span><span className="bt-demo-node-name">{service.name}</span><span className="bt-demo-node-meta">{related.length ? `${related.length} mapped ${related.length === 1 ? 'Ability' : 'Abilities'}` : 'No mapping'}</span></span>
+        </button>
+        {!showAllActions && <button type="button" className="bt-demo-service-expand-entry" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${service.name}`} aria-expanded={expanded}
+          onClick={() => onSelect('service', service.name)}><DownOutlined className="bt-demo-expand-chevron" /></button>}
+      </div>
       <div className="bt-demo-expand-reveal"><div className="bt-demo-expand-content">
         {service.actions.length ? service.actions.map((action) => <div className="bt-demo-focus-action" data-demo-action={action.name} key={action.key}
           onMouseEnter={() => setHoveredAction({ kind: 'service', name: service.name, action: action.name })} onMouseLeave={() => setHoveredAction(null)}>
@@ -280,14 +292,17 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
   };
   const renderAbility = (ability: AbilityItem) => {
     const expanded = expandedAbility(ability.name);
+    const focused = focus?.kind === 'ability' && focus.name === ability.name;
     const related = connections.filter((connection) => connection.ability === ability.name);
+    const mappingActive = focused || Boolean(focus?.kind === 'service' && related.some((connection) => connection.service === focus.name));
     const summary = related.length ? `${related.length} mapped ${related.length === 1 ? 'Service' : 'Services'}` : 'No mapping';
-    return <article className={`bt-demo-expand-node ${expanded ? 'expanded' : ''}`} data-demo-kind="ability" data-demo-name={ability.name} key={ability.key}>
+    return <article className={`bt-demo-expand-node ${expanded ? 'expanded' : ''} ${focused ? 'focused' : ''} ${mappingActive ? 'mapping-active' : ''}`} data-demo-kind="ability" data-demo-name={ability.name} key={ability.key}>
       <div className="bt-demo-ability-node-header">
-        <button type="button" className={`bt-demo-node ${related.length ? 'mapped' : 'unmapped'}`} aria-expanded={expanded} onClick={() => onSelect('ability', ability.name)}>
+        <button type="button" className={`bt-demo-node ${related.length ? 'mapped' : 'unmapped'}`} aria-expanded={showAllActions ? undefined : expanded} aria-pressed={showAllActions ? focused : undefined}
+          onClick={() => onSelect('ability', ability.name, showAllActions ? 'inspect' : 'toggle')}>
           <span><span className="bt-demo-node-name">{ability.name}</span><span className="bt-demo-node-meta" title={summary}>{summary}</span></span>
         </button>
-        <button type="button" className="bt-demo-ability-expand-entry" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${ability.name}`} aria-expanded={expanded} onClick={() => onSelect('ability', ability.name)}><DownOutlined className="bt-demo-expand-chevron" /></button>
+        {!showAllActions && <button type="button" className="bt-demo-ability-expand-entry" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${ability.name}`} aria-expanded={expanded} onClick={() => onSelect('ability', ability.name)}><DownOutlined className="bt-demo-expand-chevron" /></button>}
         <button type="button" className="bt-demo-ability-settings-entry" aria-label={`Configure ${ability.name}`} title="Configure Capability" onClick={() => openAbilitySettings(ability.name)}><SettingOutlined /></button>
       </div>
       <div className="bt-demo-expand-reveal"><div className="bt-demo-expand-content">
@@ -301,15 +316,20 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
   };
 
   return <>
-    <div className="bt-demo-mapping-toolbar"><div className="bt-demo-column-headings">
+    <div className="bt-demo-mapping-toolbar"><div className="bt-demo-view-actions">
+      <Button icon={<UnorderedListOutlined />} className={showAllActions ? 'active' : ''} aria-pressed={showAllActions} onClick={onToggleAllActions}>
+        {showAllActions ? 'Hide all Actions' : 'Show all Actions'}
+      </Button>
+      <Button icon={<PlusOutlined />} onClick={openAddMapping} disabled={!services.length || !abilities.length}>Add mapping</Button>
+    </div><div className="bt-demo-column-headings">
       <div className="bt-demo-column-title"><span>Service</span><Button size="small" icon={<PlusOutlined />} onClick={() => { serviceForm.resetFields(); setAddServiceOpen(true); }}>Add Service</Button></div>
       <span>{focus ? 'Action mapping · click ↗' : 'Service → Capability'}</span>
       <div className="bt-demo-column-title"><span>Ability</span><Button size="small" icon={<PlusOutlined />} onClick={() => { abilityForm.resetFields(); abilityForm.setFieldValue('direction', 'Outbound'); setAddAbilityOpen(true); }}>Add Capability</Button></div>
-    </div><Button icon={<PlusOutlined />} onClick={openAddMapping} disabled={!services.length || !abilities.length}>Add mapping</Button></div>
+    </div></div>
     <div className="bt-demo-diagram bt-demo-inline-diagram" ref={diagramRef}>
       <section className="bt-demo-rail" ref={serviceRailRef} aria-label="Services">{services.length ? services.map(renderService) : <div className="bt-demo-rail-empty">No Service</div>}</section>
       <div className="bt-demo-connection-canvas bt-demo-inline-canvas" style={{ height: geometry.height }}>
-        {connections.length ? <svg viewBox={`0 0 ${geometry.width} ${geometry.height}`} role="img" aria-label={focus ? 'Action mappings' : 'Service and Ability connections'}>
+        {connections.length ? <svg viewBox={`0 0 ${geometry.width} ${geometry.height}`} role="img" aria-label={focus ? 'Action mappings for the selected card' : 'Service and Ability connections'}>
           <defs>
             <marker id="bt-demo-inline-arrow-end" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0 0 L6 3.5 L0 7" fill="none" stroke="currentColor" strokeWidth="1.5" /></marker>
             <marker id="bt-demo-pair-arrow-end" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto"><path d="M0 0 L6 3.5 L0 7" fill="none" stroke="#a99ab3" strokeWidth="1.3" /></marker>

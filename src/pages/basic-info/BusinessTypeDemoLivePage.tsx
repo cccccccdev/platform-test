@@ -21,11 +21,26 @@ export default function BusinessTypeDemoLivePage() {
   const name = searchParams.get('focusName');
   const focus: { kind: 'service' | 'ability'; name: string } | null = kind === 'service' && name && services.some((service) => service.name === name) ? { kind, name }
     : kind === 'ability' && name && abilityGroup?.abilities.some((ability) => ability.name === name) ? { kind, name } : null;
+  const showAllActions = searchParams.get('actionView') === 'all';
   const collapsedServices = searchParams.getAll('collapsedService');
   const collapsedAbilities = searchParams.getAll('collapsedAbility');
 
-  const select = (selectedKind: 'service' | 'ability', selectedName: string, mode: 'toggle' | 'focus' = 'toggle') => {
+  const select = (selectedKind: 'service' | 'ability', selectedName: string, mode: 'toggle' | 'focus' | 'inspect' = 'toggle') => {
     const isAnchor = focus?.kind === selectedKind && focus.name === selectedName;
+    if (showAllActions) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('collapsedService');
+      next.delete('collapsedAbility');
+      if (mode === 'inspect' && isAnchor) {
+        next.delete('focusKind');
+        next.delete('focusName');
+      } else {
+        next.set('focusKind', selectedKind);
+        next.set('focusName', selectedName);
+      }
+      setSearchParams(next);
+      return;
+    }
     const isRelated = Boolean(focus && connections.some((connection) => selectedKind === 'service'
       ? focus.kind === 'ability' && focus.name === connection.ability && selectedName === connection.service
       : focus.kind === 'service' && focus.name === connection.service && selectedName === connection.ability));
@@ -46,13 +61,18 @@ export default function BusinessTypeDemoLivePage() {
     setSearchParams(new URLSearchParams({ bt: businessType, focusKind: selectedKind, focusName: selectedName }));
   };
 
-  return <div className="bt-demo-page"><main className="bt-demo-panel">
+  const toggleAllActions = () => setSearchParams(new URLSearchParams(showAllActions
+    ? { bt: businessType }
+    : { bt: businessType, actionView: 'all' }));
+
+  return <div className="bt-demo-page"><main className={`bt-demo-panel ${showAllActions ? 'all-actions' : ''} ${focus ? 'has-focus' : ''}`}>
     <div className="bt-demo-intro">
-      <div><h2>Service → Capability</h2><p>Select a Service or Ability to unfold its Actions in place. Connections flow from Service to Ability.</p></div>
+      <div><h2>Service → Capability</h2><p>Browse every Action with Show all Actions, or select a Service or Ability to focus its mappings. Connections flow from Service to Ability.</p></div>
     </div>
     {!businessType ? <Empty description="Select a Business Type from the sidebar" /> : <BusinessTypeDemoCanvas
       businessType={businessType} services={services} abilityGroup={abilityGroup} connections={connections} focus={focus}
+      showAllActions={showAllActions} onToggleAllActions={toggleAllActions}
       collapsedServices={collapsedServices} collapsedAbilities={collapsedAbilities} onSelect={select} />}
-    <p className="bt-demo-footnote">Use Add mapping to connect a Service and Ability. Matching Action names link automatically. Select an expanded node again to collapse just that node.</p>
+    <p className="bt-demo-footnote">Use Add mapping to connect a Service and Ability. Matching Action names link automatically. In Show all Actions, select a card to see only its Action mappings; select it again to return to the connection overview.</p>
   </main></div>;
 }
