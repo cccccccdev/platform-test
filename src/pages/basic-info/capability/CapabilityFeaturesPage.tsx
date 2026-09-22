@@ -44,7 +44,7 @@ const normalizeTokens = (values: string[]) => values
   .map((value) => value.trim())
   .filter((value, index, list) => Boolean(value) && list.indexOf(value) === index);
 
-export default function CapabilityFeaturesPage() {
+export default function CapabilityFeaturesPage({ embedded = false }: { embedded?: boolean }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const businessType = searchParams.get('bt') || 'BANK_CARD_DEBIT';
@@ -183,8 +183,8 @@ export default function CapabilityFeaturesPage() {
   ];
 
   return (
-    <div className="capability-features-page">
-      <section className="capability-features-heading">
+    <div className={`capability-features-page${embedded ? ' embedded' : ''}`}>
+      {!embedded && <section className="capability-features-heading">
         <Breadcrumb items={[
           { title: 'Basic Info', href: '/basic-info/country' },
           { title: demoReturnUrl ? 'Demo' : 'Capability', href: backUrl },
@@ -196,7 +196,7 @@ export default function CapabilityFeaturesPage() {
           <LeftOutlined />
           <Title level={4}>Features</Title>
         </button>
-      </section>
+      </section>}
 
       <main className="capability-features-panel">
         <div className="capability-features-toolbar">

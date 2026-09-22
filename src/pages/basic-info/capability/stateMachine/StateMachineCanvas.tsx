@@ -307,7 +307,10 @@ function validateStateMachine(nodes: AnyNode[], edges: AnyEdge[]): ValidationErr
 // ─────────────────────────────────────────────────
 // Canvas Content Component
 // ─────────────────────────────────────────────────
-function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string; sm: string; mode: string }) {
+function CanvasContent({ bt, ability, sm, mode, fromAbilitySettings = false }: { bt: string; ability: string; sm: string; mode: string; fromAbilitySettings?: boolean }) {
+  const stateMachineBackUrl = fromAbilitySettings
+    ? `/basic-info/demo/ability-settings?${new URLSearchParams({ bt, ability, tab: 'state-machines' })}`
+    : `/basic-info/capability/link-state-machine?${new URLSearchParams({ bt, ability })}`;
   const navigate = useNavigate();
   const initialGraph = useMemo(() => getInitialGraph(sm), [sm]);
   const [nodes, setNodes, onNodesChange] = useNodesState<AnyNode>(initialGraph.nodes);
@@ -775,7 +778,7 @@ function CanvasContent({ bt, ability, sm, mode }: { bt: string; ability: string;
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to={bt && ability ? `/basic-info/capability/link-state-machine?bt=${bt}&ability=${ability}` : '/basic-info/capability/stateMachine'}>
+          <Link to={bt && ability ? stateMachineBackUrl : '/basic-info/capability/stateMachine'}>
             <Button icon={<LeftOutlined />} />
           </Link>
           <span><span style={{ display: 'block', fontSize: 15, fontWeight: 600, color: '#0f172a' }}>{sm || 'New State Machine'}</span><span style={{ display: 'block', marginTop: 3, color: '#94a3b8', fontSize: 12 }}>{ability || 'No description'}</span></span>
@@ -933,11 +936,12 @@ export default function StateMachineCanvas() {
   const ability = searchParams.get('ability') || '';
   const sm = searchParams.get('sm') || '';
   const mode = searchParams.get('mode') || 'edit';
+  const fromAbilitySettings = searchParams.get('fromAbilitySettings') === '1';
 
   return (
     <div style={{ width: '100%', height: 'calc(100vh - 64px)', minHeight: 720, display: 'flex', flexDirection: 'column', background: '#f1f5f9', overflow: 'hidden' }}>
       <ReactFlowProvider>
-        <CanvasContent bt={bt} ability={ability} sm={sm} mode={mode} />
+        <CanvasContent bt={bt} ability={ability} sm={sm} mode={mode} fromAbilitySettings={fromAbilitySettings} />
       </ReactFlowProvider>
     </div>
   );

@@ -9,7 +9,6 @@ import { useServiceStore } from '../pages/basic-info/serviceStore';
 
 const { Sider, Content, Header } = Layout;
 const BUSINESS_TYPE_CONTEXT_KEY = 'basicInfoBusinessTypeContext';
-const BUSINESS_TYPE_MODULE_KEY = 'basicInfoBusinessTypeModule';
 
 function operationTimeNow() {
   const date = new Date();
@@ -54,8 +53,7 @@ export default function AppShell() {
   const isServiceWorkspace = location.pathname.startsWith('/basic-info/service');
   const isDemoWorkspace = location.pathname.startsWith('/basic-info/demo');
   const isBusinessContextWorkspace = isCapabilityWorkspace || isServiceWorkspace || isDemoWorkspace;
-  const activeWorkspaceModule = isDemoWorkspace ? 'demo' : isServiceWorkspace ? 'service' : 'capability';
-  const isWorkspaceRoot = location.pathname === '/basic-info/capability' || location.pathname === '/basic-info/service' || location.pathname === '/basic-info/demo';
+  const isWorkspaceRoot = location.pathname === '/basic-info/demo';
   const availableBusinessTypes = new Set(businessTypeRecords.map((record) => record.businessType));
   const queryBusinessType = new URLSearchParams(location.search).get('bt');
   const rememberedBusinessType = window.localStorage.getItem(BUSINESS_TYPE_CONTEXT_KEY);
@@ -86,24 +84,15 @@ export default function AppShell() {
   }, [isBusinessContextWorkspace, selectedBusinessType]);
 
   useEffect(() => {
-    if (isBusinessContextWorkspace) window.localStorage.setItem(BUSINESS_TYPE_MODULE_KEY, activeWorkspaceModule);
-  }, [activeWorkspaceModule, isBusinessContextWorkspace]);
-
-  useEffect(() => {
     if (!isBusinessContextWorkspace || !selectedBusinessType || queryBusinessType === selectedBusinessType) return;
     const query = new URLSearchParams(location.search);
     query.set('bt', selectedBusinessType);
     navigate({ pathname: location.pathname, search: query.toString() }, { replace: true });
   }, [isBusinessContextWorkspace, location.pathname, location.search, navigate, queryBusinessType, selectedBusinessType]);
 
-  const openWorkspaceModule = (module: 'capability' | 'service' | 'demo') => {
-    const query = selectedBusinessType ? `?bt=${encodeURIComponent(selectedBusinessType)}` : '';
-    navigate(`/basic-info/${module}${query}`);
-  };
-
   const openWorkspace = () => {
-    const remembered = window.localStorage.getItem(BUSINESS_TYPE_MODULE_KEY);
-    openWorkspaceModule(remembered === 'service' || remembered === 'demo' ? remembered : 'capability');
+    const query = selectedBusinessType ? `?bt=${encodeURIComponent(selectedBusinessType)}` : '';
+    navigate(`/basic-info/demo${query}`);
   };
 
   const saveBusinessType = async () => {
@@ -119,7 +108,7 @@ export default function AppShell() {
       setAddBusinessTypeOpen(false);
       setBusinessTypeLocator(undefined);
       businessTypeLocatorRef.current = undefined;
-      navigate(`/basic-info/capability?bt=${encodeURIComponent(businessType)}`);
+      navigate(`/basic-info/demo?bt=${encodeURIComponent(businessType)}`);
       message.success('Business Type created');
     } catch { /* Field errors are rendered by Ant Design. */ }
   };
@@ -148,7 +137,7 @@ export default function AppShell() {
         useServiceStore.getState().removeBusinessType(target);
         if (next) window.localStorage.setItem(BUSINESS_TYPE_CONTEXT_KEY, next);
         else window.localStorage.removeItem(BUSINESS_TYPE_CONTEXT_KEY);
-        navigate(`/basic-info/${activeWorkspaceModule}${next ? `?bt=${encodeURIComponent(next)}` : ''}`, { replace: true });
+        navigate(`/basic-info/demo${next ? `?bt=${encodeURIComponent(next)}` : ''}`, { replace: true });
         message.success('Business Type deleted');
       },
     });
@@ -157,7 +146,7 @@ export default function AppShell() {
   const openBusinessType = (businessType: string) => {
     setBusinessTypeLocator(undefined);
     businessTypeLocatorRef.current = undefined;
-    navigate(`/basic-info/${activeWorkspaceModule}?bt=${encodeURIComponent(businessType)}`);
+    navigate(`/basic-info/demo?bt=${encodeURIComponent(businessType)}`);
   };
 
   const locateBusinessType = () => {
@@ -267,11 +256,6 @@ export default function AppShell() {
                       <Button type="text" icon={<MoreOutlined />} aria-label="Business Type actions" />
                     </Dropdown>
                   )}
-                </div>
-                <div className="business-type-workspace-tabs" role="tablist" aria-label="Business Type configuration module">
-                  <button type="button" role="tab" aria-selected={activeWorkspaceModule === 'capability'} className={activeWorkspaceModule === 'capability' ? 'active' : ''} onClick={() => openWorkspaceModule('capability')}>Capability</button>
-                  <button type="button" role="tab" aria-selected={activeWorkspaceModule === 'service'} className={activeWorkspaceModule === 'service' ? 'active' : ''} onClick={() => openWorkspaceModule('service')}>Service</button>
-                  <button type="button" role="tab" aria-selected={activeWorkspaceModule === 'demo'} className={activeWorkspaceModule === 'demo' ? 'active' : ''} onClick={() => openWorkspaceModule('demo')}>Demo</button>
                 </div>
               </section>
             )}

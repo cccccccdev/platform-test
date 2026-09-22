@@ -4,7 +4,6 @@ import {
   type ServiceActionRecord,
   type ServiceRecord,
   type ServiceRunModel,
-  type ServiceAbilityDirection,
 } from './serviceReferenceData';
 import { useCapabilityDataStore } from './capabilityDataStore';
 
@@ -25,7 +24,7 @@ interface ServiceState {
   addActions: (businessType: string, serviceKey: string, actions: ServiceActionRecord[]) => void;
   setActionModel: (businessType: string, serviceKey: string, actionKey: string, model: ServiceRunModel) => void;
   connectAbility: (businessType: string, serviceName: string, ability: string) => void;
-  addConnection: (businessType: string, serviceName: string, abilityName: string, direction: ServiceAbilityDirection) => 'added' | 'duplicate' | 'invalid';
+  addConnection: (businessType: string, serviceName: string, abilityName: string) => 'added' | 'duplicate' | 'invalid';
   removeBusinessType: (businessType: string) => void;
 }
 
@@ -67,7 +66,7 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
       }),
     },
   })),
-  addConnection: (businessType, serviceName, abilityName, direction) => {
+  addConnection: (businessType, serviceName, abilityName) => {
     const service = (get().records[businessType] || []).find((item) => item.name === serviceName);
     const ability = useCapabilityDataStore.getState().data.find((item) => item.name === businessType)?.abilities.find((item) => item.name === abilityName);
     if (!service || !ability) return 'invalid';
@@ -78,7 +77,7 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
         ...state.records,
         [businessType]: (state.records[businessType] || []).map((item) => item.name !== serviceName ? item : {
           ...item,
-          capabilityReferences: [...(item.capabilityReferences || []), { ability: abilityName, direction }],
+          capabilityReferences: [...(item.capabilityReferences || []), { ability: abilityName, direction: 'service-to-ability' }],
         }),
       },
     }));

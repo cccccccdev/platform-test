@@ -7,9 +7,9 @@ import { getDemoReturnUrl } from './demoNavigation';
 
 const { Title, Text } = Typography;
 
-function MappingSection({ direction, rows, reverse }: { direction: 'request' | 'response'; rows: FieldMappingRow[]; reverse: boolean }) {
+function MappingSection({ direction, rows }: { direction: 'request' | 'response'; rows: FieldMappingRow[] }) {
   const request = direction === 'request';
-  const sourceIsApi = request !== reverse;
+  const sourceIsApi = request;
   return (
     <section className="field-mapping-section">
       <Title level={5}><span className="field-mapping-marker" />{request ? 'Request' : 'Response'} ({sourceIsApi ? 'API to SPI' : 'SPI to API'})</Title>
@@ -54,8 +54,6 @@ export default function ServiceFieldMappingPage() {
   const ability = searchParams.get('ability') || '';
   const action = searchParams.get('action') || '';
   const abilityAction = searchParams.get('abilityAction') || action;
-  const mappingDirection = searchParams.get('direction');
-  const reverse = mappingDirection === 'ability-to-service';
   const backQuery = new URLSearchParams({ bt: businessType, service });
   const demoReturnUrl = getDemoReturnUrl(searchParams, businessType);
   const backUrl = demoReturnUrl || `/basic-info/service/capability?${backQuery.toString()}`;
@@ -88,7 +86,6 @@ export default function ServiceFieldMappingPage() {
             <Text>Ability: <Text strong>{ability}</Text></Text>
             <Text>Service Action: <Text strong>{action}</Text></Text>
             <Text>Ability Action: <Text strong>{abilityAction}</Text></Text>
-            {mappingDirection && <Text>Direction: <Text strong>{mappingDirection === 'ability-to-service' ? 'Ability → Service' : 'Service → Ability'}</Text></Text>}
           </div>
           <div>
             <Button type="primary" onClick={() => message.success('Mapping configuration saved')}>Config</Button>
@@ -97,8 +94,8 @@ export default function ServiceFieldMappingPage() {
         </div>
         {tab === 'config' ? (
           <>
-            <MappingSection direction="request" rows={requestFieldMappings} reverse={reverse} />
-            <MappingSection direction="response" rows={responseFieldMappings} reverse={reverse} />
+            <MappingSection direction="request" rows={requestFieldMappings} />
+            <MappingSection direction="response" rows={responseFieldMappings} />
           </>
         ) : (
           <div className="field-mapping-code-placeholder">

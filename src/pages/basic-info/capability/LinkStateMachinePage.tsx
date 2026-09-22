@@ -95,7 +95,7 @@ function formatOperationTime(value: string | Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-export default function LinkStateMachinePage() {
+export default function LinkStateMachinePage({ embedded = false }: { embedded?: boolean }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const bt = searchParams.get('bt') || '';
@@ -185,8 +185,8 @@ export default function LinkStateMachinePage() {
   };
 
   return (
-    <div className="linked-state-machine-page">
-      <section className="linked-state-machine-heading">
+    <div className={`linked-state-machine-page${embedded ? ' embedded' : ''}`}>
+      {!embedded && <section className="linked-state-machine-heading">
         <Breadcrumb items={[
           { title: 'Basic Info', href: '/basic-info/country' },
           { title: demoReturnUrl ? 'Demo' : 'Capability', href: backUrl },
@@ -198,7 +198,7 @@ export default function LinkStateMachinePage() {
           <LeftOutlined />
           <Title level={4}>Linked State Machine</Title>
         </button>
-      </section>
+      </section>}
 
       <main className="linked-state-machine-content">
         <div className="linked-state-machine-actions">
@@ -267,6 +267,7 @@ export default function LinkStateMachinePage() {
                       queryParams.set('mode', 'view');
                       queryParams.set('bt', bt);
                       queryParams.set('ability', ability);
+                      if (embedded) queryParams.set('fromAbilitySettings', '1');
                       navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
                     }}>Preview</Button>
                     <Badge dot={hasReferences} color="#52c41a" offset={[-2, 4]}>

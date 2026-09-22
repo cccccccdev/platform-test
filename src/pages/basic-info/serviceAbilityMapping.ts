@@ -30,7 +30,7 @@ export function getServiceAbilityConnections(
       const ability = abilities.get(reference.ability);
       if (!ability) continue;
       const abilityActions = new Set(ability.actions.map((action) => action.name));
-      const direction = reference.direction || 'service-to-ability';
+      const direction: ServiceAbilityDirection = 'service-to-ability';
       const mappings = [...serviceActions]
         .filter((action) => abilityActions.has(action))
         .map((action) => ({ service: service.name, serviceAction: action, ability: ability.name, abilityAction: action, direction }));

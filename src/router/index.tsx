@@ -36,11 +36,9 @@ const InstitutionPage = lazy(() => import('../pages/basic-info/InstitutionPage')
 const ExchangeRatePage = lazy(() => import('../pages/basic-info/ExchangeRatePage'));
 const ProductPage = lazy(() => import('../pages/basic-info/ProductPage'));
 const MerchantPage = lazy(() => import('../pages/basic-info/MerchantPage'));
-const CapabilityPage = lazy(() => import('../pages/basic-info/CapabilityPage'));
-const ServicePage = lazy(() => import('../pages/basic-info/ServicePage'));
 const BusinessTypeDemoPage = lazy(() => import('../pages/basic-info/BusinessTypeDemoLivePage'));
 const BusinessTypeDemoDetailPage = lazy(() => import('../pages/basic-info/BusinessTypeDemoDetailPage'));
-const ServiceCapabilityPage = lazy(() => import('../pages/basic-info/ServiceCapabilityPage'));
+const AbilitySettingsPage = lazy(() => import('../pages/basic-info/AbilitySettingsPage'));
 const ServiceFieldMappingPage = lazy(() => import('../pages/basic-info/ServiceFieldMappingPage'));
 const ServiceApiPage = lazy(() => import('../pages/basic-info/ServiceApiPage'));
 const ServiceApiLimitPage = lazy(() => import('../pages/basic-info/ServiceApiLimitPage'));
@@ -59,9 +57,7 @@ function ComingSoonPage({ title }: { title: string }) {
 
 function LegacyBusinessTypeRedirect() {
   const { search } = useLocation();
-  const remembered = window.localStorage.getItem('basicInfoBusinessTypeModule');
-  const module = remembered === 'service' || remembered === 'demo' ? remembered : 'capability';
-  return <Navigate to={`/basic-info/${module}${search}`} replace />;
+  return <Navigate to={`/basic-info/demo${search}`} replace />;
 }
 
 function IntegrationIndexRedirect() {
@@ -249,14 +245,15 @@ const router = createHashRouter(
           { path: 'segment', element: <ComingSoonPage title="Segment" /> },
           { path: 'response-code', element: <ComingSoonPage title="Response Code" /> },
           { path: 'application', element: <ComingSoonPage title="Application" /> },
-          { path: 'service', element: <ServicePage /> },
+          { path: 'service', element: <LegacyBusinessTypeRedirect /> },
           { path: 'demo', element: <BusinessTypeDemoPage /> },
           { path: 'demo/detail', element: <BusinessTypeDemoDetailPage /> },
-          { path: 'service/capability', element: <ServiceCapabilityPage /> },
+          { path: 'demo/ability-settings', element: <AbilitySettingsPage /> },
+          { path: 'service/capability', element: <LegacyBusinessTypeRedirect /> },
           { path: 'service/capability/field-mapping', element: <ServiceFieldMappingPage /> },
           { path: 'service/api', element: <ServiceApiPage /> },
           { path: 'service/api-limit', element: <ServiceApiLimitPage /> },
-          { path: 'capability', element: <CapabilityPage /> },
+          { path: 'capability', element: <LegacyBusinessTypeRedirect /> },
           { path: 'capability/features', element: <CapabilityFeaturesPage /> },
           { path: 'capability/spi', element: <CapabilitySpiPage /> },
           { path: 'capability/stateMachine', element: <StateMachineListPage /> },
