@@ -2,7 +2,6 @@ import { useState, type ReactNode } from 'react';
 import { Breadcrumb, Button, Input, message, Modal, Popover, Select, Typography } from 'antd';
 import { ExclamationCircleOutlined, FilterOutlined, LeftOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useServiceStore } from './serviceStore';
 import { getDemoReturnUrl } from './demoNavigation';
 import { EFFECT_TAG_OPTIONS, serviceApiRequestFields, serviceApiResponseFields, type EffectTag } from './serviceApiReferenceData';
 import SpiSchemaTree from './capability/SpiSchemaTree';
@@ -58,32 +57,27 @@ const filterByTags = (fields: SpiFieldNode[], tags: EffectTag[]): SpiFieldNode[]
   });
 };
 
-function InterfaceDetails({ config, editing, businessType, service, action, operator, operateTime, actions, onDescriptionChange }: {
+function InterfaceDetails({ config, editing, businessType, service, action, actions, onDescriptionChange }: {
   config: SavedApiConfig;
   editing: boolean;
   businessType: string;
   service: string;
   action: string;
-  operator?: string;
-  operateTime?: string;
   actions?: ReactNode;
   onDescriptionChange?: (description: string) => void;
 }) {
   return <section className="interface-overview" aria-label="API interface details">
-    <div className="interface-overview-heading">
-      <dl className="interface-overview-context">
-        <div><dt>Business Type</dt><dd>{businessType}</dd></div>
-        <div><dt>Service</dt><dd>{service}</dd></div>
-        <div><dt>Action</dt><dd>{action}</dd></div>
-      </dl>
+    <div className="interface-overview-top">
+      <div className="bt-ability-settings-context interface-overview-context">
+        <span>Business Type: <strong>{businessType}</strong></span>
+        <span>Service: <strong>{service}</strong></span>
+        <span>Action: <strong>{action}</strong></span>
+      </div>
       {actions && <div className="interface-overview-actions">{actions}</div>}
     </div>
     <div className="interface-overview-endpoint"><span className="interface-overview-method">{config.method}</span><code>{config.url}</code></div>
-    <div className="interface-overview-secondary">
-      {editing ? <label className="interface-overview-description-edit"><span>Description</span><Input value={config.description} placeholder="Optional description" onChange={(event) => onDescriptionChange?.(event.target.value)} /></label>
-        : <span className="interface-overview-description">{config.description || 'No description'}</span>}
-      {(operator || operateTime) && <span className="interface-overview-audit">Updated {operateTime || '—'}{operator ? ` · ${operator}` : ''}</span>}
-    </div>
+    {editing ? <label className="interface-overview-description-edit"><span>Description</span><Input value={config.description} placeholder="Optional description" onChange={(event) => onDescriptionChange?.(event.target.value)} /></label>
+      : config.description && <p className="interface-overview-description">{config.description}</p>}
   </section>;
 }
 
@@ -95,8 +89,6 @@ export default function ServiceApiPage() {
   const actionName = searchParams.get('action') || '';
   const demoReturnUrl = getDemoReturnUrl(searchParams, businessType);
   const backUrl = demoReturnUrl || `/basic-info/service?bt=${encodeURIComponent(businessType)}`;
-  const service = useServiceStore((state) => (state.records[businessType] || []).find((item) => item.name === serviceName));
-  const action = service?.actions.find((item) => item.name === actionName);
   const [savedConfigs, setSavedConfigs] = useState<Record<string, SavedApiConfig>>(readSavedApiConfigs);
   const [draft, setDraft] = useState<SavedApiConfig | null>(null);
   const [draftKey, setDraftKey] = useState<string | null>(null);
@@ -149,7 +141,7 @@ export default function ServiceApiPage() {
       <button className="capability-spi-back" type="button" onClick={() => navigate(backUrl)}><LeftOutlined /><Title level={4}>API</Title></button>
     </header>
     <main className={`service-api-panel capability-spi-panel ${editing ? 'editing' : ''}`}>
-      <InterfaceDetails config={visibleConfig} editing={editing} businessType={businessType} service={serviceName} action={actionName} operator={action?.operator} operateTime={action?.operateTime}
+      <InterfaceDetails config={visibleConfig} editing={editing} businessType={businessType} service={serviceName} action={actionName}
         actions={!editing && <><Button onClick={() => void share()}>Share</Button><Button type="primary" onClick={() => { setDraft(structuredClone(visibleConfig)); setDraftKey(apiKey); }}>Config</Button></>}
         onDescriptionChange={(description) => updateDraft({ description })} />
       <SpiSchemaTree key={`${apiKey}-request`} title="Request Params" fields={requestFields} catalog={REQUEST_CATALOG} effectTagOptions={EFFECT_TAG_OPTIONS} effectTagHeader={effectTagHeader('request')} editing={editing} onChange={(request) => updateDraft({ request })} />

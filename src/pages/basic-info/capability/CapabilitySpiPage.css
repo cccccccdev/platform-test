@@ -237,7 +237,7 @@
 .capability-spi-empty { padding: 20px; color: #8b9098; }
 .capability-spi-add-note { color: #6a707a; font-size: 13px; }
 .capability-spi-timeout-control { flex: 1; min-width: 0; }
-.capability-spi-timeout-control > span { display: block; margin-top: 4px; color: #ff4d4f; font-size: 12px; }
+.capability-spi-timeout-error { display: block; margin-top: 4px; color: #ff4d4f; font-size: 12px; }
 .capability-spi-edit-footer {
   position: fixed;
   left: 202px;
@@ -261,33 +261,27 @@
   box-shadow: none;
 }
 
-/* A compact contract overview keeps identity, endpoint, and audit information in one hierarchy. */
+/* Match the other detail pages' context row and keep interface settings together. */
 .interface-overview { min-width: 0; margin-bottom: 26px; padding: 0 0 22px; border-bottom: 1px solid #e8e8e8; }
-.interface-overview-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; min-height: 34px; }
-.interface-overview-context { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 0; min-width: 0; margin: 0; }
-.interface-overview-context > div { display: flex; align-items: baseline; gap: 7px; min-width: 0; padding: 4px 18px 4px 0; }
-.interface-overview-context > div + div { padding-left: 18px; border-left: 1px solid #e4e5e8; }
-.interface-overview-context dt { flex: none; color: #8b9098; font-size: 11px; font-weight: 500; }
-.interface-overview-context dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: #30343a; font-size: 14px; font-weight: 600; }
-.interface-overview-context > div:last-child dd { color: #252930; font-weight: 700; }
+.interface-overview-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 34px; }
+.interface-overview-context { flex: 1; min-width: 0; }
 .interface-overview-actions { display: flex; flex: none; gap: 8px; }
 .interface-overview-actions .ant-btn { height: 32px; border-radius: 3px; font-size: 12px; }
 .interface-overview-actions .ant-btn-primary:not(:disabled) { background: var(--legacy-purple); box-shadow: none; }
-.interface-overview-endpoint { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 17px; min-width: 0; }
+.interface-overview-endpoint { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; min-width: 0; margin-top: 18px; }
 .interface-overview-method { flex: none; padding: 4px 8px; border: 1px solid #e9d9f8; border-radius: 3px; background: #faf5ff; color: #7225b8; font-size: 12px; font-weight: 700; letter-spacing: .025em; }
 .interface-overview-endpoint > code { min-width: 0; overflow-wrap: anywhere; color: #262a31; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; font-weight: 600; }
-.interface-overview-timeout { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding-left: 14px; border-left: 1px solid #e8e8e8; color: #868c96; font-size: 12px; }
-.interface-overview-timeout strong { color: #4b5058; font-variant-numeric: tabular-nums; font-weight: 600; }
-.interface-overview-secondary { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 20px; margin-top: 14px; color: #777e88; font-size: 12px; }
-.interface-overview-description { min-width: 0; overflow-wrap: anywhere; }
-.interface-overview-audit { font-variant-numeric: tabular-nums; }
-.interface-overview-suborder { color: #626976; }
+.interface-overview-description { min-width: 0; margin: 12px 0 0; overflow-wrap: anywhere; color: #777e88; font-size: 12px; }
+.interface-overview-timeout { display: inline-flex; align-items: baseline; gap: 6px; padding-left: 14px; border-left: 1px solid #e4e5e8; color: #777e88; font-size: 12px; }
+.interface-overview-timeout strong { color: #42474f; font-variant-numeric: tabular-nums; font-weight: 600; }
 .interface-overview-field { display: grid; gap: 5px; min-width: 0; color: #767d87; font-size: 11px; font-weight: 600; }
 .interface-overview-field .ant-input, .interface-overview-field .ant-input-group-wrapper { width: 100%; }
 .interface-overview-method-field { width: 142px; }
 .interface-overview-url-field { flex: 1 1 320px; }
-.interface-overview-timeout-field { width: 220px; }
-.interface-overview-description-edit { display: grid; gap: 5px; width: min(100%, 640px); color: #767d87; font-size: 11px; font-weight: 600; }
+.interface-overview-editor-fields { display: grid; grid-template-columns: minmax(190px, 230px) minmax(280px, 1fr); align-items: start; gap: 18px; width: min(100%, 820px); margin-top: 18px; }
+.interface-overview-timeout-field .capability-spi-timeout-control { width: 100%; }
+.interface-overview-description-field { width: 100%; }
+.interface-overview-description-edit { display: grid; gap: 5px; width: min(100%, 640px); margin-top: 14px; color: #767d87; font-size: 11px; font-weight: 600; }
 .interface-overview-description-edit .ant-input { width: 100%; }
 .interface-overview.is-editing .interface-overview-endpoint { align-items: start; }
 /* Match the HTTP Body schema editor's compact grid and tree controls. */
@@ -345,13 +339,13 @@
 .capability-spi-copy-caret { margin-left: 3px; font-size: 10px; }
 .capability-spi-submit-error { margin-right: auto; align-self: center; color: #ff4d4f; font-size: 12px; }
 @media (max-width: 920px) {
-  .interface-overview-heading { flex-wrap: wrap; }
+  .interface-overview-top { flex-wrap: wrap; }
   .interface-overview-actions { margin-left: auto; }
 }
 
 @media (max-width: 640px) {
-  .interface-overview-context > div + div { padding-left: 0; border-left: 0; }
-  .interface-overview-context > div { padding-right: 18px; }
+  .interface-overview-endpoint { gap: 10px; }
+  .interface-overview-editor-fields { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 900px) {

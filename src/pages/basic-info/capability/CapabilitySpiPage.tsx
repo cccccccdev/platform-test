@@ -447,12 +447,13 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
 
       <main className={`capability-spi-panel ${editing ? 'editing' : ''}`}>
         <section className={`interface-overview ${editing ? 'is-editing' : ''}`} aria-label="SPI interface details">
-          <div className="interface-overview-heading">
-            <dl className="interface-overview-context">
-              <div><dt>Business Type</dt><dd>{businessType}</dd></div>
-              <div><dt>Ability</dt><dd>{ability}</dd></div>
-              <div><dt>Action</dt><dd>{action}</dd></div>
-            </dl>
+          <div className="interface-overview-top">
+            <div className="bt-ability-settings-context interface-overview-context">
+              <span>Business Type: <strong>{businessType}</strong></span>
+              <span>Ability: <strong>{ability}</strong></span>
+              <span>Action: <strong>{action}</strong></span>
+              <span>Sub-order Mode: <strong>{definition.subOrderMode}</strong></span>
+            </div>
             {!editing && <div className="interface-overview-actions"><Button type="primary" onClick={() => { setDraft({ ...visibleConfig }); setDraftKey(spiKey); setTimeoutError(false); }}>Config</Button></div>}
           </div>
           <div className="interface-overview-endpoint">
@@ -460,14 +461,13 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
               <label className="interface-overview-field interface-overview-method-field"><span className="required-label">Method</span><Input value={visibleConfig.method} placeholder="Enter method" onChange={(event) => updateDraft({ method: event.target.value })} /></label>
               <label className="interface-overview-field interface-overview-url-field"><span className="required-label">URL</span><Input value={visibleConfig.url} placeholder="Enter URL path" onChange={(event) => updateDraft({ url: event.target.value })} /></label>
             </> : <><span className="interface-overview-method">{visibleConfig.method || 'Not configured'}</span><code>{visibleConfig.url || 'Not configured'}</code></>}
-            {editing ? <label className="interface-overview-field interface-overview-timeout-field"><span className="required-label">Timeout</span><div className="capability-spi-timeout-control"><Input value={visibleConfig.timeout} status={timeoutError || (timeoutValue !== '' && !timeoutValid) ? 'error' : undefined} inputMode="numeric" addonAfter="ms" placeholder="Enter timeout" onChange={(event) => { updateDraft({ timeout: event.target.value }); setTimeoutError(false); }} />{!timeoutValid && <span role="alert">{timeoutValue ? 'Enter a positive whole number of milliseconds.' : 'Timeout is required before Submit.'}</span>}</div></label>
-              : <span className="interface-overview-timeout">Timeout <strong>{visibleConfig.timeout ? `${visibleConfig.timeout} ms` : 'Not configured'}</strong></span>}
+            {!editing && <span className="interface-overview-timeout">Timeout: <strong>{visibleConfig.timeout ? `${visibleConfig.timeout} ms` : 'Not configured'}</strong></span>}
           </div>
-          <div className="interface-overview-secondary">
-            {editing ? <label className="interface-overview-description-edit"><span>Description</span><Input value={visibleConfig.description} placeholder="Optional description" onChange={(event) => updateDraft({ description: event.target.value })} /></label>
-              : <span className="interface-overview-description">{visibleConfig.description || 'No description'}</span>}
-            <span className="interface-overview-suborder">Sub-order Mode: {definition.subOrderMode}</span>
+          {editing ? <div className="interface-overview-editor-fields">
+            <label className="interface-overview-field interface-overview-timeout-field"><span className="required-label">Timeout</span><span className="capability-spi-timeout-control"><Input value={visibleConfig.timeout} status={timeoutError || (timeoutValue !== '' && !timeoutValid) ? 'error' : undefined} inputMode="numeric" addonAfter="ms" placeholder="Enter timeout" aria-required="true" onChange={(event) => { updateDraft({ timeout: event.target.value }); setTimeoutError(false); }} />{(timeoutError || (timeoutValue !== '' && !timeoutValid)) && <span className="capability-spi-timeout-error" role="alert">{timeoutValue ? 'Enter a positive whole number of milliseconds.' : 'Timeout is required before Submit.'}</span>}</span></label>
+            <label className="interface-overview-field interface-overview-description-field"><span>Description</span><Input value={visibleConfig.description} placeholder="Optional description" onChange={(event) => updateDraft({ description: event.target.value })} /></label>
           </div>
+            : visibleConfig.description && <p className="interface-overview-description">{visibleConfig.description}</p>}
         </section>
 
         {subOrderEnabled && (
