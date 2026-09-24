@@ -1,1 +1,0 @@
-function e(e,t){let n=e.get(`demoFocusKind`),r=e.get(`demoFocusName`);return n!==`service`&&n!==`ability`||!r?null:`/basic-info/demo?${new URLSearchParams({bt:t,focusKind:n,focusName:r}).toString()}`}function t(e,t){return{demoFocusKind:e,demoFocusName:t}}export{e as n,t};
