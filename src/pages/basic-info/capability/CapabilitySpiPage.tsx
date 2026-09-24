@@ -6,6 +6,7 @@ import './CapabilitySpiPage.css';
 import { isSubOrderModeEnabled } from './subOrderModeStore';
 import { getDemoReturnUrl } from '../demoNavigation';
 import SpiSchemaTree from './SpiSchemaTree';
+import InterfaceCopyButton from './InterfaceCopyButton';
 import { fieldsToTree, validateSpiTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
 
 const { Title } = Typography;
@@ -454,7 +455,7 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
               <span>Action: <strong>{action}</strong></span>
               <span>Sub-order Mode: <strong>{definition.subOrderMode}</strong></span>
             </div>
-            {!editing && <div className="interface-overview-actions"><Button type="primary" onClick={() => { setDraft({ ...visibleConfig }); setDraftKey(spiKey); setTimeoutError(false); }}>Config</Button></div>}
+            {!editing && <div className="interface-overview-actions"><InterfaceCopyButton kind={activeTab === 'config' ? 'Config SPI' : 'Code SPI'} businessType={businessType} serviceOrAbility={{ label: 'Ability', value: ability }} action={action} subOrderMode={definition.subOrderMode} method={visibleConfig.method} url={visibleConfig.url} timeout={visibleConfig.timeout} description={visibleConfig.description} request={visibleConfig.request} response={visibleConfig.response} /><Button type="primary" onClick={() => { setDraft({ ...visibleConfig }); setDraftKey(spiKey); setTimeoutError(false); }}>Config</Button></div>}
           </div>
           <div className="interface-overview-endpoint">
             {editing && activeTab === 'code' ? <>

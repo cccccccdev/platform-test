@@ -299,7 +299,7 @@
 .capability-spi-section-tools .ant-btn:hover,
 .capability-spi-section-tools .ant-btn:focus-visible { border-color: #7d2cc8; color: #6814b3; }
 .capability-spi-section-tools .capability-spi-tool-square { width: 34px; padding: 0; font-size: 18px; }
-.capability-spi-section-tools .capability-spi-tool-copy { padding-inline: 11px; font-size: 13px; }
+.capability-spi-section-tools .capability-spi-tool-import { width: auto; padding-inline: 11px; font-size: 13px; }
 .capability-spi-tree-scroll { overflow-x: auto; }
 .capability-spi-field-table { min-width: 680px; }
 .capability-spi-tree-header, .capability-spi-tree-root, .capability-spi-tree-row { grid-template-columns: minmax(280px, 1.4fr) 130px minmax(200px, 1fr); gap: 8px; min-width: 680px; }
@@ -337,6 +337,8 @@
 .capability-spi-delete-confirm-button.ant-btn-primary,
 .capability-spi-delete-confirm-button.ant-btn-primary:hover { border-color: var(--legacy-purple); background: var(--legacy-purple); box-shadow: none; }
 .capability-spi-copy-caret { margin-left: 3px; font-size: 10px; }
+.capability-spi-import-json-input { margin-top: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.capability-spi-import-error { display: block; margin-top: 6px; }
 .capability-spi-submit-error { margin-right: auto; align-self: center; color: #ff4d4f; font-size: 12px; }
 @media (max-width: 920px) {
   .interface-overview-top { flex-wrap: wrap; }

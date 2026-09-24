@@ -162,3 +162,67 @@ export function spiSchemaToMarkdown(nodes: SpiFieldNode[], includeEffectTag = fa
   visit(nodes, 0);
   return `${rows.join('\n')}\n`;
 }
+
+export function importJsonToSpiTree(json: unknown, catalog: SpiFieldNode[], current: SpiFieldNode[], customRoot: boolean): SpiFieldNode[] {
+  if (json === null || typeof json !== 'object' || Array.isArray(json)) {
+    throw new Error('The _order value must be a JSON object.');
+  }
+
+  let count = 0;
+  const inferType = (value: unknown): string => {
+    if (Array.isArray(value)) return 'Array';
+    if (value !== null && typeof value === 'object') return 'Object';
+    if (typeof value === 'boolean') return 'Boolean';
+    if (typeof value === 'number') {
+      if (!Number.isInteger(value)) return 'String';
+      return value >= -2147483648 && value <= 2147483647 ? 'Integer' : 'Long';
+    }
+    return 'String';
+  };
+  const typeMatches = (type: string, value: unknown) => {
+    if (value === null) return type !== 'Object' && type !== 'Array';
+    if (type === 'Object') return typeof value === 'object' && !Array.isArray(value);
+    if (type === 'Array') return Array.isArray(value);
+    if (type === 'Boolean') return typeof value === 'boolean';
+    if (type === 'Integer') return typeof value === 'number' && Number.isInteger(value) && value >= -2147483648 && value <= 2147483647;
+    if (type === 'Long') return typeof value === 'number' && Number.isInteger(value);
+    if (type === 'BigDecimal') return typeof value === 'number' || typeof value === 'string';
+    return typeof value === 'string';
+  };
+  const build = (name: string, value: unknown, template: SpiFieldNode | undefined, previous: SpiFieldNode | undefined, path: string, depth: number): SpiFieldNode => {
+    count += 1;
+    if (count > 2000 || depth > 24) throw new Error('JSON contains too many or too deeply nested fields.');
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new Error(`Invalid field name: ${path}.`);
+    if (template && !typeMatches(template.type, value)) throw new Error(`${path} must match the template type ${template.type}.`);
+    const type = template?.type ?? inferType(value);
+    const id = template?.id ?? (previous?.extension ? previous.id : `business_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+    const children = type === 'Object'
+      ? buildObject(value as Record<string, unknown>, template?.children ?? [], previous?.children ?? [], !template || name === 'extraRequest' || name === 'extraResponse', path, depth + 1)
+      : type === 'Array'
+        ? (() => {
+          const sample = (value as unknown[])[0];
+          const itemTemplate = template?.children.find((child) => child.name === '_items' && !child.extension);
+          const itemPrevious = previous?.children.find((child) => child.name === '_items');
+          if (sample === undefined) return itemPrevious ? [itemPrevious] : itemTemplate ? [itemTemplate] : [{ id: `${id}_items`, name: '_items', type: 'String', description: '', required: false, extension: true, children: [] }];
+          if (Array.isArray(sample)) throw new Error(`${path} contains a nested array, which this editor cannot represent.`);
+          const item = build('_items', sample, itemTemplate, itemPrevious, `${path}._items`, depth + 1);
+          return [{ ...item, id: itemTemplate?.id ?? itemPrevious?.id ?? `${id}_items` }];
+        })()
+        : [];
+    return {
+      ...(template ?? { id, name, type, required: false, extension: true, description: '' }),
+      id, name, type, children,
+      description: previous?.description ?? template?.description ?? '',
+      effectTag: type === 'Object' || type === 'Array' ? undefined : previous?.type === type ? previous.effectTag : template?.effectTag,
+    };
+  };
+  const buildObject = (record: Record<string, unknown>, templates: SpiFieldNode[], previous: SpiFieldNode[], allowCustom: boolean, parentPath: string, depth: number): SpiFieldNode[] =>
+    Object.entries(record).map(([name, value]) => {
+      const path = parentPath ? `${parentPath}.${name}` : name;
+      const template = templates.find((node) => node.name === name && !node.extension);
+      if (!template && !allowCustom) throw new Error(`${path} is not a template field. Add new fields under extraRequest or extraResponse.`);
+      return build(name, value, template, previous.find((node) => node.name === name), path, depth);
+    });
+
+  return buildObject(json as Record<string, unknown>, catalog, current, customRoot, '', 0);
+}

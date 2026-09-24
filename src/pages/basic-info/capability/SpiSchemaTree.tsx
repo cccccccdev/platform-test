@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { Button, Dropdown, Input, message, Modal, Popconfirm, Select, Tag, Tooltip } from 'antd';
-import { CaretDownOutlined, CaretRightOutlined, CopyOutlined, DeleteOutlined, DownOutlined, ExclamationCircleFilled, HolderOutlined, MinusSquareOutlined, PlusOutlined, PlusSquareOutlined } from '@ant-design/icons';
-import { appendBusinessNode, appendTemplatePlaceholder, findNode, moveBusinessSibling, spiSchemaToMarkdown, updateNodeTree, validateEffectTags, validateSpiTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
+import { Button, Input, Modal, Popconfirm, Select, Tag, Tooltip, Typography } from 'antd';
+import { CaretDownOutlined, CaretRightOutlined, DeleteOutlined, ExclamationCircleFilled, HolderOutlined, ImportOutlined, MinusSquareOutlined, PlusOutlined, PlusSquareOutlined } from '@ant-design/icons';
+import { appendBusinessNode, appendTemplatePlaceholder, findNode, importJsonToSpiTree, moveBusinessSibling, updateNodeTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
 
 const FIELD_TYPES = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((type) => ({ label: type, value: type }));
 type DragState = { parentId: string | null; nodeId: string } | null;
@@ -22,18 +22,21 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
   const [newFieldId, setNewFieldId] = useState<string>();
   const [dragState, setDragState] = useState<DragState>(null);
   const [rootCollapsed, setRootCollapsed] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [jsonDraft, setJsonDraft] = useState('');
+  const [jsonError, setJsonError] = useState('');
 
-  const copyMarkdown = async () => {
-    const fieldError = validateSpiTree(fields) || (effectTagOptions ? validateEffectTags(fields) : null);
-    if (fieldError) {
-      message.warning(`Complete the fields before copying: ${fieldError}`);
-      return;
-    }
+  const importJson = () => {
     try {
-      await navigator.clipboard.writeText(spiSchemaToMarkdown(fields, Boolean(effectTagOptions)));
-      message.success(`${title} copied as a Markdown table.`);
-    } catch {
-      message.error('Could not copy to clipboard.');
+      const imported = importJsonToSpiTree(JSON.parse(jsonDraft) as unknown, catalog, fields, customRoot);
+      onChange(imported);
+      setCollapsed(new Set());
+      setRootCollapsed(false);
+      setImportOpen(false);
+      setJsonDraft('');
+      setJsonError('');
+    } catch (error) {
+      setJsonError(error instanceof SyntaxError ? 'Enter valid JSON before importing.' : error instanceof Error ? error.message : 'Could not import JSON.');
     }
   };
 
@@ -104,20 +107,13 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
 
   return <section className="capability-spi-section">
     <div className="capability-spi-schema-frame"><div className="capability-spi-section-head"><h2>{title}</h2><div className="capability-spi-section-tools">
-      <Tooltip title="Expand all"><Button className="capability-spi-tool-square" aria-label={`Expand all ${title}`} icon={<PlusSquareOutlined />} onClick={() => { setCollapsed(new Set()); setRootCollapsed(false); }} /></Tooltip>
-      <Tooltip title="Collapse all"><Button className="capability-spi-tool-square" aria-label={`Collapse all ${title}`} icon={<MinusSquareOutlined />} onClick={() => {
+      <Tooltip title="展开全部"><Button className="capability-spi-tool-square" aria-label={`展开全部 ${title}`} icon={<PlusSquareOutlined />} onClick={() => { setCollapsed(new Set()); setRootCollapsed(false); }} /></Tooltip>
+      <Tooltip title="收起全部"><Button className="capability-spi-tool-square" aria-label={`收起全部 ${title}`} icon={<MinusSquareOutlined />} onClick={() => {
         const ids: string[] = [];
         const collect = (items: SpiFieldNode[]) => items.forEach((item) => { if (item.type === 'Object' || item.type === 'Array') ids.push(item.id); collect(item.children); });
         collect(fields); setCollapsed(new Set(ids)); setRootCollapsed(true);
       }} /></Tooltip>
-      <Dropdown menu={{ items: [
-        { key: 'markdown', label: 'Markdown' },
-        { key: 'json', label: 'JSON', disabled: true, title: 'Coming soon' },
-      ], onClick: ({ key }) => { if (key === 'markdown') void copyMarkdown(); } }} trigger={['click']}>
-        <Button className="capability-spi-tool-copy" icon={<CopyOutlined />} aria-label={`Copy ${title}`}>
-          Copy <DownOutlined className="capability-spi-copy-caret" />
-        </Button>
-      </Dropdown>
+      {editing && <Button className="capability-spi-tool-import" icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>Import JSON</Button>}
     </div></div>
     <div className="capability-spi-tree-scroll"><div className={`capability-spi-field-table ${editing ? 'editing' : ''} ${effectTagOptions ? 'with-effect-tag' : ''}`} role="table">
       <div className="capability-spi-tree-header" role="row"><span role="columnheader">FIELD</span><span role="columnheader">TYPE</span>{effectTagOptions && <span role="columnheader">{effectTagHeader || 'EFFECT TAG'}</span>}<span role="columnheader">DESCRIPTION</span>{editing && <span role="columnheader">OPERATIONS</span>}</div>
@@ -130,5 +126,10 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
       </div>
       {!rootCollapsed && (fields.length ? fields.map((node) => render(node, 0, null)) : <div className="capability-spi-empty">No fields selected. {editing && <Button type="link" onClick={() => addField(null)}>Add field under _order</Button>}</div>)}
     </div></div></div>
+    <Modal title={`Import JSON as ${title}`} open={importOpen} okText="Import" onOk={importJson} onCancel={() => { setImportOpen(false); setJsonError(''); }} destroyOnHidden>
+      <Typography.Text type="secondary">Paste a JSON object. Importing replaces the fields currently defined under _order.{!customRoot && ' Public fields must match the template; add new fields under extraRequest or extraResponse.'}</Typography.Text>
+      <Input.TextArea value={jsonDraft} onChange={(event) => { setJsonDraft(event.target.value); setJsonError(''); }} placeholder={'{\n  "route": {\n    "channel": "example"\n  }\n}'} autoSize={{ minRows: 10, maxRows: 18 }} status={jsonError ? 'error' : undefined} className="capability-spi-import-json-input" />
+      {jsonError && <Typography.Text type="danger" className="capability-spi-import-error">{jsonError}</Typography.Text>}
+    </Modal>
   </section>;
 }

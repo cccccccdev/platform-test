@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getDemoReturnUrl } from './demoNavigation';
 import { EFFECT_TAG_OPTIONS, serviceApiRequestFields, serviceApiResponseFields, type EffectTag } from './serviceApiReferenceData';
 import SpiSchemaTree from './capability/SpiSchemaTree';
+import InterfaceCopyButton from './capability/InterfaceCopyButton';
 import { fieldsToTree, validateEffectTags, validateSpiTree, type SpiFieldNode } from './capability/spiSchemaModel';
 import './capability/CapabilitySpiPage.css';
 import './ServiceApiPage.css';
@@ -142,7 +143,7 @@ export default function ServiceApiPage() {
     </header>
     <main className={`service-api-panel capability-spi-panel ${editing ? 'editing' : ''}`}>
       <InterfaceDetails config={visibleConfig} editing={editing} businessType={businessType} service={serviceName} action={actionName}
-        actions={!editing && <><Button onClick={() => void share()}>Share</Button><Button type="primary" onClick={() => { setDraft(structuredClone(visibleConfig)); setDraftKey(apiKey); }}>Config</Button></>}
+        actions={!editing && <><Button onClick={() => void share()}>Share</Button><InterfaceCopyButton kind="API" businessType={businessType} serviceOrAbility={{ label: 'Service', value: serviceName }} action={actionName} method={visibleConfig.method} url={visibleConfig.url} description={visibleConfig.description} request={visibleConfig.request} response={visibleConfig.response} /><Button type="primary" onClick={() => { setDraft(structuredClone(visibleConfig)); setDraftKey(apiKey); }}>Config</Button></>}
         onDescriptionChange={(description) => updateDraft({ description })} />
       <SpiSchemaTree key={`${apiKey}-request`} title="Request Params" fields={requestFields} catalog={REQUEST_CATALOG} effectTagOptions={EFFECT_TAG_OPTIONS} effectTagHeader={effectTagHeader('request')} editing={editing} onChange={(request) => updateDraft({ request })} />
       <SpiSchemaTree key={`${apiKey}-response`} title="Response Params" fields={responseFields} catalog={RESPONSE_CATALOG} effectTagOptions={EFFECT_TAG_OPTIONS} effectTagHeader={effectTagHeader('response')} editing={editing} onChange={(response) => updateDraft({ response })} />
