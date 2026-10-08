@@ -321,6 +321,24 @@ const getDemoProfile = (businessType: string, ability: string, action: string) =
 const buildDemoUrl = (businessType: string, ability: string, action: string) =>
   `/api/${businessType.toLowerCase().replaceAll('_', '-')}/${ability.toLowerCase().replaceAll('_', '-')}/${action.toLowerCase().replaceAll('_', '-')}`;
 
+// Share the exact SPI default template with Field Mapping without duplicating its catalog.
+// eslint-disable-next-line react-refresh/only-export-components
+export function getDefaultSpiMappingSchema(businessType: string, ability: string, action: string, spiType: SpiTab) {
+  if (spiType === 'code') return { request: [] as SpiFieldNode[], response: [] as SpiFieldNode[] };
+  const profile = getDemoProfile(businessType, ability, action);
+  const subOrderEnabled = isSubOrderModeEnabled(businessType, ability);
+  return {
+    request: withoutBusinessFields(fieldsToTree([
+      ...CONFIG_SPI.request.slice(0, -2), ...profile.request,
+      ...(subOrderEnabled ? SUB_ORDER_REQUEST_FIELDS : []),
+    ])),
+    response: withoutBusinessFields(fieldsToTree([
+      ...CONFIG_SPI.response.slice(0, -3), ...profile.response,
+      ...(subOrderEnabled ? SUB_ORDER_RESPONSE_FIELDS : []),
+    ])),
+  };
+}
+
 interface SavedSpiConfig {
   method: string;
   url: string;
