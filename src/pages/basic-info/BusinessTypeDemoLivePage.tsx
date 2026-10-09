@@ -52,9 +52,18 @@ export default function BusinessTypeDemoLivePage() {
       const next = new URLSearchParams(searchParams);
       const key = selectedKind === 'service' ? 'collapsedService' : 'collapsedAbility';
       const collapsed = next.getAll(key);
+      const nextCollapsed = collapsed.includes(selectedName)
+        ? collapsed.filter((item) => item !== selectedName)
+        : [...collapsed, selectedName];
+      const hasExpandedRelatedCard = connections.some((connection) => focus.kind === 'ability'
+        ? connection.ability === focus.name && !nextCollapsed.includes(connection.service)
+        : connection.service === focus.name && !nextCollapsed.includes(connection.ability));
+      if (!hasExpandedRelatedCard) {
+        setSearchParams(new URLSearchParams({ bt: businessType }));
+        return;
+      }
       next.delete(key);
-      for (const item of collapsed.filter((item) => item !== selectedName)) next.append(key, item);
-      if (!collapsed.includes(selectedName)) next.append(key, selectedName);
+      for (const item of nextCollapsed) next.append(key, item);
       setSearchParams(next);
       return;
     }
@@ -66,13 +75,9 @@ export default function BusinessTypeDemoLivePage() {
     : { bt: businessType, actionView: 'all' }));
 
   return <div className="bt-demo-page"><main className={`bt-demo-panel ${showAllActions ? 'all-actions' : ''} ${focus ? 'has-focus' : ''}`}>
-    <div className="bt-demo-intro">
-      <div><h2>Service → Capability</h2><p>Browse every Action with Show all Actions, or select a Service or Ability to focus its mappings. Connections flow from Service to Ability.</p></div>
-    </div>
     {!businessType ? <Empty description="Select a Business Type from the sidebar" /> : <BusinessTypeDemoCanvas
       businessType={businessType} services={services} abilityGroup={abilityGroup} connections={connections} focus={focus}
       showAllActions={showAllActions} onToggleAllActions={toggleAllActions}
       collapsedServices={collapsedServices} collapsedAbilities={collapsedAbilities} onSelect={select} />}
-    <p className="bt-demo-footnote">Use Add mapping to connect a Service and Ability. Matching Action names link automatically. In Show all Actions, select a card to see only its Action mappings; select it again to return to the connection overview.</p>
   </main></div>;
 }

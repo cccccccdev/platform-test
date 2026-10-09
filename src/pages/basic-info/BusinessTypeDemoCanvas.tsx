@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AutoComplete, Button, Form, Input, Modal, Radio, Select, Tag, Typography, message } from 'antd';
-import { ArrowRightOutlined, DownOutlined, PlusOutlined, SettingOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, DeleteOutlined, DownOutlined, PlusOutlined, SettingOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useBusinessTypeStore } from './businessTypeReferenceData';
 import { useCapabilityDataStore, type AbilityItem, type BusinessTypeItem } from './capabilityDataStore';
 import { SERVICE_MODEL_OPTIONS, type ServiceActionRecord, type ServiceRecord, type ServiceRunModel } from './serviceReferenceData';
 import { useServiceStore } from './serviceStore';
@@ -243,6 +244,34 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
     service: focus?.kind === 'service' ? focus.name : undefined,
     ability: focus?.kind === 'ability' ? focus.name : undefined,
   });
+  const confirmDeleteBusinessType = () => {
+    if (services.length || abilities.length) return;
+    Modal.confirm({
+      title: `Delete ${businessType}?`,
+      content: 'This Business Type has no Service or Capability. This action cannot be undone in the current Demo session.',
+      okText: 'Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: () => {
+        const currentServiceCount = useServiceStore.getState().records[businessType]?.length || 0;
+        const currentCapabilityCount = useCapabilityDataStore.getState().data.find((record) => record.name === businessType)?.abilities.length || 0;
+        if (currentServiceCount || currentCapabilityCount) {
+          message.error('This Business Type now contains a Service or Capability and cannot be deleted.');
+          return;
+        }
+        const names = useBusinessTypeStore.getState().records.map((record) => record.businessType);
+        const index = names.indexOf(businessType);
+        const next = names[index + 1] || names[index - 1] || '';
+        useBusinessTypeStore.getState().removeBusinessType(businessType);
+        useCapabilityDataStore.getState().removeBusinessType(businessType);
+        useServiceStore.getState().removeBusinessType(businessType);
+        if (next) window.localStorage.setItem('basicInfoBusinessTypeContext', next);
+        else window.localStorage.removeItem('basicInfoBusinessTypeContext');
+        navigate(`/basic-info/demo${next ? `?bt=${encodeURIComponent(next)}` : ''}`, { replace: true });
+        message.success('Business Type deleted');
+      },
+    });
+  };
   const saveConnection = () => {
     if (!connectionDraft?.service || !connectionDraft.ability) return;
     const result = addConnection(businessType, connectionDraft.service, connectionDraft.ability);
@@ -316,15 +345,21 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
   };
 
   return <>
-    <div className="bt-demo-mapping-toolbar"><div className="bt-demo-view-actions">
-      <Button icon={<UnorderedListOutlined />} className={showAllActions ? 'active' : ''} aria-pressed={showAllActions} onClick={onToggleAllActions}>
-        {showAllActions ? 'Hide all Actions' : 'Show all Actions'}
-      </Button>
-      <Button icon={<PlusOutlined />} onClick={openAddMapping} disabled={!services.length || !abilities.length}>Add mapping</Button>
+    <div className="bt-demo-mapping-toolbar"><div className="bt-demo-intro">
+      <p>{services.length || abilities.length
+        ? 'Show all Actions to browse every card, or select a Service or Capability to focus its Action mappings. Select the card again to return to the overview.'
+        : 'Add a Service or Capability to start mapping Actions.'}</p>
+      <div className="bt-demo-view-actions">
+        {(services.length > 0 || abilities.length > 0) && <Button icon={<UnorderedListOutlined />} className={showAllActions ? 'active' : ''} aria-pressed={showAllActions} onClick={onToggleAllActions}>
+          {showAllActions ? 'Hide all Actions' : 'Show all Actions'}
+        </Button>}
+        {services.length > 0 && abilities.length > 0 && <Button icon={<PlusOutlined />} onClick={openAddMapping}>Add mapping</Button>}
+        {services.length === 0 && abilities.length === 0 && <Button type="primary" danger icon={<DeleteOutlined />} onClick={confirmDeleteBusinessType}>Delete Business Type</Button>}
+      </div>
     </div><div className="bt-demo-column-headings">
       <div className="bt-demo-column-title"><span>Service</span><Button size="small" icon={<PlusOutlined />} onClick={() => { serviceForm.resetFields(); setAddServiceOpen(true); }}>Add Service</Button></div>
-      <span>{focus ? 'Action mapping · click ↗' : 'Service → Capability'}</span>
-      <div className="bt-demo-column-title"><span>Ability</span><Button size="small" icon={<PlusOutlined />} onClick={() => { abilityForm.resetFields(); abilityForm.setFieldValue('direction', 'Outbound'); setAddAbilityOpen(true); }}>Add Capability</Button></div>
+      <span className="bt-demo-direction-arrow" role="img" aria-label="Service to Capability"><ArrowRightOutlined /></span>
+      <div className="bt-demo-column-title"><span>Capability</span><Button size="small" icon={<PlusOutlined />} onClick={() => { abilityForm.resetFields(); abilityForm.setFieldValue('direction', 'Outbound'); setAddAbilityOpen(true); }}>Add Capability</Button></div>
     </div></div>
     <div className="bt-demo-diagram bt-demo-inline-diagram" ref={diagramRef}>
       <section className="bt-demo-rail" ref={serviceRailRef} aria-label="Services">{services.length ? services.map(renderService) : <div className="bt-demo-rail-empty">No Service</div>}</section>
@@ -365,7 +400,7 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
           })}
         </svg> : <div className="bt-demo-no-connections"><ArrowRightOutlined /><span>No Action mappings yet</span></div>}
       </div>
-      <section className="bt-demo-rail" ref={abilityRailRef} aria-label="Abilities">{abilities.length ? abilities.map(renderAbility) : <div className="bt-demo-rail-empty">No Ability</div>}</section>
+      <section className="bt-demo-rail" ref={abilityRailRef} aria-label="Capabilities">{abilities.length ? abilities.map(renderAbility) : <div className="bt-demo-rail-empty">No Capability</div>}</section>
     </div>
     <Modal title="Add Service" open={addServiceOpen} onCancel={() => { setAddServiceOpen(false); serviceForm.resetFields(); }} onOk={saveService}
       okText="OK" cancelText="Cancel" width={700} className="capability-add-ability-modal" destroyOnHidden forceRender>
