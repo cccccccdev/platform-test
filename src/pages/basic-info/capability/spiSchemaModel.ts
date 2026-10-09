@@ -163,10 +163,23 @@ export function spiSchemaToMarkdown(nodes: SpiFieldNode[], includeEffectTag = fa
   return `${rows.join('\n')}\n`;
 }
 
+const REQUIRED_REQUEST_ROOT_FIELDS = ['route', 'capability', 'identity', 'extraRequest'];
+const REQUIRED_RESPONSE_ROOT_FIELDS = ['route', 'capability', 'identity', 'result', 'extraResponse'];
+
+export function requiredTemplateRootFields(catalog: SpiFieldNode[], customRoot: boolean): string[] {
+  if (customRoot) return [];
+  if (catalog.some((node) => node.name === 'extraRequest' && !node.extension)) return REQUIRED_REQUEST_ROOT_FIELDS;
+  if (catalog.some((node) => node.name === 'extraResponse' && !node.extension)) return REQUIRED_RESPONSE_ROOT_FIELDS;
+  return [];
+}
+
 export function importJsonToSpiTree(json: unknown, catalog: SpiFieldNode[], current: SpiFieldNode[], customRoot: boolean): SpiFieldNode[] {
   if (json === null || typeof json !== 'object' || Array.isArray(json)) {
     throw new Error('The _order value must be a JSON object.');
   }
+  const missingRootFields = requiredTemplateRootFields(catalog, customRoot)
+    .filter((name) => !Object.hasOwn(json, name));
+  if (missingRootFields.length) throw new Error(`Missing required fields under _order: ${missingRootFields.join(', ')}.`);
 
   let count = 0;
   const inferType = (value: unknown): string => {

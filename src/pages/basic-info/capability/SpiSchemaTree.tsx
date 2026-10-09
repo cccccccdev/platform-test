@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Button, Input, Modal, Popconfirm, Select, Tag, Tooltip, Typography } from 'antd';
 import { CaretDownOutlined, CaretRightOutlined, DeleteOutlined, ExclamationCircleFilled, HolderOutlined, ImportOutlined, MinusSquareOutlined, PlusOutlined, PlusSquareOutlined } from '@ant-design/icons';
-import { appendBusinessNode, appendTemplatePlaceholder, findNode, importJsonToSpiTree, moveBusinessSibling, updateNodeTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
+import { appendBusinessNode, appendTemplatePlaceholder, findNode, importJsonToSpiTree, moveBusinessSibling, requiredTemplateRootFields, updateNodeTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
 
 const FIELD_TYPES = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((type) => ({ label: type, value: type }));
 type DragState = { parentId: string | null; nodeId: string } | null;
@@ -25,6 +25,10 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
   const [importOpen, setImportOpen] = useState(false);
   const [jsonDraft, setJsonDraft] = useState('');
   const [jsonError, setJsonError] = useState('');
+  const requiredRootFields = requiredTemplateRootFields(catalog, customRoot);
+  const importPlaceholder = requiredRootFields.length
+    ? JSON.stringify(Object.fromEntries(requiredRootFields.map((name) => [name, {}])), null, 2)
+    : '{\n  "fieldName": "example"\n}';
 
   const importJson = () => {
     try {
@@ -127,8 +131,8 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
       {!rootCollapsed && (fields.length ? fields.map((node) => render(node, 0, null)) : <div className="capability-spi-empty">No fields selected. {editing && <Button type="link" onClick={() => addField(null)}>Add field under _order</Button>}</div>)}
     </div></div></div>
     <Modal title={`Import JSON as ${title}`} open={importOpen} okText="Import" onOk={importJson} onCancel={() => { setImportOpen(false); setJsonError(''); }} destroyOnHidden>
-      <Typography.Text type="secondary">Paste a JSON object. Importing replaces the fields currently defined under _order.{!customRoot && ' Public fields must match the template; add new fields under extraRequest or extraResponse.'}</Typography.Text>
-      <Input.TextArea value={jsonDraft} onChange={(event) => { setJsonDraft(event.target.value); setJsonError(''); }} placeholder={'{\n  "route": {\n    "channel": "example"\n  }\n}'} autoSize={{ minRows: 10, maxRows: 18 }} status={jsonError ? 'error' : undefined} className="capability-spi-import-json-input" />
+      <Typography.Text type="secondary">Paste a JSON object for the fields under _order. Importing replaces the current fields.{requiredRootFields.length > 0 && ` Required top-level fields: ${requiredRootFields.join(', ')}. Public fields must be a subset of the template; add custom fields under extraRequest or extraResponse.`}</Typography.Text>
+      <Input.TextArea value={jsonDraft} onChange={(event) => { setJsonDraft(event.target.value); setJsonError(''); }} placeholder={importPlaceholder} autoSize={{ minRows: 10, maxRows: 18 }} status={jsonError ? 'error' : undefined} className="capability-spi-import-json-input" />
       {jsonError && <Typography.Text type="danger" className="capability-spi-import-error">{jsonError}</Typography.Text>}
     </Modal>
   </section>;
