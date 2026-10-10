@@ -1,0 +1,336 @@
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { Button, Collapse, Input, Modal, Space, Tag, Tooltip, message } from 'antd';
+import { EditOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { timestampVersion, useChannelScopeStore } from './channelScopeStore';
+import type { AuthConfig, CredentialItem, VariableItem } from './channelScopeStore';
+import type { OutboundEndpoint } from './channelScopeStore';
+import type { TcpProfile } from './channelScopeStore';
+
+const AuthenticationDrawer = lazy(() => import('./sharedAuthenticationDrawer'));
+const OutboundEndpointDrawer = lazy(() => import('./OutboundEndpointDrawer'));
+const TcpProfileDrawer = lazy(() => import('./TcpProfileDrawer'));
+
+const EMPTY_VARIABLES: VariableItem[] = [];
+const EMPTY_CREDENTIALS: CredentialItem[] = [];
+const EMPTY_AUTHENTICATIONS: AuthConfig[] = [];
+
+const authTypeLabels: Record<AuthConfig['type'], string> = {
+  basic: 'Basic Auth',
+  bearer: 'Bearer Token',
+  custom: 'Custom Auth',
+  oauth2: 'OAuth 2',
+};
+
+function VersionTag({ version }: { version?: string }) {
+  return <Tag color="blue" style={{ margin: 0, fontSize: 9 }}>{version ?? '—'}</Tag>;
+}
+
+function EmptyContext({ children }: { children: string }) {
+  return <div style={{ padding: 9, color: '#8c8c8c', background: '#fafafa', borderRadius: 6, fontSize: 11 }}>{children}</div>;
+}
+
+function EnterHint() {
+  return <div style={{ marginTop: 4, color: '#8c8c8c', fontSize: 9 }}>Press Enter to add</div>;
+}
+
+function GlobalVariableRow({
+  variable,
+  readOnly,
+  onCommit,
+  onSelect,
+}: {
+  variable: VariableItem;
+  readOnly: boolean;
+  onCommit: (value: string) => void;
+  onSelect: () => void;
+}) {
+  const [value, setValue] = useState(variable.value);
+
+  useEffect(() => setValue(variable.value), [variable.value]);
+
+  const commit = () => {
+    if (value === variable.value) return;
+    if (!value.trim()) {
+      message.error('Global Variable value is required');
+      setValue(variable.value);
+      return;
+    }
+    onCommit(value);
+  };
+
+  return <div style={{ display: 'grid', gridTemplateColumns: '42% 58%', gap: 6, alignItems: 'center', padding: '4px 0', borderBottom: '1px solid #f5f5f5' }}>
+    <div onClick={onSelect} style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11 }} title={variable.name}>{variable.name}</div>
+    <Input size="small" disabled={readOnly} value={value} aria-label={`Global Variable Value ${variable.name}`} onChange={(event) => setValue(event.target.value)} onBlur={commit} onPressEnter={commit} />
+  </div>;
+}
+
+export default function CanvasContextPanel({
+  channelCode,
+  mode,
+  action,
+  readOnly = false,
+  isMappingActive = false,
+  onFieldSelect,
+  channelMerchantInfoAvailable = false,
+  resourceVersions,
+}: {
+  channelCode: string;
+  mode: 'flow' | 'matching';
+  action?: string;
+  readOnly?: boolean;
+  isMappingActive?: boolean;
+  onFieldSelect?: (fieldPath: string) => void;
+  channelMerchantInfoAvailable?: boolean;
+  resourceVersions?: {
+    globalVariables?: string;
+    credentials?: string;
+    orderVariables?: string;
+  };
+}) {
+  const globalVariables = useChannelScopeStore((state) => state.globalVariablesByChannel[channelCode]) ?? EMPTY_VARIABLES;
+  const globalVariableVersion = useChannelScopeStore((state) => state.globalVariableVersionByChannel[channelCode]);
+  const orderVariables = useChannelScopeStore((state) => state.orderVariablesByChannel[channelCode]) ?? EMPTY_VARIABLES;
+  const orderVariableVersion = useChannelScopeStore((state) => state.orderVariableVersionByChannel[channelCode]);
+  const credentials = useChannelScopeStore((state) => state.credentialsByChannel[channelCode]) ?? EMPTY_CREDENTIALS;
+  const credentialVersion = useChannelScopeStore((state) => state.credentialVersionByChannel[channelCode]);
+  const authentications = useChannelScopeStore((state) => state.authenticationsByChannel[channelCode]) ?? EMPTY_AUTHENTICATIONS;
+  const outboundEndpoints = useChannelScopeStore((state) => state.outboundEndpointsByChannel[channelCode]) ?? [];
+  const tcpProfiles = useChannelScopeStore((state) => state.tcpProfilesByChannel[channelCode]) ?? [];
+  const addTcpProfile = useChannelScopeStore((state) => state.addTcpProfile);
+  const updateTcpProfile = useChannelScopeStore((state) => state.updateTcpProfile);
+  const addOutboundEndpoint = useChannelScopeStore((state) => state.addOutboundEndpoint);
+  const updateOutboundEndpoint = useChannelScopeStore((state) => state.updateOutboundEndpoint);
+  const addCredential = useChannelScopeStore((state) => state.addCredential);
+  const addGlobalVariable = useChannelScopeStore((state) => state.addGlobalVariable);
+  const updateGlobalVariableValue = useChannelScopeStore((state) => state.updateGlobalVariableValue);
+  const addOrderVariable = useChannelScopeStore((state) => state.addOrderVariable);
+
+  const [globalVariableKeyDraft, setGlobalVariableKeyDraft] = useState('');
+  const [globalVariableValueDraft, setGlobalVariableValueDraft] = useState('');
+  const [credentialKeyDraft, setCredentialKeyDraft] = useState('');
+  const [orderVariableKeyDraft, setOrderVariableKeyDraft] = useState('');
+  const [showCredentialGuidance, setShowCredentialGuidance] = useState(false);
+  const [editingAuthentication, setEditingAuthentication] = useState<AuthConfig | null>(null);
+  const [showAuthenticationDrawer, setShowAuthenticationDrawer] = useState(false);
+  const [editingEndpoint, setEditingEndpoint] = useState<OutboundEndpoint | null>(null);
+  const [showEndpointDrawer, setShowEndpointDrawer] = useState(false);
+  const [editingTcpProfile, setEditingTcpProfile] = useState<TcpProfile | null>(null);
+  const [showTcpProfileDrawer, setShowTcpProfileDrawer] = useState(false);
+
+  const submitGlobalVariable = () => {
+    const key = globalVariableKeyDraft.trim();
+    const value = globalVariableValueDraft.trim();
+    if (!key || !value) return;
+    if (globalVariables.some((item) => item.name.toLowerCase() === key.toLowerCase())) {
+      message.error('Global Variable key already exists in this Channel');
+      return;
+    }
+    addGlobalVariable(channelCode, { id: `global_${Date.now()}`, name: key, value });
+    setGlobalVariableKeyDraft('');
+    setGlobalVariableValueDraft('');
+    message.success('Global Variable added; collection version updated');
+  };
+
+  const submitCredentialKey = () => {
+    const key = credentialKeyDraft.trim();
+    if (!key) return;
+    if (credentials.some((item) => item.key.toLowerCase() === key.toLowerCase())) {
+      message.error('Credential key already exists in this Channel');
+      return;
+    }
+    addCredential(channelCode, { id: `cred_${Date.now()}`, key });
+    setCredentialKeyDraft('');
+    message.success('Credential key added; collection version updated');
+  };
+
+  const submitOrderVariableKey = () => {
+    const key = orderVariableKeyDraft.trim();
+    if (!key) return;
+    if (orderVariables.some((item) => item.name.toLowerCase() === key.toLowerCase())) {
+      message.error('Order Variable key already exists in this Channel');
+      return;
+    }
+    addOrderVariable(channelCode, { id: `order_${Date.now()}`, name: key, value: '' });
+    setOrderVariableKeyDraft('');
+    message.success('Order Variable key added; collection version updated');
+  };
+
+  const spiFields = action ? <div style={{ fontSize: 11 }}>
+      <div style={{ color: '#1677ff', fontWeight: 600, marginBottom: 4 }}>spi.request</div>
+      {['amount', 'currency', 'reference'].map((field) => <div key={`request.${field}`} onClick={() => isMappingActive && onFieldSelect?.(`spi.request.${field}`)} style={{ padding: '3px 4px', cursor: isMappingActive ? 'pointer' : 'default' }}>{field} <Tag style={{ fontSize: 9 }}>string</Tag></div>)}
+      <div style={{ color: '#722ed1', fontWeight: 600, margin: '8px 0 4px' }}>spi.response</div>
+      {['status', 'code', 'message'].map((field) => <div key={`response.${field}`} onClick={() => isMappingActive && onFieldSelect?.(`spi.response.${field}`)} style={{ padding: '3px 4px', cursor: isMappingActive ? 'pointer' : 'default' }}>{field} <Tag style={{ fontSize: 9 }}>string</Tag></div>)}
+    </div> : <EmptyContext>No SPI available.</EmptyContext>;
+
+  const channelItems = [
+    {
+      key: 'global-variable',
+      label: <Space><span>📝</span><span>Global Variables</span><VersionTag version={globalVariables.length ? resourceVersions?.globalVariables ?? globalVariableVersion : undefined} /></Space>,
+      children: <div>
+        {globalVariables.length
+          ? globalVariables.map((item) => <GlobalVariableRow
+              key={item.id}
+              variable={item}
+              readOnly={readOnly}
+              onSelect={() => isMappingActive && onFieldSelect?.(`globalVariables.${item.name}`)}
+              onCommit={(value) => {
+                updateGlobalVariableValue(channelCode, item.id, value);
+                message.success('Global Variable value updated; collection version updated');
+              }}
+            />)
+          : <EmptyContext>No Global Variable configured.</EmptyContext>}
+        {!readOnly && <div style={{ display: 'grid', gridTemplateColumns: '42% 58%', gap: 6, marginTop: 8 }}>
+          <Input size="small" value={globalVariableKeyDraft} onChange={(event) => setGlobalVariableKeyDraft(event.target.value)} onPressEnter={submitGlobalVariable} placeholder="Key" aria-label="New Global Variable Key" />
+          <Input size="small" value={globalVariableValueDraft} onChange={(event) => setGlobalVariableValueDraft(event.target.value)} onPressEnter={submitGlobalVariable} placeholder="Value" aria-label="New Global Variable Value" />
+        </div>}
+        {!readOnly && <EnterHint />}
+      </div>,
+    },
+    {
+      key: 'credential',
+      label: <Space><span>🔐</span><span>Credentials</span><VersionTag version={resourceVersions?.credentials ?? credentialVersion} /><Button type="text" size="small" aria-label="Credential Guidance" icon={<QuestionCircleOutlined />} onClick={(event) => { event.stopPropagation(); setShowCredentialGuidance(true); }} style={{ padding: '0 4px', height: 20 }} /></Space>,
+      children: <div>
+        {credentials.length
+          ? credentials.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.key}</div>)
+          : <EmptyContext>No Credential key configured.</EmptyContext>}
+        {!readOnly && <Input
+          size="small"
+          value={credentialKeyDraft}
+          onChange={(event) => setCredentialKeyDraft(event.target.value)}
+          onPressEnter={submitCredentialKey}
+          placeholder="Credential key"
+          aria-label="New Credential Key"
+          style={{ marginTop: 8 }}
+        />}
+        {!readOnly && <EnterHint />}
+      </div>,
+    },
+  ];
+
+  const orderItems = mode === 'flow' ? [{
+    key: 'spi',
+    label: <Space><span>🔵</span><span>SPI</span><Tag>Read only</Tag></Space>,
+    children: spiFields,
+  }, {
+    key: 'order-variable',
+    label: <Space><span>📦</span><span>Order Variables</span><VersionTag version={orderVariables.length ? resourceVersions?.orderVariables ?? orderVariableVersion : undefined} /></Space>,
+    children: <div>
+      {orderVariables.length
+        ? orderVariables.map((item) => <div key={item.id} style={{ padding: '5px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, color: '#262626' }}>{item.name}</div>)
+        : <EmptyContext>No Order Variable key configured.</EmptyContext>}
+      {!readOnly && <Input
+        size="small"
+        value={orderVariableKeyDraft}
+        onChange={(event) => setOrderVariableKeyDraft(event.target.value)}
+        onPressEnter={submitOrderVariableKey}
+        placeholder="Order Variable key"
+        aria-label="New Order Variable Key"
+        style={{ marginTop: 8 }}
+      />}
+      {!readOnly && <EnterHint />}
+    </div>,
+  }] : [];
+
+  const authenticationItem = {
+    key: 'authentication',
+    label: <Space><span>🛡️</span><span>Authentication</span></Space>,
+    children: <div>
+      {authentications.length ? authentications.map((item) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11, gap: 6 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, color: '#262626', fontSize: 11 }}>{item.name}</span>
+            <Tag color="geekblue" style={{ fontSize: 9, margin: 0 }}>{authTypeLabels[item.type]}</Tag>
+          </div>
+          <div style={{ color: '#8c8c8c', marginTop: 2 }}>v{item.version}</div>
+        </div>
+        <Button type="text" size="small" icon={<EditOutlined />} aria-label={`${readOnly ? 'View' : 'Edit'} ${item.name}`} onClick={() => { setEditingAuthentication(item); setShowAuthenticationDrawer(true); }} />
+      </div>) : <EmptyContext>No Authentication configured.</EmptyContext>}
+      {!readOnly && <div style={{ padding: '8px 4px 0' }}>
+        <Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingAuthentication(null); setShowAuthenticationDrawer(true); }}>Create Scheme</Button>
+      </div>}
+    </div>,
+  };
+
+  const endpointItem = {
+    key: 'endpoint',
+    label: <Space><span>🔗</span><span>Endpoint</span></Space>,
+    children: <div>
+      {outboundEndpoints.length ? outboundEndpoints.map((endpoint) => <div key={endpoint.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, padding: '7px 4px', borderBottom: '1px solid #f5f5f5' }}>
+        <div style={{ minWidth: 0 }}>
+          <div title={endpoint.name} style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{endpoint.name}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}><Tag color="blue" style={{ margin: 0, fontSize: 9 }}>{endpoint.method}</Tag><span style={{ color: '#8c8c8c', fontSize: 9 }}>v{endpoint.version}</span></div>
+        </div>
+        <Button type="text" size="small" icon={<EditOutlined />} aria-label={`${readOnly ? 'View' : 'Edit'} ${endpoint.name}`} onClick={() => { setEditingEndpoint(endpoint); setShowEndpointDrawer(true); }} />
+      </div>) : <EmptyContext>No Endpoint configured.</EmptyContext>}
+      {!readOnly && <div style={{ padding: '8px 4px 0' }}><Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingEndpoint(null); setShowEndpointDrawer(true); }}>Create Endpoint</Button></div>}
+    </div>,
+  };
+
+  const tcpProfileItem = {
+    key: 'tcp-profile',
+    label: <Space><span>🔌</span><span>TCP Profiles</span><Tag color="blue">{tcpProfiles.length}</Tag><Tooltip title="A TCP Profile is a reusable Channel-level configuration for long-lived TCP connection runtime behavior. TCP endpoint details remain in Channel Info Party Lines, while message definitions stay in tcpCall."><QuestionCircleOutlined style={{ color: '#8c8c8c', fontSize: 12 }} /></Tooltip></Space>,
+    children: <div>
+      {tcpProfiles.length ? tcpProfiles.map((profile) => <div key={profile.id} style={{ padding: '7px 4px', borderBottom: '1px solid #f5f5f5' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}><b style={{ fontSize: 11 }}>{profile.name}</b><Button type="text" size="small" icon={<EditOutlined />} aria-label={`Edit ${profile.name}`} onClick={() => { setEditingTcpProfile(profile); setShowTcpProfileDrawer(true); }} /></div>
+      </div>) : <EmptyContext>No TCP Profile configured.</EmptyContext>}
+      {!readOnly && <div style={{ padding: '8px 4px 0' }}><Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => { setEditingTcpProfile(null); setShowTcpProfileDrawer(true); }}>Create TCP Profile</Button></div>}
+    </div>,
+  };
+
+  const loadedDataItems = channelMerchantInfoAvailable ? [{
+    key: 'channel-merchant-info',
+    label: <Space><span>Channel Merchant Info</span><Tag color="blue">Read only</Tag></Space>,
+    children: <div style={{ padding: '4px 0' }}>
+      <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>channelMerchantId</div>
+      <div style={{ padding: '6px 4px', borderBottom: '1px solid #f5f5f5', fontSize: 11 }}>non3dsChannelMerchantId</div>
+    </div>,
+  }] : [];
+
+  const resourceItems = mode === 'flow'
+    ? [
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={readOnly ? [...channelItems, tcpProfileItem, authenticationItem, endpointItem] : [...channelItems, tcpProfileItem, authenticationItem, endpointItem]} defaultActiveKey={[]} /> },
+        { key: 'order-resources', label: <strong>Order Resources</strong>, children: <Collapse ghost items={orderItems} defaultActiveKey={[]} /> },
+        { key: 'loaded-data', label: <strong>Loaded Data</strong>, children: loadedDataItems.length ? <Collapse ghost items={loadedDataItems} defaultActiveKey={[]} /> : <EmptyContext>No data loaded.</EmptyContext> },
+      ]
+    : [
+        { key: 'channel-resources', label: <strong>Channel Resources</strong>, children: <Collapse ghost items={[...channelItems, tcpProfileItem]} defaultActiveKey={[]} /> },
+      ];
+  const defaultResourceKeys = mode === 'flow'
+    ? ['channel-resources', 'order-resources', 'loaded-data']
+    : ['channel-resources'];
+
+  return <>
+    <div style={{ width: 292, height: '100%', borderRight: '1px solid #f0f0f0', background: '#fff', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>Resources</span>
+        {!readOnly && <Button type="text" size="small" icon={<ReloadOutlined />} aria-label="Refresh Resources" onClick={() => message.success('Resource references are up to date')} />}
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: 6 }}>
+        <Collapse ghost items={resourceItems} defaultActiveKey={defaultResourceKeys} />
+      </div>
+    </div>
+
+    {showAuthenticationDrawer && <Suspense fallback={null}><AuthenticationDrawer visible channelCode={channelCode} auth={editingAuthentication} onClose={() => { setShowAuthenticationDrawer(false); setEditingAuthentication(null); }} /></Suspense>}
+    {showEndpointDrawer && <Suspense fallback={null}><OutboundEndpointDrawer open endpoint={editingEndpoint} onClose={() => { setShowEndpointDrawer(false); setEditingEndpoint(null); }} onSave={(values) => {
+      if (editingEndpoint) updateOutboundEndpoint(channelCode, editingEndpoint.id, values);
+      else {
+        const segment = values.path.split('/').filter(Boolean).at(-1) ?? 'Endpoint';
+        const name = segment.replace(/[{}_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+        addOutboundEndpoint(channelCode, { id: `endpoint_${Date.now()}`, name, ...values, version: timestampVersion() });
+      }
+      setShowEndpointDrawer(false);
+      setEditingEndpoint(null);
+      message.success('Endpoint saved');
+    }} /></Suspense>}
+    {showTcpProfileDrawer && <Suspense fallback={null}><TcpProfileDrawer open profile={editingTcpProfile} readOnly={readOnly} onClose={() => { setShowTcpProfileDrawer(false); setEditingTcpProfile(null); }} onSave={(profile) => { if (editingTcpProfile) updateTcpProfile(channelCode, profile.id, profile); else addTcpProfile(channelCode, profile); setShowTcpProfileDrawer(false); setEditingTcpProfile(null); message.success('TCP Profile saved'); }} /></Suspense>}
+    <Modal title="Credential Guidance" open={showCredentialGuidance} footer={null} onCancel={() => setShowCredentialGuidance(false)}>
+      <ol style={{ paddingLeft: 22, marginBottom: 0, lineHeight: 1.8 }}>
+        <li>Create the required credential field names for the Channel here, such as username and password.</li>
+        <li>Credentials refer to information that must be sent when requesting the Channel and may vary for different Parties.</li>
+        <li>The actual values of the credentials must be maintained on the Party-related page.</li>
+        <li>Credential field names cannot be edited or deleted after creation.</li>
+        <li>If an error occurs during creation, add a new record to make corrections.</li>
+      </ol>
+    </Modal>
+  </>;
+}

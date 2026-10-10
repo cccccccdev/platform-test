@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      const segmentCount = 1;
+      const location = window.location;
+      const base = location.pathname.split('/').slice(0, 1 + segmentCount).join('/') + '/';
+      const rest = location.pathname
+        .split('/')
+        .slice(1 + segmentCount)
+        .join('/')
+      location.replace(base + '#/' + rest + location.search + location.hash);
+    </script>
+  </head>
+  <body></body>
+</html>

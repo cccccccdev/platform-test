@@ -1,0 +1,500 @@
+// Mock 数据 - Channel Integration 模块
+// 所有数据均为 Mock，不调用真实接口
+
+// 渠道列表
+export const mockChannels = [
+  { code: 'COBO', country: ['GSA'], party: ['ONELOOP'], status: 'Active', operator: 'Abe', operationTime: '2026-09-02 10:00:00' },
+  { code: 'EVEXIN', country: ['NG'], party: ['FLEXI'], status: 'Active', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
+  { code: 'GTB_NG', country: ['Nigeria'], party: ['PalmPay NG'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 10:00:00' },
+  { code: 'ZENITH_NG', country: ['Nigeria', 'Ghana'], party: ['PalmPay NG'], status: 'Inactive', operator: 'admin', operationTime: '2026-05-20 11:00:00' },
+  { code: 'PAYSTACK_NG', country: ['Nigeria'], party: ['PalmPay GH'], status: 'Active', operator: 'admin', operationTime: '2026-05-20 12:00:00' },
+  { code: 'NPSB_BD', country: ['Bangladesh'], party: ['NPSB Member Institution'], status: 'Active', operator: 'admin', operationTime: '2026-07-15 10:00:00' },
+]
+
+// Channel Info > Party > Accounts 的环境级 Mock 数据。
+// Account 在各 Cloud / Env 中分别创建，当前没有跨环境公共配置。
+export const mockChannelInfoPartyAccounts: Record<string, Array<{ accountCode: string; operator: string; operationTime: string }>> = {
+  'EVEXIN:ALIYUN:DAILY:FLEXI': [
+    { accountCode: 'EVEXIN_SMS_MAIN', operator: 'Bailly', operationTime: '2026-06-09 10:00:00' },
+  ],
+  'COBO:ALIYUN:DAILY:ONELOOP': [
+    { accountCode: 'COBO_SETTLEMENT_MAIN', operator: 'Abe', operationTime: '2026-06-09 10:12:00' },
+  ],
+  'GTB_NG:ALIYUN:DAILY:PalmPay NG': [
+    { accountCode: 'GTB_NG_PRIMARY', operator: 'admin', operationTime: '2026-06-09 10:20:00' },
+  ],
+}
+
+// Channel Info > Application 的运行态 Mock。Callback Line 由 Application + Env + Party 自动生成。
+export const mockChannelInfoApplications: Record<string, { applicationName: string; hostSuffix: string }> = {
+  'EVEXIN:ALIYUN:DAILY': { applicationName: 'finance-switch-channel', hostSuffix: 'palmpay-inc.com' },
+}
+
+// Credential 列表（按 channelCode 索引）
+export const mockCredentials: Record<string, Array<{ id: string; key: string; description?: string }>> = {
+  COBO: [
+    { id: 'cobo_api_key', key: 'API_KEY', description: 'COBO API credential' },
+    { id: 'cobo_api_secret', key: 'API_SECRET', description: 'COBO API signing secret' },
+  ],
+  EVEXIN: [
+    { id: 'evexin_app_key', key: 'appKey', description: 'EVEXIN credential key' },
+    { id: 'evexin_app_secret', key: 'appSecret', description: 'EVEXIN credential secret' },
+    { id: 'evexin_sender_code', key: 'senderCode', description: 'FLEXIOTP sender account key' },
+    { id: 'evexin_short_link_replace', key: 'shortLinkReplaceFlag', description: 'Short-link replacement flag' },
+  ],
+  GTB_NG: [
+    { id: 'cred_1', key: 'API_KEY', description: 'Main API key' },
+    { id: 'cred_2', key: 'SECRET_KEY', description: 'Secret key for signing' },
+    { id: 'cred_3', key: 'APP_ID', description: 'Application ID' },
+  ],
+  ZENITH_NG: [
+    { id: 'cred_4', key: 'BEARER_TOKEN', description: 'Bearer token' },
+  ],
+  PAYSTACK_NG: [
+    { id: 'cred_5', key: 'PUBLIC_KEY', description: 'Public key' },
+  ],
+  NPSB_BD: [
+    { id: 'npsb_zmk', key: 'ZMK_KEY_REFERENCE', description: 'HSM key reference for key exchange' },
+    { id: 'npsb_zak', key: 'ZAK_KEY_REFERENCE', description: 'HSM key reference for MAC' },
+    { id: 'npsb_zpk', key: 'ZPK_KEY_REFERENCE', description: 'HSM key reference for PIN block' },
+  ],
+}
+
+// Business Type 列表（按 channelCode 索引）
+export const mockBusinessTypes: Record<string, Array<{ bt: string; mode: 'Config Integration' | 'Code Integration' }>> = {
+  COBO: [
+    { bt: 'STABLECOIN', mode: 'Config Integration' },
+  ],
+  EVEXIN: [
+    { bt: 'SMS', mode: 'Config Integration' },
+  ],
+  GTB_NG: [
+    { bt: 'COLLECTION', mode: 'Config Integration' },
+    { bt: 'DISBURSEMENT', mode: 'Code Integration' },
+    { bt: 'BANK_CARD_DEBIT', mode: 'Config Integration' },
+    { bt: 'WALLET_DEBIT', mode: 'Config Integration' },
+    { bt: 'SMS', mode: 'Config Integration' },
+    { bt: 'KYC', mode: 'Config Integration' },
+    { bt: 'FUND_NOTIFICATION', mode: 'Config Integration' },
+  ],
+  ZENITH_NG: [
+    { bt: 'COLLECTION', mode: 'Config Integration' },
+  ],
+  PAYSTACK_NG: [],
+  NPSB_BD: [
+    { bt: 'WALLET_PAYOUT', mode: 'Config Integration' },
+    { bt: 'BANK_ACCOUNT_PAYOUT', mode: 'Config Integration' },
+    { bt: 'FUND_NOTIFICATION', mode: 'Config Integration' },
+  ],
+}
+
+// Ability 列表（Config Integration）
+export const mockAbilities: Array<{
+  bt: string;
+  ability: string;
+  publishStatus: 'draft' | 'pending' | 'published';
+  badges: Array<{ cloud: string; env: string }>;
+}> = [
+  {
+    bt: 'COLLECTION',
+    ability: 'CARD_PAY',
+    publishStatus: 'published',
+    badges: [{ cloud: 'AWS', env: '生产' }, { cloud: 'GCP', env: '测试' }],
+  },
+  {
+    bt: 'COLLECTION',
+    ability: 'USSD_PAY',
+    publishStatus: 'draft',
+    badges: [],
+  },
+  {
+    bt: 'DISBURSEMENT',
+    ability: 'BANK_TRF',
+    publishStatus: 'pending',
+    badges: [{ cloud: 'AWS', env: 'PRE' }],
+  },
+]
+
+// outboundEndpoints
+export const mockOutboundEndpoints = [
+  { name: 'charge_endpoint', url: 'https://api.gtb.ng/charge', method: 'POST' },
+  { name: 'query_endpoint', url: 'https://api.gtb.ng/query', method: 'GET' },
+  { name: 'refund_endpoint', url: 'https://api.gtb.ng/refund', method: 'POST' },
+]
+
+// outboundEndpoints 字段结构
+export const mockEndpointFields: Record<string, string[]> = {
+  charge_endpoint: ['merchantId', 'amount', 'currency', 'sign', 'callbackUrl'],
+  query_endpoint: ['merchantId', 'orderId', 'sign'],
+  refund_endpoint: ['merchantId', 'orderId', 'amount', 'sign'],
+}
+
+// Route Matching 的内置样例数据。
+// 运行期新增和修改只保存在内存中；刷新页面或重启项目后会恢复为这里的样例。
+export const mockInboundEndpointsByChannel = {
+  EVEXIN: [
+    {
+      id: 'evexin_sms_status_callback',
+      name: 'EVEXIN SMS Status Callback',
+      url: '/callback/evexin/sms/status',
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'EVEXIN SMS callback route matching by msgId',
+      fields: ['body.msgId'],
+      matchType: 'order_no' as const,
+      matchFieldSource: 'body' as const,
+      singleNoField: 'body.msgId',
+      referenceField: 'responseReference' as const,
+      matchFields: [],
+      rules: [
+        { id: 'evexin_sms_single_message', fieldValues: {}, bt: 'SMS', ability: 'SINGLE_MESSAGE', action: 'TRANSACTION' },
+        { id: 'evexin_sms_bulk_message', fieldValues: {}, bt: 'SMS', ability: 'BULK_MESSAGE', action: 'TRANSACTION' },
+      ],
+      fallbackBehavior: 'reject' as const,
+      decryptEnabled: false,
+      version: '20260703095237',
+      configStatus: 'DAILY' as const,
+      badges: [{ cloud: 'ALIYUN', env: 'DAILY' }],
+      referenceCount: 2,
+      updatedTime: '2026-07-03 09:52:37',
+      operator: 'Bailly',
+    },
+  ],
+  MTN_UG: [
+    {
+      id: 'mtn_ug_payment_callback',
+      name: 'MTN UG Payment Callback',
+      url: '/callback/mtn_ug/payment',
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'MTN Uganda payment callback route matching',
+      fields: ['body.orderNo', 'body.status', 'body.responseCode'],
+      matchType: 'order_no' as const,
+      matchFieldSource: 'body' as const,
+      singleNoField: 'body.orderNo',
+      referenceField: 'requestReference' as const,
+      matchFields: [],
+      rules: [{ id: 'mtn_payment_callback_rule', fieldValues: {}, bt: 'FUND_NOTIFICATION', ability: 'PAYMENT_NOTIFY', action: 'TRANSACTION' }],
+      fallbackBehavior: 'alert_and_reject' as const,
+      decryptEnabled: false,
+      version: '20260706161000',
+      configStatus: 'PROD' as const,
+      badges: [{ cloud: 'ALIYUN', env: 'PROD' }],
+      referenceCount: 2,
+      updatedTime: '2026-07-06 16:10:00',
+      operator: 'admin',
+    },
+    {
+      id: 'mtn_ug_resource_callback',
+      name: 'MTN UG Resource Callback',
+      url: '/callback/mtn_ug/getfinancialresourceinformation',
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'MTN Uganda bill query callback route matching',
+      fields: ['body.billRef', 'body.resultCode', 'body.message'],
+      matchType: 'type_field' as const,
+      singleNoField: '',
+      matchFields: ['body.resultCode'],
+      rules: [
+        { id: 'mtn_resource_success', fieldValues: { 'body.resultCode': '101' }, bt: 'FUND_NOTIFICATION', ability: 'BILL_QUERY_NOTIFY', action: 'QUERY' },
+        { id: 'mtn_resource_failed', fieldValues: { 'body.resultCode': '102' }, bt: 'FUND_NOTIFICATION', ability: 'BILL_QUERY_NOTIFY', action: 'QUERY' },
+      ],
+      fallbackBehavior: 'reject' as const,
+      decryptEnabled: false,
+      version: '20260706162500',
+      configStatus: 'PROD' as const,
+      badges: [{ cloud: 'ALIYUN', env: 'PROD' }],
+      referenceCount: 1,
+      updatedTime: '2026-07-06 16:25:00',
+      operator: 'admin',
+    },
+  ],
+  GTB_NG: [
+    {
+      id: 'gtb_callback_endpoint',
+      name: 'Payment Callback Matching',
+      url: '/callback/gtb_ng/payment_callback',
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'Card payment callback entry',
+      fields: ['body.orderId', 'body.transType', 'body.channel', 'body.status'],
+      matchType: 'order_no' as const,
+      matchFieldSource: 'body' as const,
+      singleNoField: 'body.orderId',
+      referenceField: 'requestReference' as const,
+      matchFields: [],
+      rules: [{ id: 'gtb_callback_candidate', fieldValues: {}, bt: 'COLLECTION', ability: 'CARD_PAY', action: 'TRANSACTION' }],
+      fallbackBehavior: 'alert_and_reject' as const,
+      decryptEnabled: false,
+      version: '20260628203000',
+      configStatus: 'DAILY' as const,
+      badges: [{ cloud: 'BD', env: 'DAILY' }],
+      referenceCount: 2,
+      updatedTime: '2026-06-28 20:30:00',
+      operator: 'admin',
+    },
+    {
+      id: 'gtb_notify_endpoint',
+      name: 'Shared Notification Matching',
+      url: '/callback/gtb_ng/notify',
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'Shared inbound notification entry',
+      fields: ['body.type', 'body.currency', 'header.x-event-source'],
+      matchType: 'type_field' as const,
+      singleNoField: '',
+      matchFields: ['body.type', 'body.currency', 'header.x-event-source'],
+      rules: [
+        {
+          id: 'gtb_rule_purchase',
+          fieldValues: { 'body.type': 'purchase', 'body.currency': 'NGN', 'header.x-event-source': 'card' },
+          bt: 'COLLECTION',
+          ability: 'CARD_PAY',
+          action: 'TRANSACTION',
+        },
+        {
+          id: 'gtb_rule_transfer',
+          fieldValues: { 'body.type': 'transfer', 'body.currency': '*', 'header.x-event-source': 'bank' },
+          bt: 'COLLECTION',
+          ability: 'CARD_PAY',
+          action: 'QUERY',
+        },
+      ],
+      version: '20260628211000',
+      configStatus: 'UNDEPLOYED' as const,
+      fallbackBehavior: 'reject' as const,
+      decryptEnabled: true,
+      referenceCount: 1,
+      updatedTime: '2026-06-28 21:10:00',
+      operator: 'abe',
+    },
+    {
+      id: 'gtb_prod_callback_endpoint',
+      name: 'Production Callback Matching',
+      url: '/callback/gtb_ng/production_callback',
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'Production-protected capability matching sample',
+      fields: [],
+      matchType: 'single' as const,
+      singleNoField: '',
+      matchFields: [],
+      rules: [{ id: 'gtb_prod_single', fieldValues: {}, bt: 'COLLECTION', ability: 'CARD_PAY', action: 'TRANSACTION' }],
+      version: '20260629094500',
+      configStatus: 'PROD' as const,
+      badges: [
+        { cloud: 'MFB', env: 'DAILY' },
+        { cloud: 'MFB', env: 'PRE' },
+        { cloud: 'MFB', env: 'PROD' },
+      ],
+      fallbackBehavior: 'alert_and_reject' as const,
+      decryptEnabled: false,
+      referenceCount: 3,
+      updatedTime: '2026-06-29 09:45:00',
+      operator: 'admin',
+    },
+    {
+      id: 'gtb_legacy_callback',
+      name: 'Legacy Transfer Callback',
+      url: '/callback/gtb/transfer',
+      method: 'POST' as const,
+      uriType: 'legacy' as const,
+      description: 'Imported 1.0 inbound flow; readonly',
+      fields: ['body.reference', 'body.status'],
+      matchType: 'custom' as const,
+      singleNoField: '',
+      matchFields: [],
+      rules: [],
+      customScript: '/* Legacy Groovy script */',
+      version: '20251218092000',
+      configStatus: 'PROD' as const,
+      fallbackBehavior: 'reject' as const,
+      referenceCount: 1,
+      updatedTime: '2025-12-18 09:20:00',
+      operator: 'migration',
+    },
+  ],
+  ZENITH_NG: [
+    {
+      id: 'zenith_callback_endpoint',
+      name: 'Zenith Callback Undeployed',
+      url: '/callback/zenith_ng/payment_callback',
+      method: 'POST' as const,
+      uriType: 'new' as const,
+      description: 'Zenith callback entry',
+      fields: ['body.reference', 'body.status'],
+      matchType: 'single' as const,
+      singleNoField: 'body.reference',
+      matchFields: [],
+      rules: [{ id: 'zenith_single', fieldValues: {}, bt: 'COLLECTION', ability: 'CARD_PAY', action: 'TRANSACTION' }],
+      version: '20260628180000',
+      configStatus: 'UNDEPLOYED' as const,
+      fallbackBehavior: 'reject' as const,
+      decryptEnabled: false,
+      referenceCount: 0,
+      updatedTime: '2026-06-28 18:00:00',
+      operator: 'admin',
+    },
+  ],
+  PAYSTACK_NG: [],
+}
+
+// 事件枚举
+export const mockEvents = [
+  'AUTH_SUCCESS',
+  'AUTH_PENDING',
+  'AUTH_FAILED',
+  'CAPTURE_SUCCESS',
+  'CAPTURE_FAILED',
+  'SETTLE_SUCCESS',
+  'SETTLE_FAILED',
+  'NOTIFY_SUCCESS',
+  'NOTIFY_FAILED',
+]
+
+// Context SPI 字段（按 Action 分）
+export const mockSpiFields: Record<string, { request: string[]; response: string[] }> = {
+  TRANSACTION: {
+    request: ['amount', 'currency', 'merchantId', 'orderId', 'cardNo', 'expiry', 'cvv', 'callbackUrl'],
+    response: ['status', 'code', 'message', 'channelRef', 'transactionId'],
+  },
+  QUERY: {
+    request: ['orderId', 'merchantId'],
+    response: ['status', 'code', 'channelRef', 'transactionId'],
+  },
+  VERIFY: {
+    request: ['orderId', 'merchantId', 'otp'],
+    response: ['status', 'code', 'message'],
+  },
+  CANCEL: {
+    request: ['orderId', 'merchantId'],
+    response: ['status', 'code', 'message'],
+  },
+  REVERSAL: {
+    request: ['orderId', 'merchantId', 'amount'],
+    response: ['status', 'code', 'reversalRef'],
+  },
+  INBOUND_TRANSACTION: {
+    request: ['channelRef', 'amount', 'currency', 'notifyType'],
+    response: ['code', 'message'],
+  },
+  INBOUND_QUERY: {
+    request: ['channelRef', 'queryType'],
+    response: ['status', 'code', 'message'],
+  },
+}
+
+// 版本历史（Control 弹窗用）
+export const mockVersionHistory: Array<{ version: string; time: string; status: 'running' | 'stopped' }> = [
+  { version: 'v1.2.0', time: '2026-05-07 14:30', status: 'running' },
+  { version: 'v1.1.0', time: '2026-04-20 09:10', status: 'stopped' },
+  { version: 'v1.0.0', time: '2026-03-15 16:45', status: 'stopped' },
+]
+
+// Flow 模板组件（按 Action + Flow 类型）
+export const mockFlowTemplates: Record<string, Record<string, string[]>> = {
+  TRANSACTION: {
+    main: ['initOrder', 'network', 'updateOrder'],
+    event: ['network', 'updateOrder'],
+    requery: ['network', 'updateOrder'],
+    callback: ['parseInboundRequest', 'updateOrder', 'buildInboundResponse', 'sendInboundResponse'],
+  },
+  QUERY: {
+    main: ['network'],
+    event: ['network', 'updateOrder'],
+    requery: ['network', 'updateOrder'],
+  },
+  VERIFY: {
+    main: ['initOrder', 'network', 'updateOrder'],
+    event: ['network', 'updateOrder'],
+    requery: ['network', 'updateOrder'],
+    callback: ['parseInboundRequest', 'updateOrder', 'buildInboundResponse', 'sendInboundResponse'],
+  },
+  CANCEL: {
+    main: ['initOrder', 'network', 'updateOrder'],
+    event: ['network', 'updateOrder'],
+    requery: ['network', 'updateOrder'],
+    callback: ['parseInboundRequest', 'updateOrder', 'buildInboundResponse', 'sendInboundResponse'],
+  },
+  REVERSAL: {
+    main: ['initOrder', 'network', 'updateOrder'],
+    event: ['network', 'updateOrder'],
+    requery: ['network', 'updateOrder'],
+    callback: ['parseInboundRequest', 'updateOrder', 'buildInboundResponse', 'sendInboundResponse'],
+  },
+  INBOUND_TRANSACTION: {
+    main: ['parseInboundRequest', 'initOrder', 'sendMockOrderMQ', 'buildInboundResponse', 'sendInboundResponse'],
+    event: ['network', 'updateOrder'],
+  },
+  INBOUND_QUERY: {
+    main: ['parseInboundRequest', 'requestBusinessAccessLayer', 'buildInboundResponse', 'sendInboundResponse'],
+  },
+}
+
+// 组件库定义
+export const outboundComponents = [
+  { name: 'network', label: 'network', description: '核心网络组件' },
+  { name: 'generateReference', label: 'generateReference', description: '生成引用号' },
+  { name: 'condition', label: 'condition', description: '条件判断' },
+  { name: 'initOrder', label: 'initOrder', description: '初始化订单' },
+  { name: 'updateOrder', label: 'updateOrder', description: '更新订单' },
+]
+
+export const inboundComponents = [
+  { name: 'parseInboundRequest', label: 'parseInboundRequest', description: '解析入站请求' },
+  { name: 'buildInboundResponse', label: 'buildInboundResponse', description: '构建入站响应' },
+  { name: 'sendInboundResponse', label: 'sendInboundResponse', description: '发送入站响应' },
+  { name: 'sendMockOrderMQ', label: 'sendMockOrderMQ', description: '发送模拟订单MQ' },
+  { name: 'requestBusinessAccessLayer', label: 'requestBusinessAccessLayer', description: '请求业务接入层' },
+  { name: 'queryOrder', label: 'queryOrder', description: '查询订单' },
+]
+
+// Ability 枚举（按 BT 过滤）
+export const abilityOptions: Record<string, string[]> = {
+  COLLECTION: ['CARD_PAY', 'USSD_PAY', 'WALLET_PAY'],
+  DISBURSEMENT: ['BANK_TRF'],
+  REFUND: ['REFUND_PAY'],
+  TRANSFER: ['WALLET_TRF'],
+  BANK_CARD_DEBIT: ['INFO_PAYMENT'],
+  WALLET_DEBIT: ['TRANSFER'],
+  SMS: ['SINGLE_MESSAGE', 'BULK_MESSAGE'],
+  KYC: ['FINGERPRINT_VERIFY'],
+  FUND_NOTIFICATION: ['CUSTOMER_VALIDATION'],
+  WALLET_PAYOUT: ['TRANSACTION'],
+  BANK_ACCOUNT_PAYOUT: ['TRANSACTION'],
+  STABLECOIN: ['ON_RAMP', 'OFF_RAMP', 'PAY_OUT'],
+}
+
+// Country 枚举
+export const countryOptions = ['Nigeria', 'Ghana', 'Kenya', 'Tanzania', 'Uganda', "Côte d'Ivoire"]
+
+// Party 枚举
+export const partyOptions = ['FLEXI', 'PalmPay NG', 'PalmPay GH', 'PalmPay KE']
+
+// Business Type 枚举
+export const businessTypeOptions = ['COLLECTION', 'DISBURSEMENT', 'REFUND', 'TRANSFER', 'BANK_CARD_DEBIT', 'WALLET_DEBIT', 'SMS', 'KYC', 'FUND_NOTIFICATION', 'STABLECOIN']
+
+// Action 枚举
+export const actionOptions = ['TRANSACTION', 'QUERY', 'VERIFY', 'CANCEL', 'REVERSAL', 'INBOUND_TRANSACTION', 'INBOUND_QUERY']
+
+// Demo capability-to-action relationship used by linked selectors.
+export const capabilityActionOptions: Record<string, string[]> = {
+  'COLLECTION:CARD_PAY': ['TRANSACTION', 'QUERY', 'VERIFY', 'INBOUND_TRANSACTION'],
+  'COLLECTION:USSD_PAY': ['TRANSACTION', 'QUERY', 'VERIFY'],
+  'COLLECTION:WALLET_PAY': ['TRANSACTION', 'QUERY', 'INBOUND_TRANSACTION', 'INBOUND_QUERY'],
+  'DISBURSEMENT:BANK_TRF': ['TRANSACTION', 'QUERY', 'CANCEL', 'REVERSAL'],
+  'REFUND:REFUND_PAY': ['TRANSACTION', 'QUERY'],
+  'TRANSFER:WALLET_TRF': ['TRANSACTION', 'QUERY', 'REVERSAL'],
+  'BANK_CARD_DEBIT:INFO_PAYMENT': ['TRANSACTION', 'VERIFY'],
+  'WALLET_DEBIT:TRANSFER': ['TRANSACTION', 'VERIFY'],
+  'SMS:SINGLE_MESSAGE': ['TRANSACTION'],
+  'SMS:BULK_MESSAGE': ['TRANSACTION'],
+  'KYC:FINGERPRINT_VERIFY': ['QUERY'],
+  'FUND_NOTIFICATION:CUSTOMER_VALIDATION': ['INBOUND_QUERY'],
+  'WALLET_PAYOUT:TRANSACTION': ['TRANSACTION', 'QUERY', 'REVERSAL'],
+  'BANK_ACCOUNT_PAYOUT:TRANSACTION': ['TRANSACTION', 'QUERY', 'REVERSAL'],
+  'FUND_NOTIFICATION:EXTERNAL_CREDIT': ['INBOUND_TRANSACTION', 'QUERY'],
+  'STABLECOIN:ON_RAMP': ['TRANSACTION'],
+  'STABLECOIN:OFF_RAMP': ['TRANSACTION'],
+  'STABLECOIN:PAY_OUT': ['TRANSACTION'],
+}

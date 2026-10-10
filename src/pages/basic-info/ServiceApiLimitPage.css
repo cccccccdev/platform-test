@@ -1,0 +1,53 @@
+.service-api-limit-page { min-height: 100%; color: #3e434b; background: var(--legacy-bg); }
+.service-api-limit-heading { height: 86px; padding: 12px 18px 14px; background: #fff; }
+.service-api-limit-heading .ant-breadcrumb { font-size: 12px; }
+.service-api-limit-back { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 0; border: 0; color: #262626; background: transparent; cursor: pointer; }
+.service-api-limit-back .ant-typography { margin: 0; font-size: 18px; line-height: 1; }
+.service-api-limit-back:hover { color: var(--legacy-purple); }
+.service-api-limit-back:focus-visible { outline: 2px solid #b37feb; outline-offset: 3px; }
+.service-api-limit-panel { min-height: calc(100vh - 156px); margin: 22px 18px 24px; padding: 0 32px 40px; background: #fff; }
+.service-api-country-tabs { display: flex; align-items: center; gap: 28px; min-height: 58px; overflow-x: auto; border-bottom: 1px solid #eceef2; }
+.service-api-country-tabs button { position: relative; flex: none; padding: 20px 0 17px; border: 0; color: #555b64; background: transparent; font-size: 12px; cursor: pointer; }
+.service-api-country-tabs button.active { color: var(--legacy-purple); font-weight: 600; }
+.service-api-country-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--legacy-purple); content: ''; }
+.service-api-country-tabs button:disabled { cursor: default; }
+.service-api-limit-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-top: 22px; }
+.service-api-limit-actions { display: flex; gap: 8px; flex: none; }
+.service-api-limit-actions .ant-btn { height: 30px; border-radius: 0; box-shadow: none; font-size: 12px; }
+.service-api-limit-meta { display: flex; flex-wrap: wrap; gap: 18px 32px; margin: 24px 0 32px; font-size: 12px; }
+.service-api-limit-environment { display: flex; flex-direction: column; gap: 8px; width: 270px; margin: 0 0 30px; font-size: 12px; }
+.service-api-limit-environment label { color: #434852; }
+.service-api-limit-environment .ant-select { width: 100%; }
+.service-api-limit-section + .service-api-limit-section { margin-top: 36px; }
+.service-api-limit-section > h5.ant-typography { margin: 0 0 14px; color: #252930; font-size: 16px; }
+.service-api-limit-table { overflow-x: auto; }
+.service-api-limit-head,
+.service-api-limit-row { display: grid; grid-template-columns: minmax(200px, 1.1fr) 105px minmax(190px, 1fr) 95px 100px 105px 158px 110px; align-items: center; column-gap: 16px; min-width: 1260px; }
+.service-api-limit-table.is-config .service-api-limit-head,
+.service-api-limit-table.is-config .service-api-limit-row { grid-template-columns: minmax(200px, 1.1fr) 105px minmax(190px, 1fr) 95px 100px; min-width: 740px; }
+.service-api-limit-head { min-height: 44px; padding: 0 12px; border-bottom: 1px solid #e8e8e8; color: #30343a; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.service-api-limit-row { min-height: 44px; padding: 5px 12px; border-bottom: 1px solid #ececec; font-size: 12px; transition: background-color .18s ease; }
+.service-api-limit-row:hover { background: #faf7fc; }
+.service-api-limit-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.service-api-limit-name .ant-typography { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.service-api-limit-row .ant-checkbox-wrapper { margin: 0; }
+.service-api-limit-row .ant-checkbox-disabled.ant-checkbox-checked .ant-checkbox-inner { border-color: #b8bdc5; background: #f0f1f2; }
+.service-api-limit-row .ant-checkbox-disabled.ant-checkbox-checked .ant-checkbox-inner::after { border-color: #747981; }
+.service-api-limit-row .ant-tag { justify-self: start; margin: 0; border-radius: 2px; font-size: 11px; }
+.service-api-limit-edit.ant-btn { justify-self: start; width: 28px; height: 28px; padding: 0; color: #30343a; }
+.service-api-limit-edit.ant-btn:hover { color: var(--legacy-purple); }
+.service-api-limit-audit { font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.service-api-limit-footer { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; padding: 10px 24px; border-top: 1px solid #e6e8eb; background: #fff; }
+.service-api-limit-footer .ant-btn { min-width: 74px; border-radius: 0; }
+.service-api-field-limit-form { display: grid; gap: 28px; padding: 24px 12px 12px; }
+.service-api-field-limit-form label { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: start; gap: 14px; }
+.service-api-field-limit-form label > span { padding-top: 6px; text-align: right; }
+.service-api-field-limit-form label > div { min-width: 0; }
+.service-api-field-limit-form .ant-select { width: 100%; }
+.service-api-field-limit-form small { display: block; margin-top: 5px; color: #858a93; font-size: 12px; }
+.service-api-field-limit-length { display: flex; gap: 16px; }
+@media (max-width: 900px) {
+  .service-api-limit-panel { padding-inline: 18px; }
+  .service-api-limit-toolbar { align-items: stretch; flex-direction: column; }
+  .service-api-limit-actions { align-self: flex-end; }
+}

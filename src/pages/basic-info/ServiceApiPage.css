@@ -1,0 +1,14 @@
+.service-api-page .capability-spi-heading { height: 86px; }
+.service-api-page .capability-spi-panel { margin-top: 18px; }
+.service-api-tag-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.service-api-filter-trigger { color: #8c8c8c; }
+.service-api-filter-trigger:hover, .service-api-filter-trigger.active { color: var(--legacy-purple) !important; }
+.service-api-tag-filter { width: 330px; padding: 6px; }
+.service-api-tag-filter .ant-select { width: 100%; }
+.service-api-tag-filter-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.service-api-tag-filter-actions .ant-btn-primary:not(:disabled) { background: var(--legacy-purple); box-shadow: none; }
+.service-api-shared-page .capability-spi-heading { display: flex; align-items: center; padding: 0 30px; }
+.service-api-shared-page .capability-spi-heading .ant-typography { margin: 0; }
+.service-api-shared-page .capability-spi-panel { max-width: 1440px; margin-inline: auto; }
+.service-api-shared-invalid { max-width: 680px; margin: 15vh auto; padding: 24px; color: #343941; }
+.service-api-shared-invalid h1 { font-size: 22px; }
