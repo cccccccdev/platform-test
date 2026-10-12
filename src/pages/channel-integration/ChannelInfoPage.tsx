@@ -43,11 +43,13 @@ import ChannelInfoCapabilityPage from './ChannelInfoCapabilityPage';
 import ChannelInfoServiceChannelPage from './ChannelInfoServiceChannelPage';
 import ChannelInfoPartyPage from './ChannelInfoPartyPage';
 import { channelInfoPartyTitle } from './channelInfoPartyRoute';
+import { isSubOrderModeEnabled } from '../basic-info/capability/subOrderModeStore';
 
 const { Content, Sider } = Layout;
 const { Text } = Typography;
 
 type MainState = 'INIT' | 'PENDING' | 'TO_BE_VERIFY' | 'SUCCESS' | 'FAIL';
+type OrderRole = 'MAIN_ORDER' | 'SUB_ORDER';
 type PageKey = 'capability' | 'party' | 'external-internal' | 'internal-external' | 'institution' | 'chain' | 'asset-route' | 'requery' | 'runtime-route-matching' | 'runtime-flow-groups' | 'service-channel';
 type DetailView = { type: 'event'; record: ExternalRecord } | { type: 'approval'; record: ExternalRecord; approval?: ExternalApprovalRequest };
 type Source = 'httpCall' | 'Route Matching';
@@ -83,6 +85,7 @@ interface ExternalRecord {
   bt: string;
   ability: string;
   channelResponseCode: string;
+  orderRole?: OrderRole;
   channelDescription: string;
   subState: string;
   mainState: MainState;
@@ -208,8 +211,6 @@ const pathCapabilities: PathCapability[] = [
   { path: '/callback/financial-resource', source: 'Route Matching', bt: 'FUND_NOTIFICATION', ability: 'BILL_QUERY_NOTIFY', flowGroups: ['Route Matching / Resource Callback'] },
 ];
 
-const internalPathCapabilities: PathCapability[] = pathCapabilities.filter((item) => item.source === 'Route Matching');
-
 const subStates: Array<{ value: string; mainState: MainState }> = [
   { value: 'SUBMITTED', mainState: 'PENDING' },
   { value: 'DELIVERED', mainState: 'SUCCESS' },
@@ -244,6 +245,15 @@ const responseCodesByState: Record<MainState, Array<{ label: string; value: stri
 };
 
 const initialExternalRecords: ExternalRecord[] = [
+  { id: 'evexin-bulk-main-pending', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'MAIN_ORDER', channelResponseCode: '200#0000#PENDING', channelDescription: 'Batch accepted; update the gateway main order only', subState: '', mainState: 'PENDING', responseCode: '61000004' },
+  { id: 'evexin-bulk-main-invalid-recipient', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'MAIN_ORDER', channelResponseCode: '200#6001008#FAILED', channelDescription: 'Batch rejected because the recipient list is invalid', subState: '', mainState: 'FAIL', responseCode: '65000003' },
+  { id: 'evexin-bulk-main-channel-failure', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'MAIN_ORDER', channelResponseCode: '500#9999#FAILED', channelDescription: 'Batch request failed at the channel', subState: '', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-bulk-sub-pending', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'SUB_ORDER', channelResponseCode: 'PENDING', channelDescription: 'Recipient message is processing; locate sub-order by body.to', subState: 'SUBMITTED', mainState: 'PENDING', responseCode: '61000004' },
+  { id: 'evexin-bulk-sub-delivered', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'SUB_ORDER', channelResponseCode: 'DELIVERED', channelDescription: 'Recipient message delivered', subState: 'DELIVERED', mainState: 'SUCCESS', responseCode: '61000001' },
+  { id: 'evexin-bulk-sub-undelivered', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'SUB_ORDER', channelResponseCode: 'UNDELIVERED', channelDescription: 'Recipient message could not be delivered', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-bulk-sub-rejected', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'SUB_ORDER', channelResponseCode: 'REJECT', channelDescription: 'Recipient rejected the message', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-bulk-sub-failed', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'SUB_ORDER', channelResponseCode: 'FAILED', channelDescription: 'Recipient message failed', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
+  { id: 'evexin-bulk-sub-expired', path: '/callback/evexin/sms/status', source: 'Route Matching', bt: 'SMS', ability: 'BULK_MESSAGE', orderRole: 'SUB_ORDER', channelResponseCode: 'EXPIRE', channelDescription: 'Recipient message expired before delivery', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
   { id: 'evexin-send-pending', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: '200#0000#PENDING', channelDescription: 'success', subState: 'SUBMITTED', mainState: 'PENDING', responseCode: '61000004' },
   { id: 'evexin-send-failed-status', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: '200#0000#FAILED', channelDescription: 'success', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
   { id: 'evexin-send-failed-code', path: '/api/msg/v2/sendMsg', source: 'httpCall', bt: 'SMS', ability: 'SINGLE_MESSAGE', channelResponseCode: '200#9999#', channelDescription: 'failed', subState: 'FAILED', mainState: 'FAIL', responseCode: '61000002' },
@@ -259,6 +269,9 @@ const initialExternalRecords: ExternalRecord[] = [
   { id: 'ext-3', path: '/test/path', source: 'httpCall', bt: 'WALLET_DEBIT', ability: 'TRANSFER', channelResponseCode: '202#PROCESSING', channelDescription: 'PROCESSING', subState: 'PAYMENT_PENDING_WAIT_CALLBACK', mainState: 'PENDING', responseCode: '61000003' },
   { id: 'ext-4', path: '/callback/payment', source: 'Route Matching', bt: 'FUND_NOTIFICATION', ability: 'PAYMENT_NOTIFY', channelResponseCode: 'SUCCESS', channelDescription: 'Callback success notification', subState: 'PAYMENT_SUCCESS', mainState: 'SUCCESS', responseCode: '61000001' },
 ];
+
+const isEvexinCapability = (item: PathCapability) => item.path.startsWith('/api/msg/v2/') || item.path.startsWith('/callback/evexin/');
+const externalRecordsForChannel = (channelCode: string) => initialExternalRecords.filter((item) => channelCode === 'EVEXIN' ? item.id.startsWith('evexin-') : !item.id.startsWith('evexin-'));
 
 const initialInternalRecords: InternalRecord[] = [
   { id: 'int-1', path: '/callback/financial-resource', bt: 'FUND_NOTIFICATION', ability: 'BILL_QUERY_NOTIFY', subState: 'BILL_QUERY_SUCCESS', mainState: 'SUCCESS', responseCode: '61000001', description: 'Unpaid bill found', channelResponseCode: '101', channelResponseMessage: 'Unpaid bill found' },
@@ -347,7 +360,7 @@ function subStatesForCapability(_channelCode: string, bt?: string, ability?: str
   if (bt === 'FUND_NOTIFICATION' && ability === 'PAYMENT_NOTIFY') {
     return subStates.filter((item) => item.value.startsWith('PAYMENT_'));
   }
-  if (bt === 'SMS' && ability === 'SINGLE_MESSAGE') {
+  if (bt === 'SMS' && ['SINGLE_MESSAGE', 'BULK_MESSAGE'].includes(ability)) {
     return subStates.filter((item) => ['SUBMITTED', 'DELIVERED', 'FAILED'].includes(item.value));
   }
   return subStates;
@@ -370,6 +383,11 @@ function mainStateColor(value: MainState) {
   if (value === 'PENDING') return 'gold';
   if (value === 'TO_BE_VERIFY') return 'purple';
   return 'default';
+}
+
+function orderRoleTag(orderRole?: OrderRole) {
+  if (!orderRole) return null;
+  return <Tag color={orderRole === 'MAIN_ORDER' ? 'blue' : 'green'} style={{ marginInlineEnd: 0 }}>{orderRole}</Tag>;
 }
 
 function isLegacyNoStateMachineCapability(bt?: string, ability?: string) {
@@ -410,7 +428,7 @@ export default function ChannelInfoPage() {
   const [cloud, setCloud] = useState<string>();
   const [env, setEnv] = useState<string>();
   const [applied, setApplied] = useState<{ cloud: string; env: string } | null>(null);
-  const [externalRecords, setExternalRecords] = useState<ExternalRecord[]>(initialExternalRecords);
+  const [externalRecords, setExternalRecords] = useState<ExternalRecord[]>(() => externalRecordsForChannel(channelCode));
   const [internalRecords, setInternalRecords] = useState<InternalRecord[]>(initialInternalRecords);
   const [eventOperations, setEventOperations] = useState<EventOperation[]>(initialEventOperations);
   const [editingEvent, setEditingEvent] = useState<EventOperation | null>(null);
@@ -467,20 +485,31 @@ export default function ChannelInfoPage() {
   const selectedPath = Form.useWatch('path', form);
   const selectedBt = Form.useWatch('bt', form);
   const selectedAbility = Form.useWatch('ability', form);
+  const selectedOrderRole = Form.useWatch('orderRole', form) as OrderRole | undefined;
   const selectedSubState = Form.useWatch('subState', form);
   const selectedMainState = Form.useWatch('mainState', form);
   const searchEndpoint = Form.useWatch('endpoint', searchForm);
   const searchBt = Form.useWatch('bt', searchForm);
   const searchAbility = Form.useWatch('ability', searchForm);
+  const searchOrderRole = Form.useWatch('orderRole', searchForm) as OrderRole | undefined;
   const bulkEndpoint = Form.useWatch('endpoint', bulkForm);
   const bulkBt = Form.useWatch('bt', bulkForm);
+  const bulkAbility = Form.useWatch('ability', bulkForm);
   const selectedRequerySubState = Form.useWatch('subState', requeryForm);
   const selectedEventType = Form.useWatch('eventType', eventForm);
   const selectedRequeryMainState = Form.useWatch('mainState', requeryForm);
   const selectedRequeryType = Form.useWatch('type', requeryForm);
+  const selectedSubOrderMode = pageKey === 'external-internal'
+    && Boolean(selectedBt && selectedAbility && isSubOrderModeEnabled(selectedBt, selectedAbility));
+  const selectedMainOrderMapping = selectedSubOrderMode && selectedOrderRole === 'MAIN_ORDER';
+  const selectedSubOrderMapping = selectedSubOrderMode && selectedOrderRole === 'SUB_ORDER';
+  const searchSubOrderMode = pageKey === 'external-internal'
+    && Boolean(searchBt && searchAbility && isSubOrderModeEnabled(searchBt, searchAbility));
+  const bulkSubOrderMode = pageKey === 'external-internal'
+    && Boolean(bulkBt && bulkAbility && isSubOrderModeEnabled(bulkBt, bulkAbility));
   const currentMainState: MainState | undefined = pageKey === 'internal-external'
     ? selectedMainState as MainState | undefined
-    : isLegacyNoStateMachineCapability(selectedBt, selectedAbility)
+    : selectedMainOrderMapping || isLegacyNoStateMachineCapability(selectedBt, selectedAbility)
       ? selectedMainState as MainState | undefined
       : mainStateForSubState(selectedSubState);
   const currentRequeryMainState: MainState | undefined = isLegacyNoStateMachineCapability(selectedRequeryBt, selectedRequeryAbility) ? selectedRequeryMainState as MainState | undefined : mainStateForSubState(selectedRequerySubState);
@@ -503,19 +532,28 @@ export default function ChannelInfoPage() {
     setPageKey(nextPageKey);
   }, [location.pathname]);
 
-  const externalEndpointOptions = useMemo(() => endpointOptionsFrom(pathCapabilities), []);
-  const internalEndpointOptions = useMemo(() => endpointOptionsFrom(internalPathCapabilities), []);
+  useEffect(() => {
+    setExternalRecords(externalRecordsForChannel(channelCode));
+  }, [channelCode]);
+
+  const channelPathCapabilities = useMemo(
+    () => pathCapabilities.filter((item) => channelCode === 'EVEXIN' ? isEvexinCapability(item) : !isEvexinCapability(item)),
+    [channelCode],
+  );
+  const channelInternalPathCapabilities = useMemo(() => channelPathCapabilities.filter((item) => item.source === 'Route Matching'), [channelPathCapabilities]);
+  const externalEndpointOptions = useMemo(() => endpointOptionsFrom(channelPathCapabilities), [channelPathCapabilities]);
+  const internalEndpointOptions = useMemo(() => endpointOptionsFrom(channelInternalPathCapabilities), [channelInternalPathCapabilities]);
   const routeMatchingEndpoints = useMemo(() => endpointsByChannel[channelCode] ?? [], [channelCode, endpointsByChannel]);
   const flowGroupAbilities = useMemo(() => abilitiesByChannel[channelCode] ?? [], [abilitiesByChannel, channelCode]);
-  const externalBtOptions = useMemo(() => unique(pathCapabilities.filter((item) => item.path === selectedPath).map((item) => item.bt)).map((value) => ({ label: value, value })), [selectedPath]);
-  const externalAbilityOptions = useMemo(() => unique(pathCapabilities.filter((item) => item.path === selectedPath && item.bt === selectedBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [selectedBt, selectedPath]);
-  const internalBtOptions = useMemo(() => unique(internalPathCapabilities.filter((item) => item.path === selectedPath).map((item) => item.bt)).map((value) => ({ label: value, value })), [selectedPath]);
-  const internalAbilityOptions = useMemo(() => unique(internalPathCapabilities.filter((item) => item.path === selectedPath && item.bt === selectedBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [selectedBt, selectedPath]);
-  const searchBtOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === searchEndpoint).map((item) => item.bt)).map((value) => ({ label: value, value })), [isExternal, searchEndpoint]);
-  const searchAbilityOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === searchEndpoint && item.bt === searchBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [isExternal, searchBt, searchEndpoint]);
+  const externalBtOptions = useMemo(() => unique(channelPathCapabilities.filter((item) => item.path === selectedPath).map((item) => item.bt)).map((value) => ({ label: value, value })), [channelPathCapabilities, selectedPath]);
+  const externalAbilityOptions = useMemo(() => unique(channelPathCapabilities.filter((item) => item.path === selectedPath && item.bt === selectedBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [channelPathCapabilities, selectedBt, selectedPath]);
+  const internalBtOptions = useMemo(() => unique(channelInternalPathCapabilities.filter((item) => item.path === selectedPath).map((item) => item.bt)).map((value) => ({ label: value, value })), [channelInternalPathCapabilities, selectedPath]);
+  const internalAbilityOptions = useMemo(() => unique(channelInternalPathCapabilities.filter((item) => item.path === selectedPath && item.bt === selectedBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [channelInternalPathCapabilities, selectedBt, selectedPath]);
+  const searchBtOptions = useMemo(() => unique((isExternal ? channelPathCapabilities : channelInternalPathCapabilities).filter((item) => item.path === searchEndpoint).map((item) => item.bt)).map((value) => ({ label: value, value })), [channelInternalPathCapabilities, channelPathCapabilities, isExternal, searchEndpoint]);
+  const searchAbilityOptions = useMemo(() => unique((isExternal ? channelPathCapabilities : channelInternalPathCapabilities).filter((item) => item.path === searchEndpoint && item.bt === searchBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [channelInternalPathCapabilities, channelPathCapabilities, isExternal, searchBt, searchEndpoint]);
   const searchSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', searchBt, searchAbility).map((item) => ({ label: item.value, value: item.value })), [channelCode, searchAbility, searchBt]);
-  const bulkBtOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === bulkEndpoint).map((item) => item.bt)).map((value) => ({ label: value, value })), [bulkEndpoint, isExternal]);
-  const bulkAbilityOptions = useMemo(() => unique((isExternal ? pathCapabilities : internalPathCapabilities).filter((item) => item.path === bulkEndpoint && item.bt === bulkBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [bulkBt, bulkEndpoint, isExternal]);
+  const bulkBtOptions = useMemo(() => unique((isExternal ? channelPathCapabilities : channelInternalPathCapabilities).filter((item) => item.path === bulkEndpoint).map((item) => item.bt)).map((value) => ({ label: value, value })), [bulkEndpoint, channelInternalPathCapabilities, channelPathCapabilities, isExternal]);
+  const bulkAbilityOptions = useMemo(() => unique((isExternal ? channelPathCapabilities : channelInternalPathCapabilities).filter((item) => item.path === bulkEndpoint && item.bt === bulkBt).map((item) => item.ability).filter(Boolean)).map((value) => ({ label: value, value })), [bulkBt, bulkEndpoint, channelInternalPathCapabilities, channelPathCapabilities, isExternal]);
   const modalSubStateOptions = useMemo(() => subStatesForCapability(channelCode ?? '', selectedBt, selectedAbility)
     .filter((item) => pageKey !== 'internal-external' || !selectedMainState || item.mainState === selectedMainState)
     .map((item) => ({ label: item.value, value: item.value })), [channelCode, pageKey, selectedAbility, selectedBt, selectedMainState]);
@@ -558,7 +596,7 @@ export default function ChannelInfoPage() {
     if (isLegacyNoStateMachineCapability(selectedRequeryBt, selectedRequeryAbility)) return NO_STATE_MACHINE;
     return selectedRequeryAbilityConfig?.stateMachine ?? (selectedRequeryBt && selectedRequeryAbility ? 'Default_Refund_StateMachine' : '');
   }, [selectedRequeryAbility, selectedRequeryAbilityConfig, selectedRequeryBt]);
-  const subStateChanged = Boolean(editingExternal && selectedSubState && selectedSubState !== editingExternal.subState);
+  const subStateChanged = Boolean(editingExternal && !selectedMainOrderMapping && selectedSubState && selectedSubState !== editingExternal.subState);
 
   const resetForm = () => {
     form.resetFields();
@@ -630,14 +668,31 @@ export default function ChannelInfoPage() {
 
   const saveExternal = async () => {
     const values = await form.validateFields();
-    const mainState = isLegacyNoStateMachineCapability(values.bt, values.ability) ? values.mainState : mainStateForSubState(values.subState);
+    const subOrderMode = isSubOrderModeEnabled(values.bt, values.ability);
+    const orderRole = subOrderMode ? values.orderRole as OrderRole : undefined;
+    const mainState = orderRole === 'MAIN_ORDER' || isLegacyNoStateMachineCapability(values.bt, values.ability)
+      ? values.mainState as MainState | undefined
+      : mainStateForSubState(values.subState);
     if (!mainState) return;
-    const source = pathCapabilities.find((item) => item.path === values.path && item.bt === values.bt && item.ability === values.ability)?.source ?? 'httpCall';
+    const subState = orderRole === 'MAIN_ORDER' ? '' : values.subState ?? '';
+    const conflictingMapping = externalRecords.find((item) =>
+      item.id !== editingExternal?.id
+      && item.path === values.path
+      && item.bt === values.bt
+      && item.ability === values.ability
+      && item.channelResponseCode === values.channelResponseCode
+      && (subOrderMode ? item.orderRole === orderRole : !item.orderRole),
+    );
+    if (conflictingMapping) {
+      form.setFields([{ name: subOrderMode ? 'orderRole' : 'channelResponseCode', errors: ['The same Endpoint + BT + Ability + Order Role + Channel Response Code already exists'] }]);
+      return;
+    }
+    const source = channelPathCapabilities.find((item) => item.path === values.path && item.bt === values.bt && item.ability === values.ability)?.source ?? 'httpCall';
     if (editingExternal) {
-      if (applied?.env === 'PROD' && values.subState !== editingExternal.subState) {
+      if (applied?.env === 'PROD' && subState !== editingExternal.subState) {
         setPendingExternalValues({
           description: values.channelDescription,
-          subState: values.subState ?? '',
+          subState,
           mainState,
           responseCode: values.responseCode,
         });
@@ -645,9 +700,9 @@ export default function ChannelInfoPage() {
         setApprovalOpen(true);
         return;
       }
-      setExternalRecords((prev) => prev.map((item) => item.id === editingExternal.id ? { ...item, channelDescription: values.channelDescription, subState: values.subState ?? '', mainState, responseCode: values.responseCode } : item));
+      setExternalRecords((prev) => prev.map((item) => item.id === editingExternal.id ? { ...item, channelDescription: values.channelDescription, subState, mainState, responseCode: values.responseCode } : item));
     } else {
-      setExternalRecords((prev) => [{ id: `ext-${Date.now()}`, path: values.path, source, bt: values.bt, ability: values.ability, channelResponseCode: values.channelResponseCode, channelDescription: values.channelDescription, subState: values.subState ?? '', mainState, responseCode: values.responseCode }, ...prev]);
+      setExternalRecords((prev) => [{ id: `ext-${Date.now()}`, path: values.path, source, bt: values.bt, ability: values.ability, orderRole, channelResponseCode: values.channelResponseCode, channelDescription: values.channelDescription, subState, mainState, responseCode: values.responseCode }, ...prev]);
     }
     message.success('External->Internal mapping saved');
     resetForm();
@@ -1049,9 +1104,19 @@ export default function ChannelInfoPage() {
     },
     { title: 'Business Type', dataIndex: 'bt', width: 180 },
     { title: 'Ability', dataIndex: 'ability', width: 170 },
-    { title: 'Channel Response Code', dataIndex: 'channelResponseCode', width: 210 },
+    {
+      title: 'Channel Response Code',
+      dataIndex: 'channelResponseCode',
+      width: 260,
+      render: (value, record) => (
+        <Space size={6} wrap>
+          {orderRoleTag(record.orderRole)}
+          <span>{value}</span>
+        </Space>
+      ),
+    },
     { title: 'Description', dataIndex: 'channelDescription', width: 220 },
-    { title: 'Gateway Sub State', dataIndex: 'subState', width: 240 },
+    { title: 'Gateway Sub State', dataIndex: 'subState', width: 240, render: (value, record) => record.orderRole === 'MAIN_ORDER' ? '-' : value || '-' },
     { title: 'Main State', dataIndex: 'mainState', width: 120, render: (value) => <Tag color={mainStateColor(value)}>{value}</Tag> },
     { title: 'Response Code', dataIndex: 'responseCode', width: 150 },
     { title: 'Operation', key: 'operation', fixed: 'right', width: 230, render: (_, record) => <Space size="small"><Button type="link" size="small" onClick={() => openExternalConfig(record)}>Config</Button><Button type="link" size="small" onClick={() => setDetailView({ type: 'event', record })}>Event</Button><Button type="link" size="small" onClick={() => setExternalHistory(record)}>Change History</Button></Space> },
@@ -1204,7 +1269,7 @@ export default function ChannelInfoPage() {
               allowClear
               options={isExternal ? externalEndpointOptions : internalEndpointOptions}
               placeholder="Select Endpoint"
-              onChange={() => searchForm.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, mainState: undefined })}
+              onChange={() => searchForm.setFieldsValue({ bt: undefined, ability: undefined, orderRole: undefined, subState: undefined, mainState: undefined })}
             />
           </Form.Item>
           <Form.Item name="bt" label="Business Type">
@@ -1213,7 +1278,7 @@ export default function ChannelInfoPage() {
               disabled={!searchEndpoint}
               options={searchBtOptions}
               placeholder="Select Business Type"
-              onChange={() => searchForm.setFieldsValue({ ability: undefined, subState: undefined, mainState: undefined })}
+              onChange={() => searchForm.setFieldsValue({ ability: undefined, orderRole: undefined, subState: undefined, mainState: undefined })}
             />
           </Form.Item>
           <Form.Item name="ability" label="Ability">
@@ -1222,10 +1287,18 @@ export default function ChannelInfoPage() {
               disabled={!searchBt}
               options={searchAbilityOptions}
               placeholder="Select Ability"
-              onChange={() => searchForm.setFieldsValue({ subState: undefined, mainState: undefined })}
+              onChange={() => searchForm.setFieldsValue({ orderRole: undefined, subState: undefined, mainState: undefined })}
             />
           </Form.Item>
-          {!isLegacyNoStateMachineCapability(searchBt, searchAbility) && <Form.Item name="subState" label="Gateway Sub State">
+          {searchSubOrderMode && <Form.Item name="orderRole" label="Order Role">
+            <Select
+              allowClear
+              options={valueOptions(['MAIN_ORDER', 'SUB_ORDER'])}
+              placeholder="Select Order Role"
+              onChange={() => searchForm.setFieldsValue({ subState: undefined, mainState: undefined })}
+            />
+          </Form.Item>}
+          {!isLegacyNoStateMachineCapability(searchBt, searchAbility) && (!searchSubOrderMode || searchOrderRole === 'SUB_ORDER') && <Form.Item name="subState" label="Gateway Sub State">
             <Select
               allowClear
               disabled={!searchAbility}
@@ -1474,9 +1547,9 @@ export default function ChannelInfoPage() {
         <Button type="link" style={{ paddingLeft: 0 }} onClick={() => setDetailView(null)}>Back to External-&gt;Internal</Button>
         <Card>
           <Space size={24} wrap>
-            <Text strong>Channel Response Code: <Text>{record.channelResponseCode}</Text></Text>
+            <Text strong>Channel Response Code: <Space size={6}>{orderRoleTag(record.orderRole)}<Text>{record.channelResponseCode}</Text></Space></Text>
             <Text strong>Response Code: <Text>{record.responseCode}</Text></Text>
-            <Text strong>Gateway Sub State: <Text>{record.subState}</Text></Text>
+            {record.orderRole !== 'MAIN_ORDER' && <Text strong>Gateway Sub State: <Text>{record.subState}</Text></Text>}
             <Text strong>Main State: <Tag color={mainStateColor(record.mainState)}>{record.mainState}</Tag></Text>
           </Space>
           <Table<EventOperation>
@@ -1510,6 +1583,7 @@ export default function ChannelInfoPage() {
             { key: 'endpoint', label: 'Endpoint', children: record.path },
             { key: 'bt', label: 'Business Type', children: record.bt },
             { key: 'ability', label: 'Ability', children: record.ability },
+            { key: 'role', label: 'Order Role', children: record.orderRole ? orderRoleTag(record.orderRole) : '-' },
             { key: 'crc', label: 'Channel Response Code', children: record.channelResponseCode },
             { key: 'result', label: 'Final Result', children: renderApprovalStatus(finalStatus) },
           ]} />
@@ -1517,7 +1591,7 @@ export default function ChannelInfoPage() {
           <div style={{ maxWidth: 960, margin: '0 auto' }}>
             <Card size="small" title="Previous Config" style={{ marginBottom: 18 }}>
               <Descriptions column={1} size="small" items={[
-                { key: 'subState', label: 'Gateway Sub State', children: record.subState },
+                ...(record.orderRole === 'MAIN_ORDER' ? [] : [{ key: 'subState', label: 'Gateway Sub State', children: record.subState }]),
                 { key: 'mainState', label: 'Main State', children: record.mainState },
                 { key: 'responseCode', label: 'Response Code', children: record.responseCode },
                 { key: 'description', label: 'Description', children: record.channelDescription },
@@ -1525,7 +1599,7 @@ export default function ChannelInfoPage() {
             </Card>
             <Card size="small" title="Updated Config">
               <Descriptions column={1} size="small" items={[
-                { key: 'subState', label: 'Gateway Sub State', children: approval?.subState ?? record.subState },
+                ...(record.orderRole === 'MAIN_ORDER' ? [] : [{ key: 'subState', label: 'Gateway Sub State', children: approval?.subState ?? record.subState }]),
                 { key: 'mainState', label: 'Main State', children: approval?.mainState ?? record.mainState },
                 { key: 'responseCode', label: 'Response Code', children: approval?.responseCode ?? record.responseCode },
                 { key: 'description', label: 'Description', children: approval?.description ?? record.channelDescription },
@@ -1687,13 +1761,11 @@ export default function ChannelInfoPage() {
     if (isRuntimeFlowGroups) return renderRuntimeFlowGroupsPage();
     return (
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Alert
+        {!isExternal && <Alert
           type="info"
           showIcon
-          message={isExternal
-            ? 'Endpoint options are grouped by source from published Flow Group Versions and Route Matching. Same Endpoint + BT + Ability shares one mapping set.'
-            : 'Endpoint options are values from Route Matching. Select Endpoint, BT and Ability, then choose Main State, PP Code and the matching Gateway Sub State.'}
-        />
+          message="Endpoint options are values from Route Matching. Select Endpoint, BT and Ability, then choose Main State, PP Code and the matching Gateway Sub State."
+        />}
         {renderSearchCard()}
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -1702,7 +1774,7 @@ export default function ChannelInfoPage() {
               <Button type="primary" onClick={openCreate}>Create</Button>
               <Button type="primary" onClick={() => setBulkOpen(true)}>Bulk Upload</Button>
               <Button onClick={() => setFileListOpen(true)}>File List</Button>
-              <Button onClick={() => message.success(`Downloading current ${title} mappings`)}>Download</Button>
+              <Button onClick={() => message.success(`Downloading current ${title} mappings${isExternal ? ' with Order Role as a separate column' : ''}`)}>Download</Button>
             </Space>
           </div>
           {isExternal ? (
@@ -1839,10 +1911,33 @@ export default function ChannelInfoPage() {
         <Form form={form} layout="vertical" style={{ marginTop: 12 }}>
           {isExternal ? (
             <>
-              <Form.Item name="path" label="Endpoint" rules={[{ required: true }]}><Select disabled={!!editingExternal} options={externalEndpointOptions} onChange={() => form.setFieldsValue({ bt: undefined, ability: undefined, subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
-              <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}><Select disabled={!!editingExternal || !selectedPath} options={externalBtOptions} onChange={() => form.setFieldsValue({ ability: undefined })} /></Form.Item>
-              <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!!editingExternal || !selectedBt} options={externalAbilityOptions} onChange={() => form.setFieldsValue({ subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
-              <Form.Item name="channelResponseCode" label="Channel Response Code" rules={[{ required: true }]}><Input disabled={!!editingExternal} /></Form.Item>
+              <Form.Item name="path" label="Endpoint" rules={[{ required: true }]}><Select disabled={!!editingExternal} options={externalEndpointOptions} onChange={() => form.setFieldsValue({ bt: undefined, ability: undefined, orderRole: undefined, subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}><Select disabled={!!editingExternal || !selectedPath} options={externalBtOptions} onChange={() => form.setFieldsValue({ ability: undefined, orderRole: undefined, subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!!editingExternal || !selectedBt} options={externalAbilityOptions} onChange={() => form.setFieldsValue({ orderRole: undefined, subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
+              <Form.Item label="Channel Response Code" required>
+                <Space.Compact style={{ width: '100%' }}>
+                  {selectedSubOrderMode && (
+                    editingExternal ? <>
+                      <Form.Item name="orderRole" hidden><Input /></Form.Item>
+                      <div style={{ width: 165, display: 'flex', alignItems: 'center', paddingInline: 11, border: '1px solid #d9d9d9', background: '#fafafa' }}>
+                        {orderRoleTag(selectedOrderRole)}
+                      </div>
+                    </> :
+                      <Form.Item name="orderRole" noStyle rules={[{ required: true, message: 'Select Order Role' }]}>
+                        <Select
+                          options={valueOptions(['MAIN_ORDER', 'SUB_ORDER'])}
+                          placeholder="Order Role"
+                          style={{ width: 165 }}
+                          onChange={() => form.setFieldsValue({ subState: undefined, mainState: undefined, responseCode: undefined })}
+                        />
+                      </Form.Item>
+                  )}
+                  <Form.Item name="channelResponseCode" noStyle rules={[{ required: true, message: 'Enter Channel Response Code' }]}>
+                    <Input disabled={!!editingExternal} placeholder="Raw channel response code" />
+                  </Form.Item>
+                </Space.Compact>
+                {selectedSubOrderMode && <Text type="secondary">Order Role is displayed as a semantic prefix; the raw channel response code remains unchanged.</Text>}
+              </Form.Item>
               <Form.Item name="channelDescription" label="Description" rules={[{ required: true }]}><Input /></Form.Item>
             </>
           ) : (
@@ -1852,7 +1947,7 @@ export default function ChannelInfoPage() {
               <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!!editingInternal || !selectedBt} options={internalAbilityOptions} onChange={() => form.setFieldsValue({ subState: undefined, mainState: undefined, responseCode: undefined })} /></Form.Item>
             </>
           )}
-          {(isExternal || (isInternal && selectedBt && selectedAbility)) && (
+          {((isExternal && (!selectedSubOrderMode || selectedSubOrderMapping)) || (isInternal && selectedBt && selectedAbility)) && (
             <div style={{ marginBottom: 8 }}>
               <Button
                 type="link"
@@ -1870,6 +1965,9 @@ export default function ChannelInfoPage() {
                 <Text type="secondary">Legacy BT + Ability uses fixed legacy statuses.</Text>
               )}
             </div>
+          )}
+          {isExternal && selectedSubOrderMode && !selectedOrderRole && (
+            <Alert type="info" showIcon message="Select MAIN_ORDER or SUB_ORDER to continue configuring the mapping result." style={{ marginBottom: 16 }} />
           )}
           {isInternal ? (
             <>
@@ -1899,7 +1997,8 @@ export default function ChannelInfoPage() {
             </>
           ) : (
             <>
-              {!isNoStateMachine(stateMachineName) && <><Form.Item label="Gateway Sub State" required>
+              {(!selectedSubOrderMode || selectedOrderRole) && <>
+              {!selectedMainOrderMapping && !isNoStateMachine(stateMachineName) && <><Form.Item label="Gateway Sub State" required>
                 <Space.Compact style={{ width: '100%' }}>
                   <Form.Item name="subState" noStyle rules={[{ required: true, message: 'Select Gateway Sub State' }]}>
                     <Select
@@ -1917,10 +2016,11 @@ export default function ChannelInfoPage() {
                 </Space.Compact>
               </Form.Item>
               {editingExternal && subStateChanged && <Alert type="warning" showIcon message="Approval required for Gateway Sub State change" description="The selected Gateway Sub State has changed. In PROD, this change must be submitted for approval. The field cannot be locked again until the change is saved or discarded." style={{ marginBottom: 16 }} />}</>}
-              {isNoStateMachine(stateMachineName)
+              {selectedMainOrderMapping || isNoStateMachine(stateMachineName)
                 ? <Form.Item name="mainState" label="Main State" rules={[{ required: true }]}><Select options={(['INIT', 'PENDING', 'TO_BE_VERIFY', 'SUCCESS', 'FAIL'] as MainState[]).map((value) => ({ label: value, value }))} placeholder="Select main state" /></Form.Item>
                 : <Form.Item label="Main State"><Input value={currentMainState ?? ''} disabled placeholder="Auto-filled from selected Gateway Sub State" /></Form.Item>}
               <Form.Item name="responseCode" label="Response Code" rules={[{ required: true }]}><Select disabled={!currentMainState} options={currentMainState ? responseCodesByState[currentMainState] : []} /></Form.Item>
+              </>}
             </>
           )}
           {!isExternal && (
@@ -2166,12 +2266,12 @@ export default function ChannelInfoPage() {
         <Form className="event-operation-form" form={eventForm} layout="horizontal" labelAlign="right" labelCol={{ span: 9 }} wrapperCol={{ span: 14 }}>
           {detailView?.type === 'event' && <>
             <Form.Item label="Channel Response Code">
-              <Text>{detailView.record.channelResponseCode}</Text>
+              <Space size={6}>{orderRoleTag(detailView.record.orderRole)}<Text>{detailView.record.channelResponseCode}</Text></Space>
             </Form.Item>
             <Form.Item label="Response Code">
               <Text>{detailView.record.responseCode}</Text>
             </Form.Item>
-            {detailView.record.subState && <Form.Item label="Gateway Sub State">
+            {detailView.record.orderRole !== 'MAIN_ORDER' && detailView.record.subState && <Form.Item label="Gateway Sub State">
               <Text>{detailView.record.subState}</Text>
             </Form.Item>}
             <Form.Item label="Main State">
@@ -2214,11 +2314,29 @@ export default function ChannelInfoPage() {
         </Form>
       </Modal>
 
-      <Modal title="Bulk Operation" open={bulkOpen} onCancel={() => { setBulkOpen(false); bulkForm.resetFields(); }} onOk={() => { setBulkOpen(false); bulkForm.resetFields(); message.success('Upload submitted'); }} okText="OK" width={680}>
+      <Modal title="Bulk Operation" open={bulkOpen} onCancel={() => { setBulkOpen(false); bulkForm.resetFields(); }} onOk={() => { void bulkForm.validateFields().then(() => { setBulkOpen(false); bulkForm.resetFields(); message.success('Upload submitted'); }).catch(() => undefined); }} okText="OK" width={680}>
         <Form form={bulkForm} layout="vertical">
-          <Form.Item name="endpoint" label="Endpoint" required><Select options={isExternal ? externalEndpointOptions : internalEndpointOptions} onChange={() => bulkForm.setFieldsValue({ bt: undefined, ability: undefined })} /></Form.Item>
-          <Form.Item name="bt" label="Business Type" required><Select disabled={!bulkEndpoint} options={bulkBtOptions} onChange={() => bulkForm.setFieldsValue({ ability: undefined })} /></Form.Item>
-          <Form.Item name="ability" label="Ability" required><Select disabled={!bulkBt} options={bulkAbilityOptions} /></Form.Item>
+          <Form.Item name="endpoint" label="Endpoint" rules={[{ required: true }]}><Select options={isExternal ? externalEndpointOptions : internalEndpointOptions} onChange={() => bulkForm.setFieldsValue({ bt: undefined, ability: undefined })} /></Form.Item>
+          <Form.Item name="bt" label="Business Type" rules={[{ required: true }]}><Select disabled={!bulkEndpoint} options={bulkBtOptions} onChange={() => bulkForm.setFieldsValue({ ability: undefined })} /></Form.Item>
+          <Form.Item name="ability" label="Ability" rules={[{ required: true }]}><Select disabled={!bulkBt} options={bulkAbilityOptions} /></Form.Item>
+          {isExternal && bulkSubOrderMode && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="Sub-order template column order"
+              description={<>Order Role, Channel Response Code, Description, Gateway Sub State, Main State, Response Code. <b>Order Role</b> is required and accepts MAIN_ORDER or SUB_ORDER. MAIN_ORDER rows leave Gateway Sub State empty; SUB_ORDER rows use the linked state machine.</>}
+            />
+          )}
+          {isExternal && bulkAbility && !bulkSubOrderMode && (
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message="External → Internal template column order"
+              description="Channel Response Code, Description, Gateway Sub State, Main State, Response Code. Order Role remains empty for non-sub-order capabilities."
+            />
+          )}
           {isInternal && (
             <Alert
               type="info"
@@ -2239,7 +2357,7 @@ export default function ChannelInfoPage() {
       <Modal title="Change History" open={!!externalHistory || !!internalHistory} onCancel={() => { setExternalHistory(null); setInternalHistory(null); }} footer={<Button onClick={() => { setExternalHistory(null); setInternalHistory(null); }}>Close</Button>} width={1000}>
         {externalHistory && (
           <>
-            <Descriptions column={2} size="small" style={{ marginBottom: 16 }} items={[{ key: 'path', label: 'Endpoint', children: externalHistory.path }, { key: 'bt', label: 'Business Type', children: externalHistory.bt }, { key: 'ability', label: 'Ability', children: externalHistory.ability }, { key: 'crc', label: 'Channel Response Code', children: externalHistory.channelResponseCode }]} />
+            <Descriptions column={2} size="small" style={{ marginBottom: 16 }} items={[{ key: 'path', label: 'Endpoint', children: externalHistory.path }, { key: 'bt', label: 'Business Type', children: externalHistory.bt }, { key: 'ability', label: 'Ability', children: externalHistory.ability }, { key: 'role', label: 'Order Role', children: externalHistory.orderRole ? orderRoleTag(externalHistory.orderRole) : '-' }, { key: 'crc', label: 'Channel Response Code', children: externalHistory.channelResponseCode }]} />
             <Table
               rowKey="version"
               pagination={false}
@@ -2260,7 +2378,7 @@ export default function ChannelInfoPage() {
               columns={[
                 { title: 'Version', dataIndex: 'version', width: 160 },
                 { title: 'Description', dataIndex: 'description' },
-                { title: 'Gateway Sub State', dataIndex: 'subState' },
+                { title: 'Gateway Sub State', dataIndex: 'subState', render: (value) => externalHistory.orderRole === 'MAIN_ORDER' ? '-' : value || '-' },
                 { title: 'Main State', dataIndex: 'mainState', width: 130 },
                 { title: 'Response Code', dataIndex: 'responseCode', width: 150 },
                 { title: 'Reason', dataIndex: 'reason', width: 220 },

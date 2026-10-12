@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Cascader, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Cascader, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
 import { DeleteOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useChannelScopeStore } from './channelScopeStore';
 import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappingEditor';
@@ -11,6 +11,7 @@ import type { PathSourceOption } from './PathVariableMappingEditor';
 import { collectFieldTargetMappings, normalizeTargetMappings, validateTargetMappings } from './TargetMappingList';
 import { fallbackStateOptionsFor } from './stateMachineStateOptions';
 import { isSubOrderModeEnabled } from '../basic-info/capability/subOrderModeStore';
+import ResponseCodeAssemblyEditor from './ResponseCodeAssemblyEditor';
 
 const { Text, Title } = Typography;
 const types = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -380,7 +381,9 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
       return 'ok';
     }
     if (key === 'responseCode') {
-      const parentComplete = hasValue(allValues.responseFallback) && hasValue(allValues.responseFallbackSubState) && (responseCodeMode === 'custom' ? hasValue(allValues.responseCodeScript) : hasRows(allValues.responseCodeAssembly));
+      const parentComplete = hasValue(allValues.responseFallback)
+        && (subOrderModeEnabled || hasValue(allValues.responseFallbackSubState))
+        && (responseCodeMode === 'custom' ? hasValue(allValues.responseCodeScript) : hasRows(allValues.responseCodeAssembly));
       const subOrderComplete = !subOrderModeEnabled || !subOrderMappingEnabled || (
         hasValue(allValues.subOrderComponentInstance)
         && hasValue(allValues.subOrderFeatureValueField)
@@ -452,38 +455,53 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
           ]} />{responseMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="responseMappingScript" helpText={responseScriptHelp} /></Card>}</> },
           { key: 'response-security', label: tabLabel('Security', state('responseSecurity')), children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('response').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('response').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
           { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small">
-            <Title level={5}>Response Code Mapping</Title>
+            <Alert
+              type={subOrderModeEnabled ? 'success' : 'info'}
+              showIcon
+              message={<Space size={8}><Text strong>SubOrderMode</Text><Tag color={subOrderModeEnabled ? 'green' : 'default'}>{subOrderModeEnabled ? 'Enabled' : 'Disabled'}</Tag></Space>}
+              description={subOrderModeEnabled ? `${businessType} + ${ability} is configured for main and sub orders.` : 'This BT + Ability uses the standard single-order response mapping.'}
+              style={{ marginBottom: 16 }}
+            />
+            <Title level={5}>{subOrderModeEnabled ? 'Main Order Response Code Mapping' : 'Response Code Mapping'}</Title>
             <Form.Item name="responseFallback" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('responseFallbackSubState', undefined)} /></Form.Item>
-            <Form.Item label="Main State"><Input disabled value={responseFallback ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item>
-            <Form.Item name="responseFallbackSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!responseFallback} placeholder={responseFallback ? `Select a ${responseFallback} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item>
+            <Form.Item label="Main State" extra={subOrderModeEnabled ? 'Main orders use Main State directly; Gateway Sub State is not required.' : undefined}><Input disabled value={responseFallback ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item>
+            {!subOrderModeEnabled && <Form.Item name="responseFallbackSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!responseFallback} placeholder={responseFallback ? `Select a ${responseFallback} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item>}
             <Form.Item name="responseCodeMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>
             {responseCodeMode === 'custom'
-              ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." />
+              ? <><GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the available HTTP response data." />{subOrderModeEnabled && <Text type="secondary"><Tag color="blue">MAIN_ORDER</Tag>is added automatically before the script result.</Text>}</>
               : <>
-                <Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><Select mode="multiple" placeholder="Select in assembly order" options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, ...responseBodyOptions.map((option) => ({ label: `Response Body / ${option.label}`, value: `responseBody.${option.value}` }))]} /></Form.Item>
+                <Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}>
+                  <ResponseCodeAssemblyEditor
+                    prefix={subOrderModeEnabled ? 'MAIN_ORDER' : undefined}
+                    options={[{ label: 'HTTP Status Code', value: 'httpStatus' }, { label: 'Response Header Field', value: 'responseHeader' }, ...responseBodyOptions.map((option) => ({ label: `Response Body / ${option.label}`, value: `responseBody.${option.value}` }))]}
+                    placeholder="Select response field"
+                  />
+                </Form.Item>
                 <Form.Item name="responseMessageField" label="Response Message Field"><Input placeholder="Optional response field path" /></Form.Item>
               </>}
             {subOrderModeEnabled && <>
-              <Form.Item name="subOrderMappingEnabled" label="Enable Mapping" valuePropName="checked" required><Switch /></Form.Item>
-              {subOrderMappingEnabled && <div className="http-sub-order-code-mapping">
+              <div className="http-sub-order-code-mapping">
                 <Title level={5}>Sub Order Response Code Mapping</Title>
+                <Form.Item name="subOrderMappingEnabled" label="Enable Mapping" valuePropName="checked" required><Switch /></Form.Item>
+                {subOrderMappingEnabled && <>
                 <Form.Item name="subOrderComponentInstance" label="Component Instance" rules={[{ required: true }]}><Select placeholder="Select Instance" options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} /></Form.Item>
-                <Form.Item name="subOrderFeatureValueField" label="featureValue Field" rules={[{ required: true }]}>
+                <Form.Item name="subOrderFeatureValueField" label="Feature Value Field" rules={[{ required: true }]}>
                   <Select
                     showSearch
                     optionFilterProp="label"
-                    placeholder="Select featureValue field"
+                    placeholder="Select Feature Value Field"
                     options={featureValueOptions}
                     onChange={() => form.setFieldsValue({ subOrderResponseCodeAssembly: undefined, subOrderResponseMessageField: undefined })}
                   />
                 </Form.Item>
                 <Form.Item name="subOrderResponseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}>
-                  <Select mode="multiple" disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select same-level fields in assembly order' : 'Select featureValue Field first'} options={subOrderAssemblyOptions} />
+                  <ResponseCodeAssemblyEditor prefix="SUB_ORDER" options={subOrderFeatureValueField ? subOrderAssemblyOptions : []} placeholder={subOrderFeatureValueField ? 'Select same-level field' : 'Select Feature Value Field first'} />
                 </Form.Item>
                 <Form.Item name="subOrderResponseMessageField" label="Response Message Field">
-                  <Select allowClear disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select a same-level response message field' : 'Select featureValue Field first'} options={sameLevelResponseFields} />
+                  <Select allowClear disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select a same-level response message field' : 'Select Feature Value Field first'} options={sameLevelResponseFields} />
                 </Form.Item>
-              </div>}
+                </>}
+              </div>
             </>}
           </Card> },
         ]} /> },
