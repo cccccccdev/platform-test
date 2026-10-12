@@ -1,126 +1,145 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { AutoComplete, Breadcrumb, Button, Form, Input, InputNumber, Modal, Space, message } from 'antd';
-import { ArrowLeftOutlined, ExclamationCircleFilled, SaveOutlined } from '@ant-design/icons';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { CURRENT_USER, useAnnouncementStore } from './announcementStore';
+import { useEffect, useMemo, useState } from 'react';
+import { Breadcrumb, Button, Form, Input, InputNumber, Modal, Space, message } from 'antd';
+import { ArrowLeftOutlined, CloudUploadOutlined } from '@ant-design/icons';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useAnnouncementStore } from './announcementStore';
 import MarkdownEditor, { MarkdownContent } from './MarkdownEditor';
+import { canEdit } from './types';
+import { TITLE_MAX_LENGTH } from './types';
 import type { AnnouncementKind } from './types';
 
-type EditorValues = { title: string; content: string; durationDays?: number; version?: string };
+type EditorValues = { title: string; durationDays?: number; content?: string };
 
 export default function AnnouncementEditorPage() {
   const navigate = useNavigate();
   const params = useParams();
-  const [searchParams] = useSearchParams();
-  const draftId = searchParams.get('draftId');
+  const recordId = params.id;
 
-  const kind = params.kind === 'iteration' ? 'iteration' : 'system';
+  const kind: AnnouncementKind = params.kind === 'iteration' ? 'iteration' : 'system';
+  const isNew = recordId === 'new';
   const isSystem = kind === 'system';
-  // Cancel returns to Publish Management and keeps the tab matching this announcement kind.
-  const managePath = `/announcement/manage?kind=${kind}`;
 
+  const systemAnnouncements = useAnnouncementStore((state) => state.systemAnnouncements);
   const iterationAnnouncements = useAnnouncementStore((state) => state.iterationAnnouncements);
-  const drafts = useAnnouncementStore((state) => state.drafts);
-  const publishSystem = useAnnouncementStore((state) => state.publishSystem);
-  const publishIteration = useAnnouncementStore((state) => state.publishIteration);
-  const saveDraft = useAnnouncementStore((state) => state.saveDraft);
+  const createSystem = useAnnouncementStore((state) => state.createSystem);
+  const createIteration = useAnnouncementStore((state) => state.createIteration);
+  const updateSystem = useAnnouncementStore((state) => state.updateSystem);
+  const updateIteration = useAnnouncementStore((state) => state.updateIteration);
 
   const [form] = Form.useForm<EditorValues>();
-  const [activeDraftId, setActiveDraftId] = useState<string | undefined>(draftId ?? undefined);
   const [dirty, setDirty] = useState(false);
-  const initialisedRef = useRef<string>('');
 
-  const versions = useMemo(
-    () => Array.from(new Set(iterationAnnouncements.map((item) => item.version))),
-    [iterationAnnouncements],
-  );
+  const existing = useMemo(() => {
+    if (isNew) return undefined;
+    return (isSystem ? systemAnnouncements : iterationAnnouncements).find((item) => item.id === recordId);
+  }, [isNew, recordId, isSystem, systemAnnouncements, iterationAnnouncements]);
 
+  // 非待发布状态不允许进入编辑
   useEffect(() => {
-    if (!draftId) return;
-    const draft = drafts.find((item) => item.id === draftId);
-    if (!draft) return;
-    // Guards against re-running on later store changes, which would overwrite what the author just typed.
-    if (initialisedRef.current === `draft:${draftId}`) return;
-    initialisedRef.current = `draft:${draftId}`;
-    form.setFieldsValue({ title: draft.title, content: draft.content, durationDays: draft.durationDays });
-    setDirty(false);
-  }, [draftId, drafts, form]);
+    if (existing && !canEdit(existing.status)) {
+      message.warning('Only a pending announcement can be edited');
+      navigate('/announcement/manage', { replace: true });
+    }
+  }, [existing, navigate]);
 
-  const goBack = () => navigate(managePath);
+  // 切换公告时回填表单，只跑一次避免覆盖用户输入
+  const [loadedKey, setLoadedKey] = useState('');
+  useEffect(() => {
+    if (!existing) return;
+    const key = `${kind}:${existing.id}`;
+    if (loadedKey === key) return;
+    setLoadedKey(key);
+    if (isSystem && existing.kind === 'system') {
+      form.setFieldsValue({ title: existing.title, durationDays: existing.durationDays });
+    } else if (existing.kind === 'iteration') {
+      form.setFieldsValue({ title: existing.title, content: existing.content });
+    }
+  }, [existing, kind, isSystem, form, loadedKey]);
+
+  const managePath = `/announcement/manage${isSystem ? '' : '?kind=iteration'}`;
 
   const handleBack = () => {
     if (!dirty) {
-      goBack();
+      navigate(managePath);
       return;
     }
     Modal.confirm({
-      title: 'Leave without publishing?',
-      content: 'Unsaved content will be lost.',
+      title: 'Leave without saving?',
+      content: 'Unsaved changes will be lost.',
       okText: 'Leave',
       cancelText: 'Stay',
-      onOk: goBack,
+      onOk: () => navigate(managePath),
     });
   };
 
-  const handleSaveDraft = async () => {
-    const values = form.getFieldsValue();
-    if (!values.title?.trim() && !values.content?.trim()) {
-      message.warning('Add a title or content before saving a draft');
-      return;
-    }
-    const draft = saveDraft({
-      id: activeDraftId,
-      kind: kind as AnnouncementKind,
-      title: values.title ?? '',
-      content: values.content ?? '',
-      durationDays: values.durationDays ?? 7,
-    });
-    setActiveDraftId(draft.id);
-    setDirty(false);
-    message.success('Draft saved');
-  };
-
-  const doPublish = (values: EditorValues) => {
-    if (isSystem) {
-      publishSystem({ title: values.title.trim(), content: values.content, durationDays: values.durationDays ?? 7, publisher: CURRENT_USER });
-      message.success('System announcement published');
-    } else {
-      publishIteration({ title: values.title.trim(), content: values.content, version: values.version ?? 'Unversioned', publisher: CURRENT_USER });
-      message.success('Iteration announcement published');
-    }
-    if (activeDraftId) {
-      useAnnouncementStore.getState().deleteDraft(activeDraftId);
-    }
-    navigate('/announcement/manage');
-  };
-
-  const handlePublish = async () => {
+  const handleSave = async () => {
     let values: EditorValues;
     try {
       values = await form.validateFields();
     } catch {
-      message.error('Complete the required fields before publishing');
+      message.error('Complete the required fields');
       return;
     }
+    if (existing) {
+      if (existing.kind === 'system') {
+        updateSystem(existing.id, { title: values.title.trim(), durationDays: values.durationDays ?? 7 });
+      } else {
+        updateIteration(existing.id, { title: values.title.trim(), content: values.content ?? '' });
+      }
+      message.success('Announcement updated');
+    } else if (isSystem) {
+      createSystem({ title: values.title.trim(), durationDays: values.durationDays ?? 7 });
+      message.success('System announcement created');
+    } else {
+      createIteration({ title: values.title.trim(), content: values.content ?? '' });
+      message.success('Iteration announcement created');
+    }
+    setDirty(false);
+    navigate(managePath);
+  };
+
+  const handleSaveAndPublish = async () => {
+    let values: EditorValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      message.error('Complete the required fields');
+      return;
+    }
+    const title = values.title.trim();
     Modal.confirm({
       className: 'publish-confirm-modal',
-      width: 720,
-      icon: <ExclamationCircleFilled />,
-      title: isSystem ? 'Publish this system announcement?' : 'Publish this iteration announcement?',
+      title: 'Publish this announcement?',
       content: (
         <div className="publish-confirm-body">
           <p className="publish-confirm-warning">
-            Once published, an announcement becomes read-only and <strong>can no longer be edited</strong>. Please confirm the content is correct.
+            Once published, an announcement becomes read-only for every user and <strong>can no longer be edited</strong>. It can only be taken offline later.
           </p>
           <div className="publish-confirm-preview">
-            <strong>{values.title}</strong>
-            <MarkdownContent source={values.content} className="publish-confirm-markdown" />
+            <strong>{title}</strong>
+            {!isSystem && values.content && <MarkdownContent source={values.content} className="publish-confirm-markdown" />}
           </div>
         </div>
       ),
       okText: 'Confirm and publish',
       cancelText: 'Keep editing',
-      onOk: () => doPublish(values),
+      onOk: () => {
+        if (existing) {
+          if (existing.kind === 'system') {
+            updateSystem(existing.id, { title, durationDays: values.durationDays ?? 7 });
+          } else {
+            updateIteration(existing.id, { title, content: values.content ?? '' });
+          }
+        } else if (isSystem) {
+          createSystem({ title, durationDays: values.durationDays ?? 7 });
+        } else {
+          createIteration({ title, content: values.content ?? '' });
+        }
+        const publish = useAnnouncementStore.getState().publish;
+        if (existing) publish(existing.kind, existing.id);
+        message.success('Announcement published');
+        navigate(managePath);
+      },
     });
   };
 
@@ -130,82 +149,74 @@ export default function AnnouncementEditorPage() {
         <Breadcrumb
           items={[
             { title: 'Announcement' },
-            { title: 'Publish Management', href: '/announcement/manage' },
-            { title: isSystem ? 'Publish system announcement' : 'Publish iteration announcement' },
+            { title: 'Publish Management', href: managePath },
+            { title: isNew ? 'Add announcement' : 'Edit announcement' },
           ]}
         />
         <div className="state-machine-title-line">
-          {isSystem ? 'Publish system announcement' : 'Publish iteration announcement'}
+          {isSystem ? 'System announcement' : 'Iteration announcement'} — {isNew ? 'Add' : 'Edit'}
         </div>
       </section>
 
       <div className="announcement-content">
         <div className="announcement-table-panel">
-        <div className="announcement-create">
-          <Space>
-            <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>Cancel</Button>
-            <Button icon={<SaveOutlined />} onClick={handleSaveDraft}>Save draft</Button>
-            <Button type="primary" onClick={handlePublish}>Publish</Button>
-          </Space>
-        </div>
+          <div className="announcement-create">
+            <Space>
+              <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>Cancel</Button>
+              <Button onClick={handleSave}>Save</Button>
+              <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSaveAndPublish}>Save and publish</Button>
+            </Space>
+          </div>
 
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{ durationDays: 7 }}
-          onValuesChange={() => setDirty(true)}
-          requiredMark="optional"
-        >
-          <div className="announcement-form-grid">
-            <Form.Item
-              name="title"
-              label="Title"
-              rules={[{ required: true, whitespace: true, message: 'Enter a title' }, { max: 120, message: 'Keep the title within 120 characters' }]}
-            >
-              <Input placeholder="Short, actionable headline" showCount maxLength={120} />
-            </Form.Item>
-
-            {isSystem ? (
+          <Form
+            form={form}
+            layout="vertical"
+            initialValues={{ durationDays: 7 }}
+            onValuesChange={() => setDirty(true)}
+            requiredMark="optional"
+          >
+            <div className="announcement-form-grid">
               <Form.Item
-                name="durationDays"
-                label="Display duration (days)"
-                tooltip="How long the announcement stays in the header bar before it stops scrolling. The record itself remains in the list as history."
-                rules={[{ required: true, message: 'Set the display duration' }]}
+                name="title"
+                label="Title"
+                rules={[{ required: true, whitespace: true, message: 'Enter a title' }, { max: TITLE_MAX_LENGTH, message: `Keep the title within ${TITLE_MAX_LENGTH} characters` }]}
               >
-                <InputNumber min={1} max={365} addonAfter="days" style={{ width: '100%' }} />
+                <Input placeholder="Short, actionable headline" showCount maxLength={TITLE_MAX_LENGTH} />
               </Form.Item>
-            ) : (
+
+              {isSystem && (
+                <Form.Item
+                  name="durationDays"
+                  label="Display days"
+                  tooltip="How long the announcement stays in the header bar. Once expired it is taken offline automatically."
+                  rules={[{ required: true, message: 'Set the display duration' }]}
+                >
+                  <InputNumber min={1} max={365} addonAfter="days" style={{ width: '100%' }} />
+                </Form.Item>
+              )}
+            </div>
+
+            {!isSystem && (
+              <Form.Item label="Version">
+                <div className="announcement-version-hint">
+                  Generated automatically at publish time as <code>v</code> + publish date, for example <code>v20261012</code>. It cannot be edited.
+                </div>
+              </Form.Item>
+            )}
+
+            {!isSystem && (
               <Form.Item
-                name="version"
-                label="Release version"
-                rules={[{ required: true, whitespace: true, message: 'Enter the release version' }]}
+                name="content"
+                label="Content"
+                rules={[{ required: true, whitespace: true, message: 'Enter the announcement content' }]}
               >
-                <AutoComplete
-                  options={versions.map((version) => ({ label: version, value: version }))}
-                  placeholder={versions[0] ? `${versions[0]} (type a new version to add)` : 'e.g. 2.2.0'}
-                  filterOption={(input, option) => String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())}
+                <MarkdownEditor
+                  rows={18}
+                  placeholder={'## What changed\n\nDescribe the release highlights...\n\n### Breaking changes\n\n- Item one'}
                 />
               </Form.Item>
             )}
-          </div>
-
-          <Form.Item
-            name="content"
-            label="Content"
-            rules={[{ required: true, whitespace: true, message: 'Enter the announcement content' }]}
-          >
-            <MarkdownEditor
-              rows={18}
-              placeholder={isSystem
-                ? '## Scope\n\nDescribe what changed and who is affected...\n\n### Action required\n\n- Item one\n- Item two'
-                : '## What changed\n\nDescribe the release highlights...\n\n### Breaking changes\n\n- Item one'}
-            />
-          </Form.Item>
-        </Form>
-
-        <div className="announcement-editor-footer-note">
-          Content supports Markdown: headings, bold, italic, strikethrough, ordered and bullet lists, code blocks, quotes, links and tables. The right pane previews the rendered result exactly as readers will see it.
-        </div>
+          </Form>
         </div>
       </div>
     </div>

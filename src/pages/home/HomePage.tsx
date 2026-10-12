@@ -14,7 +14,7 @@ export default function HomePage() {
     { title: 'Basic Info', icon: <ProfileOutlined />, tone: 'violet', path: '/basic-info/country' },
     { title: 'Channel Integration', icon: <ForkOutlined />, tone: 'indigo', path: '/channel-integration' },
     { title: 'Operation Config', icon: <ControlOutlined />, tone: 'cyan', path: '/operation-config' },
-    { title: 'Announcement', icon: <NotificationOutlined />, tone: 'amber', path: '/announcement/system' },
+    { title: 'Announcement', icon: <NotificationOutlined />, tone: 'amber', path: '/announcement/manage' },
   ];
 
   return (

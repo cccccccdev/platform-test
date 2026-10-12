@@ -1,27 +1,29 @@
-import { useMemo, useState } from 'react';
-import { Breadcrumb, Button, Popconfirm, Table, Tabs, Tag, Tooltip, message } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined, WarningOutlined } from '@ant-design/icons';
+import { useEffect, useState } from 'react';
+import { Breadcrumb, Button, Popconfirm, Space, Table, Tabs, Tag, Tooltip, message } from 'antd';
+import { CloudUploadOutlined, EditOutlined, FileTextOutlined, PlusOutlined, StopOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ColumnsType } from 'antd/es/table';
 import { useAnnouncementStore } from './announcementStore';
-import { formatPublishDate } from './types';
-import type { Announcement, AnnouncementDraft, AnnouncementKind } from './types';
+import { canEdit, canOffline, canPublish, formatDate, statusLabel } from './types';
+import type { Announcement, AnnouncementKind } from './types';
+import AnnouncementLogModal from './AnnouncementLogModal';
+import IterationAnnouncementViewModal from './IterationAnnouncementViewModal';
 
-function deleteConfirmContent(kind: AnnouncementKind) {
-  return kind === 'system'
-    ? 'Deleting removes this system announcement for every user. Its header bar entry and history record are both removed. This cannot be undone.'
-    : 'Deleting removes this iteration announcement for every user. Users who have not read it will no longer be prompted. This cannot be undone.';
-}
-
-/**
- * 发布管理页：集中承载带操作性质的能力（发布、编辑草稿、删除已发布）。
- * 用 Tab 区分系统公告与迭代公告；两个列表页保持纯只读。
- */
 export default function AnnouncementManagePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const kindParam = searchParams.get('kind');
-  const [kind, setKind] = useState<AnnouncementKind>(kindParam === 'iteration' ? 'iteration' : 'system');
+  const [kind, setKind] = useState<AnnouncementKind>(searchParams.get('kind') === 'iteration' ? 'iteration' : 'system');
+
+  const systemAnnouncements = useAnnouncementStore((state) => state.systemAnnouncements);
+  const iterationAnnouncements = useAnnouncementStore((state) => state.iterationAnnouncements);
+  const publish = useAnnouncementStore((state) => state.publish);
+  const offline = useAnnouncementStore((state) => state.offline);
+  const settleExpired = useAnnouncementStore((state) => state.settleExpired);
+
+  // 每次进入先结算到期公告，避免过期记录仍显示为已发布
+  useEffect(() => {
+    settleExpired();
+  }, [settleExpired, systemAnnouncements]);
 
   const switchKind = (next: string) => {
     const nextKind = next as AnnouncementKind;
@@ -29,25 +31,40 @@ export default function AnnouncementManagePage() {
     setSearchParams(nextKind === 'system' ? {} : { kind: nextKind }, { replace: true });
   };
 
-  const systemAnnouncements = useAnnouncementStore((state) => state.systemAnnouncements);
-  const iterationAnnouncements = useAnnouncementStore((state) => state.iterationAnnouncements);
-  const drafts = useAnnouncementStore((state) => state.drafts);
-  const deleteAnnouncement = useAnnouncementStore((state) => state.deleteAnnouncement);
-  const deleteDraft = useAnnouncementStore((state) => state.deleteDraft);
+  const openModalParam = (key: string, value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set(key, value);
+      return next;
+    });
+  };
 
-  const kindDrafts = useMemo(() => drafts.filter((draft) => draft.kind === kind), [drafts, kind]);
-  const published: Announcement[] = kind === 'system' ? systemAnnouncements : iterationAnnouncements;
+  const viewAnnouncementId = searchParams.get('announcementId');
+  const logFor = searchParams.get('logFor');
+
+  const closeModalParam = (key: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
+  const rows: Announcement[] = kind === 'system' ? systemAnnouncements : iterationAnnouncements;
 
   const columns: ColumnsType<Announcement> = [
     {
       title: 'Title',
       dataIndex: 'title',
       key: 'title',
-      render: (title: string, record) => (
-        <button type="button" className="announcement-title-link" onClick={() => navigate(`/announcement/detail/${record.kind}/${record.id}`)}>
-          {title}
-        </button>
-      ),
+      render: (title: string, record) =>
+        record.kind === 'iteration' ? (
+          <button type="button" className="announcement-title-link" onClick={() => openModalParam('announcementId', record.id)}>
+            {title}
+          </button>
+        ) : (
+          <span className="announcement-plain-title">{title}</span>
+        ),
     },
     ...(kind === 'iteration'
       ? [{
@@ -55,75 +72,72 @@ export default function AnnouncementManagePage() {
           dataIndex: 'version',
           key: 'version',
           width: 130,
-          render: (_: unknown, record: Announcement) =>
-            record.kind === 'iteration' ? <Tag color="purple" bordered={false}>{record.version}</Tag> : null,
+          render: (_: unknown, record: Announcement) => (record.kind === 'iteration' ? <Tag bordered={false}>{record.version}</Tag> : null),
         }]
       : []),
-    { title: 'Publisher', dataIndex: 'publisher', key: 'publisher', width: 170 },
-    { title: 'Publish date', dataIndex: 'publishTime', key: 'publishDate', width: 140, render: (publishTime: string) => formatPublishDate(publishTime) },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 130,
+      render: (status: Announcement['status']) => <Tag color={status === 'PUBLISHED' ? 'green' : status === 'PENDING' ? 'gold' : 'default'} bordered={false}>{statusLabel(status)}</Tag>,
+    },
+    { title: 'Publisher', dataIndex: 'publisher', key: 'publisher', width: 160 },
+    ...(kind === 'system'
+      ? [{
+          title: 'Display days',
+          dataIndex: 'durationDays',
+          key: 'duration',
+          width: 130,
+          render: (days: number) => `${days} day${days > 1 ? 's' : ''}`,
+        }]
+      : []),
+    { title: 'Publish date', dataIndex: 'publishTime', key: 'publishTime', width: 130, render: (value: string) => formatDate(value) || '—' },
+    { title: 'Offline date', dataIndex: 'offlineTime', key: 'offlineTime', width: 130, render: (value: string) => formatDate(value) || '—' },
     {
       title: 'Operation',
       key: 'operation',
-      width: 120,
-      render: (_, record) => (
-        <Popconfirm
-          title="Delete this announcement?"
-          description={deleteConfirmContent(record.kind)}
-          okText="Delete"
-          cancelText="Cancel"
-          okButtonProps={{ danger: true }}
-          onConfirm={() => {
-            deleteAnnouncement(record.kind, record.id);
-            message.success('Announcement deleted');
-          }}
-        >
-          <Button type="link" size="small" danger icon={<DeleteOutlined />}>Delete</Button>
-        </Popconfirm>
+      width: 230,
+      render: (_: unknown, record: Announcement) => (
+        <Space size={4}>
+          <Button type="link" size="small" disabled={!canEdit(record.status)} icon={<EditOutlined />} onClick={() => navigate(`/announcement/${record.kind}/edit/${record.id}`)}>
+            Edit
+          </Button>
+          {canPublish(record.status) ? (
+            <Popconfirm
+              title="Publish this announcement?"
+              description="Once published it can no longer be edited. You can only take it offline later."
+              okText="Publish"
+              cancelText="Cancel"
+              onConfirm={() => { publish(record.kind, record.id); message.success('Announcement published'); }}
+            >
+              <Button type="link" size="small" icon={<CloudUploadOutlined />}>Publish</Button>
+            </Popconfirm>
+          ) : (
+            <Tooltip title={record.status === 'PUBLISHED' ? undefined : 'Only a pending announcement can be published'}>
+              <Button type="link" size="small" disabled icon={<CloudUploadOutlined />}>Publish</Button>
+            </Tooltip>
+          )}
+          {canOffline(record.status) ? (
+            <Popconfirm
+              title="Take this announcement offline?"
+              description="It will stop being shown or rotated. The record is kept and cannot be brought back online."
+              okText="Take offline"
+              cancelText="Cancel"
+              onConfirm={() => { offline(record.kind, record.id); message.success('Announcement taken offline'); }}
+            >
+              <Button type="link" size="small" danger icon={<StopOutlined />}>Offline</Button>
+            </Popconfirm>
+          ) : (
+            <Tooltip title={record.status === 'OFFLINE' ? 'An offline announcement cannot be brought back online' : 'Only a published announcement can be taken offline'}>
+              <Button type="link" size="small" disabled danger icon={<StopOutlined />}>Offline</Button>
+            </Tooltip>
+          )}
+          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => openModalParam('logFor', record.id)}>Log</Button>
+        </Space>
       ),
     },
   ];
-
-  const draftItems = (
-    <div className="announcement-table-panel">
-      <div className="announcement-card-head">
-        <strong>Drafts</strong>
-        <span>{kindDrafts.length > 0 ? `${kindDrafts.length} draft awaiting completion` : 'No draft'}</span>
-      </div>
-      {kindDrafts.length === 0 ? (
-        <p className="announcement-card-empty">
-          Start a new announcement and use “Save draft” to keep unfinished content. Drafts are visible only to their author.
-        </p>
-      ) : (
-        <ul className="announcement-draft-list">
-          {kindDrafts.map((draft) => (
-            <DraftRow key={draft.id} draft={draft} onDelete={() => { deleteDraft(draft.id); message.success('Draft discarded'); }} />
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-
-  const publishedItems = (
-    <div className="announcement-table-panel">
-      <div className="announcement-create">
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => navigate(kind === 'system' ? '/announcement/system/edit/new' : '/announcement/iteration/edit/new')}
-        >
-          {kind === 'system' ? 'Publish system announcement' : 'Publish iteration announcement'}
-        </Button>
-      </div>
-      <Table<Announcement>
-        className="announcement-table"
-        rowKey="id"
-        size="middle"
-        columns={columns}
-        dataSource={published}
-        pagination={{ pageSize: 10, hideOnSinglePage: true }}
-      />
-    </div>
-  );
 
   return (
     <div className="announcement-page">
@@ -143,50 +157,41 @@ export default function AnnouncementManagePage() {
           ]}
         />
 
-        {kindDrafts.length > 0 ? (
-          <>
-            {draftItems}
-            {publishedItems}
-          </>
-        ) : (
-          <>
-            {publishedItems}
-            {draftItems}
-          </>
-        )}
+        <div className="announcement-table-panel">
+          <div className="announcement-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => navigate(kind === 'system' ? '/announcement/system/edit/new' : '/announcement/iteration/edit/new')}
+            >
+              {kind === 'system' ? 'Add system announcement' : 'Add iteration announcement'}
+            </Button>
+          </div>
+          <Table<Announcement>
+            className="announcement-table"
+            rowKey="id"
+            size="middle"
+            columns={columns}
+            dataSource={rows}
+            pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: (total) => `Total ${total} items` }}
+          />
+        </div>
 
         <section className="announcement-table-panel announcement-policy-note">
-          <WarningOutlined />
-          <div>
-            <strong>Before you publish</strong>
-            <p>
-              Published announcements become read-only for every user. Check the title and content carefully — after publishing you can only delete the record, never revise it.
-            </p>
-          </div>
+          <strong>How status drives the available actions</strong>
+          <p>
+            A <b>Pending</b> announcement can be edited and published. A <b>Published</b> announcement can only be taken offline.
+            An <b>Offline</b> announcement is final — there is no delete and no way to bring it back online.
+          </p>
         </section>
       </div>
+
+      <IterationAnnouncementViewModal
+        announcementId={viewAnnouncementId}
+        announcements={iterationAnnouncements}
+        onClose={() => closeModalParam('announcementId')}
+      />
+      <AnnouncementLogModal announcementId={logFor} onClose={() => closeModalParam('logFor')} />
     </div>
-  );
-}
-
-function DraftRow({ draft, onDelete }: { draft: AnnouncementDraft; onDelete: () => void }) {
-  const navigate = useNavigate();
-  const editPath = draft.kind === 'system' ? '/announcement/system/edit/new' : '/announcement/iteration/edit/new';
-
-  return (
-    <li>
-      <div className="announcement-draft-main">
-        <strong>{draft.title || 'Untitled draft'}</strong>
-        <span>Saved {draft.updateTime}</span>
-      </div>
-      <div className="announcement-row-actions">
-        <Button type="link" size="small" icon={<EditOutlined />} onClick={() => navigate(`${editPath}?draftId=${draft.id}`)}>Continue editing</Button>
-        <Tooltip title="Drafts are private to their author and never appear to other users.">
-          <Popconfirm title="Discard this draft?" description="The draft content is permanently lost." okText="Discard" cancelText="Cancel" okButtonProps={{ danger: true }} onConfirm={onDelete}>
-            <Button type="link" size="small" danger>Discard</Button>
-          </Popconfirm>
-        </Tooltip>
-      </div>
-    </li>
   );
 }

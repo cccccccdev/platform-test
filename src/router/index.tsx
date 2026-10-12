@@ -51,9 +51,6 @@ const CapabilityFeaturesPage = lazy(() => import('../pages/basic-info/capability
 const CapabilitySpiPage = lazy(() => import('../pages/basic-info/capability/CapabilitySpiPage'));
 
 // Announcement module
-const SystemAnnouncementListPage = lazy(() => import('../pages/announcement/SystemAnnouncementListPage'));
-const IterationAnnouncementListPage = lazy(() => import('../pages/announcement/IterationAnnouncementListPage'));
-const AnnouncementDetailPage = lazy(() => import('../pages/announcement/AnnouncementDetailPage'));
 const AnnouncementManagePage = lazy(() => import('../pages/announcement/AnnouncementManagePage'));
 const AnnouncementEditorPage = lazy(() => import('../pages/announcement/AnnouncementEditorPage'));
 
@@ -278,12 +275,9 @@ const router = createHashRouter(
   {
     element: <AnnouncementLayout />,
     children: [
-      { path: 'announcement', element: <Navigate to="system" replace /> },
-      { path: 'announcement/system', element: <SystemAnnouncementListPage /> },
-      { path: 'announcement/:kind/edit/new', element: <AnnouncementEditorPage /> },
-      { path: 'announcement/iteration', element: <IterationAnnouncementListPage /> },
+      { path: 'announcement', element: <Navigate to="manage" replace /> },
       { path: 'announcement/manage', element: <AnnouncementManagePage /> },
-      { path: 'announcement/detail/:kind/:id', element: <AnnouncementDetailPage /> },
+      { path: 'announcement/:kind/edit/:id', element: <AnnouncementEditorPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/home" replace /> },
