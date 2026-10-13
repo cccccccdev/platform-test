@@ -22,6 +22,11 @@ function daysAgo(days: number) {
   return dayOffset(now(), -days);
 }
 
+/** 带时分的“N 天前”，用于演示 v + 日期 + 时分 版本号 */
+function daysAgoAt(days: number, time: string) {
+  return `${daysAgo(days)} ${time}`;
+}
+
 function makeSystem(input: { title: string; durationDays: number; status: 'PUBLISHED' | 'OFFLINE'; publishTime: string }): SystemAnnouncement {
   return {
     id: `SYS-${input.publishTime.replace(/\D/g, '').slice(0, 8)}-${Math.random().toString(36).slice(2, 6)}`,
@@ -61,12 +66,14 @@ function makeIteration(input: { title: string; content: string; version: string;
   };
 }
 
+const iterationSeedPublishTime = daysAgoAt(1, '14:30:00');
+
 const iterationSeeds: IterationAnnouncement[] = [
   makeIteration({
     title: 'Route Matching recognizes Path Variables',
-    version: 'v20261011',
+    version: generateVersion(iterationSeedPublishTime),
     status: 'PUBLISHED',
-    publishTime: daysAgo(1),
+    publishTime: iterationSeedPublishTime,
     content: [
       '## What changed',
       '',

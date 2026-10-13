@@ -34,6 +34,9 @@ export default function AnnouncementEditorPage() {
     return (isSystem ? systemAnnouncements : iterationAnnouncements).find((item) => item.id === recordId);
   }, [isNew, recordId, isSystem, systemAnnouncements, iterationAnnouncements]);
 
+  // 「保存并发布」仅对新增或待发布公告可用；已发布 / 已下线公告只保留「保存」（发布只能发生一次）
+  const canPublishHere = isNew || existing?.status === 'PENDING';
+
   // 任何状态的公告都允许编辑
   useEffect(() => {
     if (existing && !canEdit(existing.kind, existing.status)) {
@@ -165,7 +168,9 @@ export default function AnnouncementEditorPage() {
             <Space>
               <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>Cancel</Button>
               <Button onClick={handleSave}>Save</Button>
-              <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSaveAndPublish}>Save and publish</Button>
+              {canPublishHere && (
+                <Button type="primary" icon={<CloudUploadOutlined />} onClick={handleSaveAndPublish}>Save and publish</Button>
+              )}
             </Space>
           </div>
 
