@@ -10,6 +10,8 @@ import type { IterationAnnouncement } from '../pages/announcement/types';
 
 const READ_KEY = 'announcementIterationReadIds';
 const ROTATE_INTERVAL_MS = 5000;
+/** 浮动控件浮层内最多展示的迭代公告条数 */
+const FLOAT_PREVIEW_LIMIT = 3;
 
 function readReadIds(): string[] {
   try {
@@ -55,6 +57,15 @@ export function AnnouncementChrome() {
   const [rotateIndex, setRotateIndex] = useState(0);
 
   const unreadIterations = publishedIterations.filter((item) => !readIds.includes(item.id));
+
+  // 浮动控件仅展示最新 3 条迭代公告（按发布日期倒序），不全量平铺；完整列表由全量视图弹窗承载
+  const latestIterations = useMemo(
+    () =>
+      [...publishedIterations]
+        .sort((left, right) => right.publishTime.localeCompare(left.publishTime))
+        .slice(0, FLOAT_PREVIEW_LIMIT),
+    [publishedIterations],
+  );
 
   useEffect(() => {
     if (popupAnnouncement || unreadIterations.length === 0) return;
@@ -120,14 +131,14 @@ export function AnnouncementChrome() {
   const floatContent = (
     <div className="announcement-float-panel">
       <div className="announcement-float-panel-head">
-        <strong>Iteration announcements</strong>
+        <strong>Latest iteration announcements</strong>
         <span>{unreadIterations.length > 0 ? `${unreadIterations.length} unread` : 'All read'}</span>
       </div>
       {publishedIterations.length === 0 ? (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No published iteration announcement" />
       ) : (
         <ul className="announcement-float-list">
-          {publishedIterations.map((item) => {
+          {latestIterations.map((item) => {
             const unread = !readIds.includes(item.id);
             return (
               <li key={item.id}>
@@ -148,7 +159,9 @@ export function AnnouncementChrome() {
         </ul>
       )}
       <Button type="link" size="small" onClick={openReleaseView}>
-        View all iteration announcements
+        {publishedIterations.length > FLOAT_PREVIEW_LIMIT
+          ? `View all ${publishedIterations.length} announcements`
+          : 'View all announcements'}
       </Button>
     </div>
   );
