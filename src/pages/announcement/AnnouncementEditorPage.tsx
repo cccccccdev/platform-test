@@ -34,10 +34,10 @@ export default function AnnouncementEditorPage() {
     return (isSystem ? systemAnnouncements : iterationAnnouncements).find((item) => item.id === recordId);
   }, [isNew, recordId, isSystem, systemAnnouncements, iterationAnnouncements]);
 
-  // 非待发布状态不允许进入编辑
+  // 任何状态的公告都允许编辑
   useEffect(() => {
-    if (existing && !canEdit(existing.status)) {
-      message.warning('Only a pending announcement can be edited');
+    if (existing && !canEdit(existing.kind, existing.status)) {
+      message.warning('This announcement cannot be edited');
       navigate('/announcement/manage', { replace: true });
     }
   }, [existing, navigate]);
@@ -107,14 +107,15 @@ export default function AnnouncementEditorPage() {
       return;
     }
     const title = values.title.trim();
+    const publishWarning = isSystem
+      ? 'Once published, a system announcement can still be edited later, and it can be taken offline when needed.'
+      : 'Once published, the iteration receives a version number (v + date + time) automatically. It can still be edited afterwards and has no offline action.';
     Modal.confirm({
       className: 'publish-confirm-modal',
       title: 'Publish this announcement?',
       content: (
         <div className="publish-confirm-body">
-          <p className="publish-confirm-warning">
-            Once published, an announcement becomes read-only for every user and <strong>can no longer be edited</strong>. It can only be taken offline later.
-          </p>
+          <p className="publish-confirm-warning">{publishWarning}</p>
           <div className="publish-confirm-preview">
             <strong>{title}</strong>
             {!isSystem && values.content && <MarkdownContent source={values.content} className="publish-confirm-markdown" />}
@@ -199,7 +200,7 @@ export default function AnnouncementEditorPage() {
             {!isSystem && (
               <Form.Item label="Version">
                 <div className="announcement-version-hint">
-                  Generated automatically at publish time as <code>v</code> + publish date, for example <code>v20261012</code>. It cannot be edited.
+                  Generated automatically at publish time as <code>v</code> + publish date + time, for example <code>v202610131541</code>. It cannot be edited.
                 </div>
               </Form.Item>
             )}

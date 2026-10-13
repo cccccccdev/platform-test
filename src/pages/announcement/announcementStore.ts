@@ -86,77 +86,6 @@ const iterationSeeds: IterationAnnouncement[] = [
       'Review existing callback endpoints and collapse duplicated paths where the channel contract allows it.',
     ].join('\n'),
   }),
-  makeIteration({
-    title: 'Flow Group list filtering and bulk actions',
-    version: 'v20261011',
-    status: 'PUBLISHED',
-    publishTime: daysAgo(1),
-    content: [
-      '## Enhancements',
-      '',
-      '- Flow Group list supports filtering by business type, ability and status.',
-      '- Bulk publish for multiple Flow Groups within the same environment.',
-      '- Empty results now show an explicit empty state instead of a blank table.',
-    ].join('\n'),
-  }),
-  makeIteration({
-    title: 'Channel Info capability view and asset routes',
-    version: 'v20260907',
-    status: 'PUBLISHED',
-    publishTime: daysAgo(35),
-    content: [
-      '## Enhancements',
-      '',
-      '- Channel Info capability page is now a **read-only derived view** from published Flow Group versions.',
-      '- Asset route configuration for `STABLECOIN` on-ramp / off-ramp / pay-out.',
-      '- Institution code mapping now uses `<institutionCode>#<countryCode>` across countries.',
-    ].join('\n'),
-  }),
-  makeIteration({
-    title: 'Channel Integration rebuilt around the ability workspace',
-    version: 'v20260813',
-    status: 'PUBLISHED',
-    publishTime: daysAgo(60),
-    content: [
-      '## Highlights',
-      '',
-      'The Channel Integration module was reorganised around `Channel + Business Type + Ability` workspaces.',
-      '',
-      '### Breaking changes',
-      '',
-      '- Flow configuration moved from the Action entry to the **Flow Group** entry.',
-      '- Route Matching became a Channel-level module; inbound endpoints created before 2.0 stay visible under Metadata as legacy records.',
-      '- The `network` component is **legacy only** and cannot be added to new flows; use `http`.',
-      '',
-      '### Enhancements',
-      '',
-      '- Visual Flow editing with component palette and canvas.',
-      '- Release Flow Group version by environment: `DAILY` → `PRE` → `PROD`, no level skipping.',
-    ].join('\n'),
-  }),
-  makeIteration({
-    title: 'Basic Info module goes live',
-    version: 'v20260813',
-    status: 'PUBLISHED',
-    publishTime: daysAgo(62),
-    content: [
-      '## Highlights',
-      '',
-      '- Country, Currency, Institution, Institution Type and Merchant reference data are now maintained in-platform.',
-      '- Reference data changes are versioned and auditable.',
-    ].join('\n'),
-  }),
-  makeIteration({
-    title: 'Initial platform release',
-    version: 'v20260713',
-    status: 'PUBLISHED',
-    publishTime: daysAgo(90),
-    content: [
-      '## Highlights',
-      '',
-      '- First release of the Access Platform covering Channel Integration and Basic Info.',
-    ].join('\n'),
-  }),
 ];
 
 type AnnouncementState = {
@@ -275,7 +204,7 @@ export const useAnnouncementStore = create<AnnouncementState>((set) => ({
     }
     set((state) => ({
       iterationAnnouncements: state.iterationAnnouncements.map((item) =>
-        // 版本号在发布时刻按 v+YYYYMMDD 生成，同一天发布的多条共用同一版本
+        // 版本号在发布时刻按 v+YYYYMMDD+HHmm 生成，每条迭代公告一个版本号
         item.id === id ? { ...item, status: 'PUBLISHED', publishTime: timestamp, version: generateVersion(timestamp) } : item,
       ),
       logs: [makeLog(id, 'PUBLISHED'), ...state.logs],

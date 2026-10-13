@@ -40,9 +40,9 @@ export type IterationAnnouncement = {
 /** 标题长度上限 */
 export const TITLE_MAX_LENGTH = 500;
 
-/** 发布时生成版本号：v + 发布日期（YYYYMMDD）。同一天多条共用同一版本 */
+/** 发布时生成版本号：v + 发布日期（YYYYMMDD）+ 时分（HHmm），精确到分钟。每条迭代公告一个版本号 */
 export function generateVersion(publishDateTime: string) {
-  return `v${publishDateTime.replace(/\D/g, '').slice(0, 8)}`;
+  return `v${publishDateTime.replace(/\D/g, '').slice(0, 12)}`;
 }
 
 export type Announcement = SystemAnnouncement | IterationAnnouncement;
@@ -63,9 +63,9 @@ export function actionLabel(action: AnnouncementLogEntry['action']) {
   return 'Taken offline';
 }
 
-/** 操作按钮的可用性由状态决定：仅待发布可编辑，已发布可下线 */
-export function canEdit(status: AnnouncementStatus) {
-  return status === 'PENDING';
+/** 系统公告与迭代公告均支持任意状态编辑（已发布 / 已下线亦可修改） */
+export function canEdit(_kind: AnnouncementKind, _status: AnnouncementStatus) {
+  return true;
 }
 
 export function canPublish(status: AnnouncementStatus) {
