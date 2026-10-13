@@ -82,7 +82,6 @@ export default function AnnouncementManagePage() {
       width: 130,
       render: (status: Announcement['status']) => <Tag color={status === 'PUBLISHED' ? 'green' : status === 'PENDING' ? 'gold' : 'default'} bordered={false}>{statusLabel(status)}</Tag>,
     },
-    { title: 'Publisher', dataIndex: 'publisher', key: 'publisher', width: 160 },
     ...(kind === 'system'
       ? [{
           title: 'Display days',
@@ -92,50 +91,64 @@ export default function AnnouncementManagePage() {
           render: (days: number) => `${days} day${days > 1 ? 's' : ''}`,
         }]
       : []),
-    { title: 'Publish date', dataIndex: 'publishTime', key: 'publishTime', width: 130, render: (value: string) => formatDate(value) || '—' },
-    { title: 'Offline date', dataIndex: 'offlineTime', key: 'offlineTime', width: 130, render: (value: string) => formatDate(value) || '—' },
+    ...(kind === 'system'
+      ? [{
+          title: 'Offline date',
+          dataIndex: 'offlineTime',
+          key: 'offlineTime',
+          width: 130,
+          render: (value: string) => formatDate(value) || '—',
+        }]
+      : []),
     {
       title: 'Operation',
       key: 'operation',
       width: 230,
-      render: (_: unknown, record: Announcement) => (
-        <Space size={4}>
-          <Button type="link" size="small" disabled={!canEdit(record.status)} icon={<EditOutlined />} onClick={() => navigate(`/announcement/${record.kind}/edit/${record.id}`)}>
-            Edit
-          </Button>
-          {canPublish(record.status) ? (
-            <Popconfirm
-              title="Publish this announcement?"
-              description="Once published it can no longer be edited. You can only take it offline later."
-              okText="Publish"
-              cancelText="Cancel"
-              onConfirm={() => { publish(record.kind, record.id); message.success('Announcement published'); }}
-            >
-              <Button type="link" size="small" icon={<CloudUploadOutlined />}>Publish</Button>
-            </Popconfirm>
-          ) : (
-            <Tooltip title={record.status === 'PUBLISHED' ? undefined : 'Only a pending announcement can be published'}>
-              <Button type="link" size="small" disabled icon={<CloudUploadOutlined />}>Publish</Button>
-            </Tooltip>
-          )}
-          {canOffline(record.status) ? (
-            <Popconfirm
-              title="Take this announcement offline?"
-              description="It will stop being shown or rotated. The record is kept and cannot be brought back online."
-              okText="Take offline"
-              cancelText="Cancel"
-              onConfirm={() => { offline(record.kind, record.id); message.success('Announcement taken offline'); }}
-            >
-              <Button type="link" size="small" danger icon={<StopOutlined />}>Offline</Button>
-            </Popconfirm>
-          ) : (
-            <Tooltip title={record.status === 'OFFLINE' ? 'An offline announcement cannot be brought back online' : 'Only a published announcement can be taken offline'}>
-              <Button type="link" size="small" disabled danger icon={<StopOutlined />}>Offline</Button>
-            </Tooltip>
-          )}
-          <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => openModalParam('logFor', record.id)}>Log</Button>
-        </Space>
-      ),
+      render: (_: unknown, record: Announcement) => {
+        const editable = canEdit(record.kind, record.status);
+        const publishDescription =
+          record.kind === 'iteration'
+            ? 'The iteration gets a version number (v + publish date + time) automatically on publish, and can still be edited afterwards.'
+            : 'Once published it can still be edited later, and it can be taken offline when needed.';
+        return (
+          <Space size={4}>
+            <Button type="link" size="small" disabled={!editable} icon={<EditOutlined />} onClick={() => navigate(`/announcement/${record.kind}/edit/${record.id}`)}>
+              Edit
+            </Button>
+            {canPublish(record.status) ? (
+              <Popconfirm
+                title="Publish this announcement?"
+                description={publishDescription}
+                okText="Publish"
+                cancelText="Cancel"
+                onConfirm={() => { publish(record.kind, record.id); message.success('Announcement published'); }}
+              >
+                <Button type="link" size="small" icon={<CloudUploadOutlined />}>Publish</Button>
+              </Popconfirm>
+            ) : (
+              <Tooltip title="Only a pending announcement can be published">
+                <Button type="link" size="small" disabled icon={<CloudUploadOutlined />}>Publish</Button>
+              </Tooltip>
+            )}
+            {record.kind === 'system' && (canOffline(record.status) ? (
+              <Popconfirm
+                title="Take this announcement offline?"
+                description="It will stop being shown or rotated. The record is kept and cannot be brought back online."
+                okText="Take offline"
+                cancelText="Cancel"
+                onConfirm={() => { offline(record.kind, record.id); message.success('Announcement taken offline'); }}
+              >
+                <Button type="link" size="small" danger icon={<StopOutlined />}>Offline</Button>
+              </Popconfirm>
+            ) : (
+              <Tooltip title={record.status === 'OFFLINE' ? 'An offline announcement cannot be brought back online' : 'Only a published announcement can be taken offline'}>
+                <Button type="link" size="small" disabled danger icon={<StopOutlined />}>Offline</Button>
+              </Tooltip>
+            ))}
+            <Button type="link" size="small" icon={<FileTextOutlined />} onClick={() => openModalParam('logFor', record.id)}>Log</Button>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -180,8 +193,11 @@ export default function AnnouncementManagePage() {
         <section className="announcement-table-panel announcement-policy-note">
           <strong>How status drives the available actions</strong>
           <p>
-            A <b>Pending</b> announcement can be edited and published. A <b>Published</b> announcement can only be taken offline.
-            An <b>Offline</b> announcement is final — there is no delete and no way to bring it back online.
+            <b>System announcement:</b> editable in any status. A <b>Published</b> one can be taken offline;
+            an <b>Offline</b> one is final — no delete, no way back online.
+          </p>
+          <p>
+            <b>Iteration announcement:</b> editable in any status, and it has no offline action. The version number is assigned automatically at publish as <code>v</code> + publish date + time.
           </p>
         </section>
       </div>

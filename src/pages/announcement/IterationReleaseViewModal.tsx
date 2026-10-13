@@ -7,7 +7,7 @@ import type { IterationAnnouncement } from './types';
 
 /**
  * 版本排序：从大到小，保证最新版本在最上方。
- * 版本号规则为 v+YYYYMMDD（见 types.generateVersion），去掉前缀 v 后按数字段逐位比较；
+ * 版本号规则为 v+YYYYMMDD+HHmm（见 types.generateVersion），去掉前缀 v 后按数字段逐位比较；
  * 无法解析的版本排在最后，再按字符串兜底比较。
  */
 function compareVersions(left: string, right: string) {
