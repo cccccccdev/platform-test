@@ -7,6 +7,10 @@ const NoSidebarLayout = lazy(() => import('../components/NoSidebarLayout'));
 const IntegrationDetailLayout = lazy(() => import('../components/IntegrationDetailLayout'));
 const AnnouncementLayout = lazy(() => import('../components/AnnouncementLayout'));
 const HomePage = lazy(() => import('../pages/home/HomePage'));
+const OperationConfigLayout = lazy(() => import('../pages/operation-config/OperationConfigLayout'));
+const OperationConfigPlaceholderPage = lazy(() => import('../pages/operation-config/OperationConfigPlaceholderPage'));
+const MonitoringScenarioListPage = lazy(() => import('../pages/operation-config/MonitoringScenarioListPage'));
+const MonitoringScenarioConfigPage = lazy(() => import('../pages/operation-config/MonitoringScenarioConfigPage'));
 
 // Channel Integration pages (no sidebar)
 const ChannelListPage = lazy(() => import('../pages/channel-integration/ChannelListPage'));
@@ -124,7 +128,6 @@ const router = createHashRouter(
   { index: true, element: <Navigate to="/home" replace /> },
   { path: '/home', element: <HomePage /> },
   { path: '/shared/service-api', element: <ServiceApiSharedPage /> },
-  { path: '/operation-config', element: <ComingSoonPage title="Operation Config" /> },
   { path: '/channel', element: <Navigate to="/channel-integration" replace /> },
   { path: '/actions', element: <ComingSoonPage title="Action Library" /> },
   { path: '/tests', element: <TestCenterPage /> },
@@ -269,6 +272,26 @@ const router = createHashRouter(
           { path: 'stateMachine', element: <StateMachineListPage /> },
         ],
       },
+    ],
+  },
+  // Operation Config module (legacy sidebar reproduced from the current platform)
+  {
+    path: 'operation-config',
+    element: <OperationConfigLayout />,
+    children: [
+      { index: true, element: <Navigate to="business-type-service-channel" replace /> },
+      { path: 'business-type-service-channel', element: <OperationConfigPlaceholderPage title="Business Type - Service Channel" /> },
+      { path: 'service-channel-asset-route', element: <OperationConfigPlaceholderPage title="Service Channel AssetRoute" /> },
+      { path: 'service-channel-institution', element: <OperationConfigPlaceholderPage title="Service Channel Institution" /> },
+      { path: 'pos-channel-acquirer', element: <OperationConfigPlaceholderPage title="POS Channel Acquirer" /> },
+      { path: 'pos-service-channel-institution', element: <OperationConfigPlaceholderPage title="POS Service Channel Institution" /> },
+      { path: 'schedule-trans', element: <OperationConfigPlaceholderPage title="Schedule Trans" /> },
+      { path: 'probe-test-list', element: <OperationConfigPlaceholderPage title="ProbeTest List" /> },
+      { path: 'route-event', element: <OperationConfigPlaceholderPage title="Route Event" /> },
+      { path: 'availability-monitoring', element: <OperationConfigPlaceholderPage title="Availability monitoring" /> },
+      { path: 'monitoring-scenarios', element: <MonitoringScenarioListPage /> },
+      { path: 'monitoring-scenarios/:scenarioCode', element: <MonitoringScenarioConfigPage /> },
+      { path: 'success-rate-monitoring', element: <Navigate to="/operation-config/monitoring-scenarios" replace /> },
     ],
   },
   // Announcement module (own sidebar, sibling of Basic Info)
