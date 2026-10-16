@@ -1,6 +1,6 @@
 export type LogicalOperator = 'AND' | 'OR';
 export type EvaluationMode = 'DIRECT_EVALUATION' | 'STATE_BRANCHING';
-export type StateOperator = 'IS_TRUE' | 'IS_FALSE' | 'IS_NOT_TRUE' | 'IS_NOT_FALSE';
+export type StateOperator = 'IS_TRUE' | 'IS_FALSE';
 export type ActionType = 'SEND_MQ' | 'SET_SCENARIO_STATE';
 
 export type MetricSource = {
@@ -39,6 +39,7 @@ export type ConsecutiveMatchGate = {
 export type StateBranch = {
   key: string;
   branchCode: string;
+  description: string;
   stateOperator: StateOperator;
   groups: ConditionGroup[];
   consecutiveMatchGate: ConsecutiveMatchGate;
@@ -57,6 +58,8 @@ export type ScenarioConfig = {
 export type ScenarioDefinition = {
   key: string;
   scenarioCode: string;
+  country: string;
+  tenant: string;
   description: string;
   operator: string;
   operationTime: string;
@@ -70,6 +73,8 @@ const scenarioDefinitions: ScenarioDefinition[] = [
   {
     key: nibssScenarioCode,
     scenarioCode: nibssScenarioCode,
+    country: 'NG',
+    tenant: 'PALMPAY',
     description: '识别 NIBSS 出金成功率异常，并在进入异常和恢复时发送通用 MQ 消息',
     operator: 'Abe',
     operationTime: '2026-10-15 11:40:00',
@@ -77,6 +82,8 @@ const scenarioDefinitions: ScenarioDefinition[] = [
   {
     key: hydrogenScenarioCode,
     scenarioCode: hydrogenScenarioCode,
+    country: 'NG',
+    tenant: 'PALMPAY',
     description: '识别 HYDROGEN 出金成功率异常，发现异常时发送通用 MQ 消息',
     operator: 'Abe',
     operationTime: '2026-10-15 16:20:00',
@@ -178,7 +185,8 @@ const nibssInitialConfig: ScenarioConfig = {
     {
       key: 'detected',
       branchCode: 'DETECTED',
-      stateOperator: 'IS_NOT_TRUE',
+      description: '识别出金成功率异常，发送异常消息并将场景状态设为 true',
+      stateOperator: 'IS_FALSE',
       groups: detectedGroups,
       consecutiveMatchGate: { enabled: false, requiredCount: 2 },
       actions: [sendMqAction('detected-mq', 'NIBSS'), setStateAction('detected-state', true)],
@@ -186,6 +194,7 @@ const nibssInitialConfig: ScenarioConfig = {
     {
       key: 'recovered',
       branchCode: 'RECOVERED',
+      description: '在异常状态下识别成功率恢复，发送恢复消息并将场景状态设为 false',
       stateOperator: 'IS_TRUE',
       groups: recoveredGroups,
       consecutiveMatchGate: { enabled: false, requiredCount: 2 },
@@ -253,6 +262,8 @@ export function isScenarioConfigComplete(config: ScenarioConfig) {
   const branchCodes = config.branches.map((branch) => branch.branchCode);
   return config.branches.length > 0
     && config.branches.every((branch) => BRANCH_CODE_PATTERN.test(branch.branchCode)
+      && branch.description.trim().length > 0
+      && branch.description.length <= DESCRIPTION_MAX_LENGTH
       && groupsComplete(branch.groups)
       && countGateComplete(branch.consecutiveMatchGate)
       && actionsComplete(branch.actions))
@@ -276,13 +287,15 @@ export function getScenarioDefinitions() {
   return scenarioDefinitions.map((scenario) => ({ ...scenario }));
 }
 
-export function createScenario(scenarioCode: string, description: string) {
+export function createScenario(scenarioCode: string, country: string, tenant: string, description: string) {
   if (scenarioDefinitions.some((scenario) => scenario.scenarioCode === scenarioCode)) return false;
   const now = new Date();
   const operationTime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
   scenarioDefinitions.push({
     key: scenarioCode,
     scenarioCode,
+    country: country.trim(),
+    tenant: tenant.trim(),
     description: description.trim(),
     operator: 'Abe',
     operationTime,

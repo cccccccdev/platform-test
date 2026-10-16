@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Badge, Breadcrumb, Button, Drawer, Input, Modal, Space, Switch, Table, Tag, Tooltip, message } from 'antd';
+import { Badge, Breadcrumb, Button, Drawer, Input, Modal, Select, Space, Switch, Table, Tag, Tooltip, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { getTenantOptionsByCountry, partyTenantCountryOptions } from '../basic-info/partyTenantReferenceData';
 import {
   CODE_MAX_LENGTH,
   CODE_PATTERN,
@@ -29,13 +30,24 @@ export default function MonitoringScenarioListPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [logScenarioCode, setLogScenarioCode] = useState<string | null>(null);
   const [draftCode, setDraftCode] = useState('');
+  const [draftCountry, setDraftCountry] = useState('');
+  const [draftTenant, setDraftTenant] = useState('');
   const [draftDescription, setDraftDescription] = useState('');
 
   const codeAlreadyExists = scenarioRows.some((scenario) => scenario.scenarioCode === draftCode);
+  const codeValidationMessage = codeAlreadyExists
+    ? 'This Scenario Code already exists.'
+    : draftCode && !CODE_PATTERN.test(draftCode)
+      ? 'Use lowercase letters, numbers, and underscores only. Maximum 64 characters.'
+      : null;
+  const tenantOptions = getTenantOptionsByCountry(draftCountry);
+  const tenantBelongsToCountry = tenantOptions.some((option) => option.value === draftTenant);
   const createValid = draftCode.length > 0
     && draftCode.length <= CODE_MAX_LENGTH
     && CODE_PATTERN.test(draftCode)
     && !codeAlreadyExists
+    && draftCountry.trim().length > 0
+    && tenantBelongsToCountry
     && draftDescription.trim().length > 0
     && draftDescription.length <= DESCRIPTION_MAX_LENGTH;
 
@@ -59,6 +71,8 @@ export default function MonitoringScenarioListPage() {
 
   const openCreate = () => {
     setDraftCode('');
+    setDraftCountry('');
+    setDraftTenant('');
     setDraftDescription('');
     setCreateOpen(true);
   };
@@ -83,10 +97,21 @@ export default function MonitoringScenarioListPage() {
             rowKey="key"
             dataSource={scenarioRows}
             pagination={false}
-            scroll={{ x: 1160 }}
+            scroll={{ x: 1320 }}
             columns={[
               { title: 'Scenario Code', dataIndex: 'scenarioCode', width: 300, render: (value) => <code>{value}</code> },
-              { title: 'Description', dataIndex: 'description', width: 430 },
+              { title: 'Country', dataIndex: 'country', width: 100 },
+              { title: 'Tenant', dataIndex: 'tenant', width: 120 },
+              {
+                title: 'Description',
+                dataIndex: 'description',
+                width: 360,
+                render: (value: string) => (
+                  <Tooltip title={value}>
+                    <span className="monitoring-description-cell">{value}</span>
+                  </Tooltip>
+                ),
+              },
               {
                 title: 'Enabled',
                 width: 100,
@@ -142,7 +167,7 @@ export default function MonitoringScenarioListPage() {
                 type="primary"
                 disabled={!createValid}
                 onClick={() => {
-                  if (!createScenario(draftCode, draftDescription)) {
+                  if (!createScenario(draftCode, draftCountry, draftTenant, draftDescription)) {
                     message.error('Scenario Code already exists.');
                     return;
                   }
@@ -159,21 +184,38 @@ export default function MonitoringScenarioListPage() {
         )}
       >
         <div className="monitoring-create-form">
-          <label className="monitoring-field-label">Scenario Code</label>
+          <label className="monitoring-field-label monitoring-required-label">Scenario Code</label>
           <Input
             value={draftCode}
             placeholder="lowercase_letters_numbers_and_underscores"
             maxLength={CODE_MAX_LENGTH}
             showCount
-            status={draftCode && (!CODE_PATTERN.test(draftCode) || codeAlreadyExists) ? 'error' : undefined}
+            status={codeValidationMessage ? 'error' : undefined}
             onChange={(event) => setDraftCode(event.target.value)}
           />
-          <div className="monitoring-field-help">
-            {codeAlreadyExists ? 'This Scenario Code already exists.' : 'Lowercase letters, numbers, and underscores only. Maximum 64 characters and globally unique.'}
-          </div>
-          <label className="monitoring-field-label">Description</label>
+          {codeValidationMessage && <div className="monitoring-field-help">{codeValidationMessage}</div>}
+          <label className="monitoring-field-label monitoring-required-label">Country</label>
+          <Select
+            showSearch
+            value={draftCountry || undefined}
+            placeholder="Select Country"
+            options={partyTenantCountryOptions}
+            onChange={(country) => {
+              setDraftCountry(country);
+              setDraftTenant('');
+            }}
+          />
+          <label className="monitoring-field-label monitoring-required-label">Tenant</label>
+          <Select
+            showSearch
+            value={draftTenant || undefined}
+            placeholder={draftCountry ? 'Select Tenant' : 'Select Country first'}
+            options={tenantOptions}
+            disabled={!draftCountry}
+            onChange={setDraftTenant}
+          />
+          <label className="monitoring-field-label monitoring-required-label">Description</label>
           <Input.TextArea rows={4} value={draftDescription} maxLength={DESCRIPTION_MAX_LENGTH} showCount onChange={(event) => setDraftDescription(event.target.value)} />
-          <div className="monitoring-field-help">Required. Maximum 200 characters.</div>
         </div>
       </Drawer>
 

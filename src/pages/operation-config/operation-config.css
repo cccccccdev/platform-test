@@ -39,6 +39,7 @@
 .monitoring-table-card .ant-table { font-size: 12px; }
 .monitoring-table-card .ant-table-thead > tr > th { height: 54px; background: #fafafa; white-space: nowrap; }
 .monitoring-table-card .ant-table-tbody > tr > td { height: 62px; white-space: nowrap; }
+.monitoring-description-cell { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .monitoring-table-card .ant-btn-link { padding-inline: 0; color: #6f00c7; }
 .monitoring-config-panel { padding-top: 8px; }
 .monitoring-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -47,6 +48,7 @@
 .metric-condition-list { margin-top: 12px; display: flex; flex-direction: column; gap: 14px; }
 .metric-condition-list .ant-card-head { background: #fafafa; }
 .monitoring-field-label { display: block; margin-bottom: 6px; color: #595959; font-size: 12px; font-weight: 600; }
+.monitoring-required-label::before { margin-right: 4px; color: #ff4d4f; content: '*'; }
 .monitoring-mode-card { margin-bottom: 18px; }
 .monitoring-mode-selector { width: 100%; margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .monitoring-mode-selector .ant-radio-button-wrapper { height: auto; min-height: 78px; padding: 13px 16px; border: 1px solid #d9d9d9 !important; border-radius: 6px !important; white-space: normal; line-height: 1.4; }
@@ -136,6 +138,7 @@
 .monitoring-flow-node-copy strong { font-size: 14px; font-weight: 650; }
 .monitoring-flow-node-copy > span { overflow: hidden; color: #72767f; font-size: 11px; line-height: 1.45; text-overflow: ellipsis; }
 .monitoring-flow-node-copy code { color: #555a64; font-size: 10px; }
+.monitoring-flow-node-stat.ant-tag { width: fit-content; margin-inline-end: 0; }
 .monitoring-flow-node-edit { color: #6f00c7; font-size: 11px; font-weight: 600; }
 .monitoring-flow-connector { height: 42px; display: grid; place-items: center; }
 .monitoring-flow-connector span { width: 1px; height: 100%; background: #b9bdc5; }
@@ -146,11 +149,11 @@
 .monitoring-flow-inline-connector { height: 1px; background: #b9bdc5; }
 .monitoring-branch-stage { padding: 20px; border: 1px solid #dfe1e7; border-radius: 11px; background: rgba(255, 255, 255, 0.92); }
 .monitoring-branch-stage-heading { margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.monitoring-branch-stage-heading h2 { margin: 4px 0 0; color: #292a2f; font-size: 16px; font-weight: 650; }
+.monitoring-branch-stage-heading h2 { margin: 0; color: #292a2f; font-size: 14px; font-weight: 700; letter-spacing: 0.06em; }
 .monitoring-branch-lane { padding: 14px; border: 1px solid #e3e4e9; border-radius: 9px; background: #f7f7f9; }
 .monitoring-branch-lane + .monitoring-branch-lane { margin-top: 14px; }
 .monitoring-branch-lane-title { min-height: 32px; display: flex; align-items: center; gap: 10px; }
-.monitoring-branch-lane-title > span:not(.ant-tag) { flex: 1; color: #81858d; font-size: 11px; }
+.monitoring-branch-lane-title > span:not(.ant-tag) { flex: 1; min-width: 0; overflow: hidden; color: #81858d; font-size: 11px; line-height: 1.45; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .monitoring-branch-lane-flow { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr); align-items: center; }
 .monitoring-flow-empty { min-height: 190px; display: grid; place-items: center; align-content: center; gap: 8px; border: 1px dashed #cfd2d9; border-radius: 9px; color: #848891; text-align: center; }
 .monitoring-flow-empty .anticon { color: #6f00c7; font-size: 25px; }
