@@ -1,10 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { Button, Input, Modal, Popconfirm, Select, Tag, Tooltip, Typography } from 'antd';
+import { Button, Input, Modal, Popconfirm, Popover, Select, Tag, Tooltip, Typography } from 'antd';
 import { CaretDownOutlined, CaretRightOutlined, DeleteOutlined, ExclamationCircleFilled, HolderOutlined, ImportOutlined, MinusSquareOutlined, PlusOutlined, PlusSquareOutlined } from '@ant-design/icons';
-import { appendBusinessNode, appendTemplatePlaceholder, findNode, importJsonToSpiTree, moveBusinessSibling, requiredTemplateRootFields, updateNodeTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
+import { appendBusinessNode, appendTemplatePlaceholder, findNode, importJsonToSpiTree, insertCatalogNode, moveBusinessSibling, requiredTemplateRootFields, updateNodeTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
 
 const FIELD_TYPES = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((type) => ({ label: type, value: type }));
 type DragState = { parentId: string | null; nodeId: string } | null;
+const countTemplateChildren = (node: SpiFieldNode): number => node.children.reduce(
+  (count, child) => count + (child.extension ? 0 : 1 + countTemplateChildren(child)), 0,
+);
 
 interface Props {
   title: string;
@@ -25,6 +28,8 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
   const [importOpen, setImportOpen] = useState(false);
   const [jsonDraft, setJsonDraft] = useState('');
   const [jsonError, setJsonError] = useState('');
+  const [rootPickerOpen, setRootPickerOpen] = useState(false);
+  const availableRootFields = catalog.filter((node) => !fields.some((field) => field.id === node.id));
   const requiredRootFields = requiredTemplateRootFields(catalog, customRoot);
   const importPlaceholder = requiredRootFields.length
     ? JSON.stringify(Object.fromEntries(requiredRootFields.map((name) => [name, {}])), null, 2)
@@ -53,6 +58,17 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
     onChange(next);
     setRootCollapsed(false);
     if (parentId) setCollapsed((current) => { const next = new Set(current); next.delete(parentId); return next; });
+  };
+  const restoreRootField = (candidate: SpiFieldNode) => {
+    onChange(insertCatalogNode(fields, null, candidate, catalog));
+    setRootPickerOpen(false);
+    setRootCollapsed(false);
+    setCollapsed((current) => {
+      const next = new Set(current);
+      const expand = (node: SpiFieldNode) => { next.delete(node.id); node.children.forEach(expand); };
+      expand(candidate);
+      return next;
+    });
   };
   const toggle = (id: string) => setCollapsed((current) => {
     const next = new Set(current);
@@ -126,9 +142,25 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
         <div role="cell">Object</div>
         {effectTagOptions && <div role="cell">—</div>}
         <div role="cell">—</div>
-        {editing && <div role="cell">{(customRoot || catalog.some((node) => !fields.some((field) => field.id === node.id))) && <Tooltip title="Add field under _order"><Button type="text" size="small" icon={<PlusOutlined />} aria-label={`Add field under _order in ${title}`} onClick={() => addField(null)} /></Tooltip>}</div>}
+        {editing && <div role="cell">
+          {customRoot ? <Tooltip title="Add field under _order"><Button className="capability-spi-root-add" size="small" icon={<PlusOutlined />} aria-label={`Add field under _order in ${title}`} onClick={() => addField(null)} /></Tooltip>
+            : availableRootFields.length > 0 && <Popover trigger="click" placement="bottomRight" arrow={false} open={rootPickerOpen} onOpenChange={setRootPickerOpen} content={
+              <div className="capability-spi-root-picker">
+                <div className="capability-spi-root-picker-title">Add top-level field</div>
+                <div className="capability-spi-root-picker-hint">Restore a template field and its children.</div>
+                <div className="capability-spi-root-picker-options">
+                  {availableRootFields.map((node) => <button type="button" key={node.id} className="capability-spi-root-picker-option" onClick={() => restoreRootField(node)}>
+                    <span className="capability-spi-root-picker-name">{node.name}</span>
+                    <span className="capability-spi-root-picker-count">{countTemplateChildren(node)} fields</span>
+                  </button>)}
+                </div>
+              </div>
+            }>
+              <Button className="capability-spi-root-add" size="small" icon={<PlusOutlined />} aria-label={`Add top-level field under _order in ${title}`} aria-expanded={rootPickerOpen} />
+            </Popover>}
+        </div>}
       </div>
-      {!rootCollapsed && (fields.length ? fields.map((node) => render(node, 0, null)) : <div className="capability-spi-empty">No fields selected. {editing && <Button type="link" onClick={() => addField(null)}>Add field under _order</Button>}</div>)}
+      {!rootCollapsed && (fields.length ? fields.map((node) => render(node, 0, null)) : <div className="capability-spi-empty">No fields selected.</div>)}
     </div></div></div>
     <Modal title={`Import JSON as ${title}`} open={importOpen} okText="Import" onOk={importJson} onCancel={() => { setImportOpen(false); setJsonError(''); }} destroyOnHidden>
       <Typography.Text type="secondary">Paste a JSON object for the fields under _order. Importing replaces the current fields.{requiredRootFields.length > 0 && ` Required top-level fields: ${requiredRootFields.join(', ')}. Public fields must be a subset of the template; add custom fields under extraRequest or extraResponse.`}</Typography.Text>
