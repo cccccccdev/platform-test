@@ -1,0 +1,1 @@
+import{i as e}from"./useVariants-w1ebWSwh.js";var t=e;export{t};
