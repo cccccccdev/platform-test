@@ -322,6 +322,18 @@
 .capability-spi-tree-root > div { padding: 0 8px; }
 .capability-spi-tree-root > div:first-child { display: flex; align-items: center; gap: 8px; }
 .capability-spi-tree-root .ant-tag { margin: 0; font-weight: 600; }
+.capability-spi-root-add.ant-btn { width: 28px; height: 28px; padding: 0; border: 1px solid #d9d9d9; border-radius: 4px; background: #fff; color: #6814b3; }
+.capability-spi-root-add.ant-btn:hover,
+.capability-spi-root-add.ant-btn:focus-visible { border-color: #7d2cc8; color: #6814b3; }
+.capability-spi-root-picker { width: 270px; }
+.capability-spi-root-picker-title { color: #30343a; font-size: 13px; font-weight: 600; }
+.capability-spi-root-picker-hint { margin-top: 2px; color: #8b9098; font-size: 12px; }
+.capability-spi-root-picker-options { display: grid; gap: 4px; margin-top: 10px; }
+.capability-spi-root-picker-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 36px; padding: 7px 9px; border: 1px solid transparent; border-radius: 4px; background: #fff; color: #30343a; text-align: left; cursor: pointer; }
+.capability-spi-root-picker-option:hover,
+.capability-spi-root-picker-option:focus-visible { border-color: #d9c8eb; background: #f9f5ff; outline: none; }
+.capability-spi-root-picker-name { font-size: 13px; font-weight: 500; }
+.capability-spi-root-picker-count { color: #8b9098; font-size: 12px; white-space: nowrap; }
 .capability-spi-tree-row.container { background: #fff; }
 .capability-spi-tree-row.dragging { background: #e6f4ff; }
 .capability-spi-tree-row > div { padding: 0 8px; }
