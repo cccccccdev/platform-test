@@ -744,6 +744,7 @@ export default function MonitoringScenarioConfigPage() {
                 {action.type === 'SEND_MQ' ? (
                   <>
                     <Descriptions size="small" column={1} items={[
+                      { key: 'topic', label: 'Topic', children: <code>&lt;resolved at runtime&gt;</code> },
                       { key: 'tag', label: 'Tag', children: <code>{scenarioCode}</code> },
                     ]} />
                     <h4>Message Body</h4>
