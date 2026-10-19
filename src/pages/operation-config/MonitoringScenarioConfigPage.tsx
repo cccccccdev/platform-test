@@ -11,20 +11,21 @@ import {
   Modal,
   Select,
   Space,
-  Switch,
   Tag,
   message,
 } from 'antd';
 import {
   ApartmentOutlined,
   ArrowLeftOutlined,
+  CheckOutlined,
   ClockCircleOutlined,
+  CloseOutlined,
   DatabaseOutlined,
   DeleteOutlined,
+  EditOutlined,
   ExclamationCircleOutlined,
   FilterOutlined,
   PlusOutlined,
-  SettingOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -33,7 +34,6 @@ import {
   CODE_MAX_LENGTH,
   CODE_PATTERN,
   DESCRIPTION_MAX_LENGTH,
-  demoTopic,
   getAppliedScenarioConfig,
   getScenarioDefinition,
   getScenarioEnabled,
@@ -52,7 +52,7 @@ import type {
   StateOperator,
 } from './monitoringScenarioDemo';
 
-type EditorTarget = 'metrics' | 'condition' | 'counter' | 'actions' | 'branch' | 'predicate';
+type EditorTarget = 'metrics' | 'condition' | 'counter' | 'actions' | 'predicate';
 type EditorState = { target: EditorTarget; branchKey?: string } | null;
 
 const operatorOptions = ['<', '<=', '=', '!=', '>=', '>'].map((value) => ({ value, label: value }));
@@ -220,6 +220,13 @@ export default function MonitoringScenarioConfigPage() {
   const [directActions, setDirectActions] = useState(initialConfig.directActions);
   const [branches, setBranches] = useState(initialConfig.branches);
   const [editor, setEditor] = useState<EditorState>(null);
+  const [branchCreateOpen, setBranchCreateOpen] = useState(false);
+  const [draftBranchCode, setDraftBranchCode] = useState('');
+  const [draftBranchDescription, setDraftBranchDescription] = useState('');
+  const [editingBranchDescription, setEditingBranchDescription] = useState<{
+    branchKey: string;
+    originalDescription: string;
+  } | null>(null);
 
   const selectedBranch = editor?.branchKey ? branches.find((branch) => branch.key === editor.branchKey) : undefined;
   const selectedGroups = selectedBranch ? selectedBranch.groups : matchGroups;
@@ -247,6 +254,7 @@ export default function MonitoringScenarioConfigPage() {
 
   const changeMode = (nextMode: EvaluationMode) => {
     if (nextMode === evaluationMode) return;
+    if (nextMode === 'DIRECT_EVALUATION') return;
     if (editingLocked) return;
     Modal.confirm({
       title: 'Switch flow structure?',
@@ -257,7 +265,7 @@ export default function MonitoringScenarioConfigPage() {
       onOk: () => {
         setEvaluationMode(nextMode);
         setMatchGroups([]);
-        setDirectConsecutiveMatchGate({ enabled: false, requiredCount: 2 });
+        setDirectConsecutiveMatchGate({ requiredCount: null });
         setDirectActions([]);
         setBranches([]);
         setEditor(null);
@@ -270,17 +278,24 @@ export default function MonitoringScenarioConfigPage() {
     setMetricSources((current) => [...current, { key, metricCode: '', tagCode: '', parameters: '{\n  \n}' }]);
   };
 
+  const openAddBranch = () => {
+    setDraftBranchCode('');
+    setDraftBranchDescription('');
+    setBranchCreateOpen(true);
+  };
+
   const addBranch = () => {
     const key = `branch-${Date.now()}`;
     setBranches((current) => [...current, {
       key,
-      branchCode: '',
-      description: '',
+      branchCode: draftBranchCode,
+      description: draftBranchDescription.trim(),
       stateOperator: 'IS_FALSE',
       groups: [],
-      consecutiveMatchGate: { enabled: false, requiredCount: 2 },
+      consecutiveMatchGate: { requiredCount: null },
       actions: [],
     }]);
+    setBranchCreateOpen(false);
   };
 
   const addAction = (type: ScenarioAction['type']) => {
@@ -300,22 +315,45 @@ export default function MonitoringScenarioConfigPage() {
     && new Set(metricSources.map((metric) => metric.metricCode)).size === metricSources.length;
   const draftConfig = { metricSources, evaluationMode, matchGroups, directConsecutiveMatchGate, directActions, branches };
   const pageValid = isScenarioConfigComplete(draftConfig);
+  const hasUnsavedChanges = JSON.stringify(draftConfig) !== JSON.stringify(initialConfig);
+
+  const leaveConfigPage = () => navigate('/operation-config/monitoring-scenarios');
+
+  const cancel = () => {
+    if (editingLocked || !hasUnsavedChanges) {
+      leaveConfigPage();
+      return;
+    }
+    Modal.confirm({
+      title: 'Discard all unsaved changes?',
+      icon: <ExclamationCircleOutlined />,
+      content: 'Save is the only way to apply changes on this page. If you leave now, every change made since the page was opened will be permanently discarded.',
+      okText: 'Discard changes',
+      cancelText: 'Continue editing',
+      okButtonProps: { danger: true },
+      onOk: leaveConfigPage,
+    });
+  };
 
   const save = () => {
     saveAppliedScenarioConfig(scenarioCode, draftConfig);
     message.success('Scenario configuration saved');
-    navigate('/operation-config/monitoring-scenarios');
+    leaveConfigPage();
   };
 
   const countSummary = (count: number) => (
     <Tag className="monitoring-flow-node-stat">{count}</Tag>
   );
 
-  const countGateSummary = (gate: ConsecutiveMatchGate) => (
-    <Tag className="monitoring-flow-node-stat" color={gate.enabled ? 'green' : undefined}>
-      {gate.enabled ? `ON / ${gate.requiredCount}` : 'OFF'}
-    </Tag>
-  );
+  const countGateSummary = (gate: ConsecutiveMatchGate) => gate.requiredCount === null
+    ? undefined
+    : countSummary(gate.requiredCount);
+
+  const branchCodeExists = branches.some((branch) => branch.branchCode === draftBranchCode);
+  const branchDraftValid = BRANCH_CODE_PATTERN.test(draftBranchCode)
+    && !branchCodeExists
+    && draftBranchDescription.trim().length > 0
+    && draftBranchDescription.length <= DESCRIPTION_MAX_LENGTH;
 
   const editorTitle = editor?.target === 'metrics'
     ? 'Configure metric sources'
@@ -327,7 +365,7 @@ export default function MonitoringScenarioConfigPage() {
         ? `${selectedBranch?.branchCode || 'Direct flow'} · Actions`
         : editor?.target === 'predicate'
           ? `${selectedBranch?.branchCode || 'State branch'} · State predicate`
-          : 'Settings';
+          : 'Configure flow';
 
   return (
     <div className="operation-config-page monitoring-page monitoring-config-page">
@@ -335,11 +373,11 @@ export default function MonitoringScenarioConfigPage() {
         <div>
           <Breadcrumb items={[
             { title: 'Operation Config' },
-            { title: <button type="button" onClick={() => navigate('/operation-config/monitoring-scenarios')}>Monitoring Scenarios</button> },
+            { title: <button type="button" onClick={cancel}>Monitoring Scenarios</button> },
             { title: scenarioCode },
           ]} />
           <div className="monitoring-config-title-row">
-            <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/operation-config/monitoring-scenarios')} />
+            <Button type="text" icon={<ArrowLeftOutlined />} onClick={cancel} />
             <div>
               <h1>Configure processing flow</h1>
               <p><code>{scenarioCode}</code> · {scenarioDescription}</p>
@@ -347,7 +385,7 @@ export default function MonitoringScenarioConfigPage() {
           </div>
         </div>
         <Space>
-          <Button onClick={() => navigate('/operation-config/monitoring-scenarios')}>Cancel</Button>
+          <Button onClick={cancel}>Cancel</Button>
           {!editingLocked && <Button type="primary" disabled={!pageValid} onClick={save}>Save</Button>}
         </Space>
       </header>
@@ -360,7 +398,7 @@ export default function MonitoringScenarioConfigPage() {
             showIcon
             icon={<ExclamationCircleOutlined />}
             message="This scenario is enabled and cannot be edited"
-            description="Disable the scenario from the list and wait for approval before changing its processing flow. You can still open every node to review its configuration."
+            description="Disable the scenario from the list before changing its processing flow. You can still open every node to review its configuration."
           />
         )}
         {evaluationMode === null ? (
@@ -371,11 +409,11 @@ export default function MonitoringScenarioConfigPage() {
               <p>Select how this scenario should evaluate conditions. Other configuration becomes available after this choice.</p>
             </div>
             <div className="monitoring-mode-choices">
-              <button type="button" className="monitoring-mode-choice" onClick={() => setEvaluationMode('DIRECT_EVALUATION')}>
+              <button type="button" className="monitoring-mode-choice" disabled>
                 <span className="monitoring-mode-choice-icon"><FilterOutlined /></span>
                 <strong>Direct flow</strong>
                 <span>Evaluate one condition and execute its actions whenever it matches.</span>
-                <em>Select direct flow</em>
+                <em>Unavailable in phase 1</em>
               </button>
               <button type="button" className="monitoring-mode-choice" onClick={() => setEvaluationMode('STATE_BRANCHING')}>
                 <span className="monitoring-mode-choice-icon"><ApartmentOutlined /></span>
@@ -394,10 +432,8 @@ export default function MonitoringScenarioConfigPage() {
               <p>{evaluationMode === 'DIRECT_EVALUATION'
                 ? 'Evaluate one condition and execute its actions whenever it matches.'
                 : 'Use the current scenario state to select a branch, then evaluate its condition and actions.'}</p>
-              {!editingLocked && (
-                <Button onClick={() => changeMode(evaluationMode === 'DIRECT_EVALUATION' ? 'STATE_BRANCHING' : 'DIRECT_EVALUATION')}>
-                  Switch mode
-                </Button>
+              {!editingLocked && evaluationMode === 'DIRECT_EVALUATION' && (
+                <Button onClick={() => changeMode('STATE_BRANCHING')}>Switch to state branch flow</Button>
               )}
             </section>
 
@@ -432,7 +468,7 @@ export default function MonitoringScenarioConfigPage() {
                   eyebrow="Consecutive matches"
                   title="Count gate"
                   summary={countGateSummary(directConsecutiveMatchGate)}
-                  warning={directConsecutiveMatchGate.enabled && directConsecutiveMatchGate.requiredCount < 1}
+                  warning={directConsecutiveMatchGate.requiredCount === null || directConsecutiveMatchGate.requiredCount < 1}
                   onClick={() => setEditor({ target: 'counter' })}
                 />
                 <div className="monitoring-flow-inline-connector" />
@@ -450,7 +486,7 @@ export default function MonitoringScenarioConfigPage() {
             <div className="monitoring-branch-stage">
               <div className="monitoring-branch-stage-heading">
                 <h2>STATE BRANCHES</h2>
-                {!editingLocked && <Button icon={<PlusOutlined />} onClick={addBranch}>Add branch</Button>}
+                {!editingLocked && <Button icon={<PlusOutlined />} onClick={openAddBranch}>Add branch</Button>}
               </div>
 
               {branches.length === 0 ? (
@@ -463,18 +499,71 @@ export default function MonitoringScenarioConfigPage() {
                 <article className="monitoring-branch-lane" key={branch.key}>
                   <div className="monitoring-branch-lane-title">
                     <Tag color="purple">{branch.branchCode || 'UNNAMED_BRANCH'}</Tag>
-                    <span>{branch.description || 'Branch description required'}</span>
-                    <Button
-                      type="text"
-                      icon={<SettingOutlined />}
-                      danger={!BRANCH_CODE_PATTERN.test(branch.branchCode)
-                        || !branch.description.trim()
-                        || branch.description.length > DESCRIPTION_MAX_LENGTH}
-                      onClick={() => setEditor({ target: 'branch', branchKey: branch.key })}
-                    >
-                      Settings
-                    </Button>
-                    {!editingLocked && <Button type="text" danger icon={<DeleteOutlined />} onClick={() => setBranches((current) => current.filter((item) => item.key !== branch.key))}>Remove</Button>}
+                    <div className="monitoring-branch-description">
+                      {editingBranchDescription?.branchKey === branch.key ? (
+                        <>
+                          <Input
+                            autoFocus
+                            value={branch.description}
+                            maxLength={DESCRIPTION_MAX_LENGTH}
+                            status={!branch.description.trim() ? 'error' : undefined}
+                            aria-label={`${branch.branchCode} description`}
+                            onChange={(event) => updateBranch(branch.key, { description: event.target.value })}
+                            onPressEnter={() => {
+                              if (branch.description.trim()) setEditingBranchDescription(null);
+                            }}
+                          />
+                          <Button
+                            type="text"
+                            icon={<CheckOutlined />}
+                            aria-label={`Finish editing ${branch.branchCode} description`}
+                            disabled={!branch.description.trim()}
+                            onClick={() => setEditingBranchDescription(null)}
+                          />
+                          <Button
+                            type="text"
+                            icon={<CloseOutlined />}
+                            aria-label={`Cancel editing ${branch.branchCode} description`}
+                            onClick={() => {
+                              updateBranch(branch.key, { description: editingBranchDescription.originalDescription });
+                              setEditingBranchDescription(null);
+                            }}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <span title={branch.description}>{branch.description || 'Branch description required'}</span>
+                          {!editingLocked && (
+                            <Button
+                              type="text"
+                              icon={<EditOutlined />}
+                              aria-label={`Edit ${branch.branchCode} description`}
+                              danger={!BRANCH_CODE_PATTERN.test(branch.branchCode)
+                                || !branch.description.trim()
+                                || branch.description.length > DESCRIPTION_MAX_LENGTH}
+                              onClick={() => setEditingBranchDescription({
+                                branchKey: branch.key,
+                                originalDescription: branch.description,
+                              })}
+                            />
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {!editingLocked && (
+                      <Button
+                        className="monitoring-branch-remove"
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => {
+                          setBranches((current) => current.filter((item) => item.key !== branch.key));
+                          if (editingBranchDescription?.branchKey === branch.key) setEditingBranchDescription(null);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
                   </div>
                   <div className="monitoring-branch-lane-flow">
                     <FlowNode
@@ -498,7 +587,7 @@ export default function MonitoringScenarioConfigPage() {
                       eyebrow="Consecutive matches"
                       title="Count gate"
                       summary={countGateSummary(branch.consecutiveMatchGate)}
-                      warning={branch.consecutiveMatchGate.enabled && branch.consecutiveMatchGate.requiredCount < 1}
+                      warning={branch.consecutiveMatchGate.requiredCount === null || branch.consecutiveMatchGate.requiredCount < 1}
                       onClick={() => setEditor({ target: 'counter', branchKey: branch.key })}
                     />
                     <div className="monitoring-flow-inline-connector" />
@@ -572,34 +661,6 @@ export default function MonitoringScenarioConfigPage() {
           </div>
         )}
 
-        {editor?.target === 'branch' && selectedBranch && (
-          <div className="monitoring-branch-editor">
-            <label className="monitoring-field-label">Branch Code</label>
-            <Input
-              value={selectedBranch.branchCode}
-              maxLength={CODE_MAX_LENGTH}
-              showCount
-              readOnly={editingLocked}
-              placeholder="BRANCH_CODE"
-              status={!BRANCH_CODE_PATTERN.test(selectedBranch.branchCode) ? 'error' : undefined}
-              onChange={(event) => updateBranch(selectedBranch.key, { branchCode: event.target.value })}
-            />
-            <div className="monitoring-field-help">Uppercase letters, numbers, and underscores only. Maximum 64 characters and unique within the scenario.</div>
-            <label className="monitoring-field-label">Branch Description</label>
-            <Input.TextArea
-              rows={3}
-              value={selectedBranch.description}
-              maxLength={DESCRIPTION_MAX_LENGTH}
-              showCount
-              readOnly={editingLocked}
-              placeholder="Describe when this branch is used and what it does"
-              status={!selectedBranch.description.trim() ? 'error' : undefined}
-              onChange={(event) => updateBranch(selectedBranch.key, { description: event.target.value })}
-            />
-            <div className="monitoring-field-help">Required. Maximum 200 characters. Displayed on the branch processing lane.</div>
-          </div>
-        )}
-
         {editor?.target === 'predicate' && selectedBranch && (
           <div className="monitoring-branch-editor">
             <Alert type="info" showIcon message="This predicate selects the branch from the current scenario state. State changes are configured separately as optional actions." />
@@ -620,37 +681,25 @@ export default function MonitoringScenarioConfigPage() {
               type="info"
               showIcon
               message="Count consecutive condition matches"
-              description="The monitoring job evaluates once per minute. When enabled, a matching condition increments this flow's counter. For example, a count of 10 requires the same result in 10 consecutive one-minute evaluations. Actions then run and the counter resets to zero; a non-matching result breaks the sequence and resets the counter."
+              description="The monitoring job evaluates once per minute. A matching condition increments this flow's counter. For example, a count of 10 requires the same result in 10 consecutive one-minute evaluations. Actions then run and the counter resets to zero; a non-matching result breaks the sequence and resets the counter."
             />
-            <div className="monitoring-counter-toggle-row">
-              <div>
-                <strong>Enable consecutive match counting</strong>
-                <span>Turn off to send every matched result directly to Actions.</span>
-              </div>
-              <Switch
-                checked={selectedConsecutiveMatchGate.enabled}
-                disabled={editingLocked}
-                onChange={(enabled) => updateSelectedConsecutiveMatchGate({ ...selectedConsecutiveMatchGate, enabled })}
+            <div className="monitoring-counter-threshold">
+              <label className="monitoring-field-label monitoring-required-label">Required consecutive matches</label>
+              <InputNumber
+                min={1}
+                precision={0}
+                value={selectedConsecutiveMatchGate.requiredCount}
+                placeholder="Count"
+                readOnly={editingLocked}
+                status={selectedConsecutiveMatchGate.requiredCount === null ? 'error' : undefined}
+                onChange={(requiredCount) => updateSelectedConsecutiveMatchGate({ requiredCount })}
               />
-            </div>
-            {selectedConsecutiveMatchGate.enabled && (
-              <div className="monitoring-counter-threshold">
-                <label className="monitoring-field-label">Required consecutive matches</label>
-                <InputNumber
-                  min={1}
-                  precision={0}
-                  value={selectedConsecutiveMatchGate.requiredCount}
-                  readOnly={editingLocked}
-                  onChange={(requiredCount) => updateSelectedConsecutiveMatchGate({
-                    ...selectedConsecutiveMatchGate,
-                    requiredCount: requiredCount ?? 1,
-                  })}
-                />
+              {selectedConsecutiveMatchGate.requiredCount !== null && (
                 <div className="monitoring-field-help">
                   At one evaluation per minute, a count of {selectedConsecutiveMatchGate.requiredCount} requires {selectedConsecutiveMatchGate.requiredCount} consecutive one-minute matched results (about {selectedConsecutiveMatchGate.requiredCount} minutes).
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
 
@@ -660,12 +709,10 @@ export default function MonitoringScenarioConfigPage() {
               type="info"
               showIcon
               icon={<ExclamationCircleOutlined />}
-              message={selectedConsecutiveMatchGate.enabled
-                ? `Actions execute after ${selectedConsecutiveMatchGate.requiredCount} consecutive matches`
-                : 'Actions execute whenever the condition matches'}
-              description={selectedConsecutiveMatchGate.enabled
-                ? 'When the count gate passes, the platform resets this flow counter to zero and executes the configured Actions in one reliable runtime context.'
-                : 'Consecutive match counting is disabled. Every matched condition proceeds directly to the configured Actions.'}
+              message={selectedConsecutiveMatchGate.requiredCount === null
+                ? 'Configure the Count gate before this flow can execute Actions'
+                : `Actions execute after ${selectedConsecutiveMatchGate.requiredCount} consecutive matches`}
+              description="When the count gate passes, the platform resets this flow counter to zero and executes the configured Actions in one reliable runtime context."
             />
             <div className="monitoring-section-heading">
               <div>
@@ -697,7 +744,6 @@ export default function MonitoringScenarioConfigPage() {
                 {action.type === 'SEND_MQ' ? (
                   <>
                     <Descriptions size="small" column={1} items={[
-                      { key: 'topic', label: 'Topic', children: <code>{demoTopic}</code> },
                       { key: 'tag', label: 'Tag', children: <code>{scenarioCode}</code> },
                     ]} />
                     <h4>Message Body</h4>
@@ -706,6 +752,7 @@ export default function MonitoringScenarioConfigPage() {
                       { key: 'description', label: 'description', children: scenarioDescription },
                       ...(selectedBranch ? [{ key: 'branchCode', label: 'branchCode', children: <code>{selectedBranch.branchCode || '-'}</code> }] : []),
                       ...(!selectedBranch ? [{ key: 'event', label: 'event.type', children: <code>MATCHED</code> }] : []),
+                      { key: 'occurredAt', label: 'occurredAt', children: <code>&lt;resolved at runtime&gt;</code> },
                     ]} />
                     <label className="monitoring-field-label monitoring-context-label">context (JSON)</label>
                     <Input.TextArea rows={6} value={action.context} readOnly={editingLocked} onChange={(event) => updateAction(action.key, { context: event.target.value })} />
@@ -714,6 +761,7 @@ export default function MonitoringScenarioConfigPage() {
                       scenarioCode,
                       description: scenarioDescription,
                       context: parsePreviewContext(action.context),
+                      occurredAt: '<resolved at runtime>',
                       ...(selectedBranch
                         ? { branchCode: selectedBranch.branchCode || '' }
                         : { event: { type: 'MATCHED' } }),
@@ -734,6 +782,46 @@ export default function MonitoringScenarioConfigPage() {
             ))}
           </div>
         )}
+      </Drawer>
+
+      <Drawer
+        title="Create branch"
+        width={560}
+        open={branchCreateOpen}
+        onClose={() => setBranchCreateOpen(false)}
+        footer={(
+          <div className="monitoring-drawer-footer">
+            <Space>
+              <Button onClick={() => setBranchCreateOpen(false)}>Cancel</Button>
+              <Button type="primary" disabled={!branchDraftValid} onClick={addBranch}>Create</Button>
+            </Space>
+          </div>
+        )}
+      >
+        <div className="monitoring-branch-editor">
+          <label className="monitoring-field-label monitoring-required-label">Branch Code</label>
+          <Input
+            value={draftBranchCode}
+            maxLength={CODE_MAX_LENGTH}
+            showCount
+            placeholder="BRANCH_CODE"
+            status={draftBranchCode && (!BRANCH_CODE_PATTERN.test(draftBranchCode) || branchCodeExists) ? 'error' : undefined}
+            onChange={(event) => setDraftBranchCode(event.target.value)}
+          />
+          {draftBranchCode && !BRANCH_CODE_PATTERN.test(draftBranchCode) && (
+            <div className="monitoring-field-help">Use uppercase letters, numbers, and underscores only. Maximum 64 characters.</div>
+          )}
+          {branchCodeExists && <div className="monitoring-field-help">This Branch Code already exists in the scenario.</div>}
+          <label className="monitoring-field-label monitoring-required-label">Branch Description</label>
+          <Input.TextArea
+            rows={3}
+            value={draftBranchDescription}
+            maxLength={DESCRIPTION_MAX_LENGTH}
+            showCount
+            placeholder="Describe when this branch is used and what it does"
+            onChange={(event) => setDraftBranchDescription(event.target.value)}
+          />
+        </div>
       </Drawer>
     </div>
   );

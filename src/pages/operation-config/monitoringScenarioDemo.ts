@@ -32,8 +32,7 @@ export type ScenarioAction = {
 };
 
 export type ConsecutiveMatchGate = {
-  enabled: boolean;
-  requiredCount: number;
+  requiredCount: number | null;
 };
 
 export type StateBranch = {
@@ -67,7 +66,6 @@ export type ScenarioDefinition = {
 
 export const nibssScenarioCode = 'ng_nibss_payout_success_rate_abnormal';
 export const hydrogenScenarioCode = 'ng_hydrogen_payout_success_rate_abnormal';
-export const demoTopic = 'FINANCIAL_NETWORK_MONITORING_SCENARIO_EVENT';
 
 const scenarioDefinitions: ScenarioDefinition[] = [
   {
@@ -179,7 +177,7 @@ const nibssInitialConfig: ScenarioConfig = {
   metricSources: buildMetricSources('NIBSS'),
   evaluationMode: 'STATE_BRANCHING',
   matchGroups: [],
-  directConsecutiveMatchGate: { enabled: false, requiredCount: 2 },
+  directConsecutiveMatchGate: { requiredCount: 1 },
   directActions: [],
   branches: [
     {
@@ -188,7 +186,7 @@ const nibssInitialConfig: ScenarioConfig = {
       description: '识别出金成功率异常，发送异常消息并将场景状态设为 true',
       stateOperator: 'IS_FALSE',
       groups: detectedGroups,
-      consecutiveMatchGate: { enabled: false, requiredCount: 2 },
+      consecutiveMatchGate: { requiredCount: 1 },
       actions: [sendMqAction('detected-mq', 'NIBSS'), setStateAction('detected-state', true)],
     },
     {
@@ -197,7 +195,7 @@ const nibssInitialConfig: ScenarioConfig = {
       description: '在异常状态下识别成功率恢复，发送恢复消息并将场景状态设为 false',
       stateOperator: 'IS_TRUE',
       groups: recoveredGroups,
-      consecutiveMatchGate: { enabled: false, requiredCount: 2 },
+      consecutiveMatchGate: { requiredCount: 1 },
       actions: [sendMqAction('recovered-mq', 'NIBSS'), setStateAction('recovered-state', false)],
     },
   ],
@@ -207,7 +205,7 @@ const hydrogenInitialConfig: ScenarioConfig = {
   metricSources: buildMetricSources('HYDROGEN'),
   evaluationMode: 'DIRECT_EVALUATION',
   matchGroups: detectedGroups,
-  directConsecutiveMatchGate: { enabled: false, requiredCount: 2 },
+  directConsecutiveMatchGate: { requiredCount: 1 },
   directActions: [sendMqAction('hydrogen-abnormal-mq', 'HYDROGEN')],
   branches: [],
 };
@@ -218,7 +216,7 @@ const emptyScenarioConfig = (): ScenarioConfig => ({
   metricSources: [],
   evaluationMode: null,
   matchGroups: [],
-  directConsecutiveMatchGate: { enabled: false, requiredCount: 2 },
+  directConsecutiveMatchGate: { requiredCount: null },
   directActions: [],
   branches: [],
 });
@@ -249,8 +247,9 @@ export function isScenarioConfigComplete(config: ScenarioConfig) {
     && actions.every((action) => action.type === 'SEND_MQ'
       ? isJsonObject(action.context)
       : typeof action.stateValue === 'boolean');
-  const countGateComplete = (gate: ConsecutiveMatchGate) => !gate.enabled
-    || (Number.isInteger(gate.requiredCount) && gate.requiredCount >= 1);
+  const countGateComplete = (gate: ConsecutiveMatchGate) => gate.requiredCount !== null
+    && Number.isInteger(gate.requiredCount)
+    && gate.requiredCount >= 1;
 
   if (!metricsComplete) return false;
   if (config.evaluationMode === 'DIRECT_EVALUATION') {
