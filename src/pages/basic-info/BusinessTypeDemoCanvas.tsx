@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBusinessTypeStore } from './businessTypeReferenceData';
 import { useCapabilityDataStore, type AbilityItem, type BusinessTypeItem } from './capabilityDataStore';
 import { SERVICE_MODEL_OPTIONS, type ServiceActionRecord, type ServiceRecord, type ServiceRunModel } from './serviceReferenceData';
+import { SERVICE_CATEGORY_LABELS, SERVICE_CATEGORY_OPTIONS, type ServiceCategory } from './serviceCategory';
 import { useServiceStore } from './serviceStore';
 import type { ActionMapping, ServiceAbilityConnection } from './serviceAbilityMapping';
 import { demoFocusQuery } from './demoNavigation';
@@ -64,7 +65,7 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
   const [hoveredAction, setHoveredAction] = useState<{ kind: Kind; name: string; action: string } | null>(null);
   const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft | null>(null);
   const [addServiceOpen, setAddServiceOpen] = useState(false);
-  const [serviceForm] = Form.useForm<{ serviceName: string; actions: string[] }>();
+  const [serviceForm] = Form.useForm<{ serviceName: string; category: ServiceCategory; actions: string[] }>();
   const [addAbilityOpen, setAddAbilityOpen] = useState(false);
   const [abilityForm] = Form.useForm<AbilityFormValues>();
   const abilityDirection = Form.useWatch('direction', abilityForm) || 'Outbound';
@@ -149,6 +150,7 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
       addService(businessType, {
         key: `service_${timestamp}`,
         name,
+        category: values.category,
         actions: values.actions.map((action, index) => ({ key: `service_action_${timestamp}_${index}`, name: action, operateTime, operator: CURRENT_OPERATOR })),
       });
       setAddServiceOpen(false);
@@ -301,7 +303,7 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
       <div className="bt-demo-service-node-header">
         <button type="button" className={`bt-demo-node ${related.length ? 'mapped' : 'unmapped'}`} aria-expanded={showAllActions ? undefined : expanded} aria-pressed={showAllActions ? focused : undefined}
           onClick={() => onSelect('service', service.name, showAllActions ? 'inspect' : 'toggle')}>
-          <span><span className="bt-demo-node-name">{service.name}</span><span className="bt-demo-node-meta">{related.length ? `${related.length} mapped ${related.length === 1 ? 'Ability' : 'Abilities'}` : 'No mapping'}</span></span>
+          <span><span className="bt-demo-node-name-row"><span className="bt-demo-node-name">{service.name}</span>{service.category && <span className="bt-demo-node-category" title={`Category: ${SERVICE_CATEGORY_LABELS[service.category]}`}>{SERVICE_CATEGORY_LABELS[service.category]}</span>}</span><span className="bt-demo-node-meta">{related.length ? `${related.length} mapped ${related.length === 1 ? 'Ability' : 'Abilities'}` : 'No mapping'}</span></span>
         </button>
         {!showAllActions && <button type="button" className="bt-demo-service-expand-entry" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${service.name}`} aria-expanded={expanded}
           onClick={() => onSelect('service', service.name)}><DownOutlined className="bt-demo-expand-chevron" /></button>}
@@ -412,6 +414,10 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
         </Form.Item>
         <Form.Item label="Action" name="actions" rules={[{ required: true, type: 'array', min: 1, message: 'Please select at least one Action' }]}>
           <Select mode="multiple" options={ACTION_OPTIONS.map((name) => ({ label: name, value: name }))} placeholder="Please select at least one Action" />
+        </Form.Item>
+        <Form.Item label="Category" name="category" required rules={[{ required: true, message: 'Please select a Category' }]}>
+          <Select placeholder="Please select a Category"
+            options={SERVICE_CATEGORY_OPTIONS.map((value) => ({ label: SERVICE_CATEGORY_LABELS[value], value }))} />
         </Form.Item>
       </Form>
     </Modal>
