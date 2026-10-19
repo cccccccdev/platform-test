@@ -17,8 +17,8 @@ import {
 
 const logRows = [
   { key: '3', changedAt: '2026-10-14 16:32:00', fromState: 'true', toState: 'false', branchCode: 'RECOVERED', configVersion: 'v3' },
-  { key: '2', changedAt: '2026-10-14 15:05:00', fromState: 'null', toState: 'true', branchCode: 'DETECTED', configVersion: 'v3' },
-  { key: '1', changedAt: '2026-10-14 14:20:00', fromState: '-', toState: 'null', branchCode: '-', configVersion: 'v3' },
+  { key: '2', changedAt: '2026-10-14 15:05:00', fromState: 'false', toState: 'true', branchCode: 'DETECTED', configVersion: 'v3' },
+  { key: '1', changedAt: '2026-10-14 14:20:00', fromState: '-', toState: 'false', branchCode: '-', configVersion: 'v3' },
 ];
 
 export default function MonitoringScenarioListPage() {
@@ -58,13 +58,15 @@ export default function MonitoringScenarioListPage() {
     }
     Modal.confirm({
       title: nextEnabled ? 'Enable monitoring scenario?' : 'Disable monitoring scenario?',
-      content: 'This change requires approval. The approver is pending confirmation.',
-      okText: 'Submit for approval',
+      content: nextEnabled
+        ? 'The monitoring job will begin evaluating this scenario after confirmation.'
+        : 'The monitoring job will stop evaluating this scenario after confirmation.',
+      okText: nextEnabled ? 'Enable' : 'Disable',
       cancelText: 'Cancel',
       onOk: () => {
         setEnabledByCode((current) => ({ ...current, [scenarioCode]: nextEnabled }));
         saveScenarioEnabled(scenarioCode, nextEnabled);
-        message.success(`Demo approval completed. Scenario ${nextEnabled ? 'enabled' : 'disabled'}.`);
+        message.success(`Scenario ${nextEnabled ? 'enabled' : 'disabled'}.`);
       },
     });
   };
