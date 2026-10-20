@@ -1,3 +1,5 @@
+import type { ServiceCategory } from './serviceCategory';
+
 export const SERVICE_MODEL_OPTIONS = [
   'TRANSACTION_INITIATE',
   'TRANSACTION_VERIFY',
@@ -29,6 +31,7 @@ export interface ServiceCapabilityReference {
 export interface ServiceRecord {
   key: string;
   name: string;
+  category?: ServiceCategory;
   actions: ServiceActionRecord[];
   capabilityReferences?: ServiceCapabilityReference[];
 }

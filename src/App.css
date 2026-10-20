@@ -473,6 +473,9 @@
 .bt-demo-node-meta { display: block; margin-top: 3px; color: #8b8790; font-size: 10px; }
 .bt-demo-expand-node[data-demo-kind="ability"] .bt-demo-node-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bt-demo-node.mapped .bt-demo-node-meta { color: #7a37ac; }
+.bt-demo-node-name-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bt-demo-node-name-row .bt-demo-node-name { flex: 0 1 auto; min-width: 0; }
+.bt-demo-node-category { flex: 0 0 auto; max-width: 96px; overflow: hidden; padding: 0 6px; border: 1px solid #d9cbe8; border-radius: 8px; background: #f6f0fc; color: #7a37ac; font-size: 10px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .bt-demo-rail-empty { height: 60px; display: grid; place-items: center; border: 1px dashed #e4e0e7; color: #aaa5ae; font-size: 12px; }
 .bt-demo-connection-canvas { min-width: 0; position: relative; color: #8a3bc2; }
 .bt-demo-connection-canvas svg { display: block; width: 100%; height: 100%; overflow: visible; }

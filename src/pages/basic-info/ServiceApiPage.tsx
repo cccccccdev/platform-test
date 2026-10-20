@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Breadcrumb, Button, Input, message, Modal, Popover, Select, Typography } from 'antd';
 import { ExclamationCircleOutlined, FilterOutlined, LeftOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -6,7 +6,9 @@ import { getDemoReturnUrl } from './demoNavigation';
 import { EFFECT_TAG_OPTIONS, serviceApiRequestFields, serviceApiResponseFields, type EffectTag } from './serviceApiReferenceData';
 import SpiSchemaTree from './capability/SpiSchemaTree';
 import InterfaceCopyButton from './capability/InterfaceCopyButton';
-import { fieldsToTree, validateEffectTags, validateSpiTree, type SpiFieldNode } from './capability/spiSchemaModel';
+import { fieldsToTree, updateNodeTree, validateEffectTags, validateSpiTree, type SpiFieldNode } from './capability/spiSchemaModel';
+import { useServiceStore } from './serviceStore';
+import { SERVICE_CATEGORY_LABELS, buildCategoryTemplateNode, type ServiceCategory } from './serviceCategory';
 import './capability/CapabilitySpiPage.css';
 import './ServiceApiPage.css';
 
@@ -50,6 +52,15 @@ const readSavedApiConfigs = (): Record<string, SavedApiConfig> => {
 const REQUEST_CATALOG = fieldsToTree(serviceApiRequestFields);
 const RESPONSE_CATALOG = fieldsToTree(serviceApiResponseFields);
 
+// Category templates land under extraRequest as soon as the API page opens, and stop being seeded once a config is saved.
+const applyCategoryTemplate = (request: SpiFieldNode[], category: ServiceCategory | undefined): SpiFieldNode[] => {
+  const template = buildCategoryTemplateNode(category);
+  if (!template) return request;
+  return updateNodeTree(request, 'extraRequest', (extraRequest) => extraRequest.children.some((child) => child.id === template.id)
+    ? extraRequest
+    : { ...extraRequest, children: [...extraRequest.children, template] });
+};
+
 const filterByTags = (fields: SpiFieldNode[], tags: EffectTag[]): SpiFieldNode[] => {
   if (!tags.length) return fields;
   return fields.flatMap((field) => {
@@ -58,11 +69,12 @@ const filterByTags = (fields: SpiFieldNode[], tags: EffectTag[]): SpiFieldNode[]
   });
 };
 
-function InterfaceDetails({ config, editing, businessType, service, action, actions, onDescriptionChange }: {
+function InterfaceDetails({ config, editing, businessType, service, category, action, actions, onDescriptionChange }: {
   config: SavedApiConfig;
   editing: boolean;
   businessType: string;
   service: string;
+  category?: ServiceCategory;
   action: string;
   actions?: ReactNode;
   onDescriptionChange?: (description: string) => void;
@@ -72,6 +84,7 @@ function InterfaceDetails({ config, editing, businessType, service, action, acti
       <div className="bt-ability-settings-context interface-overview-context">
         <span>Business Type: <strong>{businessType}</strong></span>
         <span>Service: <strong>{service}</strong></span>
+        <span>Category: <strong>{category ? SERVICE_CATEGORY_LABELS[category] : '—'}</strong></span>
         <span>Action: <strong>{action}</strong></span>
       </div>
       {actions && <div className="interface-overview-actions">{actions}</div>}
@@ -96,10 +109,18 @@ export default function ServiceApiPage() {
   const [draftTags, setDraftTags] = useState<EffectTag[]>([]);
   const [appliedTags, setAppliedTags] = useState<EffectTag[]>([]);
   const [filterOpen, setFilterOpen] = useState<'request' | 'response' | null>(null);
+  const category = useServiceStore((state) => (state.records[businessType] || []).find((item) => item.name === serviceName)?.category);
   const apiKey = JSON.stringify([businessType, serviceName, actionName]);
   const editing = draft !== null && draftKey === apiKey;
+  const configured = Boolean(savedConfigs[apiKey]);
   const initial: SavedApiConfig = { method: 'POST', url: '/api/service', description: `${businessType} ${serviceName} ${actionName} service API`, request: REQUEST_CATALOG, response: RESPONSE_CATALOG };
-  const visibleConfig: SavedApiConfig = { ...initial, ...savedConfigs[apiKey], ...(editing ? draft : {}) };
+  const mergedConfig: SavedApiConfig = { ...initial, ...savedConfigs[apiKey], ...(editing ? draft : {}) };
+  const visibleConfig: SavedApiConfig = configured ? mergedConfig
+    : { ...mergedConfig, request: applyCategoryTemplate(mergedConfig.request, category) };
+  useEffect(() => {
+    if (!category || configured) return;
+    message.info(`${SERVICE_CATEGORY_LABELS[category]} template applied under extraRequest.`);
+  }, [apiKey, category, configured]);
   const schemaError = validateSpiTree(visibleConfig.request) || validateSpiTree(visibleConfig.response)
     || validateEffectTags(visibleConfig.request) || validateEffectTags(visibleConfig.response);
   const updateDraft = (changes: Partial<SavedApiConfig>) => setDraft((current) => current && draftKey === apiKey ? { ...current, ...changes } : current);
@@ -142,7 +163,7 @@ export default function ServiceApiPage() {
       <button className="capability-spi-back" type="button" onClick={() => navigate(backUrl)}><LeftOutlined /><Title level={4}>API</Title></button>
     </header>
     <main className={`service-api-panel capability-spi-panel ${editing ? 'editing' : ''}`}>
-      <InterfaceDetails config={visibleConfig} editing={editing} businessType={businessType} service={serviceName} action={actionName}
+      <InterfaceDetails config={visibleConfig} editing={editing} businessType={businessType} service={serviceName} category={category} action={actionName}
         actions={!editing && <><Button onClick={() => void share()}>Share</Button><InterfaceCopyButton kind="API" businessType={businessType} serviceOrAbility={{ label: 'Service', value: serviceName }} action={actionName} method={visibleConfig.method} url={visibleConfig.url} description={visibleConfig.description} request={visibleConfig.request} response={visibleConfig.response} /><Button type="primary" onClick={() => { setDraft(structuredClone(visibleConfig)); setDraftKey(apiKey); }}>Config</Button></>}
         onDescriptionChange={(description) => updateDraft({ description })} />
       <SpiSchemaTree key={`${apiKey}-request`} title="Request Params" fields={requestFields} catalog={REQUEST_CATALOG} effectTagOptions={EFFECT_TAG_OPTIONS} effectTagHeader={effectTagHeader('request')} editing={editing} onChange={(request) => updateDraft({ request })} />
