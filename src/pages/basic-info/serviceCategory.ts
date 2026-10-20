@@ -1,5 +1,6 @@
-// Placeholder Service categories and their API Request templates.
-// Values are placeholders until the order center confirms the real enum.
+// Placeholder categories shared by Service and Capability, with the API / SPI
+// Request templates seeded from them. Values are placeholders until the order
+// center confirms the real enum.
 import type { SpiFieldNode } from './capability/spiSchemaModel';
 
 export const SERVICE_CATEGORY_OPTIONS = ['category1', 'category2', 'category3', 'category4'] as const;

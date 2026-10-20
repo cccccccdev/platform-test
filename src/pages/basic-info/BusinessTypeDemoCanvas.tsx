@@ -26,6 +26,7 @@ type AbilityFormValues = {
   balRequery?: 'ON' | 'OFF';
   metricsMessage?: 'ON' | 'OFF';
   completionMessage?: 'ON' | 'OFF';
+  category: ServiceCategory;
 };
 const OUTBOUND_ACTION_OPTIONS = ['TRANSACTION', 'VERIFY', 'TRIGGER_VERIFY', 'RE_QUERY', 'QUERY'];
 const INBOUND_ACTION_OPTIONS = ['INBOUND_TRANSACTION', 'INBOUND_QUERY'];
@@ -75,9 +76,10 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
   const balRequery = Form.useWatch('balRequery', abilityForm);
   const metricsMessage = Form.useWatch('metricsMessage', abilityForm);
   const completionMessage = Form.useWatch('completionMessage', abilityForm);
+  const abilityCategory = Form.useWatch('category', abilityForm);
   const canAddAbility = Boolean(abilityName?.trim() && /^[A-Za-z0-9_]+$/.test(abilityName.trim()) && abilityActions?.length
     && subOrderMode !== undefined && metricsMessage !== undefined && completionMessage !== undefined
-    && (abilityDirection !== 'Inbound' || balRequery !== undefined));
+    && (abilityDirection !== 'Inbound' || balRequery !== undefined) && abilityCategory !== undefined);
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
   const [selectedActions, setSelectedActions] = useState<string[]>([]);
   const [hoveredMappingKey, setHoveredMappingKey] = useState<string | null>(null);
@@ -170,7 +172,7 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
       const timestamp = Date.now();
       const operateTime = operationTimeNow();
       const ability: AbilityItem = {
-        key: `ab_${timestamp}`, name, operateTime, operator: CURRENT_OPERATOR, isExpand: true, direction: values.direction,
+        key: `ab_${timestamp}`, name, operateTime, operator: CURRENT_OPERATOR, isExpand: true, direction: values.direction, category: values.category,
         actions: values.actions.map((action, index) => ({ key: `act_${timestamp}_${index}`, name: action, operateTime, operator: CURRENT_OPERATOR })),
       };
       if (values.subOrderMode === 'ON') enableSubOrderMode(businessType, name);
@@ -331,7 +333,7 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
       <div className="bt-demo-ability-node-header">
         <button type="button" className={`bt-demo-node ${related.length ? 'mapped' : 'unmapped'}`} aria-expanded={showAllActions ? undefined : expanded} aria-pressed={showAllActions ? focused : undefined}
           onClick={() => onSelect('ability', ability.name, showAllActions ? 'inspect' : 'toggle')}>
-          <span><span className="bt-demo-node-name">{ability.name}</span><span className="bt-demo-node-meta" title={summary}>{summary}</span></span>
+          <span><span className="bt-demo-node-name-row"><span className="bt-demo-node-name">{ability.name}</span>{ability.category && <span className="bt-demo-node-category" title={`Category: ${SERVICE_CATEGORY_LABELS[ability.category]}`}>{SERVICE_CATEGORY_LABELS[ability.category]}</span>}</span><span className="bt-demo-node-meta" title={summary}>{summary}</span></span>
         </button>
         {!showAllActions && <button type="button" className="bt-demo-ability-expand-entry" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${ability.name}`} aria-expanded={expanded} onClick={() => onSelect('ability', ability.name)}><DownOutlined className="bt-demo-expand-chevron" /></button>}
         <button type="button" className="bt-demo-ability-settings-entry" aria-label={`Configure ${ability.name}`} title="Configure Capability" onClick={() => openAbilitySettings(ability.name)}><SettingOutlined /></button>
@@ -450,6 +452,10 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
         </Form.Item>
         <Form.Item label="Send completion message" name="completionMessage" rules={[{ required: true, message: 'Please select ON or OFF' }]}>
           <Radio.Group options={ON_OFF_OPTIONS} />
+        </Form.Item>
+        <Form.Item label="Category" name="category" required rules={[{ required: true, message: 'Please select a Category' }]}>
+          <Select placeholder="Please select a Category"
+            options={SERVICE_CATEGORY_OPTIONS.map((value) => ({ label: SERVICE_CATEGORY_LABELS[value], value }))} />
         </Form.Item>
       </Form>
     </Modal>

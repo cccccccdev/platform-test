@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { initialBusinessTypeRecords } from './businessTypeReferenceData';
+import type { ServiceCategory } from './serviceCategory';
 
 export interface ActionItem {
   key: string;
@@ -17,6 +18,7 @@ export interface AbilityItem {
   actions: ActionItem[];
   direction?: 'Outbound' | 'Inbound';
   isEditing?: boolean;
+  category?: ServiceCategory;
 }
 
 export interface BusinessTypeItem {

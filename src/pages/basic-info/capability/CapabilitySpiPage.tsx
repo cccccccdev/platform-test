@@ -1,13 +1,15 @@
-import { useState } from 'react';
-import { Alert, Breadcrumb, Button, Input, Modal, Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { Alert, Breadcrumb, Button, Input, message, Modal, Typography } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ExclamationCircleOutlined, LeftOutlined } from '@ant-design/icons';
 import './CapabilitySpiPage.css';
 import { isSubOrderModeEnabled } from './subOrderModeStore';
 import { getDemoReturnUrl } from '../demoNavigation';
+import { useCapabilityDataStore } from '../capabilityDataStore';
+import { SERVICE_CATEGORY_LABELS, buildCategoryTemplateNode, type ServiceCategory } from '../serviceCategory';
 import SpiSchemaTree from './SpiSchemaTree';
 import InterfaceCopyButton from './InterfaceCopyButton';
-import { fieldsToTree, validateSpiTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
+import { fieldsToTree, updateNodeTree, validateSpiTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
 
 const { Title } = Typography;
 
@@ -355,6 +357,15 @@ const readSavedSpiConfigs = (): Record<string, SavedSpiConfig> => {
   catch { return {}; }
 };
 
+// Category templates land under extraRequest as soon as the SPI Config page opens, and stop being seeded once a config is saved.
+const applyCategoryTemplate = (request: SpiFieldNode[], category: ServiceCategory | undefined): SpiFieldNode[] => {
+  const template = buildCategoryTemplateNode(category);
+  if (!template) return request;
+  return updateNodeTree(request, 'extraRequest', (extraRequest) => extraRequest.children.some((child) => child.id === template.id)
+    ? extraRequest
+    : { ...extraRequest, children: [...extraRequest.children, template] });
+};
+
 interface CapabilitySpiPageProps {
   embedded?: boolean;
   businessType?: string;
@@ -391,9 +402,11 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
   // Config and Code are independent contracts for the same BT + Ability + Action.
   const spiKey = JSON.stringify([businessType, ability, action, activeTab]);
   const editing = draft !== null && draftKey === spiKey;
+  const category = useCapabilityDataStore((state) => state.data.find((group) => group.name === businessType)?.abilities.find((item) => item.name === ability)?.category);
   const requestCatalog = activeTab === 'config' ? fieldsToTree(definition.request) : [];
   const responseCatalog = activeTab === 'config' ? fieldsToTree(definition.response) : [];
   const saved = savedConfigs[spiKey];
+  const configured = Boolean(saved);
   const initial: SavedSpiConfig = {
     method: activeTab === 'config' ? definition.method : '',
     url: activeTab === 'config' ? definition.url : '',
@@ -401,10 +414,16 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
     request: activeTab === 'config' ? withoutBusinessFields(requestCatalog) : [],
     response: activeTab === 'config' ? withoutBusinessFields(responseCatalog) : [],
   };
-  const visibleConfig: SavedSpiConfig = {
+  const mergedConfig: SavedSpiConfig = {
     ...initial, ...saved, ...(editing ? draft : {}),
     ...(activeTab === 'config' ? { method: definition.method, url: definition.url } : {}),
   };
+  const visibleConfig: SavedSpiConfig = configured || activeTab !== 'config' ? mergedConfig
+    : { ...mergedConfig, request: applyCategoryTemplate(mergedConfig.request, category) };
+  useEffect(() => {
+    if (activeTab !== 'config' || !category || configured) return;
+    message.info(`${SERVICE_CATEGORY_LABELS[category]} template applied under extraRequest.`);
+  }, [spiKey, category, configured, activeTab]);
   const timeoutValue = visibleConfig.timeout.trim();
   const timeoutValid = /^\d+$/.test(timeoutValue) && Number(timeoutValue) > 0 && Number.isSafeInteger(Number(timeoutValue));
   const methodValid = Boolean(visibleConfig.method.trim());
@@ -470,6 +489,7 @@ export default function CapabilitySpiPage({ embedded = false, ...context }: Capa
             <div className="bt-ability-settings-context interface-overview-context">
               <span>Business Type: <strong>{businessType}</strong></span>
               <span>Ability: <strong>{ability}</strong></span>
+              <span>Category: <strong>{category ? SERVICE_CATEGORY_LABELS[category] : '—'}</strong></span>
               <span>Action: <strong>{action}</strong></span>
               <span>Sub-order Mode: <strong>{definition.subOrderMode}</strong></span>
             </div>
