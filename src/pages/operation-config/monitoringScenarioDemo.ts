@@ -130,7 +130,7 @@ const buildMetricSources = (channelMin: string): MetricSource[] => [
   },
 ];
 
-const detectedGroups: ConditionGroup[] = [
+const buildDetectedGroups = (tenMinuteMinCount: number): ConditionGroup[] => [
   {
     key: 'detected-primary',
     relation: 'AND',
@@ -144,13 +144,13 @@ const detectedGroups: ConditionGroup[] = [
     relation: 'OR',
     conditions: [
       condition('detected-p1-insufficient', 'one-minute-count', '<', 30),
-      condition('detected-p2-volume', 'ten-minute-count', '>=', 300),
+      condition('detected-p2-volume', 'ten-minute-count', '>=', tenMinuteMinCount),
       condition('detected-p2-value', 'ten-minute', '<', 0.9),
     ],
   },
 ];
 
-const recoveredGroups: ConditionGroup[] = [
+const buildRecoveredGroups = (tenMinuteMinCount: number): ConditionGroup[] => [
   {
     key: 'recovered-primary',
     relation: 'AND',
@@ -164,7 +164,7 @@ const recoveredGroups: ConditionGroup[] = [
     relation: 'OR',
     conditions: [
       condition('recovered-p1-insufficient', 'one-minute-count', '<', 30),
-      condition('recovered-p2-volume', 'ten-minute-count', '>=', 300),
+      condition('recovered-p2-volume', 'ten-minute-count', '>=', tenMinuteMinCount),
       condition('recovered-p2-value', 'ten-minute', '>=', 0.9),
     ],
   },
@@ -185,8 +185,8 @@ const nibssInitialConfig: ScenarioConfig = {
       branchCode: 'DETECTED',
       description: '识别出金成功率异常，发送异常消息并将场景状态设为 true',
       stateOperator: 'IS_FALSE',
-      groups: detectedGroups,
-      consecutiveMatchGate: { requiredCount: 1 },
+      groups: buildDetectedGroups(30),
+      consecutiveMatchGate: { requiredCount: 6 },
       actions: [sendMqAction('detected-mq', 'NIBSS'), setStateAction('detected-state', true)],
     },
     {
@@ -194,8 +194,8 @@ const nibssInitialConfig: ScenarioConfig = {
       branchCode: 'RECOVERED',
       description: '在异常状态下识别成功率恢复，发送恢复消息并将场景状态设为 false',
       stateOperator: 'IS_TRUE',
-      groups: recoveredGroups,
-      consecutiveMatchGate: { requiredCount: 1 },
+      groups: buildRecoveredGroups(30),
+      consecutiveMatchGate: { requiredCount: 6 },
       actions: [sendMqAction('recovered-mq', 'NIBSS'), setStateAction('recovered-state', false)],
     },
   ],
@@ -204,7 +204,7 @@ const nibssInitialConfig: ScenarioConfig = {
 const hydrogenInitialConfig: ScenarioConfig = {
   metricSources: buildMetricSources('HYDROGEN'),
   evaluationMode: 'DIRECT_EVALUATION',
-  matchGroups: detectedGroups,
+  matchGroups: buildDetectedGroups(300),
   directConsecutiveMatchGate: { requiredCount: 1 },
   directActions: [sendMqAction('hydrogen-abnormal-mq', 'HYDROGEN')],
   branches: [],

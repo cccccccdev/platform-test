@@ -751,6 +751,8 @@ export default function MonitoringScenarioConfigPage() {
                     <Descriptions size="small" column={1} items={[
                       { key: 'scenarioCode', label: 'scenarioCode', children: <code>{scenarioCode}</code> },
                       { key: 'description', label: 'description', children: scenarioDescription },
+                      { key: 'country', label: 'country', children: <code>{scenario.country}</code> },
+                      { key: 'tntCode', label: 'tntCode', children: <code>{scenario.tenant}</code> },
                       ...(selectedBranch ? [{ key: 'branchCode', label: 'branchCode', children: <code>{selectedBranch.branchCode || '-'}</code> }] : []),
                       ...(!selectedBranch ? [{ key: 'event', label: 'event.type', children: <code>MATCHED</code> }] : []),
                       { key: 'occurredAt', label: 'occurredAt', children: <code>&lt;resolved at runtime&gt;</code> },
@@ -761,6 +763,8 @@ export default function MonitoringScenarioConfigPage() {
                     <pre className="monitoring-message-preview">{JSON.stringify({
                       scenarioCode,
                       description: scenarioDescription,
+                      country: scenario.country,
+                      tntCode: scenario.tenant,
                       context: parsePreviewContext(action.context),
                       occurredAt: '<resolved at runtime>',
                       ...(selectedBranch
