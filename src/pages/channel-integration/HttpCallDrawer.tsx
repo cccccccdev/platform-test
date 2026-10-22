@@ -329,6 +329,7 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   ];
   const fallbackSubStates = useMemo(() => fallbackStateOptionsFor(stateMachine), [stateMachine]);
   const matchingFallbackSubStates = fallbackSubStates.filter((item) => item.mainState === responseFallback);
+  const defaultSubOrderStateOptions = fallbackSubStates.filter((item) => item.mainState === 'PENDING' && item.initiallyReachable);
   const path = allValues.path ?? '';
   const pathVariables = useMemo(() => {
     const found: string[] = [];
@@ -389,7 +390,8 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
         && hasValue(allValues.subOrderFeatureValueField)
         && hasRows(allValues.subOrderResponseCodeAssembly)
       );
-      return parentComplete && subOrderComplete ? 'ok' : 'error';
+      const defaultSubOrderComplete = !subOrderModeEnabled || defaultSubOrderStateOptions.some((item) => item.value === allValues.defaultSubOrderSubState);
+      return parentComplete && subOrderComplete && defaultSubOrderComplete ? 'ok' : 'error';
     }
     if (key === 'request') return mergeTabStates([state('requestFields'), state('authorization'), state('requestSecurity'), state('requestFormat')]);
     if (key === 'response') return mergeTabStates([state('responseFormat'), state('responseFields'), state('responseSecurity'), state('responseCode')]);
@@ -501,6 +503,41 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
                   <Select allowClear disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select a same-level response message field' : 'Select Feature Value Field first'} options={sameLevelResponseFields} />
                 </Form.Item>
                 </>}
+              </div>
+              <div className="http-default-sub-order-state">
+                <Title level={5}>Default Sub Order State</Title>
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Required fallback for every SubOrderMode HTTP call"
+                  description="After synchronous response matching, every sub-order without an explicit result is moved to this Gateway Sub State. Explicitly matched results always take priority."
+                  style={{ marginBottom: 14 }}
+                />
+                <div className="http-default-sub-order-state-fields">
+                  <Form.Item label="Main State" required extra="Fixed to PENDING for sub-orders waiting for a callback or another result.">
+                    <Input disabled value="PENDING" />
+                  </Form.Item>
+                  <Form.Item
+                    name="defaultSubOrderSubState"
+                    label="Gateway Sub State"
+                    rules={[
+                      { required: true, message: 'Select a default Gateway Sub State' },
+                      {
+                        validator: (_, value) => !value || defaultSubOrderStateOptions.some((item) => item.value === value)
+                          ? Promise.resolve()
+                          : Promise.reject(new Error('Select a PENDING Gateway Sub State from the current State Machine')),
+                      },
+                    ]}
+                    extra={stateMachine ? `Only PENDING states directly reachable from INIT in ${stateMachine} are available.` : 'Select a State Machine before configuring the default sub-order state.'}
+                  >
+                    <Select
+                      disabled={!stateMachine || defaultSubOrderStateOptions.length === 0}
+                      placeholder={defaultSubOrderStateOptions.length > 0 ? 'Select default Gateway Sub State' : 'No PENDING Gateway Sub State available'}
+                      options={defaultSubOrderStateOptions.map((item) => ({ label: item.value, value: item.value }))}
+                    />
+                  </Form.Item>
+                </div>
+                {stateMachine && defaultSubOrderStateOptions.length === 0 && <Alert type="error" showIcon message="The current State Machine has no eligible PENDING Gateway Sub State." description="Update or replace the linked State Machine before saving this component." />}
               </div>
             </>}
           </Card> },

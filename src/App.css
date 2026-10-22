@@ -792,6 +792,12 @@
 .sub-order-mode-note { margin: 16px 0 0; color: #8b8b8b; font-size: 14px; line-height: 1.55; }
 .http-sub-order-code-mapping { margin-top: 18px; padding-top: 18px; border-top: 1px solid #f0f0f0; }
 .http-sub-order-code-mapping .ant-typography { margin-top: 0; }
+.http-default-sub-order-state { margin-top: 18px; padding-top: 18px; border-top: 1px solid #f0f0f0; }
+.http-default-sub-order-state .ant-typography { margin-top: 0; }
+.http-default-sub-order-state-fields { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(280px, 1.3fr); gap: 12px; }
+@media (max-width: 760px) {
+  .http-default-sub-order-state-fields { grid-template-columns: 1fr; }
+}
 .inbound-parent-code-mapping,
 .inbound-sub-order-code-mapping { margin-top: 12px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
 .inbound-parent-code-mapping .ant-typography,
