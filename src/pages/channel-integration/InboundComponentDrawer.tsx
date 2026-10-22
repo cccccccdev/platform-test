@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Alert, Button, Card, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Tooltip, Typography } from 'antd';
+import { QuestionCircleOutlined } from '@ant-design/icons';
 import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappingEditor';
 import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import GroovyScriptEditor from './GroovyScriptEditor';
@@ -18,6 +19,7 @@ const flatTypes = types.filter((item) => !['Object', 'Array'].includes(item.valu
 const formats = ['Custom', 'FORM_DATA', 'JSON', 'X_WWW_FORM_URLENCODED', 'XML'].map((value) => ({ label: value, value }));
 const signing = ['Custom', 'HMAC (SHA256)', 'HMAC (SHA512)', 'MD5', 'RSA (SHA1)', 'RSA (SHA256)', 'RSA (SHA512)', 'SHA1', 'SHA256', 'SHA512'].map((value) => ({ label: value, value }));
 const encryption = ['AES (CBC)', 'AES (ECB)', 'Custom', 'RSA'].map((value) => ({ label: value, value }));
+const unknownResponseHandlingOptions = ['PENDING', 'FAIL'].map((value) => ({ label: value, value }));
 const spiRequest = ['amount', 'currency', 'requestReference', 'responseReference', 'customerId', 'accountNumber', 'channelResponseCode', 'channelResponseMessage'];
 const spiResponse = ['responseCode', 'responseMessage', 'status', 'requestReference', 'channelReference', 'amount', 'currency'];
 const subOrderRequestFields = [
@@ -98,8 +100,10 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
   const codeMappingEnabled = Form.useWatch('codeMappingEnabled', form);
   const codeMappingMode = Form.useWatch('codeMappingMode', form) ?? 'default';
   const componentInstance = Form.useWatch('componentInstance', form);
+  const subOrderComponentInstance = Form.useWatch('subOrderComponentInstance', form);
   const fallbackSubStates = useMemo(() => fallbackStateOptionsFor(stateMachine), [stateMachine]);
   const matchingFallbackSubStates = fallbackSubStates.filter((item) => item.mainState === componentInstance);
+  const matchingSubOrderSubStates = fallbackSubStates.filter((item) => item.mainState === subOrderComponentInstance);
   const subOrderModeEnabled = Boolean(businessType && ability && isSubOrderModeEnabled(businessType, ability));
   const spiRequestOptions = buildSpiRequestOptions(subOrderModeEnabled);
   const subOrderFeatureValueField = Form.useWatch('subOrderFeatureValueField', form);
@@ -142,6 +146,7 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
     if (key === 'code') {
       if (subOrderModeEnabled) {
         const subOrderComplete = hasValue(allValues.subOrderComponentInstance)
+          && matchingSubOrderSubStates.some((item) => item.value === allValues.subOrderComponentSubState)
           && hasValue(allValues.subOrderFeatureValueField)
           && hasRows(allValues.subOrderResponseCodeAssembly);
         const parentComplete = !effectiveCodeMappingEnabled || (
@@ -199,36 +204,63 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
             <SecuritySection title="Decryption" enabledName="decryptionEnabled" enabled={effectiveDecryptionEnabled}><Form.Item name="decryptionAlgorithm" label="Algorithm" rules={[{ required: true }]}><Select options={encryption} /></Form.Item><Form.Item name="encryptedField" label="Encrypted Field"><Input placeholder="Request field not decrypted by A" /></Form.Item><Form.Item name="decryptionSources" label="Decryption Source Fields"><Checkbox.Group options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body']} /></Form.Item></SecuritySection>
             <SecuritySection title="Signature Verification" enabledName="verificationEnabled" enabled={effectiveVerificationEnabled}><Form.Item name="verificationAlgorithm" label="Algorithm" rules={[{ required: true }]}><Select options={signing} /></Form.Item><Form.Item name="signatureField" label="Request Signature Field"><Input placeholder="Request header or body field" /></Form.Item><Form.Item name="verificationSources" label="Verification Source Fields"><Checkbox.Group options={['Path Variables', 'Query Parameters', 'Request Headers', 'Request Body']} /></Form.Item></SecuritySection>
           </div></Card> },
-          { key: 'code', label: tabLabel('Code Mapping', state('code')), children: subOrderModeEnabled
-            ? <Card size="small">
-              <Alert
-                type="success"
-                showIcon
-                message={<Space size={8}><Text strong>SubOrderMode</Text><Tag color="green">Enabled</Tag></Space>}
-                description={`${businessType} + ${ability} is configured for main and sub orders.`}
-                style={{ marginBottom: 16 }}
-              />
-              <div className="inbound-parent-code-mapping">
-                <Typography.Title level={5}>Main Order Response Code Mapping</Typography.Title>
-                <Form.Item name="codeMappingEnabled" label="Enable Mapping" valuePropName="checked" required><Switch /></Form.Item>
-                {effectiveCodeMappingEnabled && <>
-                <Form.Item name="componentInstance" label="Component Instance" rules={[{ required: true }]}><Select placeholder="Select Instance" options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} /></Form.Item>
-                <Form.Item label="Main State" extra="Main orders use Main State directly; Gateway Sub State is not required."><Input disabled value={componentInstance ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item>
-                <Form.Item name="codeMappingMode" label="Custom Script" valuePropName="checked" getValueProps={(value) => ({ checked: value === 'custom' })} normalize={(checked) => checked ? 'custom' : 'default'}><Switch /></Form.Item>
-                {effectiveCodeMappingMode === 'custom'
-                  ? <><GroovyScriptEditor name="codeMappingScript" helpText="Return the main-order response code from the available inbound request fields." /><Text type="secondary"><Tag color="blue">MAIN_ORDER</Tag>is added automatically before the script result.</Text></>
-                  : <><Form.Item name="responseCodeAssembly" label="Request Code Assembly" rules={[{ required: true }]}><ResponseCodeAssemblyEditor prefix="MAIN_ORDER" options={allRequestFieldOptions} placeholder="Select request field" /></Form.Item><Form.Item name="responseMessageField" label="Message Field"><Select allowClear placeholder="Select request message field" options={allRequestFieldOptions} /></Form.Item></>}
-                </>}
+          { key: 'code', label: tabLabel('Code Mapping', state('code')), children: <Card size="small">
+            <Alert
+              type={subOrderModeEnabled ? 'success' : 'info'}
+              showIcon
+              message={<Space size={8}><Text strong>SubOrderMode</Text><Tag color={subOrderModeEnabled ? 'green' : 'default'}>{subOrderModeEnabled ? 'Enabled' : 'Disabled'}</Tag></Space>}
+              description={subOrderModeEnabled ? `${businessType} + ${ability} is configured for main and sub orders.` : 'This BT + Ability uses the standard single-order response mapping.'}
+              style={{ marginBottom: 16 }}
+            />
+            <div className="http-response-code-order-group">
+              <div className="http-response-code-order-header">
+                <Typography.Title level={5}>{subOrderModeEnabled ? 'Main Order' : 'Order'}</Typography.Title>
+                <Space size={6}><Text type="secondary">Enable Response Mapping</Text><Form.Item name="codeMappingEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item></Space>
               </div>
-              <div className="inbound-sub-order-code-mapping">
-                <Typography.Title level={5}>Sub Order Response Code Mapping</Typography.Title>
-                <Form.Item name="subOrderComponentInstance" label="Component Instance" rules={[{ required: true }]}><Select placeholder="Select Instance" options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} /></Form.Item>
+              {effectiveCodeMappingEnabled && <>
+                <div className="http-response-code-subsection">
+                  <Text strong>Response Code Assembly</Text>
+                  <Form.Item name="codeMappingMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>
+                  {effectiveCodeMappingMode === 'custom'
+                    ? <GroovyScriptEditor name="codeMappingScript" helpText={subOrderModeEnabled ? 'Return the main-order response code from the available inbound request fields.' : 'Return channelResponseCode from the available inbound request fields.'} />
+                    : <Form.Item name="responseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><ResponseCodeAssemblyEditor prefix={subOrderModeEnabled ? 'MAIN_ORDER' : undefined} options={allRequestFieldOptions} placeholder="Select request field" /></Form.Item>}
+                  <Form.Item name="responseMessageField" label="Response Message Field"><Select allowClear placeholder="Select request message field" options={allRequestFieldOptions} /></Form.Item>
+                </div>
+                <div className="http-response-code-subsection">
+                  <div className="http-response-code-subsection-title"><Text strong>Unknown Response Code Handling</Text><Tooltip title="Used only when the assembled Channel Response Code does not match any configured mapping."><QuestionCircleOutlined style={{ color: '#8c8c8c', cursor: 'help' }} /></Tooltip></div>
+                  <Form.Item name="componentInstance" label="Main State" rules={[{ required: true }]}><Select placeholder="Select Main State" options={unknownResponseHandlingOptions} onChange={() => form.setFieldValue('componentSubState', undefined)} /></Form.Item>
+                  {!subOrderModeEnabled && <Form.Item name="componentSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!componentInstance} placeholder={componentInstance ? `Select a ${componentInstance} sub-state` : 'Select Main State first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item>}
+                </div>
+              </>}
+            </div>
+            {subOrderModeEnabled && <div className="http-response-code-order-group">
+              <Typography.Title level={5}>Sub Order</Typography.Title>
+              <div className="http-response-code-subsection">
+                <Text strong>Sub Order Matching &amp; Code Assembly</Text>
                 <Form.Item name="subOrderFeatureValueField" label="Feature Value Field" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" placeholder="Select Feature Value Field" options={allRequestFieldOptions} onChange={() => form.setFieldsValue({ subOrderResponseCodeAssembly: undefined, subOrderResponseMessageField: undefined })} /></Form.Item>
                 <Form.Item name="subOrderResponseCodeAssembly" label="Response Code Assembly" rules={[{ required: true }]}><ResponseCodeAssemblyEditor prefix="SUB_ORDER" options={subOrderFeatureValueField ? sameLevelRequestFields : []} placeholder={subOrderFeatureValueField ? 'Select same-level field' : 'Select Feature Value Field first'} /></Form.Item>
-                <Form.Item name="subOrderResponseMessageField" label="responseMessage"><Select allowClear disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select a same-level response message field' : 'Select Feature Value Field first'} options={sameLevelRequestFields} /></Form.Item>
+                <Form.Item name="subOrderResponseMessageField" label="Response Message Field"><Select allowClear disabled={!subOrderFeatureValueField} placeholder={subOrderFeatureValueField ? 'Select a same-level response message field' : 'Select Feature Value Field first'} options={sameLevelRequestFields} /></Form.Item>
               </div>
-            </Card>
-            : <Card size="small" title={<Space><Form.Item name="codeMappingEnabled" valuePropName="checked" noStyle><Switch size="small" /></Form.Item>Channel Response Code</Space>}><Alert type="info" showIcon message={<Space size={8}><Text strong>SubOrderMode</Text><Tag>Disabled</Tag></Space>} description="This BT + Ability uses the standard single-order response mapping." style={{ marginBottom: 12 }} />{effectiveCodeMappingEnabled ? <><Alert type="info" showIcon message="Interpret this inbound callback request as the channel response to an earlier outbound request." style={{ marginBottom: 12 }} /><Form.Item name="componentInstance" label="Component Instance" rules={[{ required: true }]}><Select options={[{ label: 'PENDING', value: 'PENDING' }, { label: 'FAIL', value: 'FAIL' }]} onChange={() => form.setFieldValue('componentSubState', undefined)} /></Form.Item><Form.Item label="Main State"><Input disabled value={componentInstance ?? ''} placeholder="Auto-filled from Component Instance" /></Form.Item><Form.Item name="componentSubState" label="Gateway Sub State" rules={[{ required: true }]}><Select disabled={!componentInstance} placeholder={componentInstance ? `Select a ${componentInstance} sub-state` : 'Select Component Instance first'} options={matchingFallbackSubStates.map((item) => ({ label: item.value, value: item.value }))} /></Form.Item><Form.Item name="codeMappingMode" label="Assembly Mode"><Radio.Group optionType="button" options={[{ label: 'Default', value: 'default' }, { label: 'Custom Script', value: 'custom' }]} /></Form.Item>{effectiveCodeMappingMode === 'custom' ? <GroovyScriptEditor name="codeMappingScript" helpText="Return channelResponseCode from the available inbound request fields." /> : <><Form.Item name="responseCodeAssembly" label="Channel Response Code Assembly" rules={[{ required: true }]}><ResponseCodeAssemblyEditor options={['Path Variable', 'Query Parameter', 'Request Header', 'Request Body'].map((value) => ({ label: value, value }))} placeholder="Select request field" /></Form.Item><Form.Item name="responseMessageField" label="Channel Response Message Field"><Input placeholder="Optional request field path" /></Form.Item></>}</> : <Text type="secondary">Enable only when the inbound request reports the result of a previous channel request.</Text>}</Card> },
+              <div className="http-response-code-subsection">
+                <div className="http-response-code-subsection-title"><Text strong>Unknown Response Code Handling</Text><Tooltip title="Used after Feature Value Field has located a sub-order, when its assembled SUB_ORDER Channel Response Code does not match any configured mapping."><QuestionCircleOutlined style={{ color: '#8c8c8c', cursor: 'help' }} /></Tooltip></div>
+                <Form.Item name="subOrderComponentInstance" label="Main State" rules={[{ required: true }]}><Select placeholder="Select Main State" options={unknownResponseHandlingOptions} onChange={() => form.setFieldValue('subOrderComponentSubState', undefined)} /></Form.Item>
+                <Form.Item
+                  name="subOrderComponentSubState"
+                  label="Gateway Sub State"
+                  rules={[
+                    { required: true, message: 'Select a Gateway Sub State' },
+                    {
+                      validator: (_, value) => !value || matchingSubOrderSubStates.some((item) => item.value === value)
+                        ? Promise.resolve()
+                        : Promise.reject(new Error('Select a Gateway Sub State mapped to the current Main State')),
+                    },
+                  ]}
+                >
+                  <Select disabled={!subOrderComponentInstance || matchingSubOrderSubStates.length === 0} placeholder={subOrderComponentInstance ? `Select a ${subOrderComponentInstance} sub-state` : 'Select Main State first'} options={matchingSubOrderSubStates.map((item) => ({ label: item.value, value: item.value }))} />
+                </Form.Item>
+              </div>
+            </div>}
+          </Card> },
         ]} />
       </Form>
     </ConfigProvider>
