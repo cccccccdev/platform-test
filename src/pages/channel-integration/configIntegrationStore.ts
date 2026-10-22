@@ -280,6 +280,7 @@ const evexinBulkCallbackCanvasNodes = [
       codeMappingEnabled: false,
       codeMappingMode: 'default',
       subOrderComponentInstance: 'PENDING',
+      subOrderComponentSubState: 'SUBMITTED',
       subOrderFeatureValueField: 'body.to',
       subOrderResponseCodeAssembly: ['body.status'],
       subOrderResponseMessageField: 'body.message',
