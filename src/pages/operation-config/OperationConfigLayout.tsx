@@ -25,7 +25,9 @@ export default function OperationConfigLayout() {
   const navigate = useNavigate();
   const selectedMenuKey = location.pathname.startsWith('/operation-config/monitoring-scenarios')
     ? '/operation-config/monitoring-scenarios'
-    : location.pathname;
+    : location.pathname.startsWith('/operation-config/availability-monitoring')
+      ? '/operation-config/availability-monitoring'
+      : location.pathname;
 
   return (
     <Layout className="operation-config-shell">

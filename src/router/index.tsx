@@ -9,6 +9,8 @@ const AnnouncementLayout = lazy(() => import('../components/AnnouncementLayout')
 const HomePage = lazy(() => import('../pages/home/HomePage'));
 const OperationConfigLayout = lazy(() => import('../pages/operation-config/OperationConfigLayout'));
 const OperationConfigPlaceholderPage = lazy(() => import('../pages/operation-config/OperationConfigPlaceholderPage'));
+const AvailabilityMonitoringPage = lazy(() => import('../pages/operation-config/AvailabilityMonitoringPage'));
+const AvailabilityMonitoringDetailPage = lazy(() => import('../pages/operation-config/AvailabilityMonitoringDetailPage'));
 const MonitoringScenarioListPage = lazy(() => import('../pages/operation-config/MonitoringScenarioListPage'));
 const MonitoringScenarioConfigPage = lazy(() => import('../pages/operation-config/MonitoringScenarioConfigPage'));
 
@@ -288,7 +290,9 @@ const router = createHashRouter(
       { path: 'schedule-trans', element: <OperationConfigPlaceholderPage title="Schedule Trans" /> },
       { path: 'probe-test-list', element: <OperationConfigPlaceholderPage title="ProbeTest List" /> },
       { path: 'route-event', element: <OperationConfigPlaceholderPage title="Route Event" /> },
-      { path: 'availability-monitoring', element: <OperationConfigPlaceholderPage title="Availability monitoring" /> },
+      { path: 'availability-monitoring', element: <AvailabilityMonitoringPage /> },
+      { path: 'availability-monitoring/create', element: <AvailabilityMonitoringDetailPage /> },
+      { path: 'availability-monitoring/:recordId/modify', element: <AvailabilityMonitoringDetailPage /> },
       { path: 'monitoring-scenarios', element: <MonitoringScenarioListPage /> },
       { path: 'monitoring-scenarios/:scenarioCode', element: <MonitoringScenarioConfigPage /> },
       { path: 'success-rate-monitoring', element: <Navigate to="/operation-config/monitoring-scenarios" replace /> },
