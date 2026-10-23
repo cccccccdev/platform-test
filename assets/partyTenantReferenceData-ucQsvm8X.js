@@ -1,0 +1,1 @@
+var e=[{country:`NG`,tenant:`PALMPAY`}],t=[...new Set(e.map(e=>e.country))].sort((e,t)=>e.localeCompare(t)).map(e=>({value:e,label:e}));function n(t){return e.filter(e=>e.country===t).map(e=>e.tenant).filter((e,t,n)=>n.indexOf(e)===t).sort((e,t)=>e.localeCompare(t)).map(e=>({value:e,label:e}))}export{t as n,n as t};
