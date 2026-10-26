@@ -32,6 +32,7 @@ const menuItems = [
   { key: '/basic-info/business-type', label: workspaceMenuLabel('Business Type') },
   { key: '/basic-info/institution-type', label: 'Institution Type' },
   { key: '/basic-info/institution', label: 'Institution' },
+  { key: '/basic-info/field-library', label: 'Field Library' },
   { key: '/basic-info/segment', label: 'Segment' },
   { key: '/basic-info/response-code', label: 'Response Code' },
   { key: '/basic-info/application', label: 'Application' },

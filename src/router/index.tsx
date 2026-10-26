@@ -55,6 +55,7 @@ const LinkStateMachinePage = lazy(() => import('../pages/basic-info/capability/L
 const StateMachineCanvas = lazy(() => import('../pages/basic-info/capability/stateMachine/StateMachineCanvas'));
 const CapabilityFeaturesPage = lazy(() => import('../pages/basic-info/capability/CapabilityFeaturesPage'));
 const CapabilitySpiPage = lazy(() => import('../pages/basic-info/capability/CapabilitySpiPage'));
+const FieldLibraryPage = lazy(() => import('../pages/basic-info/FieldLibraryPage'));
 
 // Announcement module
 const AnnouncementManagePage = lazy(() => import('../pages/announcement/AnnouncementManagePage'));
@@ -271,6 +272,7 @@ const router = createHashRouter(
           { path: 'capability/stateMachine', element: <StateMachineListPage /> },
           { path: 'capability/link-state-machine', element: <LinkStateMachinePage /> },
           { path: 'capability/stateMachine/canvas', element: <StateMachineCanvas /> },
+          { path: 'field-library', element: <FieldLibraryPage /> },
           { path: 'stateMachine', element: <StateMachineListPage /> },
         ],
       },

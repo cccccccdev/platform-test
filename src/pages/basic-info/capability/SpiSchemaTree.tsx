@@ -1,7 +1,33 @@
 import { useState, type ReactNode } from 'react';
-import { Button, Input, Modal, Popconfirm, Popover, Select, Tag, Tooltip, Typography } from 'antd';
+import { Button, Input, Modal, Popconfirm, Popover, Select, Tag, Tooltip, Typography, message } from 'antd';
 import { CaretDownOutlined, CaretRightOutlined, DeleteOutlined, ExclamationCircleFilled, HolderOutlined, ImportOutlined, MinusSquareOutlined, PlusOutlined, PlusSquareOutlined } from '@ant-design/icons';
 import { appendBusinessNode, appendTemplatePlaceholder, findNode, importJsonToSpiTree, insertCatalogNode, moveBusinessSibling, requiredTemplateRootFields, updateNodeTree, withoutBusinessFields, type SpiFieldNode } from './spiSchemaModel';
+import { useFieldLibraryStore, type FieldLibraryRecord, type FieldLibrarySubField } from '../fieldLibraryStore';
+
+// Convert a Field Library record into a SpiFieldNode subtree. The name is locked
+// (libraryLocked) so it can be picked but never custom-typed; nested children are
+// reproduced recursively, and an Array record yields the auto _items element.
+let libraryNodeSeq = 0;
+const libraryNodeId = (name: string) => `lib_${Date.now().toString(36)}_${(libraryNodeSeq++).toString(36)}_${name}`;
+const librarySubToNode = (sub: FieldLibrarySubField): SpiFieldNode => sub.isArrayItem
+  ? { id: libraryNodeId('_items'), name: '_items', type: sub.type, description: sub.description, required: false, extension: true, libraryLocked: true, children: sub.subFields.filter((child) => !child.isArrayItem).map(librarySubToNode) }
+  : { id: libraryNodeId(sub.name), name: sub.name, type: sub.type, description: sub.description, required: false, extension: true, libraryLocked: true, children: sub.subFields.filter((child) => !child.isArrayItem).map(librarySubToNode) };
+
+function libraryRecordToNode(record: FieldLibraryRecord): SpiFieldNode {
+  const item = record.subFields.find((sub) => sub.isArrayItem);
+  const nonItem = record.subFields.filter((sub) => !sub.isArrayItem);
+  const children = record.type === 'Array' && item ? [librarySubToNode(item)] : nonItem.map(librarySubToNode);
+  return {
+    id: libraryNodeId(record.name),
+    name: record.name,
+    type: record.type,
+    description: record.description,
+    required: false,
+    extension: true,
+    libraryLocked: true,
+    children,
+  };
+}
 
 const FIELD_TYPES = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((type) => ({ label: type, value: type }));
 type DragState = { parentId: string | null; nodeId: string } | null;
@@ -29,6 +55,10 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
   const [jsonDraft, setJsonDraft] = useState('');
   const [jsonError, setJsonError] = useState('');
   const [rootPickerOpen, setRootPickerOpen] = useState(false);
+  const libraryRecords = useFieldLibraryStore((state) => state.records);
+  // Any user/business field (extension: true) may be deleted at any level, including
+  // sub fields nested under an Object. Standard template fields (route, capability,
+  // extraRequest, …) stay protected and cannot be deleted.
   const availableRootFields = catalog.filter((node) => !fields.some((field) => field.id === node.id));
   const requiredRootFields = requiredTemplateRootFields(catalog, customRoot);
   const importPlaceholder = requiredRootFields.length
@@ -52,7 +82,7 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
   const addField = (parentId: string | null) => {
     const parent = parentId ? findNode(fields, parentId) : undefined;
     const isUserField = customRoot || Boolean(parent && (parent.extension || parent.name === 'extraRequest' || parent.name === 'extraResponse'));
-    const next = isUserField ? appendBusinessNode(fields, parentId, '', 'String') : appendTemplatePlaceholder(fields, parentId);
+    const next = isUserField ? appendBusinessNode(fields, parentId, '', 'String', true) : appendTemplatePlaceholder(fields, parentId);
     const siblings = parentId ? findNode(next, parentId)?.children : next;
     setNewFieldId(siblings?.at(-1)?.id);
     onChange(next);
@@ -94,6 +124,12 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
     const existingSiblings = parentId === null ? fields : findNode(fields, parentId)?.children || [];
     const availableTemplates = templateSiblings.filter((candidate) => !existingSiblings.some((sibling) => sibling.id === candidate.id));
     const isArrayItem = node.name === '_items';
+    // When a library field is being picked under an Object, scope the options to the
+    // sub fields of the matching Object record in the Field Library (the "对应 Object").
+    const parentNode = parentId ? findNode(fields, parentId) : undefined;
+    const parentLibraryObject = parentNode?.type === 'Object'
+      ? libraryRecords.find((record) => record.name === parentNode.name && record.type === 'Object')
+      : undefined;
     return <div key={node.id}>
       <div className={`capability-spi-tree-row ${isContainer ? 'container' : ''} ${dragState?.nodeId === node.id ? 'dragging' : ''}`} role="row"
         onDragOver={(event) => { if (dragState && parentId === dragState.parentId && node.extension && !isArrayItem) event.preventDefault(); }}
@@ -102,7 +138,29 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
           {editing && node.extension && (parentId !== null || customRoot) && !isArrayItem ? <Tooltip title="Drag to reorder at this level"><span className="capability-spi-drag-handle" draggable onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; setDragState({ parentId, nodeId: node.id }); }} onDragEnd={() => setDragState(null)}><HolderOutlined /></span></Tooltip> : <span className="capability-spi-drag-spacer" />}
           {isContainer ? <button type="button" className="capability-spi-tree-toggle" aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${node.name}`} aria-expanded={!isCollapsed} onClick={() => toggle(node.id)}>{isCollapsed ? <CaretRightOutlined /> : <CaretDownOutlined />}</button> : <span className="capability-spi-tree-toggle-spacer" />}
           {editing && node.templatePlaceholder ? <Select autoFocus={node.id === newFieldId} placeholder="Select template field" aria-label="Select template field" options={availableTemplates.map((candidate) => ({ label: `${candidate.name} · ${candidate.type}`, value: candidate.id }))} onChange={(id) => { const candidate = availableTemplates.find((item) => item.id === id); if (candidate) onChange(updateNodeTree(fields, node.id, () => withoutBusinessFields([candidate])[0])); setNewFieldId(undefined); }} />
-            : editing && node.extension && !isArrayItem ? <Input autoFocus={node.id === newFieldId} value={node.name} placeholder="Field name" aria-label={`${node.name || 'New'} field name`} onChange={(event) => onChange(updateNodeTree(fields, node.id, (current) => ({ ...current, name: event.target.value })))} /> : <span className="capability-spi-fixed-name" title={node.name}>{node.name}</span>}
+            : editing && node.libraryPick && !isArrayItem ? <Select
+              showSearch
+              autoFocus={node.id === newFieldId}
+              placeholder="Select from Field Library"
+              aria-label="Select field from library"
+              optionFilterProp="label"
+              popupMatchSelectWidth={false}
+              filterOption={(input, option) => String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              options={parentLibraryObject
+                ? parentLibraryObject.subFields.filter((sub) => !sub.isArrayItem).map((sub) => ({ label: `${sub.name} · ${sub.type}`, value: sub.name }))
+                : libraryRecords.map((record) => ({ label: `${record.name} · ${record.type}`, value: record.key }))}
+              onChange={(value) => {
+                if (parentLibraryObject) {
+                  const sub = parentLibraryObject.subFields.find((item) => item.name === value && !item.isArrayItem);
+                  if (sub) onChange(updateNodeTree(fields, node.id, () => librarySubToNode(sub)));
+                } else {
+                  const record = libraryRecords.find((item) => item.key === value);
+                  if (record) onChange(updateNodeTree(fields, node.id, () => libraryRecordToNode(record)));
+                }
+                setNewFieldId(undefined);
+              }}
+            />
+            : editing && node.extension && !node.libraryLocked && !isArrayItem ? <Input autoFocus={node.id === newFieldId} value={node.name} placeholder="Field name" aria-label={`${node.name || 'New'} field name`} onChange={(event) => onChange(updateNodeTree(fields, node.id, (current) => ({ ...current, name: event.target.value })))} /> : <span className="capability-spi-fixed-name" title={node.name}>{node.name}</span>}
         </div>
         <div role="cell">{editing && node.extension ? <Select value={node.type} options={isArrayItem ? FIELD_TYPES.filter((item) => item.value !== 'Array') : FIELD_TYPES} aria-label={`${node.name} field type`} onChange={(type) => changeType(node, type)} /> : node.type || '—'}</div>
         {effectTagOptions && <div role="cell">{editing && !isContainer ? <Select value={node.effectTag || undefined} placeholder="Select Effect Tag" options={effectTagOptions.map((tag) => ({ label: tag, value: tag }))} aria-label={`${node.name || 'New'} Effect Tag`} onChange={(effectTag) => onChange(updateNodeTree(fields, node.id, (current) => ({ ...current, effectTag })))} /> : <span className="capability-spi-description">{isContainer ? '—' : node.effectTag || '—'}</span>}</div>}
@@ -117,7 +175,13 @@ export default function SpiSchemaTree({ title, fields, catalog, customRoot = fal
             okText="Delete"
             cancelText="Cancel"
             okButtonProps={{ className: 'capability-spi-delete-confirm-button' }}
-            onConfirm={() => onChange(updateNodeTree(fields, node.id, () => null))}
+            onConfirm={() => {
+              if (!node.extension) {
+                message.error('Standard template fields cannot be deleted.');
+                return;
+              }
+              onChange(updateNodeTree(fields, node.id, () => null));
+            }}
           ><Button type="text" size="small" icon={<DeleteOutlined />} aria-label={`Delete ${node.name || 'field'}`} /></Popconfirm>}
         </div>}
       </div>
