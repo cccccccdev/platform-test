@@ -216,7 +216,23 @@ export default function TcpCallDrawer({ open, channelCode, initialValues, readOn
     <FieldMappingList direction="response" readOnly={readOnly} profile={selectedProfile} />
   </>;
 
-  const responseCode = <Card size="small"><Form.Item label="Component Instance" name="responseFallback"><Select options={[{ label: 'FAIL', value: 'FAIL' }, { label: 'PENDING', value: 'PENDING' }]} /></Form.Item><Form.Item label="Assembly Mode" name="responseCodeMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>{responseCodeMode === 'custom' ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the selected ISO 8583 DE values." /> : <><Form.Item label="Response Code Assembly" name="responseCodeAssembly"><Select mode="multiple" placeholder="Select DEs in assembly order" options={responseFields.map((field) => ({ label: `DE${field.de}`, value: `DE${field.de}` }))} /></Form.Item><div style={{ marginTop: -4, marginBottom: 12 }}>{(responseCodeAssembly as string[]).map((de) => { const field = responseFields.find((item) => `DE${item.de}` === de); return <div key={de} style={{ color: '#8c8c8c', fontSize: 12, lineHeight: 1.8 }}><Tag style={{ marginRight: 6 }}>{de}</Tag>{field?.field ?? 'Field name unavailable'}</div>; })}</div></>}<Form.Item label="Response Message Field" name="responseMessageField"><Input placeholder="Optional SPI response field" /></Form.Item></Card>;
+  const responseCode = <Card size="small">
+    <div className="http-response-code-order-group">
+      <Typography.Title level={5}>Order</Typography.Title>
+      <div className="http-response-code-subsection">
+        <Text strong>Response Code Assembly</Text>
+        <Form.Item label="Assembly Mode" name="responseCodeMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Default', value: 'default' }, { label: 'Custom', value: 'custom' }]} /></Form.Item>
+        {responseCodeMode === 'custom'
+          ? <GroovyScriptEditor name="responseCodeScript" helpText="Return the assembled response code from the selected ISO 8583 DE values." />
+          : <><Form.Item label="Response Code Assembly" name="responseCodeAssembly"><Select mode="multiple" placeholder="Select DEs in assembly order" options={responseFields.map((field) => ({ label: `DE${field.de}`, value: `DE${field.de}` }))} /></Form.Item><div style={{ marginTop: -4, marginBottom: 12 }}>{(responseCodeAssembly as string[]).map((de) => { const field = responseFields.find((item) => `DE${item.de}` === de); return <div key={de} style={{ color: '#8c8c8c', fontSize: 12, lineHeight: 1.8 }}><Tag style={{ marginRight: 6 }}>{de}</Tag>{field?.field ?? 'Field name unavailable'}</div>; })}</div></>}
+        <Form.Item label="Response Message Field" name="responseMessageField"><Input placeholder="Optional SPI response field" /></Form.Item>
+      </div>
+      <div className="http-response-code-subsection">
+        <div className="http-response-code-subsection-title"><Text strong>Unknown Response Code Handling</Text><Tooltip title="Used only when the assembled Channel Response Code does not match any configured mapping."><QuestionCircleOutlined style={{ color: '#8c8c8c', cursor: 'help' }} /></Tooltip></div>
+        <Form.Item label="Main State" name="responseFallback"><Select placeholder="Select Main State" options={['PENDING', 'FAIL'].map((value) => ({ label: value, value }))} /></Form.Item>
+      </div>
+    </div>
+  </Card>;
 
   return <Drawer title={<Space><span>Configure TCP Call</span><Tag color="blue">tcpCall</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void save()}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ token: { fontSize: 14, controlHeight: 32, borderRadius: 5, paddingSM: 10, marginSM: 10, marginXS: 6 }, components: { Form: { itemMarginBottom: 10 }, Card: { bodyPadding: 12, headerHeight: 36 }, Tabs: { horizontalMargin: '0 0 10px 0' } } }}>

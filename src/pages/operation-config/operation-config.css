@@ -186,6 +186,99 @@
 .monitoring-counter-threshold { max-width: 360px; display: grid; gap: 8px; }
 .monitoring-counter-threshold .ant-input-number { width: 100%; }
 
+.availability-monitoring-page { background: #f0f2f5; }
+.availability-monitoring-heading { min-height: 144px; padding: 25px 32px 29px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; background: #fff; }
+.availability-monitoring-heading .ant-breadcrumb { margin-bottom: 23px; color: #8c8c8c; font-size: 13px; }
+.availability-monitoring-heading h1 { margin: 0; color: #262626; font-size: 24px; font-weight: 600; }
+.availability-monitoring-content { padding: 24px 32px 36px; }
+.availability-monitoring-filter-card { padding: 32px 34px 26px; background: #fff; }
+.availability-monitoring-filter-grid { display: grid; grid-template-columns: repeat(3, minmax(260px, 1fr)); column-gap: 56px; row-gap: 28px; }
+.availability-monitoring-filter-grid label { min-width: 0; display: grid; grid-template-columns: 126px minmax(0, 1fr); align-items: center; gap: 12px; }
+.availability-monitoring-filter-grid label > span:first-child { color: #3f3f3f; font-size: 14px; text-align: right; white-space: nowrap; }
+.availability-monitoring-filter-grid .ant-select,
+.availability-monitoring-filter-grid .ant-input { width: 100%; }
+.availability-monitoring-filter-actions { width: 100%; margin-top: 26px; display: flex; justify-content: flex-end; }
+.availability-monitoring-filter-card .ant-btn-primary,
+.availability-monitoring-table-card .ant-btn-primary { background: #6f00c7; box-shadow: none; }
+.availability-monitoring-table-card { margin-top: 22px; padding: 22px 32px 12px; overflow: hidden; background: #fff; }
+.availability-monitoring-create { margin-bottom: 22px; }
+.availability-monitoring-table .ant-table { font-size: 13px; }
+.availability-monitoring-table .ant-table-thead > tr > th { height: 54px; background: #fafafa; white-space: nowrap; }
+.availability-monitoring-table .ant-table-tbody > tr > td { height: 62px; white-space: nowrap; }
+.availability-monitoring-table .ant-btn-link { padding-inline: 0; color: #6f00c7; }
+.availability-monitoring-table .ant-switch.ant-switch-checked { background: #7b3ff2; }
+.availability-monitoring-table .ant-table-cell-fix-right { background: #fff; }
+
+.availability-monitoring-detail-page { min-height: 100%; background: #f0f2f5; }
+.availability-monitoring-detail-heading { min-height: 144px; padding: 25px 32px 29px; display: flex; flex-direction: column; justify-content: center; background: #fff; }
+.availability-monitoring-detail-heading .ant-breadcrumb { margin-bottom: 23px; color: #8c8c8c; font-size: 13px; }
+.availability-monitoring-detail-heading .ant-breadcrumb button { padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.availability-monitoring-detail-heading h1 { margin: 0; color: #262626; font-size: 24px; font-weight: 600; }
+.availability-monitoring-detail-content { padding: 24px 32px 40px; }
+.availability-monitoring-detail-card { padding: 30px 32px; border-radius: 8px; background: #fff; }
+.availability-monitoring-detail-card + .availability-monitoring-detail-card { margin-top: 24px; }
+.availability-monitoring-detail-card h2 { margin: 0 0 26px; color: #262626; font-size: 18px; font-weight: 600; }
+.availability-monitoring-basic-form { max-width: 820px; display: grid; gap: 20px; }
+.availability-monitoring-basic-form label,
+.availability-monitoring-modal-form label,
+.availability-monitoring-internal-form label { display: grid; align-items: center; }
+.availability-monitoring-basic-form label { grid-template-columns: 190px minmax(0, 1fr); gap: 14px; }
+.availability-monitoring-basic-form label > span:first-child,
+.availability-monitoring-modal-form label > span:first-child,
+.availability-monitoring-internal-form label > span:first-child { color: #303030; font-weight: 500; }
+.availability-monitoring-basic-form label > span:first-child::before,
+.availability-monitoring-modal-form label:not(.availability-monitoring-time-range-field) > span:first-child::before,
+.availability-monitoring-internal-form label > span:first-child::before { margin-right: 5px; color: #ff4d4f; content: '*'; }
+.availability-monitoring-basic-form .ant-select,
+.availability-monitoring-basic-form .ant-input-number { width: 100%; }
+.availability-monitoring-rule-toolbar { margin-bottom: 18px; display: flex; align-items: center; gap: 24px; }
+.availability-monitoring-rule-toolbar strong { color: #f5222d; font-size: 18px; }
+.availability-monitoring-rule-card .ant-btn-primary,
+.availability-monitoring-save-actions .ant-btn-primary,
+.availability-monitoring-internal-form + .ant-table-wrapper .ant-btn-primary { background: #6f00c7; box-shadow: none; }
+.availability-monitoring-rule-card .ant-table-thead > tr > th,
+.availability-monitoring-internal-table .ant-table-thead > tr > th { background: #fafafa; white-space: nowrap; }
+.availability-monitoring-rule-card .ant-btn-link,
+.availability-monitoring-internal-table .ant-btn-link { padding-inline: 0; color: #7b3ff2; }
+.availability-monitoring-rule-card .ant-btn-link.ant-btn-dangerous,
+.availability-monitoring-internal-table .ant-btn-link.ant-btn-dangerous { color: #ff4d4f; }
+.availability-monitoring-traffic-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.availability-monitoring-save-actions { margin-top: 28px; display: flex; gap: 10px; }
+.availability-monitoring-modal-form { padding: 18px 34px 6px; display: grid; gap: 20px; }
+.availability-monitoring-modal-form label { grid-template-columns: 170px minmax(0, 1fr); gap: 16px; }
+.availability-monitoring-modal-form label > span:first-child { text-align: right; }
+.availability-monitoring-modal-form .ant-select,
+.availability-monitoring-modal-form .ant-input-number { width: 100%; }
+.availability-monitoring-amount-operator { width: 110px !important; }
+.availability-monitoring-time-range-field > div { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+.availability-monitoring-time-range-field em { font-style: normal; }
+.availability-monitoring-time-range-field small { grid-column: 1 / -1; color: #8c8c8c; }
+.availability-monitoring-internal-form { padding: 18px 20px 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px 36px; align-items: end; }
+.availability-monitoring-internal-form label { grid-template-columns: 180px minmax(0, 1fr); gap: 12px; }
+.availability-monitoring-internal-form label > span:first-child { text-align: right; }
+.availability-monitoring-internal-form .ant-input-number { width: 100%; }
+.availability-monitoring-internal-form > .ant-btn { width: 96px; justify-self: end; grid-column: 2; background: #6f00c7; }
+.availability-monitoring-internal-table { margin: 0 20px 16px; }
+.availability-monitoring-not-found { min-height: calc(100vh - 56px); display: grid; place-items: center; align-content: center; gap: 18px; }
+
+@media (max-width: 1320px) {
+  .availability-monitoring-filter-grid { grid-template-columns: repeat(2, minmax(280px, 1fr)); }
+}
+
+@media (max-width: 880px) {
+  .availability-monitoring-content { padding-inline: 18px; }
+  .availability-monitoring-filter-grid { grid-template-columns: 1fr; }
+  .availability-monitoring-detail-content { padding-inline: 18px; }
+  .availability-monitoring-basic-form label,
+  .availability-monitoring-modal-form label,
+  .availability-monitoring-internal-form label { grid-template-columns: 1fr; }
+  .availability-monitoring-basic-form label > span:first-child,
+  .availability-monitoring-modal-form label > span:first-child,
+  .availability-monitoring-internal-form label > span:first-child { text-align: left; }
+  .availability-monitoring-internal-form { grid-template-columns: 1fr; }
+  .availability-monitoring-internal-form > .ant-btn { grid-column: 1; }
+}
+
 @media (max-width: 1180px) {
   .monitoring-direct-flow,
   .monitoring-branch-lane-flow { grid-template-columns: 1fr; gap: 8px; }
