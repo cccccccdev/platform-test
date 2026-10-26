@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Breadcrumb, Button, Input, Popconfirm, Select, Space, Switch, Table, message } from 'antd';
+import { Breadcrumb, Button, Input, Popconfirm, Select, Space, Switch, Table, Tag, Tooltip, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useBasicInfoReferenceStore } from '../basic-info/basicInfoReferenceStore';
 import { useBusinessTypeStore } from '../basic-info/businessTypeReferenceData';
@@ -22,9 +22,9 @@ interface AvailabilityMonitoringFilters {
 const initialFilters: AvailabilityMonitoringFilters = {
   country: 'NG',
   tenant: 'PALMPAY',
-  businessType: 'VIBER',
-  service: '',
-  serviceChannel: '',
+  businessType: 'BANK_ACCOUNT_CREDIT',
+  service: 'TRANSFER',
+  serviceChannel: 'NIBSS',
   status: undefined,
 };
 
@@ -169,7 +169,7 @@ export default function AvailabilityMonitoringPage() {
             className="availability-monitoring-table"
             dataSource={filteredRecords}
             rowKey="id"
-            scroll={{ x: 1770 }}
+            scroll={{ x: 1910 }}
             pagination={{
               pageSize: 10,
               showSizeChanger: true,
@@ -195,6 +195,7 @@ export default function AvailabilityMonitoringPage() {
                   <Switch
                     aria-label={`Status for availability monitoring record ${record.id}`}
                     checked={status === 'ON'}
+                    disabled={record.approval?.status === 'PENDING'}
                     onChange={(checked) => {
                       setStatus(record.id, checked ? 'ON' : 'OFF');
                       message.success(`Record ${record.id} is now ${checked ? 'ON' : 'OFF'}.`);
@@ -203,32 +204,52 @@ export default function AvailabilityMonitoringPage() {
                 ),
               },
               {
+                title: 'Approval Status',
+                key: 'approvalStatus',
+                width: 150,
+                render: (_, record) => record.approval?.status === 'PENDING'
+                  ? <Tag color="gold">Pending Approval</Tag>
+                  : '-',
+              },
+              {
                 title: 'Operation',
                 key: 'operation',
-                width: 150,
+                width: 180,
                 fixed: 'right',
-                render: (_, record) => (
-                  <Space size="middle">
-                    <Button
-                      type="link"
-                      onClick={() => navigate(`/operation-config/availability-monitoring/${record.id}/modify`)}
-                    >
-                      Modify
-                    </Button>
+                render: (_, record) => {
+                  const pending = record.approval?.status === 'PENDING';
+                  const lockMessage = 'Wait for the current approval to complete before modifying this record.';
+                  return (
+                    <Space size="middle">
+                    <Tooltip title={pending ? lockMessage : undefined}>
+                      <span>
+                        <Button
+                          type="link"
+                          disabled={pending}
+                          onClick={() => navigate(`/operation-config/availability-monitoring/${record.id}/modify`)}
+                        >
+                          Modify
+                        </Button>
+                      </span>
+                    </Tooltip>
                     <Popconfirm
                       title="Delete this availability monitoring record?"
                       description="This operation only changes the current Demo data."
                       okText="Delete"
                       cancelText="Cancel"
+                      disabled={pending}
                       onConfirm={() => {
                         deleteRecord(record.id);
                         message.success(`Record ${record.id} deleted.`);
                       }}
                     >
-                      <Button type="link" danger>Delete</Button>
+                      <Tooltip title={pending ? lockMessage : undefined}>
+                        <span><Button type="link" danger disabled={pending}>Delete</Button></span>
+                      </Tooltip>
                     </Popconfirm>
                   </Space>
-                ),
+                  );
+                },
               },
             ]}
           />

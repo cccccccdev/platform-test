@@ -4,6 +4,16 @@ export type AvailabilityMonitoringStatus = 'ON' | 'OFF';
 export type AvailabilityDetectType = 'availability' | 'probeTest';
 export type AvailabilityMetricType = 'institution' | 'channel';
 export type AmountOperator = '>' | '<' | '=';
+export type AvailabilityApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface AvailabilityApprovalRequest {
+  requestId: string;
+  status: AvailabilityApprovalStatus;
+  submittedBy: string;
+  submittedAt: string;
+  reason: string;
+  validationSummary: string;
+}
 
 export interface InternalTrafficConfiguration {
   id: string;
@@ -43,7 +53,29 @@ export interface AvailabilityMonitoringRecord {
   updateTime: string;
   status: AvailabilityMonitoringStatus;
   rules: AvailabilityMonitoringRule[];
+  approval?: AvailabilityApprovalRequest;
+  pendingChanges?: AvailabilityMonitoringUpdate;
 }
+
+export type AvailabilityMonitoringUpdate = Pick<
+  AvailabilityMonitoringRecord,
+  'country' | 'tenant' | 'businessType' | 'service' | 'serviceChannel' | 'priority' | 'rules'
+>;
+
+export const availabilityValidationDemoData = {
+  account: {
+    valid: 'b45a608182c54081a49bcdf68ac271e9',
+    notFound: '00000000000000000000000000000001',
+    systemError: '00000000000000000000000000000099',
+  },
+  member: {
+    enable: 'E2AD689133E140AB881DC02C25DFA03A',
+    notFound: '00000000000000000000000000000001',
+    disable: '00000000000000000000000000000002',
+    close: '00000000000000000000000000000003',
+    systemError: '00000000000000000000000000000099',
+  },
+} as const;
 
 const exampleRule = (recordId: number): AvailabilityMonitoringRule => ({
   id: `rule-${recordId}`,
@@ -60,7 +92,77 @@ const exampleRule = (recordId: number): AvailabilityMonitoringRule => ({
   internalConfigurations: [],
 });
 
+const nibssRule = (
+  id: string,
+  institution: string,
+  institutionLabel: string,
+  options: {
+    metricType?: AvailabilityMetricType;
+    frequency?: number;
+    internalTraffic?: boolean;
+    realTraffic?: boolean;
+    internalConfigurations?: InternalTrafficConfiguration[];
+  } = {},
+): AvailabilityMonitoringRule => ({
+  id,
+  institution,
+  institutionLabel,
+  detectType: 'availability',
+  metricType: options.metricType ?? 'institution',
+  frequency: options.frequency ?? 6,
+  amountOperator: '<',
+  amount: 10000,
+  internalTraffic: options.internalTraffic ?? true,
+  realTraffic: options.realTraffic ?? false,
+  internalConfigurations: options.internalConfigurations ?? [],
+});
+
+const nibssRules: AvailabilityMonitoringRule[] = [
+  nibssRule('nibss-opay', '100004', 'OPay', {
+    internalConfigurations: [{
+      id: 'nibss-opay-account-1',
+      initialAccount: availabilityValidationDemoData.account.valid,
+      initialMemberId: availabilityValidationDemoData.member.enable,
+      targetAccountNumber: '8135492339',
+      targetAccountName: '',
+      amount: 1000,
+      status: 'enable',
+    }],
+  }),
+  nibssRule('nibss-moniepoint', 'MONIEPOINT_NG', 'Moniepoint'),
+  nibssRule('nibss-uba', 'UBA_NG', 'UNITED BANK FOR AFRICA'),
+  nibssRule('nibss-first-bank', 'FIRST_BANK_NG', 'First Bank of Nigeria'),
+  nibssRule('nibss-zenith-bank', 'ZENITH_NG', 'Zenith Bank'),
+  nibssRule('nibss-gtbank', 'GTBANK_NG', 'GTBank'),
+  nibssRule('nibss-kuda', 'KUDA_NG', 'Kuda MFB'),
+  nibssRule('nibss-access-bank', 'ACCESS_NG', 'Access Bank'),
+  nibssRule('nibss-all', 'all', 'all', {
+    metricType: 'channel',
+    frequency: 300,
+    internalTraffic: false,
+    realTraffic: true,
+  }),
+  nibssRule('nibss-providus-bank', 'PROVIDUS_NG', 'Providus Bank', {
+    internalTraffic: false,
+    realTraffic: true,
+  }),
+];
+
 const seedRecords: AvailabilityMonitoringRecord[] = [
+  {
+    id: 2,
+    tenant: 'PALMPAY',
+    businessType: 'BANK_ACCOUNT_CREDIT',
+    service: 'TRANSFER',
+    serviceChannel: 'NIBSS',
+    priority: 1,
+    country: 'NG',
+    operator: '陈倩 Athena',
+    createTime: '2025-06-24 03:58:24',
+    updateTime: '2026-08-27 09:53:08',
+    status: 'ON',
+    rules: nibssRules,
+  },
   {
     id: 10071,
     tenant: 'PALMPAY',
@@ -212,7 +314,13 @@ const formatNow = () => {
 interface AvailabilityMonitoringStore {
   records: AvailabilityMonitoringRecord[];
   addRecord: (record: Omit<AvailabilityMonitoringRecord, 'id' | 'operator' | 'createTime' | 'updateTime' | 'status'>) => AvailabilityMonitoringRecord;
-  updateRecord: (id: number, updates: Pick<AvailabilityMonitoringRecord, 'country' | 'tenant' | 'businessType' | 'service' | 'serviceChannel' | 'priority' | 'rules'>) => void;
+  updateRecord: (id: number, updates: AvailabilityMonitoringUpdate) => void;
+  submitForApproval: (
+    id: number,
+    updates: AvailabilityMonitoringUpdate,
+    reason: string,
+    validationSummary: string,
+  ) => AvailabilityApprovalRequest | undefined;
   deleteRecord: (id: number) => void;
   setStatus: (id: number, status: AvailabilityMonitoringStatus) => void;
 }
@@ -234,13 +342,38 @@ export const useAvailabilityMonitoringStore = create<AvailabilityMonitoringStore
   },
   updateRecord: (id, updates) => set((state) => ({
     records: state.records.map((record) => record.id === id
-      ? { ...record, ...updates, operator: 'Current User', updateTime: formatNow() }
+      ? record.approval?.status === 'PENDING'
+        ? record
+        : { ...record, ...updates, operator: 'Current User', updateTime: formatNow() }
       : record),
   })),
-  deleteRecord: (id) => set((state) => ({ records: state.records.filter((record) => record.id !== id) })),
+  submitForApproval: (id, updates, reason, validationSummary) => {
+    const record = get().records.find((item) => item.id === id);
+    if (!record || record.approval?.status === 'PENDING') return undefined;
+    const submittedAt = formatNow();
+    const approval: AvailabilityApprovalRequest = {
+      requestId: `AM-${Date.now()}`,
+      status: 'PENDING',
+      submittedBy: 'Current User',
+      submittedAt,
+      reason,
+      validationSummary,
+    };
+    set((state) => ({
+      records: state.records.map((item) => item.id === id
+        ? { ...item, approval: { ...approval }, pendingChanges: updates }
+        : item),
+    }));
+    return approval;
+  },
+  deleteRecord: (id) => set((state) => ({
+    records: state.records.filter((record) => record.id !== id || record.approval?.status === 'PENDING'),
+  })),
   setStatus: (id, status) => set((state) => ({
     records: state.records.map((record) => record.id === id
-      ? { ...record, status, operator: 'Current User', updateTime: formatNow() }
+      ? record.approval?.status === 'PENDING'
+        ? record
+        : { ...record, status, operator: 'Current User', updateTime: formatNow() }
       : record),
   })),
 }));
