@@ -1,0 +1,205 @@
+/* Field Library schema editor — mirrors the API config (Capability SPI) schema tree. */
+.field-library-modal .ant-modal-body { padding-top: 12px; }
+
+.field-library-error-banner {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+  background: #fff2f0;
+  color: #cf1322;
+  font-size: 13px;
+}
+
+.field-library-schema {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.field-library-schema-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  min-height: 54px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e8e8e8;
+  background: #fff;
+}
+
+.field-library-schema-head h2 {
+  margin: 0;
+  color: #30343a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field-library-row-note {
+  color: #8b9098;
+  font-size: 12px;
+}
+
+.field-library-schema-scroll {
+  overflow-x: auto;
+}
+
+.field-library-field-table {
+  min-width: 680px;
+}
+
+.field-library-tree-header,
+.field-library-tree-root,
+.field-library-tree-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.4fr) 130px minmax(200px, 1fr) 96px;
+  gap: 8px;
+  align-items: center;
+  min-width: 680px;
+}
+
+.field-library-field-table.editing .field-library-tree-header,
+.field-library-field-table.editing .field-library-tree-root,
+.field-library-field-table.editing .field-library-tree-row {
+  grid-template-columns: minmax(280px, 1.4fr) 130px minmax(200px, 1fr) 96px;
+  min-width: 780px;
+}
+
+/* View / Modify mode: no OPERATIONS column — collapse to a 3-column grid. */
+.field-library-field-table.editing.no-ops .field-library-tree-header,
+.field-library-field-table.editing.no-ops .field-library-tree-root,
+.field-library-field-table.editing.no-ops .field-library-tree-row {
+  grid-template-columns: minmax(280px, 1.4fr) 130px minmax(240px, 1fr);
+  min-width: 680px;
+}
+
+.field-library-tree-header {
+  min-height: 36px;
+  padding: 0 8px;
+  background: #fcfcfc;
+  color: #8c8c8c;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.field-library-tree-header > span {
+  padding: 7px 8px;
+}
+
+.field-library-tree-root,
+.field-library-tree-row {
+  min-height: 44px;
+  padding: 5px 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.field-library-tree-root {
+  background: #f5f7ff;
+}
+
+.field-library-tree-row.container {
+  background: #faf9fc;
+}
+
+.field-library-tree-root > div,
+.field-library-tree-row > div {
+  min-width: 0;
+  padding: 0 8px;
+}
+
+.field-library-tree-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.field-library-tree-name .ant-input,
+.field-library-tree-name .ant-select {
+  min-width: 0;
+  flex: 1;
+}
+
+.field-library-tree-name .ant-tag {
+  margin: 0;
+  font-weight: 600;
+}
+
+.field-library-fixed-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #3e434b;
+}
+
+.field-library-fixed-value {
+  color: #3e434b;
+}
+
+.field-library-tree-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0;
+}
+
+.field-library-indent {
+  flex: none;
+  width: 22px;
+}
+
+.field-library-nested {
+  padding-left: 22px;
+  background: #fcfcfd;
+}
+
+.field-library-nested .field-library-tree-row:last-child {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.field-library-add-row {
+  border-bottom: none;
+  background: #fcfcfd;
+}
+
+.field-library-add-row .ant-btn {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.field-library-sub-error {
+  padding: 6px 30px;
+  color: #ff4d4f;
+  font-size: 12px;
+}
+
+.field-library-modify-note {
+  margin-top: 12px;
+  color: #8b9098;
+  font-size: 12px;
+}
+
+.field-library-hint {
+  margin-top: 12px;
+  line-height: 1.6;
+}
+
+.field-library-hint code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f0f0f0;
+  color: #6f00c7;
+  font-size: 12px;
+}
+
+/* Operation log: keep long before/after values (sub-field paths) readable. */
+.field-library-log-value {
+  display: inline-block;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #3e434b;
+  line-height: 1.5;
+}

@@ -7,6 +7,10 @@ export interface SpiFieldNode {
   extension: boolean;
   effectTag?: string;
   templatePlaceholder?: boolean;
+  /** True while a newly added field is awaiting selection from the Field Library (name must be picked, not typed). */
+  libraryPick?: boolean;
+  /** True once a field's name was sourced from the Field Library — the name is then locked and cannot be customised. */
+  libraryLocked?: boolean;
   children: SpiFieldNode[];
 }
 
@@ -82,10 +86,10 @@ export function insertCatalogNode(nodes: SpiFieldNode[], parentId: string | null
   }));
 }
 
-export function appendBusinessNode(nodes: SpiFieldNode[], parentId: string | null, name: string, type: string): SpiFieldNode[] {
+export function appendBusinessNode(nodes: SpiFieldNode[], parentId: string | null, name: string, type: string, libraryPick = false): SpiFieldNode[] {
   const id = `business_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const node: SpiFieldNode = {
-    id, name, type, description: '', required: false, extension: true,
+    id, name, type, description: '', required: false, extension: true, libraryPick,
     children: type === 'Array' ? [{ id: `${id}_items`, name: '_items', type: 'String', description: '', required: false, extension: true, children: [] }] : [],
   };
   return parentId === null ? [...nodes, node]
