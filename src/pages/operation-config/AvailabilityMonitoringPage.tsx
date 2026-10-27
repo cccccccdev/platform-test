@@ -22,9 +22,9 @@ interface AvailabilityMonitoringFilters {
 const initialFilters: AvailabilityMonitoringFilters = {
   country: 'NG',
   tenant: 'PALMPAY',
-  businessType: 'VIBER',
-  service: '',
-  serviceChannel: '',
+  businessType: 'BANK_ACCOUNT_CREDIT',
+  service: 'TRANSFER',
+  serviceChannel: 'NIBSS',
   status: undefined,
 };
 
@@ -169,7 +169,7 @@ export default function AvailabilityMonitoringPage() {
             className="availability-monitoring-table"
             dataSource={filteredRecords}
             rowKey="id"
-            scroll={{ x: 1770 }}
+            scroll={{ x: 1910 }}
             pagination={{
               pageSize: 10,
               showSizeChanger: true,
@@ -205,10 +205,11 @@ export default function AvailabilityMonitoringPage() {
               {
                 title: 'Operation',
                 key: 'operation',
-                width: 150,
+                width: 180,
                 fixed: 'right',
-                render: (_, record) => (
-                  <Space size="middle">
+                render: (_, record) => {
+                  return (
+                    <Space size="middle">
                     <Button
                       type="link"
                       onClick={() => navigate(`/operation-config/availability-monitoring/${record.id}/modify`)}
@@ -228,7 +229,8 @@ export default function AvailabilityMonitoringPage() {
                       <Button type="link" danger>Delete</Button>
                     </Popconfirm>
                   </Space>
-                ),
+                  );
+                },
               },
             ]}
           />

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  Alert,
   Breadcrumb,
   Button,
   Empty,
@@ -11,6 +12,7 @@ import {
   Space,
   Switch,
   Table,
+  Tag,
   message,
 } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -23,7 +25,9 @@ import {
   type AvailabilityDetectType,
   type AvailabilityMetricType,
   type AvailabilityMonitoringRule,
+  type AvailabilityMonitoringUpdate,
   type InternalTrafficConfiguration,
+  availabilityValidationDemoData,
   useAvailabilityMonitoringStore,
 } from './availabilityMonitoringDemo';
 
@@ -70,6 +74,59 @@ const emptyInternalDraft = (): InternalConfigurationDraft => ({
 });
 
 const nextKey = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+interface DemoValidationFailure {
+  title: string;
+  message: string;
+}
+
+const validateDemoConfiguration = (
+  configuration: InternalTrafficConfiguration,
+): DemoValidationFailure | undefined => {
+  if (configuration.initialAccount === availabilityValidationDemoData.account.systemError) {
+    return {
+      title: 'System error',
+      message: 'The system is temporarily unavailable. Please try again.',
+    };
+  }
+  if (configuration.initialAccount !== availabilityValidationDemoData.account.valid) {
+    if (configuration.initialAccount === availabilityValidationDemoData.account.closed) {
+      return {
+        title: 'Account ID is closed',
+        message: 'This account exists, but its status is Closed. Use an account that is not closed.',
+      };
+    }
+    return {
+      title: 'Account ID was not found',
+      message: 'Please verify the Initial Account and try again.',
+    };
+  }
+  if (configuration.initialMemberId === availabilityValidationDemoData.member.systemError) {
+    return {
+      title: 'System error',
+      message: 'The system is temporarily unavailable. Please try again.',
+    };
+  }
+  if (configuration.initialMemberId === availabilityValidationDemoData.member.disable) {
+    return {
+      title: 'Member ID is disabled',
+      message: 'This member exists, but its status is DISABLE. Use an enabled Member ID.',
+    };
+  }
+  if (configuration.initialMemberId === availabilityValidationDemoData.member.close) {
+    return {
+      title: 'Member ID is closed',
+      message: 'This member exists, but its status is CLOSE. Use an enabled Member ID.',
+    };
+  }
+  if (configuration.initialMemberId !== availabilityValidationDemoData.member.enable) {
+    return {
+      title: 'Member ID was not found',
+      message: 'Please verify the Initial Member ID and try again.',
+    };
+  }
+  return undefined;
+};
 
 export default function AvailabilityMonitoringDetailPage() {
   const navigate = useNavigate();
@@ -126,6 +183,8 @@ export default function AvailabilityMonitoringDetailPage() {
       .filter((value, index, values) => values.indexOf(value) === index)
       .map((value) => ({ value, label: value }));
   }, [basicInfo.businessType, basicInfo.country, basicInfo.service, basicInfo.tenant, records, serviceChannelEnabled]);
+  const informationValidationRequired = basicInfo.businessType === 'BANK_ACCOUNT_CREDIT'
+    && basicInfo.service.trim().toUpperCase() === 'TRANSFER';
   const institutionOptions = useMemo(() => [
     { value: 'all', label: 'all' },
     ...institutions
@@ -222,7 +281,7 @@ export default function AvailabilityMonitoringDetailPage() {
       message.error('Please complete all Internal Traffic Configuration fields.');
       return;
     }
-    setConfigurationRows((current) => [...current, {
+    const nextConfiguration: InternalTrafficConfiguration = {
       id: nextKey('account'),
       initialAccount: initialAccount.trim(),
       initialMemberId: initialMemberId.trim(),
@@ -230,8 +289,17 @@ export default function AvailabilityMonitoringDetailPage() {
       targetAccountName: targetAccountName.trim(),
       amount,
       status: 'enable',
-    }]);
+    };
+    if (informationValidationRequired) {
+      const failure = validateDemoConfiguration(nextConfiguration);
+      if (failure) {
+        Modal.error({ title: failure.title, content: failure.message, okText: 'Got it' });
+        return;
+      }
+    }
+    setConfigurationRows((current) => [...current, nextConfiguration]);
     setConfigurationDraft(emptyInternalDraft());
+    message.success('Validation passed. Configuration added.');
   };
 
   const confirmInternalConfiguration = () => {
@@ -261,7 +329,7 @@ export default function AvailabilityMonitoringDetailPage() {
       message.error('Please do not create repeatedly.');
       return;
     }
-    const payload = {
+    const payload: AvailabilityMonitoringUpdate = {
       country: basicInfo.country,
       tenant: basicInfo.tenant,
       businessType: basicInfo.businessType,
@@ -270,13 +338,10 @@ export default function AvailabilityMonitoringDetailPage() {
       priority: basicInfo.priority,
       rules,
     };
-    if (sourceRecord) {
-      updateRecord(sourceRecord.id, payload);
-      message.success(`Record ${sourceRecord.id} updated.`);
-    } else {
-      const created = addRecord(payload);
-      message.success(`Record ${created.id} created.`);
-    }
+
+    if (sourceRecord) updateRecord(sourceRecord.id, payload);
+    else addRecord(payload);
+    message.success('Availability monitoring saved.');
     navigate('/operation-config/availability-monitoring');
   };
 
@@ -300,7 +365,9 @@ export default function AvailabilityMonitoringDetailPage() {
         <h1>{isModify ? 'Modify Availability monitoring' : 'Create Availability monitoring'}</h1>
       </div>
 
-      <div className="availability-monitoring-detail-content">
+      <fieldset
+        className="availability-monitoring-detail-content availability-monitoring-edit-area"
+      >
         <section className="availability-monitoring-detail-card">
           <h2>Basic Info</h2>
           <div className="availability-monitoring-basic-form">
@@ -454,7 +521,7 @@ export default function AvailabilityMonitoringDetailPage() {
             <Button onClick={() => navigate('/operation-config/availability-monitoring')}>Cancel</Button>
           </div>
         </section>
-      </div>
+      </fieldset>
 
       <Modal
         title={editingRuleId ? 'Edit Rule Configuration' : 'Add Rule Configuration'}
@@ -567,6 +634,23 @@ export default function AvailabilityMonitoringDetailPage() {
         onCancel={() => setConfigurationRuleId(undefined)}
         destroyOnHidden
       >
+        <Alert
+          className="availability-monitoring-demo-data"
+          type="info"
+          showIcon
+          message="Demo validation data"
+          description={(
+            <div>
+              <div><strong>Account:</strong> valid <code>{availabilityValidationDemoData.account.valid}</code></div>
+              <div>not found <code>{availabilityValidationDemoData.account.notFound}</code> · Closed <code>{availabilityValidationDemoData.account.closed}</code></div>
+              <div>service error <code>{availabilityValidationDemoData.account.systemError}</code></div>
+              <div><strong>Member:</strong> ENABLE <code>{availabilityValidationDemoData.member.enable}</code></div>
+              <div>not found <code>{availabilityValidationDemoData.member.notFound}</code> · DISABLE <code>{availabilityValidationDemoData.member.disable}</code></div>
+              <div>CLOSE <code>{availabilityValidationDemoData.member.close}</code> · service error <code>{availabilityValidationDemoData.member.systemError}</code></div>
+              <div><strong>Other required fields:</strong> Target Account Number <code>8135492339</code> · Target Account Name <code>Demo beneficiary</code> · Amount <code>1000</code></div>
+            </div>
+          )}
+        />
         <div className="availability-monitoring-internal-form">
           <label>
             <span>Initial Account</span>
@@ -602,20 +686,42 @@ export default function AvailabilityMonitoringDetailPage() {
           rowKey="id"
           dataSource={configurationRows}
           pagination={false}
+          tableLayout="fixed"
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No data" /> }}
           columns={[
-            { title: 'Initial Account', dataIndex: 'initialAccount' },
-            { title: 'Initial Member Id', dataIndex: 'initialMemberId' },
+            {
+              title: 'Initial Account',
+              dataIndex: 'initialAccount',
+              width: 175,
+              render: (value: string) => <span className="availability-monitoring-id-cell">{value}</span>,
+            },
+            {
+              title: 'Initial Member Id',
+              dataIndex: 'initialMemberId',
+              width: 175,
+              render: (value: string) => <span className="availability-monitoring-id-cell">{value}</span>,
+            },
             {
               title: 'Target Account',
               key: 'targetAccount',
-              render: (_, row) => `${row.targetAccountNumber} / ${row.targetAccountName}`,
+              width: 180,
+              render: (_, row) => row.targetAccountName
+                ? `${row.targetAccountNumber} / ${row.targetAccountName}`
+                : row.targetAccountNumber,
             },
-            { title: 'Amount(kobo)', dataIndex: 'amount' },
-            { title: 'Status', dataIndex: 'status' },
+            { title: 'Amount(kobo)', dataIndex: 'amount', width: 105 },
+            {
+              title: 'Status',
+              key: 'status',
+              width: 185,
+              render: (_, row) => row.status === 'enable'
+                ? <Tag color="green">enable</Tag>
+                : <Tag>disable</Tag>,
+            },
             {
               title: 'Operation',
               key: 'operation',
+              width: 120,
               render: (_, row) => (
                 <Popconfirm
                   title="Delete this account configuration?"
@@ -635,6 +741,7 @@ export default function AvailabilityMonitoringDetailPage() {
           ]}
         />
       </Modal>
+
     </div>
   );
 }
