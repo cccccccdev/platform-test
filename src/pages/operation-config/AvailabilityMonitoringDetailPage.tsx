@@ -3,7 +3,6 @@ import {
   Alert,
   Breadcrumb,
   Button,
-  Descriptions,
   Empty,
   Input,
   InputNumber,
@@ -13,6 +12,7 @@ import {
   Space,
   Switch,
   Table,
+  Tag,
   message,
 } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -81,50 +81,49 @@ interface DemoValidationFailure {
 }
 
 const validateDemoConfiguration = (
-  rules: AvailabilityMonitoringRule[],
+  configuration: InternalTrafficConfiguration,
 ): DemoValidationFailure | undefined => {
-  const configurations = rules.flatMap((rule) => rule.internalTraffic
-    ? rule.internalConfigurations.map((configuration) => ({ rule, configuration }))
-    : []);
-
-  for (const { rule, configuration } of configurations) {
-    const location = `${rule.institutionLabel} · ${configuration.initialAccount}`;
-    if (configuration.initialAccount === availabilityValidationDemoData.account.systemError) {
+  if (configuration.initialAccount === availabilityValidationDemoData.account.systemError) {
+    return {
+      title: 'System error',
+      message: 'The system is temporarily unavailable. Please try again.',
+    };
+  }
+  if (configuration.initialAccount !== availabilityValidationDemoData.account.valid) {
+    if (configuration.initialAccount === availabilityValidationDemoData.account.closed) {
       return {
-        title: 'Account validation is temporarily unavailable',
-        message: `${location}: the account service returned a system error. Please try again.`,
+        title: 'Account ID is closed',
+        message: 'This account exists, but its status is Closed. Use an account that is not closed.',
       };
     }
-    if (configuration.initialAccount !== availabilityValidationDemoData.account.valid) {
-      return {
-        title: 'Account ID was not found',
-        message: `${location}: please verify the Initial Account and try again.`,
-      };
-    }
-    if (configuration.initialMemberId === availabilityValidationDemoData.member.systemError) {
-      return {
-        title: 'Member validation is temporarily unavailable',
-        message: `${rule.institutionLabel}: the member service returned a system error. Please try again.`,
-      };
-    }
-    if (configuration.initialMemberId === availabilityValidationDemoData.member.disable) {
-      return {
-        title: 'Member ID is disabled',
-        message: `${rule.institutionLabel}: this member exists, but its status is DISABLE. Use an enabled Member ID.`,
-      };
-    }
-    if (configuration.initialMemberId === availabilityValidationDemoData.member.close) {
-      return {
-        title: 'Member ID is closed',
-        message: `${rule.institutionLabel}: this member exists, but its status is CLOSE. Use an enabled Member ID.`,
-      };
-    }
-    if (configuration.initialMemberId !== availabilityValidationDemoData.member.enable) {
-      return {
-        title: 'Member ID was not found',
-        message: `${rule.institutionLabel}: please verify the Initial Member ID and try again.`,
-      };
-    }
+    return {
+      title: 'Account ID was not found',
+      message: 'Please verify the Initial Account and try again.',
+    };
+  }
+  if (configuration.initialMemberId === availabilityValidationDemoData.member.systemError) {
+    return {
+      title: 'System error',
+      message: 'The system is temporarily unavailable. Please try again.',
+    };
+  }
+  if (configuration.initialMemberId === availabilityValidationDemoData.member.disable) {
+    return {
+      title: 'Member ID is disabled',
+      message: 'This member exists, but its status is DISABLE. Use an enabled Member ID.',
+    };
+  }
+  if (configuration.initialMemberId === availabilityValidationDemoData.member.close) {
+    return {
+      title: 'Member ID is closed',
+      message: 'This member exists, but its status is CLOSE. Use an enabled Member ID.',
+    };
+  }
+  if (configuration.initialMemberId !== availabilityValidationDemoData.member.enable) {
+    return {
+      title: 'Member ID was not found',
+      message: 'Please verify the Initial Member ID and try again.',
+    };
   }
   return undefined;
 };
@@ -136,9 +135,8 @@ export default function AvailabilityMonitoringDetailPage() {
   const isModify = Number.isFinite(numericRecordId);
   const records = useAvailabilityMonitoringStore((state) => state.records);
   const addRecord = useAvailabilityMonitoringStore((state) => state.addRecord);
-  const submitForApproval = useAvailabilityMonitoringStore((state) => state.submitForApproval);
+  const updateRecord = useAvailabilityMonitoringStore((state) => state.updateRecord);
   const sourceRecord = isModify ? records.find(({ id }) => id === numericRecordId) : undefined;
-  const approvalLocked = sourceRecord?.approval?.status === 'PENDING';
   const countries = useBasicInfoReferenceStore((state) => state.countries);
   const businessTypes = useBusinessTypeStore((state) => state.records);
   const institutions = useInstitutionReferenceStore((state) => state.records);
@@ -167,9 +165,6 @@ export default function AvailabilityMonitoringDetailPage() {
   const [configurationRuleId, setConfigurationRuleId] = useState<string>();
   const [configurationRows, setConfigurationRows] = useState<InternalTrafficConfiguration[]>([]);
   const [configurationDraft, setConfigurationDraft] = useState<InternalConfigurationDraft>(emptyInternalDraft);
-  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
-  const [approvalReason, setApprovalReason] = useState('');
-  const [pendingPayload, setPendingPayload] = useState<AvailabilityMonitoringUpdate>();
 
   const countryOptions = countries.map(({ code }) => ({ value: code, label: code }));
   const tenantOptions = basicInfo.country ? getTenantOptionsByCountry(basicInfo.country) : [];
@@ -190,9 +185,6 @@ export default function AvailabilityMonitoringDetailPage() {
   }, [basicInfo.businessType, basicInfo.country, basicInfo.service, basicInfo.tenant, records, serviceChannelEnabled]);
   const informationValidationRequired = basicInfo.businessType === 'BANK_ACCOUNT_CREDIT'
     && basicInfo.service.trim().toUpperCase() === 'TRANSFER';
-  const validationSummary = informationValidationRequired
-    ? 'Account ID and Member ID validation passed'
-    : 'No Account ID or Member ID validation is required for this configuration';
   const institutionOptions = useMemo(() => [
     { value: 'all', label: 'all' },
     ...institutions
@@ -289,7 +281,7 @@ export default function AvailabilityMonitoringDetailPage() {
       message.error('Please complete all Internal Traffic Configuration fields.');
       return;
     }
-    setConfigurationRows((current) => [...current, {
+    const nextConfiguration: InternalTrafficConfiguration = {
       id: nextKey('account'),
       initialAccount: initialAccount.trim(),
       initialMemberId: initialMemberId.trim(),
@@ -297,8 +289,17 @@ export default function AvailabilityMonitoringDetailPage() {
       targetAccountName: targetAccountName.trim(),
       amount,
       status: 'enable',
-    }]);
+    };
+    if (informationValidationRequired) {
+      const failure = validateDemoConfiguration(nextConfiguration);
+      if (failure) {
+        Modal.error({ title: failure.title, content: failure.message, okText: 'Got it' });
+        return;
+      }
+    }
+    setConfigurationRows((current) => [...current, nextConfiguration]);
     setConfigurationDraft(emptyInternalDraft());
+    message.success('Validation passed. Configuration added.');
   };
 
   const confirmInternalConfiguration = () => {
@@ -309,10 +310,6 @@ export default function AvailabilityMonitoringDetailPage() {
   };
 
   const save = () => {
-    if (approvalLocked) {
-      message.warning('This record has a pending approval and cannot be modified until the approval is completed.');
-      return;
-    }
     if (!basicInfo.country || !basicInfo.tenant || !basicInfo.businessType
       || !basicInfo.service.trim() || !basicInfo.serviceChannel || basicInfo.priority === undefined) {
       message.error('Please complete all Basic Info fields.');
@@ -342,39 +339,9 @@ export default function AvailabilityMonitoringDetailPage() {
       rules,
     };
 
-    if (informationValidationRequired) {
-      const failure = validateDemoConfiguration(rules);
-      if (failure) {
-        Modal.error({ title: failure.title, content: failure.message, okText: 'Got it' });
-        return;
-      }
-      message.success('Account ID and Member ID validation passed.');
-    }
-
-    setPendingPayload(payload);
-    setApprovalReason('');
-    setApprovalModalOpen(true);
-  };
-
-  const confirmApproval = () => {
-    if (!pendingPayload || !approvalReason.trim()) {
-      message.error('Please enter a reason for change.');
-      return;
-    }
-    const targetRecord = sourceRecord ?? addRecord(pendingPayload);
-    const approval = submitForApproval(
-      targetRecord.id,
-      pendingPayload,
-      approvalReason.trim(),
-      validationSummary,
-    );
-    if (!approval) {
-      message.error('This record already has a pending approval. Wait for it to complete before modifying the record again.');
-      setApprovalModalOpen(false);
-      return;
-    }
-    setApprovalModalOpen(false);
-    message.success(`Submitted for approval (${approval.requestId}). The current configuration remains effective until approval is completed.`);
+    if (sourceRecord) updateRecord(sourceRecord.id, payload);
+    else addRecord(payload);
+    message.success('Availability monitoring saved.');
     navigate('/operation-config/availability-monitoring');
   };
 
@@ -398,19 +365,8 @@ export default function AvailabilityMonitoringDetailPage() {
         <h1>{isModify ? 'Modify Availability monitoring' : 'Create Availability monitoring'}</h1>
       </div>
 
-      {approvalLocked && (
-        <Alert
-          className="availability-monitoring-approval-lock"
-          type="warning"
-          showIcon
-          message={`Pending approval · ${sourceRecord.approval?.requestId}`}
-          description="This record cannot be modified, deleted, or switched on/off until the current approval is completed. The active configuration remains unchanged."
-        />
-      )}
-
       <fieldset
         className="availability-monitoring-detail-content availability-monitoring-edit-area"
-        disabled={approvalLocked}
       >
         <section className="availability-monitoring-detail-card">
           <h2>Basic Info</h2>
@@ -561,7 +517,7 @@ export default function AvailabilityMonitoringDetailPage() {
             ]}
           />
           <div className="availability-monitoring-save-actions">
-            <Button type="primary" onClick={save}>Submit</Button>
+            <Button type="primary" onClick={save}>Save</Button>
             <Button onClick={() => navigate('/operation-config/availability-monitoring')}>Cancel</Button>
           </div>
         </section>
@@ -686,7 +642,8 @@ export default function AvailabilityMonitoringDetailPage() {
           description={(
             <div>
               <div><strong>Account:</strong> valid <code>{availabilityValidationDemoData.account.valid}</code></div>
-              <div>not found <code>{availabilityValidationDemoData.account.notFound}</code> · service error <code>{availabilityValidationDemoData.account.systemError}</code></div>
+              <div>not found <code>{availabilityValidationDemoData.account.notFound}</code> · Closed <code>{availabilityValidationDemoData.account.closed}</code></div>
+              <div>service error <code>{availabilityValidationDemoData.account.systemError}</code></div>
               <div><strong>Member:</strong> ENABLE <code>{availabilityValidationDemoData.member.enable}</code></div>
               <div>not found <code>{availabilityValidationDemoData.member.notFound}</code> · DISABLE <code>{availabilityValidationDemoData.member.disable}</code></div>
               <div>CLOSE <code>{availabilityValidationDemoData.member.close}</code> · service error <code>{availabilityValidationDemoData.member.systemError}</code></div>
@@ -729,22 +686,42 @@ export default function AvailabilityMonitoringDetailPage() {
           rowKey="id"
           dataSource={configurationRows}
           pagination={false}
+          tableLayout="fixed"
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No data" /> }}
           columns={[
-            { title: 'Initial Account', dataIndex: 'initialAccount' },
-            { title: 'Initial Member Id', dataIndex: 'initialMemberId' },
+            {
+              title: 'Initial Account',
+              dataIndex: 'initialAccount',
+              width: 175,
+              render: (value: string) => <span className="availability-monitoring-id-cell">{value}</span>,
+            },
+            {
+              title: 'Initial Member Id',
+              dataIndex: 'initialMemberId',
+              width: 175,
+              render: (value: string) => <span className="availability-monitoring-id-cell">{value}</span>,
+            },
             {
               title: 'Target Account',
               key: 'targetAccount',
+              width: 180,
               render: (_, row) => row.targetAccountName
                 ? `${row.targetAccountNumber} / ${row.targetAccountName}`
                 : row.targetAccountNumber,
             },
-            { title: 'Amount(kobo)', dataIndex: 'amount' },
-            { title: 'Status', dataIndex: 'status' },
+            { title: 'Amount(kobo)', dataIndex: 'amount', width: 105 },
+            {
+              title: 'Status',
+              key: 'status',
+              width: 185,
+              render: (_, row) => row.status === 'enable'
+                ? <Tag color="green">enable</Tag>
+                : <Tag>disable</Tag>,
+            },
             {
               title: 'Operation',
               key: 'operation',
+              width: 120,
               render: (_, row) => (
                 <Popconfirm
                   title="Delete this account configuration?"
@@ -765,47 +742,6 @@ export default function AvailabilityMonitoringDetailPage() {
         />
       </Modal>
 
-      <Modal
-        title="Submit Availability Monitoring Change for Approval"
-        open={approvalModalOpen}
-        width={760}
-        okText="Submit for Approval"
-        onOk={confirmApproval}
-        onCancel={() => setApprovalModalOpen(false)}
-        okButtonProps={{ disabled: !approvalReason.trim() }}
-        destroyOnHidden
-      >
-        <Alert
-          type="success"
-          showIcon
-          message={informationValidationRequired ? 'Information validation passed' : 'Ready for approval'}
-          description="The change has not taken effect. Review the approval message and submit it for approval."
-        />
-        <Descriptions
-          className="availability-monitoring-approval-summary"
-          bordered
-          column={2}
-          size="small"
-          items={[
-            { key: 'environment', label: 'Environment', children: 'PROD' },
-            { key: 'record', label: 'Record ID', children: sourceRecord?.id ?? 'New record' },
-            { key: 'scope', label: 'Configuration', children: `${basicInfo.businessType ?? '-'} / ${basicInfo.service || '-'} / ${basicInfo.serviceChannel ?? '-'}`, span: 2 },
-            { key: 'country', label: 'Country / Tenant', children: `${basicInfo.country ?? '-'} / ${basicInfo.tenant ?? '-'}` },
-            { key: 'operator', label: 'Applicant', children: 'Current User' },
-            { key: 'validation', label: 'Validation', children: validationSummary, span: 2 },
-            { key: 'effect', label: 'Effective rule', children: 'The current configuration remains effective until this request is approved.', span: 2 },
-          ]}
-        />
-        <label className="availability-monitoring-approval-reason">
-          <span>Reason for change</span>
-          <Input.TextArea
-            rows={4}
-            value={approvalReason}
-            placeholder="Required. This reason will be included in the approval message."
-            onChange={(event) => setApprovalReason(event.target.value)}
-          />
-        </label>
-      </Modal>
     </div>
   );
 }

@@ -4,16 +4,7 @@ export type AvailabilityMonitoringStatus = 'ON' | 'OFF';
 export type AvailabilityDetectType = 'availability' | 'probeTest';
 export type AvailabilityMetricType = 'institution' | 'channel';
 export type AmountOperator = '>' | '<' | '=';
-export type AvailabilityApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
-
-export interface AvailabilityApprovalRequest {
-  requestId: string;
-  status: AvailabilityApprovalStatus;
-  submittedBy: string;
-  submittedAt: string;
-  reason: string;
-  validationSummary: string;
-}
+export type InternalTrafficRuntimeStatus = 'enable' | 'disable';
 
 export interface InternalTrafficConfiguration {
   id: string;
@@ -22,7 +13,7 @@ export interface InternalTrafficConfiguration {
   targetAccountNumber: string;
   targetAccountName: string;
   amount: number;
-  status: 'enable' | 'disabled';
+  status: InternalTrafficRuntimeStatus;
 }
 
 export interface AvailabilityMonitoringRule {
@@ -53,8 +44,6 @@ export interface AvailabilityMonitoringRecord {
   updateTime: string;
   status: AvailabilityMonitoringStatus;
   rules: AvailabilityMonitoringRule[];
-  approval?: AvailabilityApprovalRequest;
-  pendingChanges?: AvailabilityMonitoringUpdate;
 }
 
 export type AvailabilityMonitoringUpdate = Pick<
@@ -66,6 +55,7 @@ export const availabilityValidationDemoData = {
   account: {
     valid: 'b45a608182c54081a49bcdf68ac271e9',
     notFound: '00000000000000000000000000000001',
+    closed: '00000000000000000000000000000005',
     systemError: '00000000000000000000000000000099',
   },
   member: {
@@ -315,12 +305,6 @@ interface AvailabilityMonitoringStore {
   records: AvailabilityMonitoringRecord[];
   addRecord: (record: Omit<AvailabilityMonitoringRecord, 'id' | 'operator' | 'createTime' | 'updateTime' | 'status'>) => AvailabilityMonitoringRecord;
   updateRecord: (id: number, updates: AvailabilityMonitoringUpdate) => void;
-  submitForApproval: (
-    id: number,
-    updates: AvailabilityMonitoringUpdate,
-    reason: string,
-    validationSummary: string,
-  ) => AvailabilityApprovalRequest | undefined;
   deleteRecord: (id: number) => void;
   setStatus: (id: number, status: AvailabilityMonitoringStatus) => void;
 }
@@ -342,38 +326,15 @@ export const useAvailabilityMonitoringStore = create<AvailabilityMonitoringStore
   },
   updateRecord: (id, updates) => set((state) => ({
     records: state.records.map((record) => record.id === id
-      ? record.approval?.status === 'PENDING'
-        ? record
-        : { ...record, ...updates, operator: 'Current User', updateTime: formatNow() }
+      ? { ...record, ...updates, operator: 'Current User', updateTime: formatNow() }
       : record),
   })),
-  submitForApproval: (id, updates, reason, validationSummary) => {
-    const record = get().records.find((item) => item.id === id);
-    if (!record || record.approval?.status === 'PENDING') return undefined;
-    const submittedAt = formatNow();
-    const approval: AvailabilityApprovalRequest = {
-      requestId: `AM-${Date.now()}`,
-      status: 'PENDING',
-      submittedBy: 'Current User',
-      submittedAt,
-      reason,
-      validationSummary,
-    };
-    set((state) => ({
-      records: state.records.map((item) => item.id === id
-        ? { ...item, approval: { ...approval }, pendingChanges: updates }
-        : item),
-    }));
-    return approval;
-  },
   deleteRecord: (id) => set((state) => ({
-    records: state.records.filter((record) => record.id !== id || record.approval?.status === 'PENDING'),
+    records: state.records.filter((record) => record.id !== id),
   })),
   setStatus: (id, status) => set((state) => ({
     records: state.records.map((record) => record.id === id
-      ? record.approval?.status === 'PENDING'
-        ? record
-        : { ...record, status, operator: 'Current User', updateTime: formatNow() }
+      ? { ...record, status, operator: 'Current User', updateTime: formatNow() }
       : record),
   })),
 }));
