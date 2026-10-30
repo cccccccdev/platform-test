@@ -23,6 +23,7 @@ const ConfigEditorPage = lazy(() => import('../pages/channel-integration/ConfigE
 const CodeAbilityListPage = lazy(() => import('../pages/channel-integration/CodeAbilityListPage'));
 const CodeGuidePage = lazy(() => import('../pages/channel-integration/CodeGuidePage'));
 const ChannelInfoPage = lazy(() => import('../pages/channel-integration/ChannelInfoPage'));
+const ChannelPartyPage = lazy(() => import('../pages/channel-integration/ChannelPartyPage'));
 const RuntimeFlowCanvasPage = lazy(() => import('../pages/channel-integration/RuntimeFlowCanvasPage'));
 const MetadataPage = lazy(() => import('../pages/channel-integration/MetadataPage'));
 const ConfigIntegrationOverviewPage = lazy(() => import('../pages/channel-integration/ConfigIntegrationOverviewPage'));
@@ -38,6 +39,7 @@ const TestPage = lazy(() => import('../pages/channel-integration/TestPage'));
 // Basic Info pages (has sidebar)
 const CurrencyPage = lazy(() => import('../pages/basic-info/CurrencyPage'));
 const CountryPage = lazy(() => import('../pages/basic-info/CountryPage'));
+const PartyPage = lazy(() => import('../pages/basic-info/PartyPage'));
 const InstitutionTypePage = lazy(() => import('../pages/basic-info/InstitutionTypePage'));
 const InstitutionPage = lazy(() => import('../pages/basic-info/InstitutionPage'));
 const ExchangeRatePage = lazy(() => import('../pages/basic-info/ExchangeRatePage'));
@@ -161,7 +163,7 @@ const router = createHashRouter(
 
       // Channel sub-pages
       { path: 'channel-integration/:channelCode/business-type', element: <LegacyChannelProfileRedirect section="summary" /> },
-      { path: 'channel-integration/:channelCode/party', element: <LegacyChannelProfileRedirect section="summary" /> },
+      { path: 'channel-integration/:channelCode/party', element: <ChannelPartyPage /> },
       { path: 'channel-integration/:channelCode/country', element: <LegacyChannelProfileRedirect section="summary" /> },
       { path: 'channel-integration/:channelCode/offline-info', element: <LegacyChannelProfileRedirect section="integration-records" /> },
       { path: 'channel-integration/:channelCode/profile/:section', element: <ChannelProfilePage /> },
@@ -250,7 +252,7 @@ const router = createHashRouter(
           { path: 'exchange-rate', element: <ExchangeRatePage /> },
           { path: 'product', element: <ProductPage /> },
           { path: 'merchant', element: <MerchantPage /> },
-          { path: 'party', element: <ComingSoonPage title="Party" /> },
+          { path: 'party', element: <PartyPage /> },
           { path: 'card-bin', element: <ComingSoonPage title="Card Bin" /> },
           { path: 'party-tenant', element: <ComingSoonPage title="Party & Tenant" /> },
           { path: 'institution-type', element: <InstitutionTypePage /> },

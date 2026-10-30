@@ -212,6 +212,9 @@ export default function ChannelListPage() {
           <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/profile/summary`)}>
             Profile
           </Button>
+          <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/party`)}>
+            Party
+          </Button>
           <Button type="primary" size="small" onClick={() => navigate(`/channel-integration/${record.code}/integration`)}>
             Integration
           </Button>
