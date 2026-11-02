@@ -6,6 +6,7 @@ import { businessTypeOptions, mockChannels, partyOptions } from '../../mock/data
 import { countryCodeOptions } from '../../mock/countries';
 import type { Channel } from './types';
 import { Brand, UserProfile } from '../../components/PlatformChrome';
+import { AnnouncementChrome } from '../../components/AnnouncementOverlays';
 import { saveCreatedIntegrationRecord } from './channelCreationStore';
 import { isBusinessTypeScopeComplete, toPartyScopes } from './integrationScope';
 import { approverPresets, getApproverPreset } from './approvalPresets';
@@ -230,7 +231,7 @@ export default function ChannelListPage() {
         <div className="channel-list-active">Channel List</div>
       </aside>
       <div className="channel-list-main">
-        <header className="legacy-header"><UserProfile /></header>
+        <header className="legacy-header announcement-header"><AnnouncementChrome /><UserProfile /></header>
         <div className="legacy-page-heading">
       {/* Breadcrumb */}
       <Breadcrumb

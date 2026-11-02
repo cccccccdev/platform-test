@@ -30,6 +30,10 @@ const initialInstitutions: InstitutionRecord[] = [
   { name: 'ACCESS BANK', code: 'ACCESS_NG', country: 'NG', institutionTypes: ['BANK'], relationInstitutions: [], operator: 'Bailly', operationTime: '2026-08-19 03:53:28' },
   { name: 'UNITED BANK FOR AFRICA', code: 'UBA_NG', country: 'NG', institutionTypes: ['BANK'], relationInstitutions: [], operator: 'Bailly', operationTime: '2026-08-19 03:53:28' },
   { name: 'FIRST BANK OF NIGERIA', code: 'FIRST_BANK_NG', country: 'NG', institutionTypes: ['BANK'], relationInstitutions: [], operator: 'Bailly', operationTime: '2026-08-19 03:53:28' },
+  { name: 'OPay', code: '100004', country: 'NG', institutionTypes: ['BANK'], relationInstitutions: [], operator: '陈倩 Athena', operationTime: '2026-08-27 09:53:08' },
+  { name: 'Moniepoint', code: 'MONIEPOINT_NG', country: 'NG', institutionTypes: ['BANK'], relationInstitutions: [], operator: '陈倩 Athena', operationTime: '2026-08-27 09:53:08' },
+  { name: 'Kuda MFB', code: 'KUDA_NG', country: 'NG', institutionTypes: ['BANK'], relationInstitutions: [], operator: '陈倩 Athena', operationTime: '2026-08-27 09:53:08' },
+  { name: 'Providus Bank', code: 'PROVIDUS_NG', country: 'NG', institutionTypes: ['BANK'], relationInstitutions: [], operator: '陈倩 Athena', operationTime: '2026-08-27 09:53:08' },
 ];
 
 interface InstitutionReferenceStore {

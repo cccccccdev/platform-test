@@ -127,6 +127,29 @@ export default function ComponentPanel({ disabled = false }: { disabled?: boolea
           </div>
           <span><span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#334155' }}>State</span><span style={{ display: 'block', marginTop: 4, fontSize: 11, color: '#94a3b8' }}>General state node</span></span>
         </div>
+
+        {/* BAL_EXCEPTION special state card */}
+        <div
+          draggable={!disabled}
+          onDragStart={e => onDragStart(e, 'bal_exception')}
+          style={{
+            background: '#fff7e6',
+            border: '1px solid #ffd591',
+            borderRadius: 10,
+            padding: '14px 12px',
+            cursor: disabled ? 'not-allowed' : 'grab',
+            opacity: disabled ? 0.48 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <div style={{ width: 36, height: 36, borderRadius: 5, background: '#fff', border: '1px solid #ffbb96', display: 'grid', placeItems: 'center', flexShrink: 0, color: '#d46b08', fontWeight: 700 }}>!</div>
+          <span>
+            <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#ad4e00' }}>BAL_EXCEPTION</span>
+            <span style={{ display: 'block', marginTop: 4, fontSize: 11, color: '#ad6800' }}>Maps to PENDING or FAIL</span>
+          </span>
+        </div>
       </div>
     </div>
   );

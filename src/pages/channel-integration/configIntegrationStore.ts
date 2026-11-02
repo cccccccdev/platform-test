@@ -221,6 +221,7 @@ const evexinBulkSendHttpConfig = {
   responseCodeAssembly: ['httpStatus', 'responseBody.code', 'responseBody.status'],
   responseMessageField: 'msg',
   subOrderMappingEnabled: false,
+  defaultSubOrderSubState: 'SUBMITTED',
   timeout: 5000,
   requestHeaders: [
     { id: 'evexin_bulk_header_app_key', sourceValue: ['Credentials', 'credential.appKey'], name: 'appKey', type: 'String', required: true, description: '' },
@@ -279,6 +280,7 @@ const evexinBulkCallbackCanvasNodes = [
       codeMappingEnabled: false,
       codeMappingMode: 'default',
       subOrderComponentInstance: 'PENDING',
+      subOrderComponentSubState: 'SUBMITTED',
       subOrderFeatureValueField: 'body.to',
       subOrderResponseCodeAssembly: ['body.status'],
       subOrderResponseMessageField: 'body.message',

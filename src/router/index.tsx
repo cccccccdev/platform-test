@@ -5,7 +5,14 @@ const AppShell = lazy(() => import('../components/AppShell'));
 const IntegrationLayout = lazy(() => import('../components/IntegrationLayout'));
 const NoSidebarLayout = lazy(() => import('../components/NoSidebarLayout'));
 const IntegrationDetailLayout = lazy(() => import('../components/IntegrationDetailLayout'));
+const AnnouncementLayout = lazy(() => import('../components/AnnouncementLayout'));
 const HomePage = lazy(() => import('../pages/home/HomePage'));
+const OperationConfigLayout = lazy(() => import('../pages/operation-config/OperationConfigLayout'));
+const OperationConfigPlaceholderPage = lazy(() => import('../pages/operation-config/OperationConfigPlaceholderPage'));
+const AvailabilityMonitoringPage = lazy(() => import('../pages/operation-config/AvailabilityMonitoringPage'));
+const AvailabilityMonitoringDetailPage = lazy(() => import('../pages/operation-config/AvailabilityMonitoringDetailPage'));
+const MonitoringScenarioListPage = lazy(() => import('../pages/operation-config/MonitoringScenarioListPage'));
+const MonitoringScenarioConfigPage = lazy(() => import('../pages/operation-config/MonitoringScenarioConfigPage'));
 
 // Channel Integration pages (no sidebar)
 const ChannelListPage = lazy(() => import('../pages/channel-integration/ChannelListPage'));
@@ -36,19 +43,23 @@ const InstitutionPage = lazy(() => import('../pages/basic-info/InstitutionPage')
 const ExchangeRatePage = lazy(() => import('../pages/basic-info/ExchangeRatePage'));
 const ProductPage = lazy(() => import('../pages/basic-info/ProductPage'));
 const MerchantPage = lazy(() => import('../pages/basic-info/MerchantPage'));
-const CapabilityPage = lazy(() => import('../pages/basic-info/CapabilityPage'));
-const ServicePage = lazy(() => import('../pages/basic-info/ServicePage'));
 const BusinessTypeDemoPage = lazy(() => import('../pages/basic-info/BusinessTypeDemoLivePage'));
 const BusinessTypeDemoDetailPage = lazy(() => import('../pages/basic-info/BusinessTypeDemoDetailPage'));
-const ServiceCapabilityPage = lazy(() => import('../pages/basic-info/ServiceCapabilityPage'));
+const AbilitySettingsPage = lazy(() => import('../pages/basic-info/AbilitySettingsPage'));
 const ServiceFieldMappingPage = lazy(() => import('../pages/basic-info/ServiceFieldMappingPage'));
 const ServiceApiPage = lazy(() => import('../pages/basic-info/ServiceApiPage'));
+const ServiceApiSharedPage = lazy(() => import('../pages/basic-info/ServiceApiPage').then((module) => ({ default: module.ServiceApiSharedPage })));
 const ServiceApiLimitPage = lazy(() => import('../pages/basic-info/ServiceApiLimitPage'));
 const StateMachineListPage = lazy(() => import('../pages/basic-info/capability/StateMachineListPage'));
 const LinkStateMachinePage = lazy(() => import('../pages/basic-info/capability/LinkStateMachinePage'));
 const StateMachineCanvas = lazy(() => import('../pages/basic-info/capability/stateMachine/StateMachineCanvas'));
 const CapabilityFeaturesPage = lazy(() => import('../pages/basic-info/capability/CapabilityFeaturesPage'));
 const CapabilitySpiPage = lazy(() => import('../pages/basic-info/capability/CapabilitySpiPage'));
+const FieldLibraryPage = lazy(() => import('../pages/basic-info/FieldLibraryPage'));
+
+// Announcement module
+const AnnouncementManagePage = lazy(() => import('../pages/announcement/AnnouncementManagePage'));
+const AnnouncementEditorPage = lazy(() => import('../pages/announcement/AnnouncementEditorPage'));
 
 const TestCenterPage = lazy(() => import('../pages/tests/TestCenterPage'));
 const ContextInspectorPage = lazy(() => import('../pages/inspector/ContextInspectorPage'));
@@ -59,9 +70,7 @@ function ComingSoonPage({ title }: { title: string }) {
 
 function LegacyBusinessTypeRedirect() {
   const { search } = useLocation();
-  const remembered = window.localStorage.getItem('basicInfoBusinessTypeModule');
-  const module = remembered === 'service' || remembered === 'demo' ? remembered : 'capability';
-  return <Navigate to={`/basic-info/${module}${search}`} replace />;
+  return <Navigate to={`/basic-info/demo${search}`} replace />;
 }
 
 function IntegrationIndexRedirect() {
@@ -121,7 +130,7 @@ const router = createHashRouter(
 [
   { index: true, element: <Navigate to="/home" replace /> },
   { path: '/home', element: <HomePage /> },
-  { path: '/operation-config', element: <ComingSoonPage title="Operation Config" /> },
+  { path: '/shared/service-api', element: <ServiceApiSharedPage /> },
   { path: '/channel', element: <Navigate to="/channel-integration" replace /> },
   { path: '/actions', element: <ComingSoonPage title="Action Library" /> },
   { path: '/tests', element: <TestCenterPage /> },
@@ -249,22 +258,55 @@ const router = createHashRouter(
           { path: 'segment', element: <ComingSoonPage title="Segment" /> },
           { path: 'response-code', element: <ComingSoonPage title="Response Code" /> },
           { path: 'application', element: <ComingSoonPage title="Application" /> },
-          { path: 'service', element: <ServicePage /> },
+          { path: 'service', element: <LegacyBusinessTypeRedirect /> },
           { path: 'demo', element: <BusinessTypeDemoPage /> },
           { path: 'demo/detail', element: <BusinessTypeDemoDetailPage /> },
-          { path: 'service/capability', element: <ServiceCapabilityPage /> },
+          { path: 'demo/ability-settings', element: <AbilitySettingsPage /> },
+          { path: 'service/capability', element: <LegacyBusinessTypeRedirect /> },
           { path: 'service/capability/field-mapping', element: <ServiceFieldMappingPage /> },
           { path: 'service/api', element: <ServiceApiPage /> },
           { path: 'service/api-limit', element: <ServiceApiLimitPage /> },
-          { path: 'capability', element: <CapabilityPage /> },
+          { path: 'capability', element: <LegacyBusinessTypeRedirect /> },
           { path: 'capability/features', element: <CapabilityFeaturesPage /> },
           { path: 'capability/spi', element: <CapabilitySpiPage /> },
           { path: 'capability/stateMachine', element: <StateMachineListPage /> },
           { path: 'capability/link-state-machine', element: <LinkStateMachinePage /> },
           { path: 'capability/stateMachine/canvas', element: <StateMachineCanvas /> },
+          { path: 'field-library', element: <FieldLibraryPage /> },
           { path: 'stateMachine', element: <StateMachineListPage /> },
         ],
       },
+    ],
+  },
+  // Operation Config module (legacy sidebar reproduced from the current platform)
+  {
+    path: 'operation-config',
+    element: <OperationConfigLayout />,
+    children: [
+      { index: true, element: <Navigate to="business-type-service-channel" replace /> },
+      { path: 'business-type-service-channel', element: <OperationConfigPlaceholderPage title="Business Type - Service Channel" /> },
+      { path: 'service-channel-asset-route', element: <OperationConfigPlaceholderPage title="Service Channel AssetRoute" /> },
+      { path: 'service-channel-institution', element: <OperationConfigPlaceholderPage title="Service Channel Institution" /> },
+      { path: 'pos-channel-acquirer', element: <OperationConfigPlaceholderPage title="POS Channel Acquirer" /> },
+      { path: 'pos-service-channel-institution', element: <OperationConfigPlaceholderPage title="POS Service Channel Institution" /> },
+      { path: 'schedule-trans', element: <OperationConfigPlaceholderPage title="Schedule Trans" /> },
+      { path: 'probe-test-list', element: <OperationConfigPlaceholderPage title="ProbeTest List" /> },
+      { path: 'route-event', element: <OperationConfigPlaceholderPage title="Route Event" /> },
+      { path: 'availability-monitoring', element: <AvailabilityMonitoringPage /> },
+      { path: 'availability-monitoring/create', element: <AvailabilityMonitoringDetailPage /> },
+      { path: 'availability-monitoring/:recordId/modify', element: <AvailabilityMonitoringDetailPage /> },
+      { path: 'monitoring-scenarios', element: <MonitoringScenarioListPage /> },
+      { path: 'monitoring-scenarios/:scenarioCode', element: <MonitoringScenarioConfigPage /> },
+      { path: 'success-rate-monitoring', element: <Navigate to="/operation-config/monitoring-scenarios" replace /> },
+    ],
+  },
+  // Announcement module (own sidebar, sibling of Basic Info)
+  {
+    element: <AnnouncementLayout />,
+    children: [
+      { path: 'announcement', element: <Navigate to="manage" replace /> },
+      { path: 'announcement/manage', element: <AnnouncementManagePage /> },
+      { path: 'announcement/:kind/edit/:id', element: <AnnouncementEditorPage /> },
     ],
   },
   { path: '*', element: <Navigate to="/home" replace /> },

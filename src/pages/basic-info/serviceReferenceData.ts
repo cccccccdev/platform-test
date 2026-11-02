@@ -1,3 +1,5 @@
+import type { ServiceCategory } from './serviceCategory';
+
 export const SERVICE_MODEL_OPTIONS = [
   'TRANSACTION_INITIATE',
   'TRANSACTION_VERIFY',
@@ -9,7 +11,7 @@ export const SERVICE_MODEL_OPTIONS = [
 ] as const;
 
 export type ServiceRunModel = typeof SERVICE_MODEL_OPTIONS[number];
-export type ServiceAbilityDirection = 'service-to-ability' | 'ability-to-service';
+export type ServiceAbilityDirection = 'service-to-ability';
 
 export interface ServiceActionRecord {
   key: string;
@@ -29,6 +31,7 @@ export interface ServiceCapabilityReference {
 export interface ServiceRecord {
   key: string;
   name: string;
+  category?: ServiceCategory;
   actions: ServiceActionRecord[];
   capabilityReferences?: ServiceCapabilityReference[];
 }

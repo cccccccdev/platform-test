@@ -6,6 +6,7 @@ import {
   CodeOutlined,
 } from '@ant-design/icons';
 import { Brand, UserProfile } from './PlatformChrome';
+import { AnnouncementChrome } from './AnnouncementOverlays';
 
 const { Sider, Content } = Layout;
 
@@ -98,7 +99,8 @@ export default function IntegrationLayout() {
         />}
       </Sider>
       <Layout className="integration-main">
-        <div className="integration-topbar">
+        <div className="integration-topbar announcement-header">
+          <AnnouncementChrome />
           <UserProfile />
         </div>
         <Content className="integration-content">

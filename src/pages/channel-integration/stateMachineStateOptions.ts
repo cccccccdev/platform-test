@@ -3,17 +3,18 @@ export type MainState = 'INIT' | 'PENDING' | 'TO_BE_VERIFY' | 'SUCCESS' | 'FAIL'
 export type SubStateOption = {
   value: string;
   mainState: MainState;
+  initiallyReachable?: boolean;
 };
 
 const optionsByStateMachine: Record<string, SubStateOption[]> = {
   Wallet_Debit_StateMachine: [
-    { value: 'PAYMENT_PENDING_WAIT_CALLBACK', mainState: 'PENDING' },
-    { value: 'PAYMENT_PENDING_WAIT_REQUERY', mainState: 'PENDING' },
+    { value: 'PAYMENT_PENDING_WAIT_CALLBACK', mainState: 'PENDING', initiallyReachable: true },
+    { value: 'PAYMENT_PENDING_WAIT_REQUERY', mainState: 'PENDING', initiallyReachable: false },
     { value: 'PAYMENT_SUCCESS', mainState: 'SUCCESS' },
     { value: 'PAYMENT_FAILED_BY_CHANNEL', mainState: 'FAIL' },
   ],
   Fund_Notification_StateMachine: [
-    { value: 'PAYMENT_PENDING_WAIT_CALLBACK', mainState: 'PENDING' },
+    { value: 'PAYMENT_PENDING_WAIT_CALLBACK', mainState: 'PENDING', initiallyReachable: true },
     { value: 'PAYMENT_SUCCESS', mainState: 'SUCCESS' },
     { value: 'PAYMENT_FAILED_BY_CHANNEL', mainState: 'FAIL' },
     { value: 'BILL_QUERY_SUCCESS', mainState: 'SUCCESS' },
@@ -21,22 +22,22 @@ const optionsByStateMachine: Record<string, SubStateOption[]> = {
   ],
   Default_Refund_StateMachine: [
     { value: 'INIT', mainState: 'INIT' },
-    { value: 'PROGRESSING', mainState: 'PENDING' },
+    { value: 'PROGRESSING', mainState: 'PENDING', initiallyReachable: true },
     { value: 'SUCCESS', mainState: 'SUCCESS' },
     { value: 'FAILED', mainState: 'FAIL' },
   ],
   BankCard_Debit_StateMachine: [
     { value: 'INIT', mainState: 'INIT' },
     { value: 'WAITING_OTP', mainState: 'TO_BE_VERIFY' },
-    { value: 'VERIFYING_OTP', mainState: 'PENDING' },
-    { value: 'AUTHENTICATING', mainState: 'PENDING' },
-    { value: 'PROGRESSING', mainState: 'PENDING' },
+    { value: 'VERIFYING_OTP', mainState: 'PENDING', initiallyReachable: false },
+    { value: 'AUTHENTICATING', mainState: 'PENDING', initiallyReachable: true },
+    { value: 'PROGRESSING', mainState: 'PENDING', initiallyReachable: true },
     { value: 'SUCCESS', mainState: 'SUCCESS' },
     { value: 'FAILED', mainState: 'FAIL' },
   ],
   SMS_Single_Message_StateMachine: [
     { value: 'INIT', mainState: 'INIT' },
-    { value: 'SUBMITTED', mainState: 'PENDING' },
+    { value: 'SUBMITTED', mainState: 'PENDING', initiallyReachable: true },
     { value: 'DELIVERED', mainState: 'SUCCESS' },
     { value: 'FAILED', mainState: 'FAIL' },
   ],

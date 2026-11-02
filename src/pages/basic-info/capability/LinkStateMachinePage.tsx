@@ -4,6 +4,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { LeftOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../../channel-integration/configIntegrationStore';
 import { getDemoReturnUrl } from '../demoNavigation';
+import { inboundStateMachineLinks, inboundStateMachines } from './inboundStateMachineReferenceData';
 
 const { Title, Text } = Typography;
 
@@ -31,6 +32,7 @@ const DEFAULT_LINKED_STATE_MACHINES: LinkedSMRecord[] = [
   { bt: 'BANK_CARD_DEBIT', ability: 'INFO_PAYMENT', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
   { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_StateMachine', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
   { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_Detailed_StateMachine', operator: 'Bailly', operationTime: '2026-08-18 10:00:00' },
+  ...inboundStateMachineLinks,
 ];
 
 const DEFAULT_STATE_MACHINES: StateMachineItem[] = [
@@ -38,6 +40,7 @@ const DEFAULT_STATE_MACHINES: StateMachineItem[] = [
   { id: 'sm2', name: 'BankCard_Debit_StateMachine', description: 'Bank card debit state machine', status: 'SUBMITTED' },
   { id: 'sm_sms_single_message', name: 'SMS_Single_Message_StateMachine', description: 'Single SMS lifecycle', status: 'SUBMITTED' },
   { id: 'sm_sms_single_message_detailed', name: 'SMS_Single_Message_Detailed_StateMachine', description: 'Single SMS lifecycle with detailed failure states', status: 'SUBMITTED' },
+  ...inboundStateMachines,
 ];
 
 function mergeBy<T>(records: T[], defaults: T[], keyOf: (record: T) => string): T[] {
@@ -75,6 +78,7 @@ function getStoredStatuses(): Record<string, 'DRAFT' | 'SUBMITTED'> {
     BankCard_Debit_StateMachine: 'SUBMITTED',
     SMS_Single_Message_StateMachine: 'SUBMITTED',
     SMS_Single_Message_Detailed_StateMachine: 'SUBMITTED',
+    ...Object.fromEntries(inboundStateMachines.map((stateMachine) => [stateMachine.name, stateMachine.status])),
   };
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -91,7 +95,7 @@ function formatOperationTime(value: string | Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-export default function LinkStateMachinePage() {
+export default function LinkStateMachinePage({ embedded = false }: { embedded?: boolean }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const bt = searchParams.get('bt') || '';
@@ -181,8 +185,8 @@ export default function LinkStateMachinePage() {
   };
 
   return (
-    <div className="linked-state-machine-page">
-      <section className="linked-state-machine-heading">
+    <div className={`linked-state-machine-page${embedded ? ' embedded' : ''}`}>
+      {!embedded && <section className="linked-state-machine-heading">
         <Breadcrumb items={[
           { title: 'Basic Info', href: '/basic-info/country' },
           { title: demoReturnUrl ? 'Demo' : 'Capability', href: backUrl },
@@ -194,7 +198,7 @@ export default function LinkStateMachinePage() {
           <LeftOutlined />
           <Title level={4}>Linked State Machine</Title>
         </button>
-      </section>
+      </section>}
 
       <main className="linked-state-machine-content">
         <div className="linked-state-machine-actions">
@@ -263,6 +267,7 @@ export default function LinkStateMachinePage() {
                       queryParams.set('mode', 'view');
                       queryParams.set('bt', bt);
                       queryParams.set('ability', ability);
+                      if (embedded) queryParams.set('fromAbilitySettings', '1');
                       navigate(`/basic-info/capability/stateMachine/canvas?${queryParams.toString()}`);
                     }}>Preview</Button>
                     <Badge dot={hasReferences} color="#52c41a" offset={[-2, 4]}>

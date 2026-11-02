@@ -3,8 +3,10 @@ import {
   ProfileOutlined,
   ForkOutlined,
   ControlOutlined,
+  NotificationOutlined,
 } from '@ant-design/icons';
 import { UserProfile } from '../../components/PlatformChrome';
+import { AnnouncementChrome } from '../../components/AnnouncementOverlays';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -12,13 +14,17 @@ export default function HomePage() {
     { title: 'Basic Info', icon: <ProfileOutlined />, tone: 'violet', path: '/basic-info/country' },
     { title: 'Channel Integration', icon: <ForkOutlined />, tone: 'indigo', path: '/channel-integration' },
     { title: 'Operation Config', icon: <ControlOutlined />, tone: 'cyan', path: '/operation-config' },
+    { title: 'Announcement', icon: <NotificationOutlined />, tone: 'amber', path: '/announcement/manage' },
   ];
 
   return (
     <div className="legacy-home">
       <header className="legacy-home-header">
         <strong>Omnicore Solution</strong>
-        <UserProfile dark />
+        <div className="legacy-home-header-right">
+          <AnnouncementChrome />
+          <UserProfile dark />
+        </div>
       </header>
       <main className="legacy-home-modules">
         {modules.map((module) => (

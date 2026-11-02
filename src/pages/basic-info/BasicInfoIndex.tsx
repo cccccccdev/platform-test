@@ -9,6 +9,7 @@ import {
   ShopOutlined,
   UnorderedListOutlined,
   ControlOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
@@ -118,6 +119,13 @@ export default function BasicInfoIndex() {
       icon: <ControlOutlined style={{ color: '#1890ff' }} />,
       color: '#1890ff',
       path: '/basic-info/stateMachine',
+    },
+    {
+      title: 'Field Library',
+      description: '统一字段库，沉淀可复用的标准字段与结构',
+      icon: <DatabaseOutlined style={{ color: '#2f54eb' }} />,
+      color: '#2f54eb',
+      path: '/basic-info/field-library',
     },
   ];
 

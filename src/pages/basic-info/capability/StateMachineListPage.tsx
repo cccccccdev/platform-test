@@ -4,6 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DownOutlined, RightOutlined } from '@ant-design/icons';
 import { useConfigIntegrationStore } from '../../channel-integration/configIntegrationStore';
+import { inboundStateMachineLinks, inboundStateMachines } from './inboundStateMachineReferenceData';
 
 const { Title, Text } = Typography;
 
@@ -62,6 +63,7 @@ const DEFAULT_STATE_MACHINES: StateMachineItem[] = [
     operator: 'Bailly',
     operationTime: '2026-08-18 10:00:00',
   },
+  ...inboundStateMachines,
 ];
 
 const DEFAULT_LINKED_STATE_MACHINES: LinkedSMRecord[] = [
@@ -69,6 +71,7 @@ const DEFAULT_LINKED_STATE_MACHINES: LinkedSMRecord[] = [
   { bt: 'BANK_CARD_DEBIT', ability: 'INFO_PAYMENT', smName: 'BankCard_Debit_StateMachine', operator: 'admin', operationTime: '2026-05-21 09:15:00' },
   { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_StateMachine', operator: 'Bailly', operationTime: '2026-07-03 09:52:37' },
   { bt: 'SMS', ability: 'SINGLE_MESSAGE', smName: 'SMS_Single_Message_Detailed_StateMachine', operator: 'Bailly', operationTime: '2026-08-18 10:00:00' },
+  ...inboundStateMachineLinks,
 ];
 
 function mergeBy<T>(records: T[], defaults: T[], keyOf: (record: T) => string): T[] {

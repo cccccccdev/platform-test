@@ -20,6 +20,7 @@ import {
 import { ArrowLeftOutlined, DownOutlined, EditOutlined, MinusCircleOutlined, RightOutlined, UploadOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Brand, UserProfile } from '../../components/PlatformChrome';
+import { AnnouncementChrome } from '../../components/AnnouncementOverlays';
 import { businessTypeOptions, partyOptions } from '../../mock/data';
 import { countryCodeOptions } from '../../mock/countries';
 import { getCreatedIntegrationRecord } from './channelCreationStore';
@@ -755,7 +756,7 @@ export default function ChannelProfilePage() {
         />}
       </aside>
       <div className="channel-profile-main">
-        <header className="legacy-header"><UserProfile name="Current User" /></header>
+        <header className="legacy-header announcement-header"><AnnouncementChrome /><UserProfile name="Current User" /></header>
         <div className="legacy-page-heading">
           <Breadcrumb items={[{ title: 'Channel Integration' }, { title: 'Channel List' }, { title: 'Profile' }, { title: sectionTitles[activeSection] }]} />
           <h1>{sectionTitles[activeSection]}</h1>

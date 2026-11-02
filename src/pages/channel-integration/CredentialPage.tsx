@@ -3,6 +3,7 @@ import { Breadcrumb, Button, Card, Form, Input, Modal, Space, Tag, Typography, m
 import { InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Brand, UserProfile } from '../../components/PlatformChrome';
+import { AnnouncementChrome } from '../../components/AnnouncementOverlays';
 
 const { Text, Title } = Typography;
 
@@ -53,7 +54,7 @@ export default function CredentialPage() {
         <div className="channel-list-active" onClick={() => navigate('/channel-integration')}>Channel List</div>
       </aside>
       <div className="channel-list-main">
-        <header className="legacy-header"><UserProfile /></header>
+        <header className="legacy-header announcement-header"><AnnouncementChrome /><UserProfile /></header>
         <div className="legacy-page-heading">
           <Breadcrumb items={[{ title: 'Channel Integration' }, { title: 'Channel List' }, { title: 'Credential' }]} />
           <h1>Credential</h1>

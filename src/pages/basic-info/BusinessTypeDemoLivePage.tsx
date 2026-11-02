@@ -17,29 +17,67 @@ export default function BusinessTypeDemoLivePage() {
   const services = serviceRecords[businessType] || EMPTY_SERVICES;
   const abilityGroup = useCapabilityDataStore((state) => state.data.find((group) => group.name === businessType));
   const connections = useMemo(() => getServiceAbilityConnections(services, abilityGroup), [services, abilityGroup]);
-  const connectionCount = connections.reduce((sum, connection) => sum + connection.mappings.length, 0);
   const kind = searchParams.get('focusKind');
   const name = searchParams.get('focusName');
   const focus: { kind: 'service' | 'ability'; name: string } | null = kind === 'service' && name && services.some((service) => service.name === name) ? { kind, name }
     : kind === 'ability' && name && abilityGroup?.abilities.some((ability) => ability.name === name) ? { kind, name } : null;
+  const showAllActions = searchParams.get('actionView') === 'all';
+  const collapsedServices = searchParams.getAll('collapsedService');
+  const collapsedAbilities = searchParams.getAll('collapsedAbility');
 
-  const select = (selectedKind: 'service' | 'ability', selectedName: string, mode: 'toggle' | 'focus' = 'toggle') => {
-    const alreadyExpanded = Boolean(focus && (focus.kind === selectedKind && focus.name === selectedName
-      || connections.some((connection) => selectedKind === 'service'
-        ? focus.kind === 'ability' && focus.name === connection.ability && selectedName === connection.service
-        : focus.kind === 'service' && focus.name === connection.service && selectedName === connection.ability)));
-    setSearchParams(new URLSearchParams(mode === 'toggle' && alreadyExpanded
-      ? { bt: businessType }
-      : { bt: businessType, focusKind: selectedKind, focusName: selectedName }));
+  const select = (selectedKind: 'service' | 'ability', selectedName: string, mode: 'toggle' | 'focus' | 'inspect' = 'toggle') => {
+    const isAnchor = focus?.kind === selectedKind && focus.name === selectedName;
+    if (showAllActions) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('collapsedService');
+      next.delete('collapsedAbility');
+      if (mode === 'inspect' && isAnchor) {
+        next.delete('focusKind');
+        next.delete('focusName');
+      } else {
+        next.set('focusKind', selectedKind);
+        next.set('focusName', selectedName);
+      }
+      setSearchParams(next);
+      return;
+    }
+    const isRelated = Boolean(focus && connections.some((connection) => selectedKind === 'service'
+      ? focus.kind === 'ability' && focus.name === connection.ability && selectedName === connection.service
+      : focus.kind === 'service' && focus.name === connection.service && selectedName === connection.ability));
+    if (mode === 'toggle' && isAnchor) {
+      setSearchParams(new URLSearchParams({ bt: businessType }));
+      return;
+    }
+    if (mode === 'toggle' && focus && isRelated) {
+      const next = new URLSearchParams(searchParams);
+      const key = selectedKind === 'service' ? 'collapsedService' : 'collapsedAbility';
+      const collapsed = next.getAll(key);
+      const nextCollapsed = collapsed.includes(selectedName)
+        ? collapsed.filter((item) => item !== selectedName)
+        : [...collapsed, selectedName];
+      const hasExpandedRelatedCard = connections.some((connection) => focus.kind === 'ability'
+        ? connection.ability === focus.name && !nextCollapsed.includes(connection.service)
+        : connection.service === focus.name && !nextCollapsed.includes(connection.ability));
+      if (!hasExpandedRelatedCard) {
+        setSearchParams(new URLSearchParams({ bt: businessType }));
+        return;
+      }
+      next.delete(key);
+      for (const item of nextCollapsed) next.append(key, item);
+      setSearchParams(next);
+      return;
+    }
+    setSearchParams(new URLSearchParams({ bt: businessType, focusKind: selectedKind, focusName: selectedName }));
   };
 
-  return <div className="bt-demo-page"><main className="bt-demo-panel">
-    <div className="bt-demo-intro">
-      <div><h2>Service ↔ Ability</h2><p>Select a Service or Ability to unfold its Actions in place. Each connected pair has one mapping direction.</p></div>
-      <div className="bt-demo-summary">{connections.length} connections <span>·</span> {connectionCount} action mappings</div>
-    </div>
+  const toggleAllActions = () => setSearchParams(new URLSearchParams(showAllActions
+    ? { bt: businessType }
+    : { bt: businessType, actionView: 'all' }));
+
+  return <div className="bt-demo-page"><main className={`bt-demo-panel ${showAllActions ? 'all-actions' : ''} ${focus ? 'has-focus' : ''}`}>
     {!businessType ? <Empty description="Select a Business Type from the sidebar" /> : <BusinessTypeDemoCanvas
-      businessType={businessType} services={services} abilityGroup={abilityGroup} connections={connections} focus={focus} onSelect={select} />}
-    <p className="bt-demo-footnote">Use Add mapping to connect a Service and Ability. Matching Action names link automatically. Select an expanded node again to collapse it.</p>
+      businessType={businessType} services={services} abilityGroup={abilityGroup} connections={connections} focus={focus}
+      showAllActions={showAllActions} onToggleAllActions={toggleAllActions}
+      collapsedServices={collapsedServices} collapsedAbilities={collapsedAbilities} onSelect={select} />}
   </main></div>;
 }
