@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Breadcrumb, Button, Form, Input, Modal, Select, Space, Table, Tabs, Typography, Upload, message } from 'antd';
+import { Alert, Breadcrumb, Button, Form, Input, Modal, Select, Space, Table, Tabs, Typography, Upload, message } from 'antd';
 import { CloudUploadOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useBasicInfoReferenceStore } from './basicInfoReferenceStore';
@@ -12,7 +12,7 @@ const { Title } = Typography;
 interface InstitutionFormValues {
   code: string;
   name: string;
-  institutionTypes: string[];
+  institutionType: string;
   relationInstitutions?: string[];
 }
 
@@ -47,7 +47,7 @@ export default function InstitutionPage() {
   const openCreate = () => { setEditing(null); form.resetFields(); setLogoFiles([]); setModalOpen(true); };
   const openModify = (record: InstitutionRecord) => {
     setEditing(record);
-    form.setFieldsValue({ code: record.code, name: record.name, institutionTypes: record.institutionTypes, relationInstitutions: record.relationInstitutions });
+    form.setFieldsValue({ code: record.code, name: record.name, institutionType: record.institutionTypes.length === 1 ? record.institutionTypes[0] : undefined, relationInstitutions: record.relationInstitutions });
     setLogoFiles(record.logo ? [{ uid: '-1', name: record.logo, status: 'done' }] : []);
     setModalOpen(true);
   };
@@ -58,7 +58,7 @@ export default function InstitutionPage() {
       if (!editing && countryRecords.some((record) => record.code === code)) {
         form.setFields([{ name: 'code', errors: ['Institution Code already exists in this country'] }]); return;
       }
-      const next: InstitutionRecord = { code, name: values.name.trim(), country: activeCountry, institutionTypes: values.institutionTypes, relationInstitutions: values.relationInstitutions ?? [], logo: logoFiles[0]?.name, operator: 'Current User', operationTime: operationTimeNow() };
+      const next: InstitutionRecord = { code, name: values.name.trim(), country: activeCountry, institutionTypes: [values.institutionType], relationInstitutions: values.relationInstitutions ?? [], logo: logoFiles[0]?.name, operator: 'Current User', operationTime: operationTimeNow() };
       if (editing) updateRecord(editing.country, editing.code, next); else addRecord(next);
       setModalOpen(false);
       message.success(editing ? 'Institution updated' : 'Institution created');
@@ -84,10 +84,11 @@ export default function InstitutionPage() {
       ]} pagination={{ pageSize: 10, showTotal: (total) => `Total ${total} items` }} />
     </div>
     <Modal className="institution-modal" title={editing ? 'Modify Institution' : 'Create Institution'} open={modalOpen} width={900} okText="Save" cancelText="Cancel" onOk={save} onCancel={() => setModalOpen(false)} destroyOnHidden forceRender>
+      {editing && editing.institutionTypes.length > 1 && <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="This institution currently has multiple types" description="Choose one Institution Type before saving. Existing types will not be changed until you save." />}
       <Form form={form} labelCol={{ span: 6 }} wrapperCol={{ span: 16 }} preserve={false}>
         <Form.Item name="code" label="Institution Code" rules={[{ required: true, whitespace: true, message: 'Enter Institution Code' }]}><Input placeholder="Institution Code" disabled={Boolean(editing)} /></Form.Item>
         <Form.Item name="name" label="Institution Name" rules={[{ required: true, whitespace: true, message: 'Enter Institution Name' }]}><Input placeholder="Institution Name" /></Form.Item>
-        <Form.Item name="institutionTypes" label="Institution Type" rules={[{ required: true, message: 'Select Institution Type' }]}><Select mode="multiple" allowClear showSearch placeholder="Institution Type" options={typeOptions} /></Form.Item>
+        <Form.Item name="institutionType" label="Institution Type" rules={[{ required: true, message: 'Select Institution Type' }]}><Select allowClear showSearch placeholder="Institution Type" options={typeOptions} /></Form.Item>
         <Form.Item label="Logo"><Upload beforeUpload={() => false} maxCount={1} fileList={logoFiles} onChange={({ fileList }) => setLogoFiles(fileList)}><Button type="primary" icon={<CloudUploadOutlined />}>Upload</Button></Upload></Form.Item>
         <Form.Item name="relationInstitutions" label="Relation Institutions" extra="Search code, name or type first"><Select mode="multiple" allowClear showSearch placeholder="Please search and select relation institutions" optionFilterProp="searchText" options={relationOptions} filterOption={(input, option) => String(option?.searchText ?? '').toLowerCase().includes(input.toLowerCase())} /></Form.Item>
       </Form>
