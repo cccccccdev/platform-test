@@ -213,6 +213,7 @@ export const useChannelScopeStore = create<ChannelScopeStore>((set, get) => ({
     GTB_NG: [
       { id: 'endpoint_gtb_create', name: 'Create Transaction', method: 'POST', protocol: 'HTTP', path: '/api/formdata/Transaction', version: '20260824020304' },
       { id: 'endpoint_gtb_query', name: 'Query Transaction', method: 'POST', protocol: 'HTTP', path: '/partner/api/v1/queryTransactionStatus', version: '20260820115713' },
+      { id: 'endpoint_s3_object', name: 'Upload Object', method: 'PUT', protocol: 'HTTPS', path: '/uploads/{batchId}/{filename}', version: '20261105022614' },
     ],
   },
   tcpProfilesByChannel: {

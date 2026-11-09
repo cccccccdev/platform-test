@@ -18,6 +18,7 @@ import type { ComponentDefinition } from './componentCatalog';
 const CredentialDrawer = lazy(() => import('./sharedCredentialDrawer'));
 const AuthenticationDrawer = lazy(() => import('./sharedAuthenticationDrawer'));
 const HttpCallDrawer = lazy(() => import('./HttpCallDrawer'));
+const S3UploadDrawer = lazy(() => import('./S3UploadDrawer'));
 const TcpCallDrawer = lazy(() => import('./TcpCallDrawer'));
 const LoadChannelMerchantInfoDrawer = lazy(() => import('./LoadChannelMerchantInfoDrawer'));
 const ReferenceGenerationDrawer = lazy(() => import('./ReferenceGenerationDrawer'));
@@ -1860,6 +1861,7 @@ export default function FlowEditorPage() {
 
   // Outbound request drawer state
   const [showHttpCallDrawer, setShowHttpCallDrawer] = useState(false);
+  const [showS3UploadDrawer, setShowS3UploadDrawer] = useState(false);
   const [showNetworkDrawer, setShowNetworkDrawer] = useState(false);
   const [placeholderComponent, setPlaceholderComponent] = useState<string | null>(null);
   const [showTcpCallDrawer, setShowTcpCallDrawer] = useState(false);
@@ -2113,6 +2115,7 @@ export default function FlowEditorPage() {
     }
     if (code === 'network') setShowNetworkDrawer(true);
     else if (code === 'http' || code === 'httpCall') setShowHttpCallDrawer(true);
+    else if (code === 'upload2S3') setShowS3UploadDrawer(true);
     if (code === 'tcpCall') setShowTcpCallDrawer(true);
     if (code === 'loadChannelMerchantInfo') setShowLoadChannelMerchantInfoDrawer(true);
     if (code === 'initOutboundOrder' || code === 'initOutboundFirstOrder') setReferenceConfigTarget({ direction: 'outbound', placement: 'init-order' });
@@ -2121,7 +2124,7 @@ export default function FlowEditorPage() {
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
     if (['directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse'].includes(code)) setShowConfiguredSpiResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
-    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
+    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'upload2S3', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
     if (!hasDedicatedConfig && definition?.needConfig) setPlaceholderComponent(code);
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);
@@ -2443,6 +2446,20 @@ export default function FlowEditorPage() {
       />
 
       <Suspense fallback={null}>
+      {showS3UploadDrawer && <S3UploadDrawer
+        open
+        channelCode={params.channelCode ?? ''}
+        initialValues={selectedConfig}
+        readOnly={readOnly}
+        onClose={() => setShowS3UploadDrawer(false)}
+        onSave={(config) => {
+          setNodes(nds => nds.map(n => n.id === selectedConfigNodeId
+            ? { ...n, data: { ...n.data, status: 'complete', isConfigured: true, config } }
+            : n));
+          setShowS3UploadDrawer(false);
+        }}
+      />}
+
       {showHttpCallDrawer && <HttpCallDrawer
         open
         channelCode={params.channelCode ?? ''}
