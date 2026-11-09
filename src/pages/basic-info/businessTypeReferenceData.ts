@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export interface BusinessTypeRecord { businessType: string; operator: string; operationTime: string; }
 
 export const initialBusinessTypeRecords: BusinessTypeRecord[] = [
+  ['TEST', 'Demo', '2026-11-09 10:00:00'],
   ['VIBER', '顾丰荣 gufengrong', '2026-08-21 02:50:29'], ['INSURANCE', '王斌 Bin', '2026-08-17 08:34:56'],
   ['GIFTCARD', 'haixia.zhang', '2026-07-07 06:32:09'], ['STABLECOIN', '潘一泓', '2026-05-21 02:45:21'],
   ['FUNDS_IN', 'xiajichen', '2026-05-14 03:55:16'], ['PRODUCT_MANAGEMENT', '顾丰荣 gufengrong', '2026-05-09 02:39:35'],
@@ -26,6 +27,7 @@ interface BusinessTypeState { records: BusinessTypeRecord[]; addBusinessType: (r
 
 export const useBusinessTypeStore = create<BusinessTypeState>((set) => ({
   records: initialBusinessTypeRecords,
-  addBusinessType: (record) => set((state) => ({ records: [record, ...state.records].sort((a, b) => b.operationTime.localeCompare(a.operationTime)) })),
+  addBusinessType: (record) => set((state) => ({ records: [record, ...state.records].sort((a, b) =>
+    a.businessType === 'TEST' ? -1 : b.businessType === 'TEST' ? 1 : b.operationTime.localeCompare(a.operationTime)) })),
   removeBusinessType: (name) => set((state) => ({ records: state.records.filter((record) => record.businessType !== name) })),
 }));

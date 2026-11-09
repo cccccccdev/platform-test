@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AutoComplete, Button, Form, Input, Modal, Radio, Select, Tag, Typography, message } from 'antd';
+import { Alert, AutoComplete, Button, Form, Input, Modal, Radio, Select, Space, Steps, Tag, Typography, message } from 'antd';
 import { ArrowRightOutlined, DeleteOutlined, DownOutlined, PlusOutlined, SettingOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useBusinessTypeStore } from './businessTypeReferenceData';
@@ -12,6 +12,7 @@ import { demoFocusQuery } from './demoNavigation';
 import { enableSubOrderMode } from './capability/subOrderModeStore';
 import { saveBusinessAccessRequeryConfig } from './capability/businessAccessRequeryStore';
 import { saveAbilityMessageSetting } from './capability/abilityMessageSettingsStore';
+import { ACTION_OPTIONS, INBOUND_ACTION_OPTIONS, OUTBOUND_ACTION_OPTIONS } from './abilityDirectionActions';
 
 type Kind = 'service' | 'ability';
 type Focus = { kind: Kind; name: string } | null;
@@ -28,9 +29,8 @@ type AbilityFormValues = {
   completionMessage?: 'ON' | 'OFF';
   category: ServiceCategory;
 };
-const OUTBOUND_ACTION_OPTIONS = ['TRANSACTION', 'VERIFY', 'TRIGGER_VERIFY', 'RE_QUERY', 'QUERY'];
-const INBOUND_ACTION_OPTIONS = ['INBOUND_TRANSACTION', 'INBOUND_QUERY'];
-const ACTION_OPTIONS = [...OUTBOUND_ACTION_OPTIONS, ...INBOUND_ACTION_OPTIONS];
+const categoriesCompatible = (service?: ServiceRecord, ability?: AbilityItem) =>
+  Boolean(service && ability && service.category === ability.category);
 const ON_OFF_OPTIONS = [{ label: 'ON', value: 'ON' }, { label: 'OFF', value: 'OFF' }];
 const CURRENT_OPERATOR = '我爱北京天安门';
 
@@ -65,21 +65,24 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
   const [selectedModel, setSelectedModel] = useState<ServiceRunModel>();
   const [hoveredAction, setHoveredAction] = useState<{ kind: Kind; name: string; action: string } | null>(null);
   const [connectionDraft, setConnectionDraft] = useState<ConnectionDraft | null>(null);
+  const mappingService = services.find((service) => service.name === connectionDraft?.service);
+  const mappingAbility = abilities.find((ability) => ability.name === connectionDraft?.ability);
+  const mappingCategoryMismatch = Boolean(mappingService && mappingAbility && !categoriesCompatible(mappingService, mappingAbility));
   const [addServiceOpen, setAddServiceOpen] = useState(false);
   const [serviceForm] = Form.useForm<{ serviceName: string; category: ServiceCategory; actions: string[] }>();
   const [addAbilityOpen, setAddAbilityOpen] = useState(false);
+  const [abilityStep, setAbilityStep] = useState(0);
   const [abilityForm] = Form.useForm<AbilityFormValues>();
-  const abilityDirection = Form.useWatch('direction', abilityForm) || 'Outbound';
-  const abilityName = Form.useWatch('abilityName', abilityForm);
+  const abilityStepValues = Form.useWatch([], abilityForm) as Partial<AbilityFormValues> | undefined;
+  const abilityDirection = abilityForm.getFieldValue('direction') as AbilityFormValues['direction'] | undefined;
   const abilityActions = Form.useWatch('actions', abilityForm);
-  const subOrderMode = Form.useWatch('subOrderMode', abilityForm);
-  const balRequery = Form.useWatch('balRequery', abilityForm);
-  const metricsMessage = Form.useWatch('metricsMessage', abilityForm);
-  const completionMessage = Form.useWatch('completionMessage', abilityForm);
-  const abilityCategory = Form.useWatch('category', abilityForm);
-  const canAddAbility = Boolean(abilityName?.trim() && /^[A-Za-z0-9_]+$/.test(abilityName.trim()) && abilityActions?.length
-    && subOrderMode !== undefined && metricsMessage !== undefined && completionMessage !== undefined
-    && (abilityDirection !== 'Inbound' || balRequery !== undefined) && abilityCategory !== undefined);
+  const abilityNameDraft = abilityStepValues?.abilityName?.trim() || '';
+  const canContinueAbility = abilityStep === 0
+    ? Boolean(abilityNameDraft && /^[A-Za-z0-9_]+$/.test(abilityNameDraft)
+      && abilityStepValues?.direction && !abilities.some((ability) => ability.name.toLowerCase() === abilityNameDraft.toLowerCase()))
+    : Boolean(abilityStepValues?.subOrderMode && abilityStepValues?.metricsMessage
+      && abilityStepValues?.completionMessage && abilityStepValues?.category
+      && (abilityDirection !== 'Inbound' || abilityStepValues?.balRequery));
   const [actionTarget, setActionTarget] = useState<ActionTarget | null>(null);
   const [selectedActions, setSelectedActions] = useState<string[]>([]);
   const [hoveredMappingKey, setHoveredMappingKey] = useState<string | null>(null);
@@ -163,10 +166,12 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
   };
   const saveAbility = async () => {
     try {
-      const values = await abilityForm.validateFields();
+      await abilityForm.validateFields(['actions']);
+      const values = abilityForm.getFieldsValue(true) as AbilityFormValues;
       const name = values.abilityName.trim();
       if (abilities.some((ability) => ability.name.toLowerCase() === name.toLowerCase())) {
         abilityForm.setFields([{ name: 'abilityName', errors: ['This Ability already exists under the current Business Type'] }]);
+        setAbilityStep(0);
         return;
       }
       const timestamp = Date.now();
@@ -183,9 +188,32 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
         ? current.map((group) => group.name === businessType ? { ...group, abilities: [...group.abilities, ability] } : group)
         : [...current, { key: `bt_${businessType.toLowerCase()}`, name: businessType, isExpand: true, abilities: [ability] }]);
       setAddAbilityOpen(false);
+      setAbilityStep(0);
       abilityForm.resetFields();
       onSelect('ability', name, 'focus');
       message.success('Ability added');
+    } catch { /* Ant Design displays form validation errors. */ }
+  };
+  const closeAddAbility = () => {
+    setAddAbilityOpen(false);
+    setAbilityStep(0);
+    abilityForm.resetFields();
+  };
+  const nextAbilityStep = async () => {
+    try {
+      if (abilityStep === 0) {
+        const { abilityName } = await abilityForm.validateFields(['abilityName', 'direction']);
+        if (abilities.some((ability) => ability.name.toLowerCase() === abilityName.trim().toLowerCase())) {
+          abilityForm.setFields([{ name: 'abilityName', errors: ['This Ability already exists under the current Business Type'] }]);
+          return;
+        }
+      } else {
+        await abilityForm.validateFields([
+          'subOrderMode', 'metricsMessage', 'completionMessage', 'category',
+          ...(abilityForm.getFieldValue('direction') === 'Inbound' ? ['balRequery' as const] : []),
+        ]);
+      }
+      setAbilityStep((current) => current + 1);
     } catch { /* Ant Design displays form validation errors. */ }
   };
   const openAddAction = (target: ActionTarget) => {
@@ -280,7 +308,9 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
     if (!connectionDraft?.service || !connectionDraft.ability) return;
     const result = addConnection(businessType, connectionDraft.service, connectionDraft.ability);
     if (result !== 'added') {
-      message.error(result === 'duplicate' ? 'This Service and Ability are already connected.' : 'Select an existing Service and Ability.');
+      message.error(result === 'duplicate' ? 'This Service and Ability are already connected.'
+        : result === 'category-mismatch' ? 'Service and Ability must have the same Category.'
+          : 'Select an existing Service and Ability.');
       return;
     }
     message.success('Service and Ability connected');
@@ -305,7 +335,7 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
       <div className="bt-demo-service-node-header">
         <button type="button" className={`bt-demo-node ${related.length ? 'mapped' : 'unmapped'}`} aria-expanded={showAllActions ? undefined : expanded} aria-pressed={showAllActions ? focused : undefined}
           onClick={() => onSelect('service', service.name, showAllActions ? 'inspect' : 'toggle')}>
-          <span><span className="bt-demo-node-name-row"><span className="bt-demo-node-name">{service.name}</span>{service.category && <span className="bt-demo-node-category" title={`Category: ${SERVICE_CATEGORY_LABELS[service.category]}`}>{SERVICE_CATEGORY_LABELS[service.category]}</span>}</span><span className="bt-demo-node-meta">{related.length ? `${related.length} mapped ${related.length === 1 ? 'Ability' : 'Abilities'}` : 'No mapping'}</span></span>
+          <span className="bt-demo-node-name-row"><span className="bt-demo-node-name">{service.name}</span>{service.category && <span className="bt-demo-node-category" title={`Category: ${SERVICE_CATEGORY_LABELS[service.category]}`}>{SERVICE_CATEGORY_LABELS[service.category]}</span>}</span>
         </button>
         {!showAllActions && <button type="button" className="bt-demo-service-expand-entry" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${service.name}`} aria-expanded={expanded}
           onClick={() => onSelect('service', service.name)}><DownOutlined className="bt-demo-expand-chevron" /></button>}
@@ -328,12 +358,11 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
     const focused = focus?.kind === 'ability' && focus.name === ability.name;
     const related = connections.filter((connection) => connection.ability === ability.name);
     const mappingActive = focused || Boolean(focus?.kind === 'service' && related.some((connection) => connection.service === focus.name));
-    const summary = related.length ? `${related.length} mapped ${related.length === 1 ? 'Service' : 'Services'}` : 'No mapping';
     return <article className={`bt-demo-expand-node ${expanded ? 'expanded' : ''} ${focused ? 'focused' : ''} ${mappingActive ? 'mapping-active' : ''}`} data-demo-kind="ability" data-demo-name={ability.name} key={ability.key}>
       <div className="bt-demo-ability-node-header">
         <button type="button" className={`bt-demo-node ${related.length ? 'mapped' : 'unmapped'}`} aria-expanded={showAllActions ? undefined : expanded} aria-pressed={showAllActions ? focused : undefined}
           onClick={() => onSelect('ability', ability.name, showAllActions ? 'inspect' : 'toggle')}>
-          <span><span className="bt-demo-node-name-row"><span className="bt-demo-node-name">{ability.name}</span>{ability.category && <span className="bt-demo-node-category" title={`Category: ${SERVICE_CATEGORY_LABELS[ability.category]}`}>{SERVICE_CATEGORY_LABELS[ability.category]}</span>}</span><span className="bt-demo-node-meta" title={summary}>{summary}</span></span>
+          <span className="bt-demo-node-name-row"><span className="bt-demo-node-name">{ability.name}</span>{ability.direction && <span className={`bt-demo-node-direction ${ability.direction.toLowerCase()}`}>{ability.direction}</span>}{ability.category && <span className="bt-demo-node-category" title={`Category: ${SERVICE_CATEGORY_LABELS[ability.category]}`}>{SERVICE_CATEGORY_LABELS[ability.category]}</span>}</span>
         </button>
         {!showAllActions && <button type="button" className="bt-demo-ability-expand-entry" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${ability.name}`} aria-expanded={expanded} onClick={() => onSelect('ability', ability.name)}><DownOutlined className="bt-demo-expand-chevron" /></button>}
         <button type="button" className="bt-demo-ability-settings-entry" aria-label={`Configure ${ability.name}`} title="Configure Capability" onClick={() => openAbilitySettings(ability.name)}><SettingOutlined /></button>
@@ -363,7 +392,7 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
     </div><div className="bt-demo-column-headings">
       <div className="bt-demo-column-title"><span>Service</span><Button size="small" icon={<PlusOutlined />} onClick={() => { serviceForm.resetFields(); setAddServiceOpen(true); }}>Add Service</Button></div>
       <span className="bt-demo-direction-arrow" role="img" aria-label="Service to Capability"><ArrowRightOutlined /></span>
-      <div className="bt-demo-column-title"><span>Capability</span><Button size="small" icon={<PlusOutlined />} onClick={() => { abilityForm.resetFields(); abilityForm.setFieldValue('direction', 'Outbound'); setAddAbilityOpen(true); }}>Add Capability</Button></div>
+      <div className="bt-demo-column-title"><span>Capability</span><Button size="small" icon={<PlusOutlined />} onClick={() => { abilityForm.resetFields(); setAbilityStep(0); setAddAbilityOpen(true); }}>Add Capability</Button></div>
     </div></div>
     <div className="bt-demo-diagram bt-demo-inline-diagram" ref={diagramRef}>
       <section className="bt-demo-rail" ref={serviceRailRef} aria-label="Services">{services.length ? services.map(renderService) : <div className="bt-demo-rail-empty">No Service</div>}</section>
@@ -423,25 +452,36 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
         </Form.Item>
       </Form>
     </Modal>
-    <Modal title="Add Capability" open={addAbilityOpen} onCancel={() => { setAddAbilityOpen(false); abilityForm.resetFields(); }} onOk={saveAbility}
-      okText="Add" cancelText="Cancel" okButtonProps={{ disabled: !canAddAbility }} width={700} className="capability-add-ability-modal bt-demo-add-capability-modal" destroyOnHidden forceRender>
-      <Form form={abilityForm} labelCol={{ xs: { span: 24 }, sm: { span: 10 } }} wrapperCol={{ xs: { span: 24 }, sm: { span: 12 } }} colon>
-        <Form.Item label="Business Type" required><Typography.Text>{businessType}</Typography.Text></Form.Item>
-        <Form.Item label="Ability" name="abilityName" rules={[{ required: true, whitespace: true, message: 'Please select or enter an Ability' },
-          { pattern: /^[A-Za-z0-9_]+$/, message: 'Use letters, numbers, and underscores only' }]}>
+    <Modal title="Add Capability" open={addAbilityOpen} onCancel={closeAddAbility}
+      footer={<Space><Button onClick={closeAddAbility}>Cancel</Button>{abilityStep > 0 && <Button onClick={() => setAbilityStep((current) => current - 1)}>Previous</Button>}
+        {abilityStep < 2 ? <Button type="primary" disabled={!canContinueAbility} onClick={nextAbilityStep}>Next</Button>
+          : <Button type="primary" disabled={!abilityActions?.length} onClick={saveAbility}>Add Capability</Button>}</Space>}
+      width={700} className="capability-add-ability-modal bt-demo-add-capability-modal" destroyOnHidden forceRender>
+      <Steps className="bt-demo-ability-steps" size="small" current={abilityStep} items={[{ title: 'Ability' }, { title: 'Ability settings' }, { title: 'Actions' }]} />
+      <div className="bt-demo-ability-context" aria-label="Creation context">
+        <span>Business Type <strong>{businessType}</strong></span>
+        {abilityStep > 0 && <><span>Ability <strong>{abilityForm.getFieldValue('abilityName')}</strong></span><span>Direction <strong>{abilityDirection}</strong></span></>}
+      </div>
+      <Alert className="bt-demo-ability-step-note" type="info" showIcon title={abilityStep === 0 ? 'Name the Ability and choose its direction.'
+        : abilityStep === 1 ? 'These settings apply to every Action under this Ability.'
+          : 'Select the Actions to create under this Ability.'} />
+      <Form form={abilityForm} className="bt-demo-ability-step-form" labelCol={{ xs: { span: 24 }, sm: { span: 10 } }} wrapperCol={{ xs: { span: 24 }, sm: { span: 12 } }} colon>
+        {abilityStep === 0 && <><Form.Item label="Ability" name="abilityName" rules={[{ required: true, whitespace: true, message: 'Please select or enter an Ability' },
+          { pattern: /^[A-Za-z0-9_]+$/, message: 'Use letters, numbers, and underscores only' },
+          { validator: async (_, value: string | undefined) => {
+            if (value && abilities.some((ability) => ability.name.toLowerCase() === value.trim().toLowerCase())) {
+              throw new Error('This Ability already exists under the current Business Type');
+            }
+          } }]}>
           <AutoComplete options={abilityNameOptions} placeholder="Please select or enter new option"
             filterOption={(input, option) => String(option?.value || '').toLowerCase().includes(input.toLowerCase())} />
         </Form.Item>
-        <Form.Item label="Ability Direction" name="direction" initialValue="Outbound" rules={[{ required: true, message: 'Please select an Ability direction' }]}>
-          <Select options={[{ label: 'Outbound', value: 'Outbound' }, { label: 'Inbound', value: 'Inbound' }]}
-            onChange={() => abilityForm.setFieldValue('actions', [])} />
+        <Form.Item label="Direction" name="direction" rules={[{ required: true, message: 'Please select an Ability direction' }]}>
+          <Radio.Group options={[{ label: 'Outbound', value: 'Outbound' }, { label: 'Inbound', value: 'Inbound' }]}
+            onChange={() => abilityForm.setFieldsValue({ actions: [], balRequery: undefined })} />
         </Form.Item>
-        <Form.Item label="Action" name="actions" rules={[{ required: true, type: 'array', min: 1, message: 'Please select at least one Action' }]}>
-          <Select mode="multiple" allowClear placeholder="Please select at least one Action"
-            options={(abilityDirection === 'Inbound' ? INBOUND_ACTION_OPTIONS : OUTBOUND_ACTION_OPTIONS).map((name) => ({ label: name, value: name }))}
-            maxTagCount="responsive" />
-        </Form.Item>
-        <Form.Item label="Sub-order Mode" name="subOrderMode" rules={[{ required: true, message: 'Please select ON or OFF' }]}>
+        </>}
+        {abilityStep === 1 && <><Form.Item label="Sub-order Mode" name="subOrderMode" rules={[{ required: true, message: 'Please select ON or OFF' }]}>
           <Radio.Group options={ON_OFF_OPTIONS} />
         </Form.Item>
         {abilityDirection === 'Inbound' && <Form.Item label="BAL Requery" name="balRequery" rules={[{ required: true, message: 'Please select ON or OFF' }]}>
@@ -456,7 +496,12 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
         <Form.Item label="Category" name="category" required rules={[{ required: true, message: 'Please select a Category' }]}>
           <Select placeholder="Please select a Category"
             options={SERVICE_CATEGORY_OPTIONS.map((value) => ({ label: SERVICE_CATEGORY_LABELS[value], value }))} />
-        </Form.Item>
+        </Form.Item></>}
+        {abilityStep === 2 && <Form.Item label="Action" name="actions" rules={[{ required: true, type: 'array', min: 1, message: 'Please select at least one Action' }]}>
+          <Select mode="multiple" allowClear placeholder="Please select at least one Action"
+            options={(abilityDirection === 'Inbound' ? INBOUND_ACTION_OPTIONS : OUTBOUND_ACTION_OPTIONS).map((name) => ({ label: name, value: name }))}
+            maxTagCount="responsive" />
+        </Form.Item>}
       </Form>
     </Modal>
     <Modal title="Add Action" open={Boolean(actionTarget)} onCancel={() => { setActionTarget(null); setSelectedActions([]); }} onOk={saveAction}
@@ -474,14 +519,20 @@ export default function BusinessTypeDemoCanvas({ businessType, services, ability
       </Form>
     </Modal>
     <Modal title="Add Service / Ability mapping" open={Boolean(connectionDraft)} onCancel={() => setConnectionDraft(null)} onOk={saveConnection} okText="Add mapping" cancelText="Cancel"
-      okButtonProps={{ disabled: !connectionDraft?.service || !connectionDraft.ability }} width={680} className="capability-add-ability-modal">
+      okButtonProps={{ disabled: !connectionDraft?.service || !connectionDraft.ability || mappingCategoryMismatch }} width={680} className="capability-add-ability-modal">
       <Form labelCol={{ span: 7 }} wrapperCol={{ span: 15 }} colon>
         <Form.Item label="Business Type"><Typography.Text>{businessType}</Typography.Text></Form.Item>
-        <Form.Item label="Service" required><Select value={connectionDraft?.service} placeholder="Select Service" options={services.map((service) => ({ label: service.name, value: service.name }))}
-          onChange={(service) => setConnectionDraft((draft) => draft && ({ ...draft, service }))} /></Form.Item>
-        <Form.Item label="Ability" required><Select value={connectionDraft?.ability} placeholder="Select Ability" options={abilities.map((ability) => ({ label: ability.name, value: ability.name }))}
-          onChange={(ability) => setConnectionDraft((draft) => draft && ({ ...draft, ability }))} /></Form.Item>
-        <p className="bt-demo-direction-note">Actions with the same name connect automatically after this pair is mapped.</p>
+        <Form.Item label="Service" required><div className="bt-demo-mapping-select-row">
+          <Select value={connectionDraft?.service} placeholder="Select Service" options={services.map((service) => ({ label: service.name, value: service.name }))}
+            onChange={(service) => setConnectionDraft((draft) => draft && ({ ...draft, service }))} />
+          {mappingService && <Tag className="bt-demo-mapping-category-tag">{mappingService.category ? SERVICE_CATEGORY_LABELS[mappingService.category] : 'Category not set'}</Tag>}
+        </div></Form.Item>
+        <Form.Item label="Ability" required><div className="bt-demo-mapping-select-row">
+          <Select value={connectionDraft?.ability} placeholder="Select Ability" options={abilities.map((ability) => ({ label: ability.name, value: ability.name }))}
+            onChange={(ability) => setConnectionDraft((draft) => draft && ({ ...draft, ability }))} />
+          {mappingAbility && <Tag className="bt-demo-mapping-category-tag">{mappingAbility.category ? SERVICE_CATEGORY_LABELS[mappingAbility.category] : 'Category not set'}</Tag>}
+        </div></Form.Item>
+        {mappingCategoryMismatch && <Alert type="warning" showIcon title="Service and Ability must have the same Category to create a mapping." />}
       </Form>
     </Modal>
     <Modal title="Model" open={Boolean(modelTarget)} onCancel={() => setModelTarget(null)} onOk={saveModel} okText="Submit" cancelText="Cancel"

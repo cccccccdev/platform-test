@@ -1,12 +1,12 @@
-import type { ReactNode } from 'react';
-import { Breadcrumb, Button, Empty, Switch, Tabs, Tag, Typography } from 'antd';
-import { LeftOutlined, LockOutlined } from '@ant-design/icons';
+import { useState, type ReactNode } from 'react';
+import { Breadcrumb, Button, Empty, Switch, Tabs, Tag, Typography, message } from 'antd';
+import { LeftOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCapabilityDataStore } from './capabilityDataStore';
 import { getDemoReturnUrl } from './demoNavigation';
 import { isSubOrderModeEnabled } from './capability/subOrderModeStore';
-import { getBusinessAccessRequeryConfig } from './capability/businessAccessRequeryStore';
-import { getAbilityMessageSetting } from './capability/abilityMessageSettingsStore';
+import { getBusinessAccessRequeryConfig, saveBusinessAccessRequeryConfig } from './capability/businessAccessRequeryStore';
+import { getAbilityMessageSetting, saveAbilityMessageSetting } from './capability/abilityMessageSettingsStore';
 import CapabilityFeaturesPage from './capability/CapabilityFeaturesPage';
 import LinkStateMachinePage from './capability/LinkStateMachinePage';
 
@@ -24,23 +24,47 @@ function LockedSetting({ label, description, enabled, applicable = true }: { lab
   </section>;
 }
 
+function EditableSetting({ label, description, enabled, editable, applicable = true, onChange }: {
+  label: string; description: string; enabled: boolean; editable: boolean; applicable?: boolean; onChange: (enabled: boolean) => void;
+}) {
+  return <section className="bt-ability-locked-setting" aria-label={label}>
+    <div className="bt-ability-locked-setting-copy"><h3>{label}</h3><p>{description}</p></div>
+    <div className="bt-ability-locked-setting-value">
+      {!applicable ? <Tag>Not applicable</Tag> : <><Switch checked={enabled} disabled={!editable} aria-label={label} onChange={onChange} /><strong>{enabled ? 'ON' : 'OFF'}</strong></>}
+    </div>
+  </section>;
+}
+
 export default function AbilitySettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const businessType = searchParams.get('bt') || '';
   const abilityName = searchParams.get('ability') || '';
   const ability = useCapabilityDataStore((state) => state.data.find((group) => group.name === businessType)?.abilities.find((item) => item.name === abilityName));
+  const [, refreshSettings] = useState(0);
   const backUrl = getDemoReturnUrl(searchParams, businessType) || `/basic-info/demo?bt=${encodeURIComponent(businessType)}`;
   const balConfig = ability?.direction === 'Inbound' ? getBusinessAccessRequeryConfig(businessType, abilityName) : undefined;
   const metricsConfig = ability ? getAbilityMessageSetting(businessType, abilityName, 'metrics') : undefined;
   const completionConfig = ability ? getAbilityMessageSetting(businessType, abilityName, 'completion') : undefined;
+  const saveGeneralSetting = (save: () => void) => {
+    if (searchParams.get('generalEdit') === '0') return;
+    try { save(); refreshSettings((revision) => revision + 1); message.success('Setting saved'); }
+    catch { message.error('Unable to save this setting. Please try again.'); }
+  };
+  // Demo-only permission preview; the production allowlist will be supplied separately.
+  const canEditGeneral = searchParams.get('generalEdit') !== '0';
   const tabs: { key: TabKey; label: string; children: ReactNode }[] = [
     { key: 'general', label: 'General', children: <div className="bt-ability-general-settings">
       <LockedSetting label="Sub-order Mode" description="Whether this Ability uses sub-order processing." enabled={ability ? isSubOrderModeEnabled(businessType, abilityName) : undefined} />
-      <LockedSetting label="BAL Requery" description="Whether the business access layer re-queries this inbound Ability." enabled={balConfig?.configured ? balConfig.enabled : undefined} applicable={ability?.direction === 'Inbound'} />
-      <LockedSetting label="Send metrics message" description="Whether this Ability sends a metrics message." enabled={metricsConfig?.enabled} />
-      <LockedSetting label="Send completion message" description="Whether this Ability sends an order-completion message." enabled={completionConfig?.enabled} />
-      <p className="bt-ability-locked-setting-note"><LockOutlined /> These values were selected when this Capability was created and cannot be changed.</p>
+      <EditableSetting label="BAL Requery" description="Whether the business access layer re-queries this inbound Ability."
+        enabled={balConfig?.enabled ?? false} editable={canEditGeneral} applicable={ability?.direction === 'Inbound'}
+        onChange={(enabled) => saveGeneralSetting(() => saveBusinessAccessRequeryConfig(businessType, abilityName, enabled))} />
+      <EditableSetting label="Send metrics message" description="Whether this Ability sends a metrics message."
+        enabled={metricsConfig?.enabled ?? false} editable={canEditGeneral}
+        onChange={(enabled) => saveGeneralSetting(() => saveAbilityMessageSetting(businessType, abilityName, 'metrics', enabled))} />
+      <EditableSetting label="Send completion message" description="Whether this Ability sends an order-completion message."
+        enabled={completionConfig?.enabled ?? false} editable={canEditGeneral}
+        onChange={(enabled) => saveGeneralSetting(() => saveAbilityMessageSetting(businessType, abilityName, 'completion', enabled))} />
     </div> },
     { key: 'features', label: 'Features', children: <CapabilityFeaturesPage embedded /> },
     { key: 'state-machines', label: 'State Machines', children: <LinkStateMachinePage embedded /> },

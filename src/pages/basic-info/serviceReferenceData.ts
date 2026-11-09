@@ -44,6 +44,16 @@ const action = (key: string, name: string, operateTime: string, operator: string
 });
 
 export const initialServiceRecords: Record<string, ServiceRecord[]> = {
+  TEST: [
+    {
+      key: 'service_test_category_1', name: 'CATEGORY_1_SERVICE', category: 'category1',
+      actions: [action('service_test_category_1_transaction', 'TRANSACTION', '—', 'Demo')],
+    },
+    {
+      key: 'service_test_category_2', name: 'CATEGORY_2_SERVICE', category: 'category2',
+      actions: [action('service_test_category_2_transaction', 'TRANSACTION', '—', 'Demo')],
+    },
+  ],
   VIBER: [{
     key: 'service_viber_otp',
     name: 'OTP',
@@ -60,6 +70,7 @@ export const initialServiceRecords: Record<string, ServiceRecord[]> = {
       key: 'service_insurance_get_policy_info',
       name: 'GET_POLICY_INFO',
       actions: [action('service_insurance_get_policy_info_query', 'QUERY', '2026-08-17 09:48:40', '王斌 Bin')],
+      capabilityReferences: [{ ability: 'GET_POLICY_INFO' }],
     },
     {
       key: 'service_insurance_get_policy_document',

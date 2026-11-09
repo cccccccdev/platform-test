@@ -24,7 +24,7 @@ interface ServiceState {
   addActions: (businessType: string, serviceKey: string, actions: ServiceActionRecord[]) => void;
   setActionModel: (businessType: string, serviceKey: string, actionKey: string, model: ServiceRunModel) => void;
   connectAbility: (businessType: string, serviceName: string, ability: string) => void;
-  addConnection: (businessType: string, serviceName: string, abilityName: string) => 'added' | 'duplicate' | 'invalid';
+  addConnection: (businessType: string, serviceName: string, abilityName: string) => 'added' | 'duplicate' | 'invalid' | 'category-mismatch';
   removeBusinessType: (businessType: string) => void;
 }
 
@@ -70,6 +70,7 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
     const service = (get().records[businessType] || []).find((item) => item.name === serviceName);
     const ability = useCapabilityDataStore.getState().data.find((item) => item.name === businessType)?.abilities.find((item) => item.name === abilityName);
     if (!service || !ability) return 'invalid';
+    if (service.category !== ability.category) return 'category-mismatch';
     const reference = service.capabilityReferences?.find((item) => item.ability === abilityName);
     if (reference) return 'duplicate';
     set((state) => ({
