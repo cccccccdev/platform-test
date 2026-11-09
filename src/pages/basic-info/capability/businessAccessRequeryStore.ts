@@ -95,7 +95,7 @@ export function saveBusinessAccessRequeryConfig(
   const existing = getBusinessAccessRequeryConfig(businessType, ability) as BusinessAccessRequeryConfig;
   const config: BusinessAccessRequeryConfig = {
     ...existing,
-    enabled: existing.configured ? existing.enabled : enabled,
+    enabled,
     configured: true,
     strategy: existing.strategy,
     operator: 'Current User',

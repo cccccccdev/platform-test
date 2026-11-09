@@ -34,7 +34,6 @@ export function saveAbilityMessageSetting(
 ): AbilityMessageSettingConfig {
   const records = readAll();
   const key = configKey(businessType, ability, setting);
-  if (records[key]) return records[key];
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, '0');
   const config = {

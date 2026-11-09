@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { initialBusinessTypeRecords } from './businessTypeReferenceData';
 import type { ServiceCategory } from './serviceCategory';
+import { INBOUND_ACTION_OPTIONS, OUTBOUND_ACTION_OPTIONS } from './abilityDirectionActions';
 
 export interface ActionItem {
   key: string;
@@ -30,6 +31,21 @@ export interface BusinessTypeItem {
 
 const CONFIGURED_BT_DATA: BusinessTypeItem[] = [
   {
+    key: 'bt_test', name: 'TEST', isExpand: true,
+    abilities: [
+      {
+        key: 'ab_test_category_1', name: 'CATEGORY_1_ABILITY', operateTime: '—', operator: 'Demo', isExpand: true,
+        direction: 'Outbound', category: 'category1',
+        actions: [{ key: 'act_test_category_1_transaction', name: 'TRANSACTION', operateTime: '—', operator: 'Demo' }],
+      },
+      {
+        key: 'ab_test_category_2', name: 'CATEGORY_2_ABILITY', operateTime: '—', operator: 'Demo', isExpand: true,
+        direction: 'Outbound', category: 'category2',
+        actions: [{ key: 'act_test_category_2_transaction', name: 'TRANSACTION', operateTime: '—', operator: 'Demo' }],
+      },
+    ],
+  },
+  {
     key: 'bt_viber',
     name: 'VIBER',
     isExpand: true,
@@ -53,15 +69,15 @@ const CONFIGURED_BT_DATA: BusinessTypeItem[] = [
     isExpand: true,
     abilities: [
       {
-        key: 'ab_insurance_get_policy_info', name: 'GET_POLICY_INFO', operateTime: '—', operator: '—', isExpand: true,
+        key: 'ab_insurance_get_policy_info', name: 'GET_POLICY_INFO', operateTime: '—', operator: '—', isExpand: true, direction: 'Outbound',
         actions: [{ key: 'act_insurance_get_policy_info_query', name: 'QUERY', operateTime: '2026-08-17 08:35:56', operator: '王斌 Bin' }],
       },
       {
-        key: 'ab_insurance_get_policy_subject_kyc', name: 'GET_POLICY_SUBJECT_KYC', operateTime: '—', operator: '—', isExpand: true,
+        key: 'ab_insurance_get_policy_subject_kyc', name: 'GET_POLICY_SUBJECT_KYC', operateTime: '—', operator: '—', isExpand: true, direction: 'Inbound',
         actions: [{ key: 'act_insurance_policy_kyc_inbound_query', name: 'INBOUND_QUERY', operateTime: '2026-08-26 15:48:12', operator: '叶子豪 Abe' }],
       },
       {
-        key: 'ab_insurance_update_policy_status', name: 'UPDATE_POLICY_LIFECYCLE_STATUS', operateTime: '—', operator: '—', isExpand: true,
+        key: 'ab_insurance_update_policy_status', name: 'UPDATE_POLICY_LIFECYCLE_STATUS', operateTime: '—', operator: '—', isExpand: true, direction: 'Inbound',
         actions: [{ key: 'act_insurance_update_policy_status_inbound_query', name: 'INBOUND_QUERY', operateTime: '2026-08-26 15:44:00', operator: '叶子豪 Abe' }],
       },
     ],
@@ -323,9 +339,17 @@ const CONFIGURED_BT_DATA: BusinessTypeItem[] = [
 ];
 
 const configuredByName = new Map(CONFIGURED_BT_DATA.map((item) => [item.name, item]));
+// Demo fixtures represent the backend data after the one-time Direction cleanup.
+const cleanedDemoAbility = (ability: AbilityItem): AbilityItem => {
+  if (ability.direction) return ability;
+  const names = ability.actions.map((action) => action.name);
+  if (names.length && names.every((name) => INBOUND_ACTION_OPTIONS.includes(name))) return { ...ability, direction: 'Inbound' };
+  if (names.length && names.every((name) => OUTBOUND_ACTION_OPTIONS.includes(name))) return { ...ability, direction: 'Outbound' };
+  return ability;
+};
 const buildBusinessTypeItem = (name: string): BusinessTypeItem => {
   const configured = configuredByName.get(name);
-  return configured ? { ...configured, abilities: configured.abilities.map((ability) => ({ ...ability, actions: [...ability.actions] })) } : {
+  return configured ? { ...configured, abilities: configured.abilities.map((ability) => ({ ...cleanedDemoAbility(ability), actions: [...ability.actions] })) } : {
     key: `bt_${name.toLowerCase()}`,
     name,
     isExpand: true,
