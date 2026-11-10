@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Cascader, Form, Input, Modal, Select, Typography } from 'antd';
 import { ArrowRightOutlined } from '@ant-design/icons';
-import MappingOperationSelector, { type DecimalScaleConfig, type MappingOperationOption } from './MappingOperationSelector';
+import MappingOperationSelector, { type MappingOperationConfig, type MappingOperationOption } from './MappingOperationSelector';
 
 const { Text } = Typography;
 
 export interface PathSourceOption {
   label: string;
   value: string;
-  children: Array<{ label: string; value: string; type?: string; children?: PathSourceOption['children'] }>;
+  children?: Array<{ label: string; value: string; type?: string; children?: PathSourceOption['children'] }>;
 }
 
 interface Props {
@@ -17,11 +17,13 @@ interface Props {
   sourceOptions: PathSourceOption[];
   operationOptions: MappingOperationOption[];
   emptyText: string;
+  readOnly?: boolean;
 }
 
 const selectedType = (options: PathSourceOption[], value?: string[]): string => {
   const selected = value?.[value.length - 1];
   const findType = (items: PathSourceOption['children']): string | undefined => {
+    if (!items) return undefined;
     for (const item of items) {
       if (item.value === selected) return item.type ?? 'String';
       const nested = item.children ? findType(item.children) : undefined;
@@ -38,7 +40,7 @@ const selectedType = (options: PathSourceOption[], value?: string[]): string => 
 
 const columns = 'minmax(210px,1fr) 90px 24px 150px 24px minmax(190px,.9fr) 90px';
 
-export default function PathVariableMappingEditor({ variables, mappingName, sourceOptions, operationOptions, emptyText }: Props) {
+export default function PathVariableMappingEditor({ variables, mappingName, sourceOptions, operationOptions, emptyText, readOnly = false }: Props) {
   const form = Form.useFormInstance();
   const [referenceVariable, setReferenceVariable] = useState<string | null>(null);
   const [referenceMode, setReferenceMode] = useState<'default' | 'customPrefix'>('default');
@@ -54,7 +56,7 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
           {({ getFieldValue }) => {
             const source = getFieldValue([mappingName, variable, 'source']) as string[] | undefined;
             const operation = getFieldValue([mappingName, variable, 'operation']) as string[] | undefined;
-            const operationConfig = getFieldValue([mappingName, variable, 'operationConfig']) as DecimalScaleConfig | undefined;
+            const operationConfig = getFieldValue([mappingName, variable, 'operationConfig']) as MappingOperationConfig | undefined;
             return (
               <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
                 <Form.Item name={[mappingName, variable, 'source']} rules={[{ required: true, message: 'Select value source' }]} style={{ margin: 0 }}>
@@ -69,7 +71,7 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
                 </Form.Item>
                 <Text>{selectedType(sourceOptions, source)}</Text>
                 <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                <MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={operationOptions} onChange={(nextOperation, nextConfig) => {
+                <MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={operationOptions} fieldOptions={sourceOptions} readOnly={readOnly} onChange={(nextOperation, nextConfig) => {
                   form.setFieldValue([mappingName, variable, 'operation'], nextOperation);
                   form.setFieldValue([mappingName, variable, 'operationConfig'], nextConfig);
                 }} />

@@ -6,6 +6,7 @@ import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappin
 import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
+import { validateOperationConfigs } from './operationConfigs';
 import EndpointPathVariablesReference from './EndpointPathVariablesReference';
 import TargetMappingList, { collectFieldTargetMappings, normalizeTargetMappings, TargetMappingColumnHeaders, validateTargetMappings } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
@@ -180,6 +181,13 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
       ...collectFieldTargetMappings(values.requestBody),
     ]);
     if (mappingError) return void message.error(mappingError);
+    const operationError = validateOperationConfigs([
+      values.pathVariableMappings,
+      values.queryParameters,
+      values.requestHeaders,
+      values.requestBody,
+    ]);
+    if (operationError) return void message.error(operationError);
     onSave(values);
   };
   return <Drawer title={<Space><span>Configure Inbound Request</span><Tag color="cyan">inboundRequest</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void handleSave()}>Save</Button></Space>}>
@@ -194,9 +202,9 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
               { key: 'path', label: tabLabel('Path Vars', state('path')), children: effectiveRequestMappingMode === 'script'
                 ? <EndpointPathVariablesReference variables={pathVariables} endpointPath={endpointPath} />
                 : <InboundPathVariableMapping variables={pathVariables} endpointPath={endpointPath} targetOptions={spiRequestOptions} /> },
-              { key: 'query', label: tabLabel('Params', state('query')), children: <Form.Item name="queryParameters" initialValue={[]}><FlatFieldMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Query Parameter Fields" addLabel="Add Parameter" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
-              { key: 'header', label: tabLabel('Headers', state('header')), children: <Form.Item name="requestHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Request Header Fields" addLabel="Add Header" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
-              { key: 'body', label: tabLabel('Body', state('body')), children: <Form.Item name="requestBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} direction="response" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} targetPlaceholder="SPI request field" /></Form.Item> },
+              { key: 'query', label: tabLabel('Params', state('query')), children: <Form.Item name="queryParameters" initialValue={[]}><FlatFieldMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Query Parameter Fields" addLabel="Add Parameter" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} readOnly={readOnly} targetPlaceholder="SPI request field" /></Form.Item> },
+              { key: 'header', label: tabLabel('Headers', state('header')), children: <Form.Item name="requestHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Request Header Fields" addLabel="Add Header" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} readOnly={readOnly} targetPlaceholder="SPI request field" /></Form.Item> },
+              { key: 'body', label: tabLabel('Body', state('body')), children: <Form.Item name="requestBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} direction="response" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} readOnly={readOnly} targetPlaceholder="SPI request field" /></Form.Item> },
             ]} />
             {requestMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="requestMappingScript" helpText="Map pathVariables, queryParameters, requestHeaders and the preprocessed requestBody to SPI Request." /></Card>}
           </> },
@@ -340,15 +348,15 @@ export function InboundResponseDrawer({ open, initialValues = {}, readOnly = fal
     }
     return 'empty';
   };
-  return <Drawer title={<Space><span>Configure Inbound Response</span><Tag color="green">inboundResponse</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => form.validateFields().then(onSave)}>Save</Button></Space>}>
+  return <Drawer title={<Space><span>Configure Inbound Response</span><Tag color="green">inboundResponse</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void form.validateFields().then((values) => { const operationError = validateOperationConfigs([values.responseHeaders, values.responseBody]); if (operationError) return void message.error(operationError); onSave(values); })}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ components: { Form: { itemMarginBottom: 10 } } }}>
       <Form form={form} disabled={readOnly} layout="vertical" initialValues={{ responseMappingMode: 'configuration', responseFormat: 'JSON', ...initialValues }}>
         <Tabs items={[
           { key: 'mapping', label: tabLabel('Fields & Mapping', state('mapping')), children: <>
             <Form.Item name="responseMappingMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item>
             <Tabs type="card" size="small" items={[
-              { key: 'header', label: tabLabel('Headers', state('headers')), children: <Form.Item name="responseHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={responseMappingMode === 'script'} fixedFieldType="String" title="Response Header Fields" addLabel="Add Header" fieldPlaceholder="External response field" sourceOptions={spiResponseOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} sourcePlaceholder="SPI response field" /></Form.Item> },
-              { key: 'body', label: tabLabel('Body', state('body')), children: <Form.Item name="responseBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={responseMappingMode === 'script'} sourceOptions={spiResponseOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} sourcePlaceholder="SPI response field" /></Form.Item> },
+              { key: 'header', label: tabLabel('Headers', state('headers')), children: <Form.Item name="responseHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={responseMappingMode === 'script'} fixedFieldType="String" title="Response Header Fields" addLabel="Add Header" fieldPlaceholder="External response field" sourceOptions={spiResponseOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} readOnly={readOnly} sourcePlaceholder="SPI response field" /></Form.Item> },
+              { key: 'body', label: tabLabel('Body', state('body')), children: <Form.Item name="responseBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={responseMappingMode === 'script'} sourceOptions={spiResponseOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} readOnly={readOnly} sourcePlaceholder="SPI response field" /></Form.Item> },
             ]} />
             {responseMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="responseMappingScript" helpText="Map SPI Response and Flow Context to responseHeaders and responseBody." /></Card>}
           </> },

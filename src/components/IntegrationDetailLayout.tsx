@@ -30,7 +30,7 @@ export default function IntegrationDetailLayout() {
           <span>Back</span>
         </button>
       </Sider>
-      <Content style={{ minWidth: 0, overflow: 'auto' }}>
+      <Content className="integration-main" style={{ minWidth: 0, overflow: 'auto' }}>
         <Outlet />
       </Content>
     </Layout>
