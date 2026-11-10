@@ -2115,7 +2115,7 @@ export default function FlowEditorPage() {
     }
     if (code === 'network') setShowNetworkDrawer(true);
     else if (code === 'http' || code === 'httpCall') setShowHttpCallDrawer(true);
-    else if (code === 'upload2S3') setShowS3UploadDrawer(true);
+    else if (code === 'uploadToS3') setShowS3UploadDrawer(true);
     if (code === 'tcpCall') setShowTcpCallDrawer(true);
     if (code === 'loadChannelMerchantInfo') setShowLoadChannelMerchantInfoDrawer(true);
     if (code === 'initOutboundOrder' || code === 'initOutboundFirstOrder') setReferenceConfigTarget({ direction: 'outbound', placement: 'init-order' });
@@ -2124,7 +2124,7 @@ export default function FlowEditorPage() {
     if (code === 'inboundResponse') setShowInboundResponseDrawer(true);
     if (['directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse'].includes(code)) setShowConfiguredSpiResponseDrawer(true);
     if (code === 'condition') { setSelectedConditionNodeId(nodeId ?? null); setShowConditionNodeDrawer(true); }
-    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'upload2S3', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
+    const hasDedicatedConfig = ['network', 'http', 'httpCall', 'uploadToS3', 'tcpCall', 'loadChannelMerchantInfo', 'initOutboundOrder', 'initOutboundFirstOrder', 'initInboundOrder', 'inboundRequest', 'inboundResponse', 'directResponse', 'directSpiResponse', 'returnConfiguredSpiResponse', 'condition'].includes(code);
     if (!hasDedicatedConfig && definition?.needConfig) setPlaceholderComponent(code);
   }, []);
   const selectedConfigNode = nodes.find((node) => node.id === selectedConfigNodeId);

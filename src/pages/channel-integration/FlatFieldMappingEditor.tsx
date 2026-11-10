@@ -3,7 +3,7 @@ import { ArrowRightOutlined, DeleteOutlined, HolderOutlined, PlusOutlined } from
 import { Button, Cascader, Form, Input, Modal, Select, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import TargetMappingList, { createTargetMapping, normalizeTargetMappings, TargetMappingColumnHeaders } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
-import MappingOperationSelector, { type DecimalScaleConfig, type MappingOperationOption } from './MappingOperationSelector';
+import MappingOperationSelector, { type MappingOperationConfig, type MappingOperationOption } from './MappingOperationSelector';
 
 const { Text } = Typography;
 
@@ -11,7 +11,7 @@ export interface FlatMappingField {
   id?: string;
   sourceValue?: string | string[];
   operation?: string | string[];
-  operationConfig?: DecimalScaleConfig;
+  operationConfig?: MappingOperationConfig;
   name?: string;
   type?: string;
   required?: boolean;
@@ -51,6 +51,8 @@ interface Props {
   sourceCascader?: boolean;
   fixedFieldType?: string;
   schemaOnly?: boolean;
+  /** 详情只读态。 */
+  readOnly?: boolean;
 }
 
 const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 36px';
@@ -99,6 +101,7 @@ export default function FlatFieldMappingEditor({
   sourceCascader = false,
   fixedFieldType,
   schemaOnly = false,
+  readOnly = false,
 }: Props) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [referenceConfigIndex, setReferenceConfigIndex] = useState<number | null>(null);
@@ -161,7 +164,7 @@ export default function FlatFieldMappingEditor({
                     : <Select value={item.sourceValue as string | undefined} placeholder={sourcePlaceholder} options={sourceOptions} onChange={(sourceValue) => update(index, { sourceValue })} />}
                   <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, item.sourceValue)}</Text>
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                  <MappingOperationSelector value={item.operation as string[] | undefined} config={item.operationConfig} options={operationOptions} onChange={(operation, operationConfig) => update(index, { operation, operationConfig })} />
+                  <MappingOperationSelector value={item.operation as string[] | undefined} config={item.operationConfig} options={operationOptions} fieldOptions={cascaderSourceOptions} readOnly={readOnly} onChange={(operation, operationConfig) => update(index, { operation, operationConfig })} />
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
                 </> : null}
                 <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
@@ -176,6 +179,7 @@ export default function FlatFieldMappingEditor({
                     value={normalizeTargetMappings(item)}
                     targetOptions={targetOptions}
                     operationOptions={operationOptions}
+                    readOnly={readOnly}
                     targetPlaceholder={targetPlaceholder}
                     reservedTargetValues={value.flatMap((other, otherIndex) => otherIndex === index ? [] : normalizeTargetMappings(other).map((mapping) => mapping.targetValue).filter((target): target is string => Boolean(target)))}
                     onChange={(targetMappings) => update(index, { targetMappings, operation: undefined, targetValue: undefined })}

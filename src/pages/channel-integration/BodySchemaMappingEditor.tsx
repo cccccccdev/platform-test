@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons';
 import TargetMappingList, { createTargetMapping, normalizeTargetMappings, TargetMappingColumnHeaders } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
-import MappingOperationSelector, { type DecimalScaleConfig, type MappingOperationOption } from './MappingOperationSelector';
+import MappingOperationSelector, { type MappingOperationConfig, type MappingOperationOption } from './MappingOperationSelector';
 
 const { Text } = Typography;
 
@@ -26,7 +26,7 @@ export interface BodySchemaNode {
   description?: string;
   sourceId?: string | string[];
   operation?: string | string[];
-  operationConfig?: DecimalScaleConfig;
+  operationConfig?: MappingOperationConfig;
   targetValue?: string;
   targetMappings?: TargetMapping[];
   generatedDataConfig?: { mode: 'default' | 'customPrefix'; prefix?: string };
@@ -58,6 +58,8 @@ interface Props {
   sourcePlaceholder?: string;
   targetPlaceholder?: string;
   schemaOnly?: boolean;
+  /** 详情只读态。 */
+  readOnly?: boolean;
 }
 
 type DragState = { parentPath: number[]; index: number } | null;
@@ -154,13 +156,13 @@ const collectTargetValues = (nodes: BodySchemaNode[], excludeId?: string): strin
   ...collectTargetValues(node.children ?? [], excludeId),
 ]);
 
-export default function BodySchemaMappingEditor({ value = [], onChange, sourceOptions, dataTypeOptions, operationOptions, direction = 'request', targetOptions = [], sourcePlaceholder = 'Credential or generated data', targetPlaceholder = 'Token or Expiry', schemaOnly = false }: Props) {
+export default function BodySchemaMappingEditor({ value = [], onChange, sourceOptions, dataTypeOptions, operationOptions, direction = 'request', targetOptions = [], sourcePlaceholder = 'Credential or generated data', targetPlaceholder = 'Token or Expiry', schemaOnly = false, readOnly = false }: Props) {
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [rootCollapsed, setRootCollapsed] = useState(false);
   const [rootType, setRootType] = useState('Object');
   const [rootSourceId, setRootSourceId] = useState<string[]>([]);
   const [rootOperation, setRootOperation] = useState<string[]>([]);
-  const [rootOperationConfig, setRootOperationConfig] = useState<DecimalScaleConfig>();
+  const [rootOperationConfig, setRootOperationConfig] = useState<MappingOperationConfig>();
   const [rootTargetMappings, setRootTargetMappings] = useState<TargetMapping[]>([]);
   const [dragState, setDragState] = useState<DragState>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -326,7 +328,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceId) => selectNodeSource(path, sourceId as string[])} />
             <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, node.sourceId)}</Text>
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-            <MappingOperationSelector value={node.operation as string[] | undefined} config={node.operationConfig} options={operationOptions} onChange={(operation, operationConfig) => updateNode(path, { operation, operationConfig })} />
+            <MappingOperationSelector value={node.operation as string[] | undefined} config={node.operationConfig} options={operationOptions} fieldOptions={cascaderSourceOptions} readOnly={readOnly} onChange={(operation, operationConfig) => updateNode(path, { operation, operationConfig })} />
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
           </>)}
           <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, paddingLeft: depth * 20 }}>
@@ -336,7 +338,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             {isContainer ? (
               <Button type="text" size="small" icon={collapsed ? <CaretRightOutlined /> : <CaretDownOutlined />} onClick={() => toggleNode(node.id)} style={{ width: 24, padding: 0, marginRight: 2 }} />
             ) : <span style={{ width: 26 }} />}
-            <Input value={isArrayItem ? '_items' : node.name} disabled={isArrayItem} placeholder="Field name" status={!node.name ? 'error' : undefined} onChange={(event) => updateNode(path, { name: event.target.value })} />
+            <Input value={isArrayItem ? '_items' : node.name} disabled={readOnly || isArrayItem} placeholder="Field name" status={!node.name ? 'error' : undefined} onChange={(event) => updateNode(path, { name: event.target.value })} />
           </div>
           <Select value={node.type} options={isArrayItem ? dataTypeOptions.filter(option => option.value !== 'Array') : dataTypeOptions} onChange={(nextType) => changeType(path, nextType)} />
           <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!node.required} onChange={(required) => updateNode(path, { required })} /></div>
@@ -352,6 +354,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
               operationOptions={operationOptions}
               targetPlaceholder={targetPlaceholder}
               reservedTargetValues={collectTargetValues(value, node.id)}
+              readOnly={readOnly}
               onChange={(targetMappings) => updateNode(path, { targetMappings, operation: undefined, targetValue: undefined })}
               onRemoveLast={() => removeAt(path)}
             />)}
@@ -419,6 +422,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
                 operationOptions={operationOptions}
                 targetPlaceholder={targetPlaceholder}
                 reservedTargetValues={collectTargetValues(value)}
+                readOnly={readOnly}
                 onChange={setRootTargetMappings}
               />)}
             {(schemaOnly || direction !== 'response') && (rootType === 'Object' ? <Tooltip title="Add child field under ROOT"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt([])} /></Tooltip> : <span />)}
