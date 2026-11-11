@@ -9,6 +9,8 @@ const AnnouncementLayout = lazy(() => import('../components/AnnouncementLayout')
 const HomePage = lazy(() => import('../pages/home/HomePage'));
 const OperationConfigLayout = lazy(() => import('../pages/operation-config/OperationConfigLayout'));
 const OperationConfigPlaceholderPage = lazy(() => import('../pages/operation-config/OperationConfigPlaceholderPage'));
+const RouteEventPage = lazy(() => import('../pages/operation-config/RouteEventPage'));
+const RouteEventDetailPage = lazy(() => import('../pages/operation-config/RouteEventPage').then((module) => ({ default: module.RouteEventDetailPage })));
 const AvailabilityMonitoringPage = lazy(() => import('../pages/operation-config/AvailabilityMonitoringPage'));
 const AvailabilityMonitoringDetailPage = lazy(() => import('../pages/operation-config/AvailabilityMonitoringDetailPage'));
 const MonitoringScenarioListPage = lazy(() => import('../pages/operation-config/MonitoringScenarioListPage'));
@@ -291,7 +293,9 @@ const router = createHashRouter(
       { path: 'pos-service-channel-institution', element: <OperationConfigPlaceholderPage title="POS Service Channel Institution" /> },
       { path: 'schedule-trans', element: <OperationConfigPlaceholderPage title="Schedule Trans" /> },
       { path: 'probe-test-list', element: <OperationConfigPlaceholderPage title="ProbeTest List" /> },
-      { path: 'route-event', element: <OperationConfigPlaceholderPage title="Route Event" /> },
+      { path: 'route-event', element: <RouteEventPage /> },
+      { path: 'route-event/create', element: <RouteEventDetailPage /> },
+      { path: 'route-event/:recordId', element: <RouteEventDetailPage /> },
       { path: 'availability-monitoring', element: <AvailabilityMonitoringPage /> },
       { path: 'availability-monitoring/create', element: <AvailabilityMonitoringDetailPage /> },
       { path: 'availability-monitoring/:recordId/modify', element: <AvailabilityMonitoringDetailPage /> },

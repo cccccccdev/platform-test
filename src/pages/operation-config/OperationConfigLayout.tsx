@@ -27,7 +27,9 @@ export default function OperationConfigLayout() {
     ? '/operation-config/monitoring-scenarios'
     : location.pathname.startsWith('/operation-config/availability-monitoring')
       ? '/operation-config/availability-monitoring'
-      : location.pathname;
+      : location.pathname.startsWith('/operation-config/route-event')
+        ? '/operation-config/route-event'
+        : location.pathname;
 
   return (
     <Layout className="operation-config-shell">
