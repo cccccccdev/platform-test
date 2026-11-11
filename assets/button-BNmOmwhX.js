@@ -1,0 +1,1 @@
+import{i as e}from"./useVariants-B22WeldS.js";var t=e;export{t};
