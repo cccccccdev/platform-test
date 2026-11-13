@@ -308,3 +308,10 @@
 .route-event-table { margin-top: 16px; }
 .route-event-form { max-width: 740px; }
 .route-event-form-title { margin: 0 0 24px; font-size: 16px; font-weight: 600; }
+
+.schedule-trans-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.schedule-trans-filters .ant-form-item-label { min-width: 135px; }
+.schedule-trans-filters .route-event-filter-actions { align-self: start; }
+.schedule-trans-actions { display: flex; justify-content: space-between; margin-bottom: 16px; }
+.schedule-trans-bulk-title { color: #d81d18; }
+@media (max-width: 850px) { .schedule-trans-filters { grid-template-columns: minmax(0, 1fr); } }
