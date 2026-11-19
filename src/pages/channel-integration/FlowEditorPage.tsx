@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useCallback, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Input, Typography, Divider, Space, message, Collapse, Tag, Modal, Tabs, Select, Drawer, Radio, Switch, Tooltip } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, CloudUploadOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, CopyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -10,6 +10,8 @@ import { useConfigIntegrationStore } from './configIntegrationStore';
 import { useMatchCapabilityStore } from './matchCapabilityStore';
 import { useChannelScopeStore } from './channelScopeStore';
 import type { AuthType, AuthConfig, CredentialItem } from './channelScopeStore';
+import ConditionFlowNode from './ConditionFlowNode';
+import { conditionHandleId, isBranchConfigured } from './conditionFlowModel';
 import CanvasContextPanel from './CanvasContextPanel';
 import type { ReferenceConfigTarget } from './ReferenceGenerationDrawer';
 import { componentByName, componentsForScope, componentScopeForTrigger } from './componentCatalog';
@@ -272,7 +274,7 @@ function FlowNodeComponent({ data }: { id: string; data: any }) {
   );
 }
 
-const nodeTypes = { flowNode: FlowNodeComponent };
+const nodeTypes = { flowNode: FlowNodeComponent, conditionNode: ConditionFlowNode };
 
 // Context面板组件
 function ContextPanel({
@@ -1954,6 +1956,64 @@ export default function FlowEditorPage() {
     }
   }, [nodes]);
 
+  /**
+   * condition 节点的分支视图由出边推导（出边顺序即分支顺序，First Matched）。
+   *
+   * 两个坑必须同时避开：
+   * ① 不能每轮都生成全新节点对象——React Flow 会丢弃 measured 缓存反复测量，形成
+   *    「渲染 → 测量 → onNodesChange → 渲染」的循环，画布直接变空白；
+   * ② 不能把分支数据放到副作用里写回——手柄会比边晚一帧出现，连线时报
+   *    `Couldn't create edge for source handle id: "branch-0"`，边根本建不起来。
+   * 所以这里用「引用命中缓存」：只有底层节点对象或分支内容真的变了才换对象。
+   */
+  const conditionNodeCache = useRef(new Map<string, { source: Node; signature: string; node: Node }>());
+  const renderNodes = useMemo(() => {
+    if (!nodes.some((node) => node.data?.code === 'condition')) return nodes;
+    return nodes.map((node) => {
+      if (node.data?.code !== 'condition') return node;
+      const branches = edges.filter((edge) => edge.source === node.id).map((edge, index) => {
+        const condition = edge.data?.condition as any;
+        const target = nodes.find((item) => item.id === edge.target);
+        return {
+          id: edge.id,
+          name: condition?.branchName?.trim() || `Branch ${index + 1}`,
+          target: String(target?.data?.code ?? ''),
+          configured: isBranchConfigured(condition),
+          targetConfigured: Boolean(target?.data?.isConfigured),
+        };
+      });
+      const signature = JSON.stringify(branches);
+      const cached = conditionNodeCache.current.get(node.id);
+      if (cached && cached.source === node && cached.signature === signature) return cached.node;
+      const next: Node = { ...node, data: { ...node.data, branches } };
+      conditionNodeCache.current.set(node.id, { source: node, signature, node: next });
+      return next;
+    });
+  }, [edges, nodes]);
+
+  // 没有 condition 节点时原样返回，保证存量画布行为与改动前完全一致。
+  const renderEdges = useMemo(() => {
+    const conditionIds = new Set(nodes.filter((node) => node.data?.code === 'condition').map((node) => node.id));
+    if (conditionIds.size === 0) return edges;
+    return edges.map((edge) => {
+      if (!conditionIds.has(edge.source)) return edge;
+      const siblings = edges.filter((item) => item.source === edge.source);
+      const index = siblings.findIndex((item) => item.id === edge.id);
+      const condition = edge.data?.condition as any;
+      return {
+        ...edge,
+        // 每个分支一个底部手柄，不显式绑定的话所有出边都会挤在第一个手柄上。
+        sourceHandle: conditionHandleId(index),
+        label: `${index + 1}  ${condition?.branchName?.trim() || `Branch ${index + 1}`}`,
+        labelShowBg: true,
+        labelBgPadding: [6, 3] as [number, number],
+        labelBgBorderRadius: 10,
+        labelBgStyle: { fill: '#fff', stroke: '#e8e8e8', strokeWidth: 1 },
+        labelStyle: { fontSize: 10.5, fill: '#41506b' },
+      };
+    });
+  }, [edges, nodes]);
+
   const storedAbility = useConfigIntegrationStore((state) =>
     (state.abilitiesByChannel[params.channelCode ?? ''] ?? []).find(
       (item) => item.bt === params.bt && item.ability === params.ability
@@ -2135,7 +2195,7 @@ export default function FlowEditorPage() {
     const info = componentByName(item.componentCode);
     return {
       id: item.id,
-      type: 'flowNode',
+      type: item.componentCode === 'condition' ? 'conditionNode' : 'flowNode',
       position: { x: item.x, y: item.y },
       data: {
         name: item.componentCode,
@@ -2403,8 +2463,8 @@ export default function FlowEditorPage() {
             Canvas
           </div>
           <ReactFlow
-            nodes={nodes}
-            edges={edges}
+            nodes={renderNodes}
+            edges={renderEdges}
             onConnect={onConnect}
             onEdgeClick={onEdgeClick}
             onNodeClick={(_event, node) => { console.log('ReactFlow node clicked, node data:', node.data); (node.data as any).onConfig?.(); }}
@@ -2622,12 +2682,17 @@ export default function FlowEditorPage() {
         open
         targetComponent={String(nodes.find((node) => node.id === selectedEdgeForCondition?.target)?.data.code ?? '')}
         fieldOptions={[
-          { label: 'Channel Response Code', value: 'channelResponse.code', type: 'String' },
-          { label: 'Channel Response Status', value: 'channelResponse.status', type: 'String' },
-          { label: 'SPI Request Amount', value: 'spi.request.amount', type: 'Long' },
-          { label: 'SPI Request Currency', value: 'spi.request.currency', type: 'String' },
-          { label: 'SPI Request Reference', value: 'spi.request.reference', type: 'String' },
+          { label: '_order.route.channel', value: '_order.route.channel', type: 'String' },
+          { label: '_order.route.institution', value: '_order.route.institution', type: 'String' },
+          { label: 'spi.request.amount', value: 'spi.request.amount', type: 'BigDecimal' },
+          { label: 'spi.request.currency', value: 'spi.request.currency', type: 'String' },
+          { label: 'spi.request.reference', value: 'spi.request.reference', type: 'String' },
+          // Demo 造数：SPI 侧的 Boolean 字段，用于验证「运算符固定 =、左右值操作类隐藏、右值 True/False」的退化形态。
+          { label: 'spi.request.needNotify', value: 'spi.request.needNotify', type: 'Boolean' },
+          ...mockOrderVars.map((item: any) => ({ label: item.name, value: item.name, type: 'String' })),
         ]}
+        globalVariableOptions={(globalVariables.length > 0 ? globalVariables : [{ id: 'seed_country', name: 'country', value: 'NG' }])
+          .map((item) => ({ label: `_globalVariable.${item.name}`, value: `_globalVariable.${item.name}`, type: 'String' }))}
         value={selectedEdgeForCondition?.data?.condition as any}
         readOnly={readOnly}
         onClose={() => {

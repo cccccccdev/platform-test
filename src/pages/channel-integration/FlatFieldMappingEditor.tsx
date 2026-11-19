@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowRightOutlined, DeleteOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Cascader, Form, Input, Modal, Select, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import TargetMappingList, { createTargetMapping, normalizeTargetMappings, TargetMappingColumnHeaders } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
 import MappingOperationSelector, { type MappingOperationConfig, type MappingOperationOption } from './MappingOperationSelector';
+import type { ConditionalAssignmentConfig, ConditionalAssignmentField } from './conditionalAssignmentModel';
+import { createInitialConfig } from './conditionalAssignmentModel';
+import { operationResultType } from './operationResultType';
 
 const { Text } = Typography;
 
@@ -12,6 +15,12 @@ export interface FlatMappingField {
   sourceValue?: string | string[];
   operation?: string | string[];
   operationConfig?: MappingOperationConfig;
+  /** 条件赋值操作类的配置（选中 conditional-assignment 后由弹窗保存）。 */
+  conditionalConfig?: ConditionalAssignmentConfig;
+  /** response 方向：conditional assignment 自动新增的目标行（左侧字段与操作类只读，右侧 target mapping 选 SPI 目标字段）。 */
+  conditionalTargetRow?: boolean;
+  /** 触发该目标行的字段行 id（仅作来源记录）。 */
+  conditionalTargetFor?: string;
   name?: string;
   type?: string;
   required?: boolean;
@@ -55,8 +64,8 @@ interface Props {
   readOnly?: boolean;
 }
 
-const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 36px';
-const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(140px, .8fr) minmax(460px, 2.2fr)';
+const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 64px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 36px';
+const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(140px, .8fr) minmax(520px, 2.4fr)';
 
 const createField = (withTargetMapping = false): FlatMappingField => ({
   id: `mapping_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -85,6 +94,59 @@ const optionType = (options: MappingOption[], selected?: string | string[]): str
   return 'String';
 };
 
+/** 把 sourceOptions 拍平成条件赋值弹窗的候选字段列表（叶子带 path 与 type）。 */
+const flattenConditionalFields = (options: MappingOption[]): ConditionalAssignmentField[] => {
+  const result: ConditionalAssignmentField[] = [];
+  const walk = (items: MappingOption[]) => {
+    for (const item of items) {
+      if ('options' in item) {
+        walk(item.options);
+        continue;
+      }
+      const { children } = item;
+      if (children && children.length) {
+        walk(children);
+        continue;
+      }
+      const value = item.value;
+      if (!value) continue;
+      const path = value.split('.');
+      result.push({ id: value, path, name: path[path.length - 1], type: item.type ?? 'String' });
+    }
+  };
+  walk(options);
+  return result;
+};
+
+const isConditionalOperation = (operation?: string | string[]): boolean =>
+  Array.isArray(operation) ? operation[0] === 'conditional-assignment' : operation === 'conditional-assignment';
+
+/**
+ * 剥离所有「非目标行」上的 conditional 痕迹（response 扁平表，幂等）。
+ * 没有任何改动时返回原数组引用，便于上层用 useMemo 判断是否已干净。
+ */
+const stripConditionalOperation = (items: FlatMappingField[]): FlatMappingField[] => {
+  let changed = false;
+  const next = items.map((item) => {
+    if (item.conditionalTargetRow) return item;
+    const mappings = normalizeTargetMappings(item);
+    const mappingHasConditional = mappings.some((mapping) => isConditionalOperation(mapping.operation));
+    const rowHasConditional = isConditionalOperation(item.operation);
+    if (!mappingHasConditional && !rowHasConditional && !item.conditionalConfig) return item;
+    changed = true;
+    return {
+      ...item,
+      operation: rowHasConditional ? undefined : item.operation,
+      operationConfig: rowHasConditional ? undefined : item.operationConfig,
+      conditionalConfig: undefined,
+      targetMappings: mappingHasConditional
+        ? mappings.map((mapping) => (isConditionalOperation(mapping.operation) ? { ...mapping, operation: undefined, operationConfig: undefined } : mapping))
+        : item.targetMappings,
+    };
+  });
+  return changed ? next : items;
+};
+
 export default function FlatFieldMappingEditor({
   value = [],
   onChange,
@@ -106,13 +168,21 @@ export default function FlatFieldMappingEditor({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [referenceConfigIndex, setReferenceConfigIndex] = useState<number | null>(null);
   const [referenceForm] = Form.useForm<{ mode: 'default' | 'customPrefix'; prefix?: string }>();
+  /**
+   * response 方向的唯一可信值：先把非目标行上的 conditional 痕迹剥干净。
+   * 渲染与写操作都基于它，脏数据既不会显示也会在交互后写回。干净时返回原引用。
+   */
+  const effectiveValue = useMemo(
+    () => (direction === 'response' && !schemaOnly ? stripConditionalOperation(value) : value),
+    [value, direction, schemaOnly],
+  );
   const emit = (next: FlatMappingField[]) => onChange?.(next);
   const update = (index: number, updates: Partial<FlatMappingField>) =>
-    emit(value.map((item, itemIndex) => itemIndex === index ? { ...item, ...updates } : item));
-  const remove = (index: number) => emit(value.filter((_, itemIndex) => itemIndex !== index));
+    emit(effectiveValue.map((item, itemIndex) => itemIndex === index ? { ...item, ...updates } : item));
+  const remove = (index: number) => emit(effectiveValue.filter((_, itemIndex) => itemIndex !== index));
   const move = (from: number, to: number) => {
     if (from === to) return;
-    const next = [...value];
+    const next = [...effectiveValue];
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);
     emit(next);
@@ -122,10 +192,40 @@ export default function FlatFieldMappingEditor({
   const cascaderSourceOptions = sourceOptions.map((option) => 'options' in option
     ? { label: option.label, value: option.label, children: option.options }
     : option);
+  // 条件赋值弹窗的候选字段（拍平 sourceOptions，带 type 用于运算符过滤）。
+  const conditionalFields = useMemo(() => flattenConditionalFields(sourceOptions), [sourceOptions]);
+  // response 方向：条件字段候选 = 用户录入的 header 名（扁平，path 单段）。
+  const responseConditionalFields = useMemo(() => effectiveValue
+    .filter((item) => !item.conditionalTargetRow && item.name?.trim())
+    .map((item) => ({ id: item.name as string, path: [item.name as string], name: item.name, type: item.type })), [effectiveValue]);
+
+  /** 新增普通字段行：插到条件赋值目标行上方，保证条件行恒在最下方。 */
+  const addField = () => {
+    const created = createField(direction === 'response' && !schemaOnly);
+    const conditionalIndex = effectiveValue.findIndex((item) => item.conditionalTargetRow);
+    const next = conditionalIndex >= 0
+      ? [...effectiveValue.slice(0, conditionalIndex), created, ...effectiveValue.slice(conditionalIndex)]
+      : [...effectiveValue, created];
+    emit(next);
+  };
+
+  /** response：选中条件赋值 → 清空该行操作类，并在列表最下方追加一个条件目标行。 */
+  const handleConditionalSelected = (index: number) => {
+    const base = stripConditionalOperation(value);
+    const trigger = base[index];
+    const targetRow: FlatMappingField = {
+      ...createField(true),
+      conditionalTargetRow: true,
+      conditionalTargetFor: trigger?.id,
+      conditionalConfig: createInitialConfig(),
+      targetMappings: [{ ...createTargetMapping(), operation: ['conditional-assignment', 'conditional-assignment'], conditionalTarget: true }],
+    };
+    emit([...base, targetRow]);
+  };
   const selectSource = (index: number, sourceValue: string[]) => {
     update(index, { sourceValue });
     if (sourceValue[sourceValue.length - 1] === 'generated.reference-number') {
-      referenceForm.setFieldsValue(value[index].generatedDataConfig ?? { mode: 'default', prefix: '' });
+      referenceForm.setFieldsValue(effectiveValue[index].generatedDataConfig ?? { mode: 'default', prefix: '' });
       setReferenceConfigIndex(index);
     }
   };
@@ -133,22 +233,22 @@ export default function FlatFieldMappingEditor({
   return (
     <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#fafafa', borderBottom: '1px solid #e8e8e8' }}>
-        <Space size={8}><Text strong>{title}</Text><Tag style={{ margin: 0 }}>{value.length} fields</Tag></Space>
-        <Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => emit([...value, createField(direction === 'response' && !schemaOnly)])}>{addLabel}</Button>
+        <Space size={8}><Text strong>{title}</Text><Tag style={{ margin: 0 }}>{effectiveValue.length} fields</Tag></Space>
+        <Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={addField}>{addLabel}</Button>
       </div>
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 960 }}>
+        <div style={{ minWidth: 1060 }}>
           <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, background: '#fcfcfc', borderBottom: '1px solid #f0f0f0' }}>
             {schemaOnly ? <>
               <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
             </> : direction === 'request' ? <>
-              <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
+              <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span>TYPE</span><span /><span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
             </> : <>
               <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><TargetMappingColumnHeaders />
             </>}
           </div>
           <div style={{ maxHeight: 480, overflowY: 'auto' }}>
-            {value.map((item, index) => (
+            {effectiveValue.map((item, index) => (
               <div
                 key={item.id ?? index}
                 draggable
@@ -156,24 +256,40 @@ export default function FlatFieldMappingEditor({
                 onDragEnd={() => setDragIndex(null)}
                 onDragOver={(event) => { if (dragIndex !== null) event.preventDefault(); }}
                 onDrop={(event) => { event.preventDefault(); if (dragIndex !== null) move(dragIndex, index); setDragIndex(null); }}
-                style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', minHeight: 43, padding: '5px 8px', borderBottom: '1px solid #f0f0f0', background: dragIndex === index ? '#e6f4ff' : '#fff' }}
+                style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', minHeight: 43, padding: '5px 8px', borderBottom: '1px solid #f0f0f0', borderTop: item.conditionalTargetRow ? '1px solid #d9d9d9' : undefined, background: dragIndex === index ? '#e6f4ff' : '#fff' }}
               >
                 {!schemaOnly && direction === 'request' ? <>
                   {sourceCascader
-                    ? <Cascader value={item.sourceValue as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceValue) => selectSource(index, sourceValue as string[])} />
-                    : <Select value={item.sourceValue as string | undefined} placeholder={sourcePlaceholder} options={sourceOptions} onChange={(sourceValue) => update(index, { sourceValue })} />}
+                    ? <Cascader value={item.sourceValue as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch disabled={item.operation?.[0] === 'conditional-assignment'} onChange={(sourceValue) => selectSource(index, sourceValue as string[])} />
+                    : <Select value={item.sourceValue as string | undefined} placeholder={sourcePlaceholder} options={sourceOptions} disabled={item.operation?.[0] === 'conditional-assignment'} onChange={(sourceValue) => update(index, { sourceValue })} />}
                   <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, item.sourceValue)}</Text>
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                  <MappingOperationSelector value={item.operation as string[] | undefined} config={item.operationConfig} options={operationOptions} fieldOptions={cascaderSourceOptions} readOnly={readOnly} onChange={(operation, operationConfig) => update(index, { operation, operationConfig })} />
+                  <MappingOperationSelector
+                    value={item.operation as string[] | undefined}
+                    config={item.operationConfig}
+                    options={operationOptions}
+                    fieldOptions={cascaderSourceOptions}
+                    readOnly={readOnly}
+                    conditionalConfig={item.conditionalConfig}
+                    conditionalFields={conditionalFields}
+                    conditionalTargetLabel={item.name || undefined}
+                    conditionalTargetType={fixedFieldType ?? item.type}
+                    onConditionalConfig={(conditionalConfig) => update(index, { conditionalConfig })}
+                    onChange={(operation, operationConfig) => update(index, { operation, operationConfig })}
+                  />
+                  <Text style={{ fontSize: 12 }}>{operationResultType(item.operation) ?? ''}</Text>
                   <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
                 </> : null}
-                <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
-                  <Tooltip title="Drag to reorder"><HolderOutlined style={{ color: '#bfbfbf', cursor: 'grab', marginRight: 6 }} /></Tooltip>
-                  <Input value={item.name} placeholder={fieldPlaceholder} status={!item.name ? 'error' : undefined} onChange={(event) => update(index, { name: event.target.value })} />
-                </div>
-                {fixedFieldType ? <Text>{fixedFieldType}</Text> : <Select value={item.type} placeholder="Type" options={dataTypeOptions} onChange={(type) => update(index, { type })} />}
-                <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!item.required} onChange={(required) => update(index, { required })} /></div>
-                <Input value={item.description} placeholder="Optional" onChange={(event) => update(index, { description: event.target.value })} />
+                {/* 条件赋值派生的目标行：左侧字段信息无意义，整体让位给一行提示文字（配置在右侧 target mapping 里）。 */}
+                {item.conditionalTargetRow ? <div style={{ gridColumn: '1 / 5', color: '#8c8c8c', fontSize: 12 }}>Please config the conditional assignment.</div> : <>
+                  <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                    <Tooltip title="Drag to reorder"><HolderOutlined style={{ color: '#bfbfbf', cursor: 'grab', marginRight: 6 }} /></Tooltip>
+                    <Input value={item.name} disabled={readOnly} placeholder={fieldPlaceholder} status={!item.name ? 'error' : undefined} onChange={(event) => update(index, { name: event.target.value })} />
+                  </div>
+                  {fixedFieldType ? <Text>{fixedFieldType}</Text> : <Select value={item.type} placeholder="Type" options={dataTypeOptions} onChange={(type) => update(index, { type })} />}
+                  <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!item.required} onChange={(required) => update(index, { required })} /></div>
+                  <Input value={item.description} placeholder="Optional" onChange={(event) => update(index, { description: event.target.value })} />
+                </>}
                 {!schemaOnly && direction === 'response' ? <>
                   <TargetMappingList
                     value={normalizeTargetMappings(item)}
@@ -182,6 +298,14 @@ export default function FlatFieldMappingEditor({
                     readOnly={readOnly}
                     targetPlaceholder={targetPlaceholder}
                     reservedTargetValues={value.flatMap((other, otherIndex) => otherIndex === index ? [] : normalizeTargetMappings(other).map((mapping) => mapping.targetValue).filter((target): target is string => Boolean(target)))}
+                    onConditionalSelected={item.conditionalTargetRow ? undefined : () => handleConditionalSelected(index)}
+                    lockedConditional={item.conditionalTargetRow}
+                    conditionalConfig={item.conditionalConfig}
+                    conditionalFields={direction === 'response' ? responseConditionalFields : conditionalFields}
+                    conditionalTargetLabel={item.conditionalTargetRow ? normalizeTargetMappings(item).find((mapping) => mapping.targetValue)?.targetValue : undefined}
+                    conditionalTargetType={item.conditionalTargetRow ? optionType(targetOptions, normalizeTargetMappings(item).find((mapping) => mapping.targetValue)?.targetValue) : undefined}
+                    conditionalFieldPlaceholder="select field"
+                    onConditionalConfig={(conditionalConfig) => update(index, { conditionalConfig })}
                     onChange={(targetMappings) => update(index, { targetMappings, operation: undefined, targetValue: undefined })}
                     onRemoveLast={() => remove(index)}
                   />
@@ -189,7 +313,7 @@ export default function FlatFieldMappingEditor({
                 {(schemaOnly || direction !== 'response') && <Tooltip title="Delete field"><Button type="text" size="small" danger aria-label={`Delete field ${item.name || index + 1}`} icon={<DeleteOutlined />} onClick={() => remove(index)} /></Tooltip>}
               </div>
             ))}
-            {value.length === 0 && <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>No fields defined. <Button type="link" size="small" onClick={() => emit([createField(direction === 'response' && !schemaOnly)])}>{addLabel}</Button></div>}
+            {effectiveValue.length === 0 && <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>No fields defined. <Button type="link" size="small" onClick={addField}>{addLabel}</Button></div>}
           </div>
         </div>
       </div>

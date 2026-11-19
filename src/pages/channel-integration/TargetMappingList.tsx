@@ -1,6 +1,8 @@
 import { ArrowRightOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Select, Tooltip, Typography } from 'antd';
 import MappingOperationSelector, { type MappingOperationConfig, type MappingOperationOption } from './MappingOperationSelector';
+import type { ConditionalAssignmentConfig, ConditionalAssignmentField } from './conditionalAssignmentModel';
+import { operationResultType } from './operationResultType';
 
 const { Text } = Typography;
 
@@ -9,6 +11,8 @@ export interface TargetMapping {
   operation?: string[];
   operationConfig?: MappingOperationConfig;
   targetValue?: string;
+  /** response 方向：条件赋值自动新增的目标行上的 mapping（配置挂在所属字段行上，本身不存 conditionalConfig）。 */
+  conditionalTarget?: boolean;
 }
 
 export interface MappingValueOption {
@@ -72,11 +76,12 @@ export const createTargetMapping = (): TargetMapping => ({
   id: `target_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
 });
 
-const targetMappingColumns = 'minmax(125px, .8fr) 18px minmax(170px, 1fr) 62px 60px';
+const targetMappingColumns = 'minmax(125px, .8fr) 56px 18px minmax(170px, 1fr) 62px 60px';
 
 export function TargetMappingColumnHeaders() {
   return <div style={{ display: 'grid', gridTemplateColumns: targetMappingColumns, gap: 6, alignItems: 'center', paddingLeft: 11 }}>
-    <span>OPERATION TYPE</span>
+    <span>OPERATION</span>
+    <span>TYPE</span>
     <span />
     <span>TARGET FIELD</span>
     <span>FIELD TYPE</span>
@@ -93,6 +98,14 @@ export default function TargetMappingList({
   reservedTargetValues = [],
   onRemoveLast,
   readOnly = false,
+  onConditionalSelected,
+  conditionalConfig,
+  conditionalFields,
+  conditionalTargetLabel,
+  conditionalTargetType,
+  onConditionalConfig,
+  lockedConditional = false,
+  conditionalFieldPlaceholder,
 }: {
   value: TargetMapping[];
   onChange: (value: TargetMapping[]) => void;
@@ -102,6 +115,19 @@ export default function TargetMappingList({
   reservedTargetValues?: string[];
   onRemoveLast?: () => void;
   readOnly?: boolean;
+  /** 某条 mapping 的 operation 选中 conditional-assignment 时触发（由上层清空 operation 并新增目标行）。 */
+  onConditionalSelected?: () => void;
+  /** 条件赋值（新增目标行）的配置与候选字段，传给 MappingOperationSelector。 */
+  conditionalConfig?: ConditionalAssignmentConfig;
+  conditionalFields?: ConditionalAssignmentField[];
+  conditionalTargetLabel?: string;
+  /** 目标字段声明的类型（条件赋值弹窗 Target Field 右上的类型回显）。 */
+  conditionalTargetType?: string;
+  onConditionalConfig?: (config: ConditionalAssignmentConfig) => void;
+  /** 锁定为条件赋值且只读（新增目标行用）。 */
+  lockedConditional?: boolean;
+  /** 条件赋值弹窗字段选择框占位提示。 */
+  conditionalFieldPlaceholder?: string;
 }) {
   const update = (id: string, updates: Partial<TargetMapping>) => onChange(value.map((mapping) => mapping.id === id ? { ...mapping, ...updates } : mapping));
   const addAfter = (id: string) => {
@@ -132,18 +158,33 @@ export default function TargetMappingList({
     {value.length === 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', minHeight: 32, alignItems: 'center' }}>
       <Tooltip title="Add mapping"><Button type="text" size="small" aria-label="Add mapping" icon={<PlusOutlined />} onClick={() => onChange([createTargetMapping()])} /></Tooltip>
     </div>}
-    {value.map((mapping) => <div
-      key={mapping.id}
-      style={{ display: 'grid', gridTemplateColumns: targetMappingColumns, gap: 6, alignItems: 'center', padding: '4px 0', borderTop: '1px solid #f2f3f5' }}
-    >
-      <MappingOperationSelector value={mapping.operation} config={mapping.operationConfig} placeholder="Operation (optional)" options={operationOptions} readOnly={readOnly} onChange={(operation, operationConfig) => update(mapping.id, { operation, operationConfig })} />
-      <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-      <Select status={!mapping.targetValue ? 'error' : undefined} value={mapping.targetValue} placeholder={targetPlaceholder} options={optionsFor(mapping)} onChange={(targetValue) => update(mapping.id, { targetValue })} />
-      <Text style={{ fontSize: 11 }}>{targetOptionType(targetOptions, mapping.targetValue)}</Text>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Tooltip title="Add mapping"><Button type="text" size="small" aria-label="Add mapping" icon={<PlusOutlined />} onClick={() => addAfter(mapping.id)} /></Tooltip>
-        <Tooltip title="Remove mapping"><Button type="text" size="small" aria-label="Remove target mapping" danger icon={<DeleteOutlined />} onClick={() => remove(mapping.id)} /></Tooltip>
-      </div>
-    </div>)}
+    {value.map((mapping) => {
+      // 只有「上层接管条件赋值」（传了 onConditionalSelected）时，才把非目标行的 conditional 归一为空；
+      // 否则沿用老口径：conditional 照常作为操作类落库并展示。
+      const operation = onConditionalSelected && !lockedConditional && mapping.operation?.[0] === 'conditional-assignment'
+        ? undefined
+        : mapping.operation;
+      return <div
+        key={mapping.id}
+        style={{ display: 'grid', gridTemplateColumns: targetMappingColumns, gap: 6, alignItems: 'center', padding: '4px 0', borderTop: '1px solid #f2f3f5' }}
+      >
+        <MappingOperationSelector value={operation} config={operation ? mapping.operationConfig : undefined} placeholder="Operation (optional)" options={operationOptions} readOnly={readOnly} lockedConditional={lockedConditional} conditionalConfig={conditionalConfig} conditionalFields={conditionalFields} conditionalTargetLabel={conditionalTargetLabel} conditionalTargetType={conditionalTargetType} conditionalFieldPlaceholder={conditionalFieldPlaceholder} onConditionalConfig={onConditionalConfig} onChange={(operation, operationConfig) => {
+          // 选中条件赋值：上层声明接管时，operation 不落地，交由上层清空并新增目标行。
+          if (onConditionalSelected && operation?.[0] === 'conditional-assignment') {
+            onConditionalSelected();
+            return;
+          }
+          update(mapping.id, { operation, operationConfig });
+        }} />
+        <Text style={{ fontSize: 11 }}>{operationResultType(operation) ?? ''}</Text>
+        <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+        <Select status={!mapping.targetValue ? 'error' : undefined} value={mapping.targetValue} placeholder={targetPlaceholder} options={optionsFor(mapping)} onChange={(targetValue) => update(mapping.id, { targetValue })} />
+        <Text style={{ fontSize: 11 }}>{targetOptionType(targetOptions, mapping.targetValue)}</Text>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Tooltip title="Add mapping"><Button type="text" size="small" aria-label="Add mapping" icon={<PlusOutlined />} onClick={() => addAfter(mapping.id)} /></Tooltip>
+          <Tooltip title="Remove mapping"><Button type="text" size="small" aria-label="Remove target mapping" danger icon={<DeleteOutlined />} onClick={() => remove(mapping.id)} /></Tooltip>
+        </div>
+      </div>;
+    })}
   </div>;
 }

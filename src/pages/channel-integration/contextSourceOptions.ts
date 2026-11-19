@@ -38,12 +38,12 @@ export const generatedSourceOptions: SourceOption[] = [
   ] },
 ];
 
-export const requestFieldTypes: Record<string, string> = { amount: 'BigDecimal', timestamp: 'Long' };
+export const requestFieldTypes: Record<string, string> = { amount: 'BigDecimal', timestamp: 'Long', needNotify: 'Boolean' };
 export const responseFieldTypes: Record<string, string> = { amount: 'BigDecimal' };
 
 export const spiRequestFieldsFor = (channelCode: string): string[] => channelCode === 'EVEXIN'
-  ? ['content', 'mobileNumber', 'requestReference', 'responseReference']
-  : ['amount', 'currency', 'reference', 'customerId', 'accountNumber', 'bankCode', 'timestamp'];
+  ? ['content', 'mobileNumber', 'requestReference', 'responseReference', 'needNotify']
+  : ['amount', 'currency', 'reference', 'customerId', 'accountNumber', 'bankCode', 'timestamp', 'needNotify'];
 
 export const spiResponseFieldsFor = (channelCode: string): string[] => channelCode === 'EVEXIN'
   ? ['channelResponseCode', 'responseMessage', 'responseReference', 'status']

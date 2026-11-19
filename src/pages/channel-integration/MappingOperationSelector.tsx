@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { Alert, Button, Cascader, ConfigProvider, Form, InputNumber, Modal, Radio, Tooltip } from 'antd';
-import { EyeOutlined } from '@ant-design/icons';
+import { Alert, Button, Cascader, ConfigProvider, Form, InputNumber, Modal, Radio, Tooltip, message } from 'antd';
+import { EyeOutlined, SettingOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import OperationConfigModal, { type OperationFieldOption } from './OperationConfigModal';
 import { operationKindOf, operationNeedsConfig, type OperationConfig, type OperationKind } from './operationConfigs';
+import ConditionalAssignmentConfigModal from './ConditionalAssignmentConfigModal';
+import type { ConditionalAssignmentConfig, ConditionalAssignmentField } from './conditionalAssignmentModel';
 
 export interface DecimalScaleConfig {
   scaleSource: 'fixed' | 'assetRoute';
@@ -72,6 +74,13 @@ export default function MappingOperationSelector({
   placeholder = 'Select operation',
   readOnly = false,
   onChange,
+  conditionalConfig,
+  conditionalFields,
+  conditionalTargetLabel,
+  onConditionalConfig,
+  lockedConditional = false,
+  conditionalFieldPlaceholder,
+  conditionalTargetType,
 }: {
   value?: string[];
   config?: MappingOperationConfig;
@@ -81,6 +90,17 @@ export default function MappingOperationSelector({
   /** 详情只读态：有配置弹窗的 operation 改为小眼睛查看，其余只显示文字。 */
   readOnly?: boolean;
   onChange: (value?: string[], config?: MappingOperationConfig) => void;
+  /** 条件赋值操作类的配置与候选字段（选中 conditional-assignment 时使用）。 */
+  conditionalConfig?: ConditionalAssignmentConfig;
+  conditionalFields?: ConditionalAssignmentField[];
+  conditionalTargetLabel?: string;
+  /** 目标字段声明的类型（条件赋值弹窗 THEN/DEFAULT 的 Target Field 右侧回显）；取不到时留空。 */
+  conditionalTargetType?: string;
+  onConditionalConfig?: (config: ConditionalAssignmentConfig) => void;
+  /** 锁定为条件赋值且只读（response 方向新增目标行用）：操作类不可改，仅齿轮可点开配置弹窗。 */
+  lockedConditional?: boolean;
+  /** 条件赋值弹窗里字段选择框的占位提示（透传 ConditionalAssignmentConfigModal.fieldPlaceholder）。 */
+  conditionalFieldPlaceholder?: string;
 }) {
   const params = useParams<{ bt?: string; ability?: string }>();
   const businessType = (params.bt ?? '').toUpperCase();
@@ -93,6 +113,7 @@ export default function MappingOperationSelector({
   const [configOpen, setConfigOpen] = useState(false);
   const [pendingConfig, setPendingConfig] = useState<{ operation: string[]; kind: OperationKind }>();
   const [decimalInitial, setDecimalInitial] = useState<DecimalScaleConfig>(defaultConfig);
+  const [conditionalOpen, setConditionalOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -102,8 +123,28 @@ export default function MappingOperationSelector({
 
   const activeConfig = config && 'kind' in config ? config : undefined;
 
+  const isConditional = value?.[0] === 'conditional-assignment';
+
+  /**
+   * 打开条件赋值配置之前，先确认本行右侧的目标字段已选/已录入。
+   * 目标字段空着时，条件赋值没有落点，弹窗里配完也无法保存，所以直接拦住并提示。
+   * conditionalTargetLabel 由各调用方传入「本行目标字段」：request 是 FIELD 名，
+   * response 是 target mapping 选中的目标，Path Vars 是 SPI value。
+   */
+  const openConditionalConfig = () => {
+    if (!conditionalTargetLabel?.trim()) {
+      message.warning('Please configure the Target Field first.');
+      return;
+    }
+    setConditionalOpen(true);
+  };
+
   /** 打开某个 operation 的配置弹窗；reuseConfig 仅在同值重开时为 true。 */
   const openOperationModal = (operation: string[], reuseConfig: boolean) => {
+    if (operation[0] === 'conditional-assignment') {
+      openConditionalConfig();
+      return;
+    }
     const decimal = decimalScaleOperation(operation);
     if (decimal) {
       setPendingOperation(decimal);
@@ -126,18 +167,22 @@ export default function MappingOperationSelector({
     // 重复选中同一个 operation 时，Cascader 仍可能回调一次 onChange。
     // 此时必须沿用已有配置，不能当成「切换」把它清掉。
     if (value?.[0] === next[0] && value?.[1] === next[1]) {
-      openOperationModal(next, true);
+      // 条件赋值操作类：重复选中不自动弹窗，仅点齿轮打开。
+      if (next[0] !== 'conditional-assignment') openOperationModal(next, true);
       return;
     }
     // 切换到新选项时，上一份配置一并丢弃。
     onChange(next, undefined);
-    openOperationModal(next, false);
+    // 条件赋值操作类：选中后不自动打开弹窗（等用户点齿轮）。
+    if (next[0] !== 'conditional-assignment') openOperationModal(next, false);
   };
 
   /** 再次点中同一个 operation 时重新打开弹窗（Cascader 值未变不会触发 onChange）。 */
   const reopenSameOperation = (next: string[]) => {
     if (value?.[0] !== next[0] || value?.[1] !== next[1]) return;
     if (!operationNeedsConfig(next)) return;
+    // 条件赋值操作类：仅点齿轮打开，点选中文本不弹窗。
+    if (next[0] === 'conditional-assignment') return;
     openOperationModal(next, true);
   };
 
@@ -193,26 +238,53 @@ export default function MappingOperationSelector({
   };
 
   // Cancel 后可能留下「已选但未配置」的 operation，用红框提示，保存时再拦一次。
-  const unconfigured = !readOnly && operationNeedsConfig(value) && !config && !open && !configOpen;
+  const unconfigured = !readOnly && operationNeedsConfig(value)
+    && (isConditional ? !conditionalConfig : !config)
+    && !open && !configOpen && !conditionalOpen;
 
   return <>
-    {readOnly
+    {lockedConditional
+      ? <div style={{ display: 'flex', alignItems: 'center', gap: 0, minWidth: 0, width: '100%' }}>
+        <Cascader
+          disabled
+          value={value ?? ['conditional-assignment', 'conditional-assignment']}
+          placeholder={placeholder}
+          options={options}
+          suffixIcon={null}
+          style={{ flex: 1, minWidth: 0 }}
+        />
+        <ConfigProvider componentDisabled={false}>
+          <Tooltip title="Configure conditional assignment">
+            <Button type="text" size="small" style={{ flexShrink: 0, marginLeft: -28, zIndex: 1 }} aria-label="Configure conditional assignment" icon={<SettingOutlined />} onClick={openConditionalConfig} />
+          </Tooltip>
+        </ConfigProvider>
+      </div>
+      : readOnly
       ? <div style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>
-        <Cascader disabled value={value} placeholder={placeholder} options={options} style={{ flex: 1, minWidth: 0 }} />
+        <Cascader disabled value={value ?? []} placeholder={placeholder} options={options} style={{ flex: 1, minWidth: 0 }} />
         {value?.length && operationNeedsConfig(value) ? <ConfigProvider componentDisabled={false}>
           <Tooltip title="View operation configuration">
             <Button type="text" size="small" style={{ flexShrink: 0 }} aria-label="View operation configuration" icon={<EyeOutlined />} onClick={() => openOperationModal(value, true)} />
           </Tooltip>
         </ConfigProvider> : null}
       </div>
-      : <div onClickCapture={handleCascaderClick}>
+      : <div onClickCapture={handleCascaderClick} style={{ width: '100%', minWidth: 0 }}>
+        {/*
+          必须传受控值：value 为 undefined 时 Cascader 会退化成非受控，自己保留用户点选的值。
+          后果是「选中条件赋值 → 上层把 operation 清空」后，下拉框仍然显示 CONDITIONAL ASSIGNMENT，
+          看起来像没清空。传 [] 让组件始终受控，值一清空显示就跟着清空。
+        */}
         <Cascader
           allowClear
-          value={value}
+          value={value ?? []}
           placeholder={placeholder}
           options={options}
           expandTrigger="click"
           status={unconfigured ? 'error' : undefined}
+          style={{ width: '100%' }}
+          suffixIcon={isConditional
+            ? <Button size="small" type="text" aria-label="Configure conditional assignment" icon={<SettingOutlined />} onClick={(event) => { event.stopPropagation(); openConditionalConfig(); }} />
+            : undefined}
           onChange={(next) => selectOperation(next as string[])}
         />
       </div>}
@@ -287,6 +359,16 @@ export default function MappingOperationSelector({
       readOnly={readOnly}
       onCancel={cancelConfig}
       onConfirm={saveConfig}
+    />}
+    {conditionalOpen && <ConditionalAssignmentConfigModal
+      config={conditionalConfig}
+      startFields={conditionalFields ?? []}
+      targetLabel={conditionalTargetLabel}
+      targetType={conditionalTargetType}
+      operationOptions={options}
+      fieldPlaceholder={conditionalFieldPlaceholder}
+      onCancel={() => setConditionalOpen(false)}
+      onConfirm={(next) => { onConditionalConfig?.(next); setConditionalOpen(false); }}
     />}
   </>;
 }

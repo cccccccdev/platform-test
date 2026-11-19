@@ -14,6 +14,11 @@ import { fallbackStateOptionsFor } from './stateMachineStateOptions';
 import { isSubOrderModeEnabled } from '../basic-info/capability/subOrderModeStore';
 import ResponseCodeAssemblyEditor from './ResponseCodeAssemblyEditor';
 import { generatedSourceOptions } from './contextSourceOptions';
+import MappingOperationSelector, { type MappingOperationConfig } from './MappingOperationSelector';
+import type { OperationFieldOption } from './OperationConfigModal';
+import type { ConditionalAssignmentConfig, ConditionalAssignmentField } from './conditionalAssignmentModel';
+import { createInitialConfig } from './conditionalAssignmentModel';
+import { operationResultType } from './operationResultType';
 
 const { Text, Title } = Typography;
 const types = ['String', 'Integer', 'Long', 'BigDecimal', 'Boolean', 'Object', 'Array'].map((value) => ({ label: value, value }));
@@ -85,12 +90,16 @@ const flatFieldState = (fields: unknown, direction: 'request' | 'response' = 're
   return fields.every((field) => {
     const hasMapping = direction === 'request' ? hasCascaderValue(field.sourceValue) : true;
     const targetsComplete = direction === 'response' ? normalizeTargetMappings(field).every((mapping) => hasValue(mapping.targetValue)) : true;
-    return hasValue(field.name) && hasValue(field.type) && hasMapping && targetsComplete;
+    // 条件赋值的目标行没有 FIELD 名（取值由条件决定），只校验右侧目标字段。
+    const nameComplete = hasValue(field.name) || Boolean(field.conditionalTargetRow);
+    return nameComplete && hasValue(field.type) && hasMapping && targetsComplete;
   }) ? 'ok' : 'error';
 };
 
 const bodyNodeComplete = (node: BodySchemaNode, direction: 'request' | 'response'): boolean => {
-  if (!hasValue(node.name) || !hasValue(node.type)) return false;
+  // response 条件赋值的目标行没有 FIELD 名（取值由条件决定），只校验右侧目标字段。
+  if (!node.conditionalTargetRow && !hasValue(node.name)) return false;
+  if (!hasValue(node.type)) return false;
   if (['Object', 'Array'].includes(node.type)) return (node.children ?? []).every((child) => bodyNodeComplete(child, direction));
   return direction === 'request'
     ? hasCascaderValue(node.sourceId)
@@ -104,7 +113,8 @@ const bodySchemaState = (nodes: unknown, direction: 'request' | 'response' = 're
 
 const mappingState = (rows: unknown): TabState => {
   if (!hasRows(rows)) return 'empty';
-  return rows.every((row) => row != null && typeof row === 'object' && hasValue(row.source) && hasValue(row.target)) ? 'ok' : 'error';
+  // 条件赋值的目标行左侧来源为空是预期的，只要求右侧选好目标字段。
+  return rows.every((row) => row != null && typeof row === 'object' && hasValue(row.target) && (row.conditionalTargetRow || hasValue(row.source))) ? 'ok' : 'error';
 };
 
 const mergeTabStates = (states: TabState[]): TabState => {
@@ -121,17 +131,78 @@ const findMappingOption = (options: MappingOption[], value?: string | string[]):
     if (child) return child;
   }
 };
-function OrderVariableMapping({ sourceOptions, targetOptions, sourceCascader = false, targetCascader = false, name = 'orderWrites', title = 'Value to Order Variable Mapping', sourceLabel = 'SOURCE VALUE', targetLabel = 'ORDER VARIABLE' }: { sourceOptions: MappingOption[]; targetOptions: MappingOption[]; sourceCascader?: boolean; targetCascader?: boolean; name?: string; title?: string; sourceLabel?: string; targetLabel?: string }) {
+
+/** 把 MappingOption 树拍平成条件赋值弹窗的候选字段列表（叶子 value 为完整点分路径）。 */
+const flattenConditionalFields = (options: MappingOption[]): ConditionalAssignmentField[] => {
+  const result: ConditionalAssignmentField[] = [];
+  const walk = (items: MappingOption[]) => {
+    for (const item of items) {
+      if (item.children && item.children.length) {
+        walk(item.children);
+      } else {
+        const path = item.value.split('.');
+        result.push({ id: item.value, path, name: path[path.length - 1], type: item.type ?? 'String' });
+      }
+    }
+  };
+  walk(options);
+  return result;
+};
+
+/** 把 MappingOption 树转成 MappingOperationSelector 的 fieldOptions（OperationFieldOption）。 */
+const toFieldOptions = (options: MappingOption[]): OperationFieldOption[] =>
+  options.map((item) => ({
+    label: item.label,
+    value: item.value,
+    children: item.children ? toFieldOptions(item.children) : undefined,
+  }));
+function OrderVariableMapping({ sourceOptions, targetOptions, sourceCascader = false, targetCascader = false, name = 'orderWrites', title = 'Value to Order Variable Mapping', sourceLabel = 'SOURCE VALUE', targetLabel = 'ORDER VARIABLE', responseConditional = false }: { sourceOptions: MappingOption[]; targetOptions: MappingOption[]; sourceCascader?: boolean; targetCascader?: boolean; name?: string; title?: string; sourceLabel?: string; targetLabel?: string; /** response 方向：支持条件赋值（选 conditional 后新增一个左侧只读的目标行）。 */ responseConditional?: boolean }) {
+  const form = Form.useFormInstance();
   const sourceType = (value?: string | string[]) => findMappingOption(sourceOptions, value)?.type ?? 'String';
   const targetType = (value?: string | string[]) => findMappingOption(targetOptions, value)?.type ?? 'String';
+  const conditionalFields = useMemo(() => flattenConditionalFields(sourceOptions), [sourceOptions]);
+  const fieldOptions = useMemo(() => toFieldOptions(sourceOptions), [sourceOptions]);
+  const mappingColumns = 'minmax(180px,1fr) 85px 24px 150px 64px 24px minmax(180px,1fr) 85px 36px';
+  /** 新增普通行：响应方向下插到条件赋值目标行上方，保证条件行恒在最下方。 */
+  const addRow = (add: (defaultValue?: Record<string, unknown>, insertIndex?: number) => void) => {
+    if (!responseConditional) {
+      add();
+      return;
+    }
+    const rows = (form.getFieldValue(name) as Array<Record<string, unknown>> | undefined) ?? [];
+    const index = rows.findIndex((row) => Boolean(row && typeof row === 'object' && row.conditionalTargetRow));
+    if (index >= 0) add({}, index);
+    else add();
+  };
   return <Form.List name={name}>{(fields, { add, remove }) => <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#fafafa', borderBottom: '1px solid #e8e8e8' }}><Space size={8}><Text strong>{title}</Text><Tag style={{ margin: 0 }}>{fields.length} fields</Tag></Space><Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => add()}>Add Mapping</Button></div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 85px 24px 150px 24px minmax(180px,1fr) 85px 36px', gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, borderBottom: '1px solid #f0f0f0' }}><span>{sourceLabel}</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>{targetLabel}</span><span>TARGET TYPE</span><span /></div>
-    {fields.map((field) => <Form.Item key={field.key} noStyle shouldUpdate>{({ getFieldValue }) => {
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#fafafa', borderBottom: '1px solid #e8e8e8' }}><Space size={8}><Text strong>{title}</Text><Tag style={{ margin: 0 }}>{fields.length} fields</Tag></Space><Button size="small" type="primary" ghost icon={<PlusOutlined />} onClick={() => addRow(add)}>Add Mapping</Button></div>
+    <div style={{ display: 'grid', gridTemplateColumns: mappingColumns, gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, borderBottom: '1px solid #f0f0f0' }}><span>{sourceLabel}</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span>TYPE</span><span /><span>{targetLabel}</span><span>TARGET TYPE</span><span /></div>
+    {fields.map((field) => <Form.Item key={field.key} noStyle shouldUpdate>{({ getFieldValue, setFieldValue }) => {
       const source = getFieldValue([name, field.name, 'source']);
       const target = getFieldValue([name, field.name, 'target']);
-      return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 85px 24px 150px 24px minmax(180px,1fr) 85px 36px', gap: 8, alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid #f5f5f5' }}>
-        <Form.Item name={[field.name, 'source']} rules={[{ required: true }]} style={{ margin: 0 }}>{sourceCascader ? <Cascader placeholder={sourceLabel} options={sourceOptions} /> : <Select placeholder={sourceLabel} options={sourceOptions} />}</Form.Item><Text>{sourceType(source)}</Text><span>→</span><Form.Item name={[field.name, 'operation']} style={{ margin: 0 }}><Cascader allowClear placeholder="Optional" options={mappingOperationOptions} expandTrigger="click" /></Form.Item><span>→</span><Form.Item name={[field.name, 'target']} rules={[{ required: true }]} style={{ margin: 0 }}>{targetCascader ? <Cascader placeholder={targetLabel} options={targetOptions} /> : <Select placeholder={targetLabel} options={targetOptions} />}</Form.Item><Text>{targetType(target)}</Text><Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
+      const operation = getFieldValue([name, field.name, 'operation']) as string[] | undefined;
+      const operationConfig = getFieldValue([name, field.name, 'operationConfig']) as MappingOperationConfig | undefined;
+      const conditionalConfig = getFieldValue([name, field.name, 'conditionalConfig']) as ConditionalAssignmentConfig | undefined;
+      const conditionalTargetRow = Boolean(getFieldValue([name, field.name, 'conditionalTargetRow']));
+      const isConditional = operation?.[0] === 'conditional-assignment';
+      return <div style={{ display: 'grid', gridTemplateColumns: mappingColumns, gap: 8, alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid #f5f5f5' }}>
+        <Form.Item name={[field.name, 'source']} rules={[{ validator: (_, valueSource: string[] | string | undefined) => {
+          if (isConditional) return Promise.resolve();
+          return valueSource && (Array.isArray(valueSource) ? valueSource.length : valueSource) ? Promise.resolve() : Promise.reject(new Error('Select source value'));
+        } }]} style={{ margin: 0 }}>{sourceCascader
+          ? <Cascader placeholder={conditionalTargetRow ? 'Conditional target' : sourceLabel} options={sourceOptions} disabled={isConditional} />
+          : <Select placeholder={conditionalTargetRow ? 'Conditional target' : sourceLabel} options={sourceOptions} disabled={isConditional} />}</Form.Item><Text>{conditionalTargetRow ? '—' : sourceType(source)}</Text><span>→</span><Form.Item name={[field.name, 'operation']} style={{ margin: 0 }}><MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={mappingOperationOptions} fieldOptions={fieldOptions} conditionalConfig={conditionalConfig} conditionalFields={conditionalFields} conditionalTargetLabel={Array.isArray(target) ? (target[target.length - 1] as string | undefined) : (typeof target === 'string' && target ? target : undefined)} conditionalTargetType={targetType(target)} conditionalFieldPlaceholder="select field" lockedConditional={conditionalTargetRow} onConditionalConfig={(nextConfig) => setFieldValue([name, field.name, 'conditionalConfig'], nextConfig)} onChange={(nextOperation, nextConfig) => {
+        // response 方向：选中条件赋值 → 本行操作类清空，并在列表末尾新增一个条件目标行。
+        if (responseConditional && nextOperation?.[0] === 'conditional-assignment' && !conditionalTargetRow) {
+          setFieldValue([name, field.name, 'operation'], undefined);
+          setFieldValue([name, field.name, 'operationConfig'], undefined);
+          setFieldValue([name, field.name, 'conditionalConfig'], undefined);
+          add({ conditionalTargetRow: true, operation: ['conditional-assignment', 'conditional-assignment'], conditionalConfig: createInitialConfig() });
+          return;
+        }
+        setFieldValue([name, field.name, 'operation'], nextOperation);
+        setFieldValue([name, field.name, 'operationConfig'], nextConfig);
+      }} /></Form.Item><Text style={{ fontSize: 12 }}>{operationResultType(operation) ?? ''}</Text><span>→</span><Form.Item name={[field.name, 'target']} rules={[{ required: true }]} style={{ margin: 0 }}>{targetCascader ? <Cascader placeholder={targetLabel} options={targetOptions} /> : <Select placeholder={targetLabel} options={targetOptions} />}</Form.Item><Text>{targetType(target)}</Text><Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)} />
       </div>;
     }}</Form.Item>)}
     {fields.length === 0 && <div style={emptyStyle}>No mappings configured.</div>}
@@ -163,12 +234,12 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
   const endpoints = store.outboundEndpointsByChannel[channelCode] ?? [];
   const subOrderModeEnabled = Boolean(businessType && ability && isSubOrderModeEnabled(businessType, ability));
   const spiRequest = channelCode === 'EVEXIN'
-    ? ['content', 'mobileNumber', 'requestReference', 'responseReference']
-    : ['amount', 'currency', 'reference', 'customerId', 'accountNumber', 'bankCode', 'timestamp'];
+    ? ['content', 'mobileNumber', 'requestReference', 'responseReference', 'needNotify']
+    : ['amount', 'currency', 'reference', 'customerId', 'accountNumber', 'bankCode', 'timestamp', 'needNotify'];
   const spiResponse = channelCode === 'EVEXIN'
     ? ['channelResponseCode', 'responseMessage', 'responseReference', 'status']
     : ['responseCode', 'responseMessage', 'status', 'channelReference', 'amount', 'currency', 'customerId'];
-  const requestTypes: Record<string, string> = { amount: 'BigDecimal', timestamp: 'Long' };
+  const requestTypes: Record<string, string> = { amount: 'BigDecimal', timestamp: 'Long', needNotify: 'Boolean' };
   const responseTypes: Record<string, string> = { amount: 'BigDecimal' };
   const subOrderResponseFields = [
     { path: 'feature.featureField', type: 'String' },
@@ -408,6 +479,9 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
       values.requestBody,
       values.responseHeaders,
       values.responseBody,
+      values.orderWrites,
+      values.responseGlobalMappings,
+      values.responseOrderMappings,
     ]);
     if (operationError) return void message.error(operationError);
     const endpoint = endpoints.find((item) => item.id === values.endpointId);
@@ -449,8 +523,8 @@ export default function HttpCallDrawer({ open, channelCode, initialValues = {}, 
           { key: 'response-fields', label: tabLabel('Fields & Mapping', state('responseFields')), children: <><Form.Item name="responseMappingMode"><Radio.Group optionType="button" buttonStyle="solid" options={[{ label: 'Configuration Mode', value: 'configuration' }, { label: 'Script Mode', value: 'script' }]} /></Form.Item><Tabs type="card" size="small" items={[
             { key: 'headers', label: tabLabel('Headers', state('responseHeaders')), children: <Form.Item name="responseHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={responseMappingMode === 'script'} direction="response" title="Response Header Fields" addLabel="Add Header" fieldPlaceholder="Response header name" targetPlaceholder="Context field" sourceOptions={[]} targetOptions={responseContextOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} readOnly={readOnly} /></Form.Item> },
             { key: 'body', label: tabLabel('Body', state('responseBody')), children: <Form.Item name="responseBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={responseMappingMode === 'script'} direction="response" targetPlaceholder="Context field" sourceOptions={[]} targetOptions={responseContextOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} readOnly={readOnly} /></Form.Item> },
-            { key: 'global-variable', label: tabLabel('Global Variable', state('responseGlobalMappings')), children: <OrderVariableMapping targetCascader name="responseGlobalMappings" title="Global Variable to SPI Mapping" sourceLabel="GLOBAL VARIABLE" targetLabel="SPI VALUE" sourceOptions={globalOptions} targetOptions={spiResponseTargetOptions} /> },
-            { key: 'order-variable', label: tabLabel('Order Variable', state('responseOrderMappings')), children: <OrderVariableMapping targetCascader name="responseOrderMappings" title="Order Variable to SPI Mapping" sourceLabel="ORDER VARIABLE" targetLabel="SPI VALUE" sourceOptions={orderOptions} targetOptions={spiResponseTargetOptions} /> },
+            { key: 'global-variable', label: tabLabel('Global Variable', state('responseGlobalMappings')), children: <OrderVariableMapping targetCascader responseConditional name="responseGlobalMappings" title="Global Variable to SPI Mapping" sourceLabel="GLOBAL VARIABLE" targetLabel="SPI VALUE" sourceOptions={globalOptions} targetOptions={spiResponseTargetOptions} /> },
+            { key: 'order-variable', label: tabLabel('Order Variable', state('responseOrderMappings')), children: <OrderVariableMapping targetCascader responseConditional name="responseOrderMappings" title="Order Variable to SPI Mapping" sourceLabel="ORDER VARIABLE" targetLabel="SPI VALUE" sourceOptions={orderOptions} targetOptions={spiResponseTargetOptions} /> },
           ]} />{responseMappingMode === 'script' && <Card size="small" title="Mapping Script" style={{ marginTop: 12 }}><GroovyScriptEditor name="responseMappingScript" helpText={responseScriptHelp} /></Card>}</> },
           { key: 'response-security', label: tabLabel('Security', state('responseSecurity')), children: <Card size="small"><div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>{securityItems('response').map((item, index) => <div key={item.key} style={{ padding: '12px 14px', borderBottom: index === securityItems('response').length - 1 ? 0 : '1px solid #f0f0f0' }}><div style={{ marginBottom: 8 }}>{item.label}</div><div style={{ paddingLeft: 4 }}>{item.children}</div></div>)}</div></Card> },
           { key: 'response-code', label: tabLabel('Response Code', state('responseCode')), children: <Card size="small">
