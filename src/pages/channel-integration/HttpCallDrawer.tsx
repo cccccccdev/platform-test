@@ -186,12 +186,13 @@ function OrderVariableMapping({ sourceOptions, targetOptions, sourceCascader = f
       const conditionalTargetRow = Boolean(getFieldValue([name, field.name, 'conditionalTargetRow']));
       const isConditional = operation?.[0] === 'conditional-assignment';
       return <div style={{ display: 'grid', gridTemplateColumns: mappingColumns, gap: 8, alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid #f5f5f5' }}>
-        <Form.Item name={[field.name, 'source']} rules={[{ validator: (_, valueSource: string[] | string | undefined) => {
-          if (isConditional) return Promise.resolve();
-          return valueSource && (Array.isArray(valueSource) ? valueSource.length : valueSource) ? Promise.resolve() : Promise.reject(new Error('Select source value'));
-        } }]} style={{ margin: 0 }}>{sourceCascader
-          ? <Cascader placeholder={conditionalTargetRow ? 'Conditional target' : sourceLabel} options={sourceOptions} disabled={isConditional} />
-          : <Select placeholder={conditionalTargetRow ? 'Conditional target' : sourceLabel} options={sourceOptions} disabled={isConditional} />}</Form.Item><Text>{conditionalTargetRow ? '—' : sourceType(source)}</Text><span>→</span><Form.Item name={[field.name, 'operation']} style={{ margin: 0 }}><MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={mappingOperationOptions} fieldOptions={fieldOptions} conditionalConfig={conditionalConfig} conditionalFields={conditionalFields} conditionalTargetLabel={Array.isArray(target) ? (target[target.length - 1] as string | undefined) : (typeof target === 'string' && target ? target : undefined)} conditionalTargetType={targetType(target)} conditionalFieldPlaceholder="select field" lockedConditional={conditionalTargetRow} onConditionalConfig={(nextConfig) => setFieldValue([name, field.name, 'conditionalConfig'], nextConfig)} onChange={(nextOperation, nextConfig) => {
+        {isConditional
+          ? <div style={{ gridColumn: '1 / 4', color: '#8c8c8c', fontSize: 12 }}>Please config the conditional assignment.</div>
+          : <><Form.Item name={[field.name, 'source']} rules={[{ validator: (_, valueSource: string[] | string | undefined) => {
+            return valueSource && (Array.isArray(valueSource) ? valueSource.length : valueSource) ? Promise.resolve() : Promise.reject(new Error('Select source value'));
+          } }]} style={{ margin: 0 }}>{sourceCascader
+            ? <Cascader placeholder={sourceLabel} options={sourceOptions} />
+            : <Select placeholder={sourceLabel} options={sourceOptions} />}</Form.Item><Text>{sourceType(source)}</Text><span>→</span></>}<Form.Item name={[field.name, 'operation']} style={{ margin: 0 }}><MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={mappingOperationOptions} fieldOptions={fieldOptions} conditionalConfig={conditionalConfig} conditionalFields={conditionalFields} conditionalTargetLabel={Array.isArray(target) ? (target[target.length - 1] as string | undefined) : (typeof target === 'string' && target ? target : undefined)} conditionalTargetType={targetType(target)} conditionalFieldPlaceholder="select field" lockedConditional={conditionalTargetRow} onConditionalConfig={(nextConfig) => setFieldValue([name, field.name, 'conditionalConfig'], nextConfig)} onChange={(nextOperation, nextConfig) => {
         // response 方向：选中条件赋值 → 本行操作类清空，并在列表末尾新增一个条件目标行。
         if (responseConditional && nextOperation?.[0] === 'conditional-assignment' && !conditionalTargetRow) {
           setFieldValue([name, field.name, 'operation'], undefined);

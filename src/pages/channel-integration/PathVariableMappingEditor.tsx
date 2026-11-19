@@ -83,22 +83,25 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
             const conditionalConfig = getFieldValue([mappingName, variable, 'conditionalConfig']) as ConditionalAssignmentConfig | undefined;
             return (
               <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
-                <Form.Item name={[mappingName, variable, 'source']} rules={[{ validator: (_, valueSource: string[] | undefined) => {
-                  const op = form.getFieldValue([mappingName, variable, 'operation']) as string[] | undefined;
-                  if (op?.[0] === 'conditional-assignment') return Promise.resolve();
-                  return valueSource && valueSource.length ? Promise.resolve() : Promise.reject(new Error('Select value source'));
-                } }]} style={{ margin: 0 }}>
-                  <Cascader placeholder="Select source value" options={sourceOptions} expandTrigger="click" showSearch disabled={operation?.[0] === 'conditional-assignment'} onChange={(next) => {
-                    if ((next as string[]).at(-1) === 'generated.reference-number') {
-                      const existing = form.getFieldValue([mappingName, variable, 'generatedDataConfig']);
-                      setReferenceMode(existing?.mode ?? 'default');
-                      setReferencePrefix(existing?.prefix ?? '');
-                      setReferenceVariable(variable);
-                    }
-                  }} />
-                </Form.Item>
-                <Text>{selectedType(sourceOptions, source)}</Text>
-                <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+                {/* 本行赋值选中条件赋值后，左侧来源控件没有可填内容，整段让位给一行提示文字。 */}
+                {operation?.[0] === 'conditional-assignment'
+                  ? <div style={{ gridColumn: '1 / 4', color: '#8c8c8c', fontSize: 12 }}>Please config the conditional assignment.</div>
+                  : <>
+                    <Form.Item name={[mappingName, variable, 'source']} rules={[{ validator: (_, valueSource: string[] | undefined) => {
+                      return valueSource && valueSource.length ? Promise.resolve() : Promise.reject(new Error('Select value source'));
+                    } }]} style={{ margin: 0 }}>
+                      <Cascader placeholder="Select source value" options={sourceOptions} expandTrigger="click" showSearch onChange={(next) => {
+                        if ((next as string[]).at(-1) === 'generated.reference-number') {
+                          const existing = form.getFieldValue([mappingName, variable, 'generatedDataConfig']);
+                          setReferenceMode(existing?.mode ?? 'default');
+                          setReferencePrefix(existing?.prefix ?? '');
+                          setReferenceVariable(variable);
+                        }
+                      }} />
+                    </Form.Item>
+                    <Text>{selectedType(sourceOptions, source)}</Text>
+                    <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+                  </>}
                 <MappingOperationSelector
                   value={operation}
                   config={operationConfig}
