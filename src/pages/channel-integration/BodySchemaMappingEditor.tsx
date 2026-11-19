@@ -478,9 +478,14 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
           }}
         >
           {!schemaOnly && direction === 'request' && (isContainer ? <><span /><span /><span /><span /><span /><span /></> : <>
-            <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch disabled={node.operation?.[0] === 'conditional-assignment'} onChange={(sourceId) => selectNodeSource(path, sourceId as string[])} />
-            <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, node.sourceId)}</Text>
-            <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+            {/* 本行赋值选中条件赋值后，左侧来源控件没有可填内容，整段让位给一行提示文字（与派生目标行同款）。 */}
+            {node.operation?.[0] === 'conditional-assignment'
+              ? <div style={{ gridColumn: '1 / 4', color: '#8c8c8c', fontSize: 12 }}>Please config the conditional assignment.</div>
+              : <>
+                <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceId) => selectNodeSource(path, sourceId as string[])} />
+                <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, node.sourceId)}</Text>
+                <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+              </>}
             <MappingOperationSelector
               value={node.operation as string[] | undefined}
               config={node.operationConfig}

@@ -259,11 +259,16 @@ export default function FlatFieldMappingEditor({
                 style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', minHeight: 43, padding: '5px 8px', borderBottom: '1px solid #f0f0f0', borderTop: item.conditionalTargetRow ? '1px solid #d9d9d9' : undefined, background: dragIndex === index ? '#e6f4ff' : '#fff' }}
               >
                 {!schemaOnly && direction === 'request' ? <>
-                  {sourceCascader
-                    ? <Cascader value={item.sourceValue as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch disabled={item.operation?.[0] === 'conditional-assignment'} onChange={(sourceValue) => selectSource(index, sourceValue as string[])} />
-                    : <Select value={item.sourceValue as string | undefined} placeholder={sourcePlaceholder} options={sourceOptions} disabled={item.operation?.[0] === 'conditional-assignment'} onChange={(sourceValue) => update(index, { sourceValue })} />}
-                  <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, item.sourceValue)}</Text>
-                  <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+                  {/* 本行赋值选中条件赋值后，左侧来源控件没有可填内容，整段让位给一行提示文字（与派生目标行同款）。 */}
+                  {item.operation?.[0] === 'conditional-assignment'
+                    ? <div style={{ gridColumn: '1 / 4', color: '#8c8c8c', fontSize: 12 }}>Please config the conditional assignment.</div>
+                    : <>
+                      {sourceCascader
+                        ? <Cascader value={item.sourceValue as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceValue) => selectSource(index, sourceValue as string[])} />
+                        : <Select value={item.sourceValue as string | undefined} placeholder={sourcePlaceholder} options={sourceOptions} onChange={(sourceValue) => update(index, { sourceValue })} />}
+                      <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, item.sourceValue)}</Text>
+                      <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
+                    </>}
                   <MappingOperationSelector
                     value={item.operation as string[] | undefined}
                     config={item.operationConfig}
