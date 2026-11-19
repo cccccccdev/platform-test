@@ -133,10 +133,11 @@ export const operationConfigSummary = (kind: OperationKind, config?: OperationCo
 
 const DECIMAL_SCALE_OPERATIONS = new Set(['enforce-exact-decimal-scale', 'ensure-minimum-decimal-scale']);
 
-/** 选中后必须配完才能保存的 operation（含小数位换算）。 */
+/** 选中后必须配完才能保存的 operation（含小数位换算与条件赋值）。 */
 export const operationNeedsConfig = (operation?: string | string[]): boolean => {
   if (!Array.isArray(operation) || !operation.length) return false;
   if (operation[0] === 'money' && DECIMAL_SCALE_OPERATIONS.has(operation[1])) return true;
+  if (operation[0] === 'conditional-assignment') return true;
   return Boolean(operationKindOf(operation));
 };
 
@@ -168,8 +169,16 @@ export const validateOperationConfigs = (sources: unknown[]): string | undefined
     if (message) break;
     visitRecords(source, (record) => {
       if (message) return;
+      // response 条件目标行：conditional 配置挂在字段行（conditionalConfig）上，缺配置直接拦。
+      if (record.conditionalTargetRow) {
+        if (!record.conditionalConfig) message = 'Configure the conditional assignment before saving.';
+        return;
+      }
       if (!operationNeedsConfig(record.operation as string[] | string | undefined)) return;
-      if (record.operationConfig) return;
+      // 条件赋值：配置存在独立字段 conditionalConfig；其余存在 operationConfig。
+      const isConditional = Array.isArray(record.operation) && record.operation[0] === 'conditional-assignment';
+      // 条件目标行上的 target mapping 本身不挂配置（配置在所属字段行上），不重复拦截。
+      if (isConditional ? record.conditionalConfig || record.conditionalTarget : record.operationConfig) return;
       const label = typeof record.name === 'string' && record.name.trim()
         ? record.name.trim()
         : typeof record.targetValue === 'string' && record.targetValue

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button, Cascader, Input, Modal, Select, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import {
@@ -15,6 +15,9 @@ import {
 import TargetMappingList, { createTargetMapping, normalizeTargetMappings, TargetMappingColumnHeaders } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
 import MappingOperationSelector, { type MappingOperationConfig, type MappingOperationOption } from './MappingOperationSelector';
+import type { ConditionalAssignmentConfig, ConditionalAssignmentField } from './conditionalAssignmentModel';
+import { createInitialConfig } from './conditionalAssignmentModel';
+import { operationResultType } from './operationResultType';
 
 const { Text } = Typography;
 
@@ -27,6 +30,12 @@ export interface BodySchemaNode {
   sourceId?: string | string[];
   operation?: string | string[];
   operationConfig?: MappingOperationConfig;
+  /** 条件赋值操作类的配置（选中 conditional-assignment 后由弹窗保存）。 */
+  conditionalConfig?: ConditionalAssignmentConfig;
+  /** response 方向：该行是 conditional assignment 自动新增的目标字段行（FIELD 名置空只读置灰，右侧 target mapping 用于选 SPI 目标字段）。 */
+  conditionalTargetRow?: boolean;
+  /** 触发该目标行的字段行 id（同一字段行重复选条件赋值时复用，不再叠加新行）。 */
+  conditionalTargetFor?: string;
   targetValue?: string;
   targetMappings?: TargetMapping[];
   generatedDataConfig?: { mode: 'default' | 'customPrefix'; prefix?: string };
@@ -119,11 +128,102 @@ const optionType = (options: MappingOption[], selected?: string | string[]): str
   return 'String';
 };
 
+/**
+ * 把 sourceOptions（分组或带 children 嵌套）拍平成条件赋值弹窗的候选字段列表。
+ * 每个叶子取点分 value 的末段作为展示名，path 为完整级联路径，type 用于运算符过滤。
+ */
+const flattenConditionalFields = (options: MappingOption[]): ConditionalAssignmentField[] => {
+  const result: ConditionalAssignmentField[] = [];
+  const walk = (items: MappingOption[]) => {
+    for (const item of items) {
+      if ('options' in item) {
+        walk(item.options);
+        continue;
+      }
+      const { children } = item;
+      if (children && children.length) {
+        walk(children);
+        continue;
+      }
+      const value = item.value;
+      if (!value) continue;
+      const path = value.split('.');
+      result.push({
+        id: value,
+        path,
+        name: path[path.length - 1],
+        type: item.type ?? 'String',
+      });
+    }
+  };
+  walk(options);
+  return result;
+};
+
 const countNodes = (nodes: BodySchemaNode[]): number =>
   nodes.reduce((count, node) => count + 1 + countNodes(node.children ?? []), 0);
 
+const isConditionalOperation = (operation?: string | string[]): boolean =>
+  Array.isArray(operation) ? operation[0] === 'conditional-assignment' : operation === 'conditional-assignment';
+
+/**
+ * 剥离所有「非目标行」上的 conditional 痕迹（操作类 + 配置）。
+ * response 方向下 conditional 只允许存在于新增的目标行（conditionalTargetRow）上，
+ * 其余行哪怕残留在行级 operation、某条 target mapping 或 conditionalConfig 上，都一并清掉（幂等）。
+ * 没有任何改动时返回原数组引用，便于上层用 useMemo 判断「是否已干净」。
+ */
+const stripConditionalOperation = (nodes: BodySchemaNode[]): BodySchemaNode[] => {
+  let changed = false;
+  const next = nodes.map((node) => {
+    const children = node.children ? stripConditionalOperation(node.children) : node.children;
+    const childrenChanged = children !== node.children;
+    if (node.conditionalTargetRow) {
+      if (!childrenChanged) return node;
+      changed = true;
+      return { ...node, children };
+    }
+    const mappings = normalizeTargetMappings(node);
+    const mappingHasConditional = mappings.some((mapping) => isConditionalOperation(mapping.operation));
+    const rowHasConditional = isConditionalOperation(node.operation);
+    const hasConditionalConfig = Boolean(node.conditionalConfig);
+    if (!mappingHasConditional && !rowHasConditional && !hasConditionalConfig) {
+      if (!childrenChanged) return node;
+      changed = true;
+      return { ...node, children };
+    }
+    changed = true;
+    return {
+      ...node,
+      children,
+      operation: rowHasConditional ? undefined : node.operation,
+      operationConfig: rowHasConditional ? undefined : node.operationConfig,
+      conditionalConfig: undefined,
+      targetMappings: mappingHasConditional
+        ? mappings.map((mapping) => (isConditionalOperation(mapping.operation) ? { ...mapping, operation: undefined, operationConfig: undefined } : mapping))
+        : node.targetMappings,
+    };
+  });
+  return changed ? next : nodes;
+};
+
 const collectContainerIds = (nodes: BodySchemaNode[]): string[] =>
   nodes.flatMap((node) => ['Object', 'Array'].includes(node.type) ? [node.id, ...collectContainerIds(node.children ?? [])] : []);
+
+/** response 方向：从字段树（用户录入的 FIELD 名）构建条件赋值弹窗的候选字段（体现 Object/Array 层级）。 */
+const collectResponseConditionalFields = (nodes: BodySchemaNode[], parentPath: string[] = []): ConditionalAssignmentField[] =>
+  nodes.flatMap((node) => {
+    const path = [...parentPath, node.name];
+    if (['Object', 'Array'].includes(node.type)) {
+      return collectResponseConditionalFields(node.children ?? [], path);
+    }
+    if (!node.name) return [];
+    return [{
+      id: path.join('.'),
+      path,
+      name: node.name,
+      type: node.type,
+    }];
+  });
 
 const updateAtPath = (nodes: BodySchemaNode[], path: number[], updater: (node: BodySchemaNode) => BodySchemaNode): BodySchemaNode[] => {
   const [index, ...rest] = path;
@@ -148,8 +248,8 @@ const replaceSiblings = (nodes: BodySchemaNode[], parentPath: number[], siblings
     : node);
 };
 
-const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 52px';
-const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(140px, .8fr) minmax(460px, 2.2fr)';
+const requestColumns = 'minmax(155px, .9fr) 80px 20px 115px 64px 20px minmax(200px, 1.1fr) 90px 56px minmax(120px, .75fr) 52px';
+const responseColumns = 'minmax(200px, 1.1fr) 90px 56px minmax(140px, .8fr) minmax(520px, 2.4fr)';
 
 const collectTargetValues = (nodes: BodySchemaNode[], excludeId?: string): string[] => nodes.flatMap((node) => [
   ...(node.id === excludeId ? [] : normalizeTargetMappings(node).map((mapping) => mapping.targetValue).filter((target): target is string => Boolean(target))),
@@ -171,21 +271,46 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
   const [referenceConfigPath, setReferenceConfigPath] = useState<number[] | null>(null);
   const [referenceMode, setReferenceMode] = useState<'default' | 'customPrefix'>('default');
   const [referencePrefix, setReferencePrefix] = useState('');
-  const total = useMemo(() => countNodes(value), [value]);
+  /**
+   * response 方向的唯一可信值：先把非目标行上的 conditional 痕迹剥干净。
+   * 渲染与所有写操作都基于它，因此脏数据既不会显示，也会在任一次交互后写回干净版本。
+   * 已干净时返回原引用（不发散、不触发多余渲染）。
+   */
+  const effectiveValue = useMemo(
+    () => (direction === 'response' && !schemaOnly ? stripConditionalOperation(value) : value),
+    [value, direction, schemaOnly],
+  );
+  const total = useMemo(() => countNodes(effectiveValue), [effectiveValue]);
   const schemaColumns = 'minmax(250px, 1.4fr) 100px 56px minmax(180px, 1fr) 52px';
   const columns = schemaOnly ? schemaColumns : direction === 'request' ? requestColumns : responseColumns;
   const cascaderSourceOptions = sourceOptions.map((option) => 'options' in option
     ? { label: option.label, value: option.label, children: option.options }
     : option);
+  // 条件赋值弹窗的候选字段（拍平 sourceOptions，带 type 用于运算符过滤）。
+  const conditionalFields = useMemo(() => flattenConditionalFields(sourceOptions), [sourceOptions]);
+  // response 方向：条件字段候选 = 用户录入的 FIELD 名（体现层级），与 request 的 SPI 候选树不同。
+  const responseConditionalFields = useMemo(() => collectResponseConditionalFields(effectiveValue), [effectiveValue]);
 
   const emit = (next: BodySchemaNode[]) => onChange?.(next);
   const withDefaultTargetMapping = direction === 'response' && !schemaOnly;
 
+  // 历史脏数据（非目标行上残留 conditional）在挂载后立即写回干净版本，
+  // 免得用户什么都不改、保存时却被校验拦住。strip 幂等且干净时返回原引用，不会循环。
+  useEffect(() => {
+    if (direction === 'response' && !schemaOnly && effectiveValue !== value) onChange?.(effectiveValue);
+  }, [effectiveValue, value, direction, schemaOnly, onChange]);
+
   const addAt = (parentPath: number[]) => {
-    const siblings = getSiblings(value, parentPath);
-    emit(replaceSiblings(value, parentPath, [...siblings, createNode(withDefaultTargetMapping)]));
+    const siblings = getSiblings(effectiveValue, parentPath);
+    // 条件赋值目标行固定沉底：新增普通字段行插到它上方，不把它挤到中间。
+    const conditionalIndex = siblings.findIndex((item) => item.conditionalTargetRow);
+    const newNode = createNode(withDefaultTargetMapping);
+    const nextSiblings = conditionalIndex >= 0
+      ? [...siblings.slice(0, conditionalIndex), newNode, ...siblings.slice(conditionalIndex)]
+      : [...siblings, newNode];
+    emit(replaceSiblings(effectiveValue, parentPath, nextSiblings));
     if (parentPath.length > 0) {
-      const parent = getSiblings(value, parentPath.slice(0, -1))[parentPath[parentPath.length - 1]];
+      const parent = getSiblings(effectiveValue, parentPath.slice(0, -1))[parentPath[parentPath.length - 1]];
       if (parent) setCollapsedIds((current) => {
         const next = new Set(current);
         next.delete(parent.id);
@@ -197,15 +322,38 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
   const removeAt = (path: number[]) => {
     const parentPath = path.slice(0, -1);
     const index = path[path.length - 1];
-    const siblings = getSiblings(value, parentPath);
-    emit(replaceSiblings(value, parentPath, siblings.filter((_, siblingIndex) => siblingIndex !== index)));
+    const siblings = getSiblings(effectiveValue, parentPath);
+    emit(replaceSiblings(effectiveValue, parentPath, siblings.filter((_, siblingIndex) => siblingIndex !== index)));
   };
 
-  const updateNode = (path: number[], updates: Partial<BodySchemaNode>) => emit(updateAtPath(value, path, (node) => ({ ...node, ...updates })));
+  const updateNode = (path: number[], updates: Partial<BodySchemaNode>) => emit(updateAtPath(effectiveValue, path, (node) => ({ ...node, ...updates })));
+
+  /**
+   * response 方向：字段行的 target mapping 选中 conditional-assignment 时触发。
+   * ① 先把所有非目标行上残留的 conditional 操作类清掉（触发行因此变回普通字段行）；
+   * ② 目标行**固定追加到 ROOT 的最末**（不跟随触发行所在层级——条件赋值是「决策 + 目标」，
+   *    不是外部 API 报文的组成部分，放进 Object 里会被误读为报文层级）；
+   * ③ **每选一次就新增一行**：同一条字段行可以配多个条件赋值（各对应一个不同的 SPI 目标字段），
+   *    所以不做按行去重。
+   * 一次 emit 完成，避免连续 emit 基于旧 value 互相覆盖。
+   */
+  const handleResponseConditionalSelected = (path: number[]) => {
+    const stripped = stripConditionalOperation(value);
+    // 记录来源行，便于后续（删除触发行时）联动清理。
+    const triggerId = getSiblings(stripped, path.slice(0, -1))[path[path.length - 1]]?.id;
+    const targetRow: BodySchemaNode = {
+      ...createNode(true),
+      conditionalTargetRow: true,
+      conditionalTargetFor: triggerId,
+      conditionalConfig: createInitialConfig(),
+      targetMappings: [{ ...createTargetMapping(), operation: ['conditional-assignment', 'conditional-assignment'], conditionalTarget: true }],
+    };
+    emit([...stripped, targetRow]);
+  };
   const selectNodeSource = (path: number[], sourceId: string[]) => {
     updateNode(path, { sourceId });
     if (sourceId[sourceId.length - 1] === 'generated.reference-number') {
-      const node = getSiblings(value, path.slice(0, -1))[path[path.length - 1]];
+      const node = getSiblings(effectiveValue, path.slice(0, -1))[path[path.length - 1]];
       setReferenceMode(node?.generatedDataConfig?.mode ?? 'default');
       setReferencePrefix(node?.generatedDataConfig?.prefix ?? '');
       setReferenceConfigPath(path);
@@ -214,7 +362,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
 
   const changeType = (path: number[], nextType: string) => {
     const parentPath = path.slice(0, -1);
-    const node = getSiblings(value, parentPath)[path[path.length - 1]];
+    const node = getSiblings(effectiveValue, parentPath)[path[path.length - 1]];
     if (['Object', 'Array'].includes(node?.type ?? '') && !['Object', 'Array'].includes(nextType) && (node?.children?.length ?? 0) > 0) {
       Modal.confirm({
         title: 'Change field type?',
@@ -254,10 +402,10 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
 
   const moveSibling = (parentPath: number[], from: number, to: number) => {
     if (from === to) return;
-    const siblings = [...getSiblings(value, parentPath)];
+    const siblings = [...getSiblings(effectiveValue, parentPath)];
     const [moved] = siblings.splice(from, 1);
     siblings.splice(to, 0, moved);
-    emit(replaceSiblings(value, parentPath, siblings));
+    emit(replaceSiblings(effectiveValue, parentPath, siblings));
   };
 
   const toggleNode = (id: string) => setCollapsedIds((current) => {
@@ -291,6 +439,10 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
     }
   };
 
+  /** 目标字段行选中的 SPI 字段（作为条件赋值弹窗 THEN/DEFAULT 的右侧目标，逐行读取）。 */
+  const targetLabelOf = (node: BodySchemaNode): string | undefined =>
+    normalizeTargetMappings(node).find((mapping) => mapping.targetValue)?.targetValue;
+
   const renderNode = (node: BodySchemaNode, path: number[], depth: number, isArrayItem = false): ReactNode => {
     const isObject = node.type === 'Object';
     const isArray = node.type === 'Array';
@@ -321,28 +473,52 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
             minHeight: 43,
             padding: '5px 8px',
             borderBottom: '1px solid #f0f0f0',
+            borderTop: node.conditionalTargetRow ? '1px solid #d9d9d9' : undefined,
             background: dragState?.index === siblingIndex && JSON.stringify(dragState.parentPath) === JSON.stringify(parentPath) ? '#e6f4ff' : '#fff',
           }}
         >
-          {!schemaOnly && direction === 'request' && (isContainer ? <><span /><span /><span /><span /><span /></> : <>
-            <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(sourceId) => selectNodeSource(path, sourceId as string[])} />
+          {!schemaOnly && direction === 'request' && (isContainer ? <><span /><span /><span /><span /><span /><span /></> : <>
+            <Cascader value={node.sourceId as string[] | undefined} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch disabled={node.operation?.[0] === 'conditional-assignment'} onChange={(sourceId) => selectNodeSource(path, sourceId as string[])} />
             <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, node.sourceId)}</Text>
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-            <MappingOperationSelector value={node.operation as string[] | undefined} config={node.operationConfig} options={operationOptions} fieldOptions={cascaderSourceOptions} readOnly={readOnly} onChange={(operation, operationConfig) => updateNode(path, { operation, operationConfig })} />
+            <MappingOperationSelector
+              value={node.operation as string[] | undefined}
+              config={node.operationConfig}
+              options={operationOptions}
+              fieldOptions={cascaderSourceOptions}
+              readOnly={readOnly}
+              conditionalConfig={node.conditionalConfig}
+              conditionalFields={conditionalFields}
+              conditionalTargetLabel={node.name || undefined}
+              conditionalTargetType={node.type}
+              onConditionalConfig={(conditionalConfig) => updateNode(path, { conditionalConfig })}
+              onChange={(operation, operationConfig) => updateNode(path, {
+                operation,
+                operationConfig,
+                // 选中 conditional-assignment 时清除左侧已选字段，避免「字段+条件赋值」语义冲突。
+                sourceId: operation?.[0] === 'conditional-assignment' ? undefined : node.sourceId,
+              })}
+            />
+            <Text style={{ fontSize: 12 }}>{operationResultType(node.operation) ?? ''}</Text>
             <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
           </>)}
-          <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, paddingLeft: depth * 20 }}>
-            <Tooltip title="Drag to reorder within this level">
-              <HolderOutlined style={{ color: '#bfbfbf', cursor: 'grab', marginRight: 6 }} />
-            </Tooltip>
-            {isContainer ? (
-              <Button type="text" size="small" icon={collapsed ? <CaretRightOutlined /> : <CaretDownOutlined />} onClick={() => toggleNode(node.id)} style={{ width: 24, padding: 0, marginRight: 2 }} />
-            ) : <span style={{ width: 26 }} />}
-            <Input value={isArrayItem ? '_items' : node.name} disabled={readOnly || isArrayItem} placeholder="Field name" status={!node.name ? 'error' : undefined} onChange={(event) => updateNode(path, { name: event.target.value })} />
-          </div>
-          <Select value={node.type} options={isArrayItem ? dataTypeOptions.filter(option => option.value !== 'Array') : dataTypeOptions} onChange={(nextType) => changeType(path, nextType)} />
-          <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!node.required} onChange={(required) => updateNode(path, { required })} /></div>
-          <Input value={node.description} placeholder="Optional" onChange={(event) => updateNode(path, { description: event.target.value })} />
+          {/* 条件赋值派生的目标行：左侧字段信息无意义，整体让位给一行提示文字（配置在右侧 target mapping 里）。 */}
+          {node.conditionalTargetRow
+            ? <div style={{ gridColumn: '1 / 5', color: '#8c8c8c', fontSize: 12 }}>Please config the conditional assignment.</div>
+            : <>
+              <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, paddingLeft: depth * 20 }}>
+                <Tooltip title="Drag to reorder within this level">
+                  <HolderOutlined style={{ color: '#bfbfbf', cursor: 'grab', marginRight: 6 }} />
+                </Tooltip>
+                {isContainer ? (
+                  <Button type="text" size="small" icon={collapsed ? <CaretRightOutlined /> : <CaretDownOutlined />} onClick={() => toggleNode(node.id)} style={{ width: 24, padding: 0, marginRight: 2 }} />
+                ) : <span style={{ width: 26 }} />}
+                <Input value={isArrayItem ? '_items' : node.name} disabled={readOnly || isArrayItem} placeholder="Field name" status={!node.name ? 'error' : undefined} onChange={(event) => updateNode(path, { name: event.target.value })} />
+              </div>
+              <Select value={node.type} options={isArrayItem ? dataTypeOptions.filter(option => option.value !== 'Array') : dataTypeOptions} onChange={(nextType) => changeType(path, nextType)} />
+              <div style={{ textAlign: 'center' }}><Switch size="small" checked={!!node.required} onChange={(required) => updateNode(path, { required })} /></div>
+              <Input value={node.description} placeholder="Optional" onChange={(event) => updateNode(path, { description: event.target.value })} />
+            </>}
           {!schemaOnly && direction === 'response' && (isContainer
             ? <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
               {isObject && <Tooltip title="Add child field"><Button type="text" size="small" icon={<PlusOutlined />} onClick={() => addAt(path)} /></Tooltip>}
@@ -353,8 +529,16 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
               targetOptions={targetOptions}
               operationOptions={operationOptions}
               targetPlaceholder={targetPlaceholder}
-              reservedTargetValues={collectTargetValues(value, node.id)}
+              reservedTargetValues={collectTargetValues(effectiveValue, node.id)}
               readOnly={readOnly}
+              onConditionalSelected={node.conditionalTargetRow ? undefined : () => handleResponseConditionalSelected(path)}
+              lockedConditional={node.conditionalTargetRow}
+              conditionalConfig={node.conditionalConfig}
+              conditionalFields={responseConditionalFields}
+              conditionalTargetLabel={node.conditionalTargetRow ? targetLabelOf(node) : undefined}
+              conditionalTargetType={node.conditionalTargetRow ? optionType(targetOptions, targetLabelOf(node)) : undefined}
+              conditionalFieldPlaceholder="select field"
+              onConditionalConfig={(config) => updateNode(path, { conditionalConfig: config })}
               onChange={(targetMappings) => updateNode(path, { targetMappings, operation: undefined, targetValue: undefined })}
               onRemoveLast={() => removeAt(path)}
             />)}
@@ -365,9 +549,9 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
         </div>
         {isContainer && !collapsed && (node.children ?? []).map((child, index) => renderNode(child, [...path, index], depth + 1, isArray))}
         {isObject && !collapsed && (node.children?.length ?? 0) === 0 && (
-          <button type="button" onClick={() => addAt(path)} style={{ marginLeft: 48 + depth * 20, border: 0, background: 'transparent', color: '#8c8c8c', padding: '7px 0', cursor: 'pointer', fontSize: 12 }}>
-            No child fields. <span style={{ color: '#1677ff' }}>Add child</span>
-          </button>
+          <div style={{ marginLeft: 48 + depth * 20, color: '#8c8c8c', padding: '7px 0', fontSize: 12 }}>
+            No child fields. <Button type="link" size="small" style={{ padding: 0 }} onClick={() => addAt(path)}>Add child</Button>
+          </div>
         )}
       </div>
     );
@@ -382,28 +566,29 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
         </Space>
         <Space size={6}>
           <Tooltip title="Expand all"><Button size="small" icon={<PlusSquareOutlined />} onClick={() => { setRootCollapsed(false); setCollapsedIds(new Set()); }} /></Tooltip>
-          <Tooltip title="Collapse all"><Button size="small" icon={<MinusSquareOutlined />} onClick={() => { setRootCollapsed(true); setCollapsedIds(new Set(collectContainerIds(value))); }} /></Tooltip>
+          <Tooltip title="Collapse all"><Button size="small" icon={<MinusSquareOutlined />} onClick={() => { setRootCollapsed(true); setCollapsedIds(new Set(collectContainerIds(effectiveValue))); }} /></Tooltip>
           <Button size="small" icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>Import JSON</Button>
         </Space>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: 980 }}>
+        <div style={{ minWidth: 1060 }}>
           <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '7px 8px', color: '#8c8c8c', fontSize: 11, background: '#fcfcfc', borderBottom: '1px solid #f0f0f0' }}>
             {schemaOnly ? <>
               <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
             </> : direction === 'request' ? <>
-              <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
+              <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span>TYPE</span><span /><span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><span />
             </> : <>
               <span>FIELD</span><span>TYPE</span><span style={{ textAlign: 'center' }}>REQUIRED</span><span>DESCRIPTION</span><TargetMappingColumnHeaders />
             </>}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', minHeight: 44, padding: '5px 8px', background: '#f5f7ff', borderBottom: '1px solid #e8e8e8' }}>
-            {!schemaOnly && direction === 'request' && (['Object', 'Array'].includes(rootType) ? <><span /><span /><span /><span /><span /></> : <>
+            {!schemaOnly && direction === 'request' && (['Object', 'Array'].includes(rootType) ? <><span /><span /><span /><span /><span /><span /></> : <>
               <Cascader value={rootSourceId} placeholder={sourcePlaceholder} options={cascaderSourceOptions} expandTrigger="click" showSearch onChange={(next) => setRootSourceId(next as string[])} />
               <Text style={{ fontSize: 12 }}>{optionType(sourceOptions, rootSourceId)}</Text>
               <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
               <MappingOperationSelector value={rootOperation} config={rootOperationConfig} options={operationOptions} onChange={(operation, operationConfig) => { setRootOperation(operation ?? []); setRootOperationConfig(operationConfig); }} />
+              <Text style={{ fontSize: 12 }}>{operationResultType(rootOperation) ?? ''}</Text>
               <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
             </>)}
             <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -421,7 +606,7 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
                 targetOptions={targetOptions}
                 operationOptions={operationOptions}
                 targetPlaceholder={targetPlaceholder}
-                reservedTargetValues={collectTargetValues(value)}
+                reservedTargetValues={collectTargetValues(effectiveValue)}
                 readOnly={readOnly}
                 onChange={setRootTargetMappings}
               />)}
@@ -429,8 +614,10 @@ export default function BodySchemaMappingEditor({ value = [], onChange, sourceOp
           </div>
           {!rootCollapsed && (
             <div style={{ maxHeight: 480, overflowY: 'auto' }}>
-              {value.length > 0 ? value.map((node, index) => renderNode(node, [index], 0, rootType === 'Array')) : rootType === 'Object' ? (
-                <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>No child fields defined under ROOT. <Button type="link" size="small" onClick={() => addAt([])}>Add child</Button></div>
+              {effectiveValue.length > 0 ? effectiveValue.map((node, index) => renderNode(node, [index], 0, rootType === 'Array')) : rootType === 'Object' ? (
+                <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>
+                  No child fields defined under ROOT. <Button type="link" size="small" style={{ padding: 0 }} onClick={() => addAt([])}>Add child</Button>
+                </div>
               ) : (
                 <div style={{ color: '#8c8c8c', padding: '22px 36px' }}>Scalar ROOT does not contain child fields.</div>
               )}

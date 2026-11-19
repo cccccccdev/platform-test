@@ -1,5 +1,12 @@
 export const mappingOperationOptions = [
   {
+    label: 'CONDITIONAL ASSIGNMENT',
+    value: 'conditional-assignment',
+    children: [
+      { label: 'Conditional Assignment', value: 'conditional-assignment' },
+    ],
+  },
+  {
     label: 'MONEY',
     value: 'money',
     children: [

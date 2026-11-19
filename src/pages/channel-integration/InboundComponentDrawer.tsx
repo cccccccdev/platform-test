@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Alert, Button, Card, Checkbox, ConfigProvider, Drawer, Form, Input, message, Radio, Select, Space, Switch, Tabs, Tag, Tooltip, Typography } from 'antd';
-import { QuestionCircleOutlined } from '@ant-design/icons';
+import { QuestionCircleOutlined, DeleteOutlined } from '@ant-design/icons';
 import BodySchemaMappingEditor, { type BodySchemaNode } from './BodySchemaMappingEditor';
 import FlatFieldMappingEditor from './FlatFieldMappingEditor';
 import GroovyScriptEditor from './GroovyScriptEditor';
 import { mappingOperationOptions } from './mappingOperationOptions';
 import { validateOperationConfigs } from './operationConfigs';
 import EndpointPathVariablesReference from './EndpointPathVariablesReference';
-import TargetMappingList, { collectFieldTargetMappings, normalizeTargetMappings, TargetMappingColumnHeaders, validateTargetMappings } from './TargetMappingList';
+import { collectFieldTargetMappings, normalizeTargetMappings, targetOptionType, validateTargetMappings } from './TargetMappingList';
 import type { TargetMapping } from './TargetMappingList';
+import MappingOperationSelector, { type MappingOperationConfig } from './MappingOperationSelector';
+import { createInitialConfig, type ConditionalAssignmentConfig } from './conditionalAssignmentModel';
+import { operationResultType } from './operationResultType';
 import { fallbackStateOptionsFor } from './stateMachineStateOptions';
 import { isSubOrderModeEnabled } from '../basic-info/capability/subOrderModeStore';
 import ResponseCodeAssemblyEditor from './ResponseCodeAssemblyEditor';
@@ -21,7 +24,9 @@ const formats = ['Custom', 'FORM_DATA', 'JSON', 'X_WWW_FORM_URLENCODED', 'XML'].
 const signing = ['Custom', 'HMAC (SHA256)', 'HMAC (SHA512)', 'MD5', 'RSA (SHA1)', 'RSA (SHA256)', 'RSA (SHA512)', 'SHA1', 'SHA256', 'SHA512'].map((value) => ({ label: value, value }));
 const encryption = ['AES (CBC)', 'AES (ECB)', 'Custom', 'RSA'].map((value) => ({ label: value, value }));
 const unknownResponseHandlingOptions = ['PENDING', 'FAIL'].map((value) => ({ label: value, value }));
-const spiRequest = ['amount', 'currency', 'requestReference', 'responseReference', 'customerId', 'accountNumber', 'channelResponseCode', 'channelResponseMessage'];
+const spiRequest = ['amount', 'currency', 'requestReference', 'responseReference', 'customerId', 'accountNumber', 'channelResponseCode', 'channelResponseMessage', 'needNotify'];
+/** Demo 造数：SPI Request 侧的类型覆写，未列出的走 String。needNotify 为 Boolean，用于验证 Boolean 条件的退化形态。 */
+const spiRequestTypes: Record<string, string> = { amount: 'BigDecimal', needNotify: 'Boolean' };
 const spiResponse = ['responseCode', 'responseMessage', 'status', 'requestReference', 'channelReference', 'amount', 'currency'];
 const subOrderRequestFields = [
   'feature.featureField',
@@ -43,7 +48,7 @@ const subOrderResponseFields = [
   'extraResponse.deliveryTime',
 ];
 const buildSpiRequestOptions = (subOrderModeEnabled: boolean) => [
-  { label: 'SPI Request', options: spiRequest.map((value) => ({ label: value, value: `spi.request.${value}`, type: value === 'amount' ? 'BigDecimal' : 'String' })) },
+  { label: 'SPI Request', options: spiRequest.map((value) => ({ label: value, value: `spi.request.${value}`, type: spiRequestTypes[value] ?? 'String' })) },
   ...(subOrderModeEnabled ? [{
     label: 'SPI Request · subOrderList[*]',
     options: subOrderRequestFields.map((path) => ({ label: path, value: `spi.request.subOrderList._items.${path}`, type: 'String' })),
@@ -68,10 +73,11 @@ const mergeTabStates = (states: TabState[]): TabState => {
 };
 const flatSchemaState = (fields: unknown): TabState => {
   if (!hasRows(fields)) return 'empty';
-  return fields.every((field) => hasValue(field.name) && hasValue(field.type) && normalizeTargetMappings(field).every((mapping) => hasValue(mapping.targetValue))) ? 'ok' : 'error';
+  // 条件赋值的目标行没有外部字段名（取值由条件决定），只校验右侧目标字段。
+  return fields.every((field) => (hasValue(field.name) || Boolean(field.conditionalTargetRow)) && hasValue(field.type) && normalizeTargetMappings(field).every((mapping) => hasValue(mapping.targetValue))) ? 'ok' : 'error';
 };
 const bodySchemaNodeComplete = (node: BodySchemaNode): boolean => {
-  if (!hasValue(node.name) || !hasValue(node.type)) return false;
+  if ((!hasValue(node.name) && !node.conditionalTargetRow) || !hasValue(node.type)) return false;
   if (['Object', 'Array'].includes(node.type)) return (node.children ?? []).every(bodySchemaNodeComplete);
   return normalizeTargetMappings(node).every((mapping) => hasValue(mapping.targetValue));
 };
@@ -126,12 +132,16 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
   const state = (key: string): TabState => {
     if (key === 'format') return 'ok';
     if (key === 'path') {
-      if (pathVariables.length === 0) return 'empty';
-      return pathVariables.every((variable) => {
+      const conditionalRows = (allValues.pathVariableConditionalRows ?? []) as Array<Record<string, unknown>>;
+      if (pathVariables.length === 0 && conditionalRows.length === 0) return 'empty';
+      const variablesComplete = pathVariables.every((variable) => {
         const mapping = allValues.pathVariableMappings?.[variable] ?? {};
-        const targets = normalizeTargetMappings({ id: variable, targetMappings: mapping.targetMappings, targetValue: mapping.target, operation: mapping.operation });
+        const targets = pathVariableTargets(variable, mapping);
         return targets.length > 0 && targets.every((target) => hasValue(target.targetValue));
-      }) ? 'ok' : 'error';
+      });
+      // 条件目标行：没有外部字段名是预期的，但必须选好 SPI 目标字段并完成条件配置。
+      const conditionalComplete = conditionalRows.every((row) => hasValue(row?.targetValue) && Boolean(row?.conditionalConfig));
+      return variablesComplete && conditionalComplete ? 'ok' : 'error';
     }
     if (key === 'query') return flatSchemaState(allValues.queryParameters);
     if (key === 'header') return flatSchemaState(allValues.requestHeaders);
@@ -166,16 +176,20 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
   };
   const handleSave = async () => {
     const values = await form.validateFields();
-    const pathTargets = pathVariables.flatMap((variable) => {
+    const pathTargets: TargetMapping[] = pathVariables.flatMap((variable) => {
       const mapping = values.pathVariableMappings?.[variable] ?? {};
-      return normalizeTargetMappings({ id: variable, targetMappings: mapping.targetMappings, targetValue: mapping.target, operation: mapping.operation });
+      return pathVariableTargets(variable, mapping);
     });
+    // 条件目标行不在 Form.Item 注册表中，从表单存储直接读取，并回写到保存值里。
+    const conditionalRows = (form.getFieldValue('pathVariableConditionalRows') ?? []) as Array<Record<string, unknown>>;
+    const conditionalPathTargets: TargetMapping[] = conditionalRows.flatMap((row, index) => normalizeTargetMappings({ id: `path_conditional_${index}`, ...row }));
     if (effectiveRequestMappingMode !== 'script' && pathVariables.some((variable) => {
       const mapping = values.pathVariableMappings?.[variable] ?? {};
-      return normalizeTargetMappings({ id: variable, targetMappings: mapping.targetMappings, targetValue: mapping.target, operation: mapping.operation }).length === 0;
+      return pathVariableTargets(variable, mapping).length === 0;
     })) return void message.error('Add at least one Target Mapping for every Path Variable.');
     const mappingError = validateTargetMappings([
       ...pathTargets,
+      ...conditionalPathTargets,
       ...collectFieldTargetMappings(values.queryParameters),
       ...collectFieldTargetMappings(values.requestHeaders),
       ...collectFieldTargetMappings(values.requestBody),
@@ -183,12 +197,13 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
     if (mappingError) return void message.error(mappingError);
     const operationError = validateOperationConfigs([
       values.pathVariableMappings,
+      conditionalRows,
       values.queryParameters,
       values.requestHeaders,
       values.requestBody,
     ]);
     if (operationError) return void message.error(operationError);
-    onSave(values);
+    onSave({ ...values, pathVariableConditionalRows: conditionalRows });
   };
   return <Drawer title={<Space><span>Configure Inbound Request</span><Tag color="cyan">inboundRequest</Tag></Space>} width="min(1180px, 92vw)" open={open} onClose={onClose} destroyOnClose extra={!readOnly && <Space><Button onClick={onClose}>Cancel</Button><Button type="primary" onClick={() => void handleSave()}>Save</Button></Space>}>
     <ConfigProvider componentSize="middle" theme={{ components: { Form: { itemMarginBottom: 10 } } }}>
@@ -201,7 +216,7 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
             <Tabs type="card" size="small" items={[
               { key: 'path', label: tabLabel('Path Vars', state('path')), children: effectiveRequestMappingMode === 'script'
                 ? <EndpointPathVariablesReference variables={pathVariables} endpointPath={endpointPath} />
-                : <InboundPathVariableMapping variables={pathVariables} endpointPath={endpointPath} targetOptions={spiRequestOptions} /> },
+                : <InboundPathVariableMapping variables={pathVariables} endpointPath={endpointPath} targetOptions={spiRequestOptions} readOnly={readOnly} /> },
               { key: 'query', label: tabLabel('Params', state('query')), children: <Form.Item name="queryParameters" initialValue={[]}><FlatFieldMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Query Parameter Fields" addLabel="Add Parameter" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} readOnly={readOnly} targetPlaceholder="SPI request field" /></Form.Item> },
               { key: 'header', label: tabLabel('Headers', state('header')), children: <Form.Item name="requestHeaders" initialValue={[]}><FlatFieldMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} fixedFieldType="String" direction="response" title="Request Header Fields" addLabel="Add Header" fieldPlaceholder="External field" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={flatTypes} operationOptions={mappingOperationOptions} readOnly={readOnly} targetPlaceholder="SPI request field" /></Form.Item> },
               { key: 'body', label: tabLabel('Body', state('body')), children: <Form.Item name="requestBody" initialValue={[]}><BodySchemaMappingEditor schemaOnly={effectiveRequestMappingMode === 'script'} direction="response" sourceOptions={[]} targetOptions={spiRequestOptions} dataTypeOptions={types} operationOptions={mappingOperationOptions} readOnly={readOnly} targetPlaceholder="SPI request field" /></Form.Item> },
@@ -275,49 +290,159 @@ export function InboundRequestDrawer({ open, initialValues = {}, readOnly = fals
   </Drawer>;
 }
 
-function InboundPathVariableMapping({ variables, endpointPath, targetOptions }: { variables: string[]; endpointPath?: string; targetOptions: ReturnType<typeof buildSpiRequestOptions> }) {
-  if (variables.length === 0) return <EndpointPathVariablesReference variables={variables} endpointPath={endpointPath} />;
-  const columns = 'minmax(180px,1fr) 80px minmax(460px,2fr)';
+const pathMappingColumns = 'minmax(150px,1fr) 104px 62px minmax(150px,1fr) 168px 64px minmax(178px,1.05fr) 92px';
+const pathTypeOptions = [{ label: 'String', value: 'String' }];
+
+/**
+ * 读一行路径变量的目标映射。
+ * 行级 target / operation 优先，旧结构 targetMappings 仅作回退——
+ * 因为 normalizeTargetMappings 在没有 targetValue 时会返回空数组，
+ * 直接用它会丢掉「已选操作类但还没选目标」的中间状态。
+ */
+const pathVariableTargets = (variable: string, mapping?: Record<string, unknown>): TargetMapping[] => {
+  const legacy = Array.isArray(mapping?.targetMappings) ? (mapping?.targetMappings as TargetMapping[])[0] : undefined;
+  const targetValue = (mapping?.target as string | undefined) ?? legacy?.targetValue;
+  if (!targetValue) return [];
+  return [{
+    id: legacy?.id ?? `path_${variable}`,
+    targetValue,
+    operation: (mapping?.operation as string[] | undefined) ?? legacy?.operation,
+    operationConfig: (mapping?.operationConfig as MappingOperationConfig | undefined) ?? legacy?.operationConfig,
+  }];
+};
+
+/** 渲染用读取：目标未选时也要把已选的操作类显示出来，所以不在 target 为空时短路。 */
+const pathRowValues = (mapping?: Record<string, unknown>) => {
+  const legacy = Array.isArray(mapping?.targetMappings) ? (mapping?.targetMappings as TargetMapping[])[0] : undefined;
+  return {
+    targetValue: (mapping?.target as string | undefined) ?? legacy?.targetValue,
+    operation: (mapping?.operation as string[] | undefined) ?? legacy?.operation,
+    operationConfig: (mapping?.operationConfig as MappingOperationConfig | undefined) ?? legacy?.operationConfig,
+  };
+};
+
+function InboundPathVariableMapping({ variables, endpointPath, targetOptions, readOnly = false }: { variables: string[]; endpointPath?: string; targetOptions: ReturnType<typeof buildSpiRequestOptions>; readOnly?: boolean }) {
+  const form = Form.useFormInstance();
+  // 条件目标行不在 Form.Item 注册表里，交给本地 state 驱动渲染，避免依赖表单通知时序。
+  const [conditionalRows, setConditionalRows] = useState<Array<Record<string, unknown>>>(() => {
+    const rows = form.getFieldValue('pathVariableConditionalRows');
+    return Array.isArray(rows) ? rows as Array<Record<string, unknown>> : [];
+  });
+  const writeConditionalRows = (rows: Array<Record<string, unknown>>) => {
+    setConditionalRows(rows);
+    form.setFieldValue('pathVariableConditionalRows', rows);
+  };
+  if (variables.length === 0 && conditionalRows.length === 0) return <EndpointPathVariablesReference variables={variables} endpointPath={endpointPath} />;
+  /** 条件左值候选 = 本页签左侧已录入的路径变量。 */
+  const conditionalFields = variables.map((variable) => ({ id: variable, path: [variable], name: variable, type: 'String' }));
+  const setRow = (variable: string, patch: Record<string, unknown>) => {
+    const current = (form.getFieldValue(['pathVariableMappings', variable]) ?? {}) as Record<string, unknown>;
+    const base = pathVariableTargets(variable, current)[0];
+    form.setFieldValue(['pathVariableMappings', variable], {
+      ...current,
+      target: base?.targetValue,
+      operation: base?.operation,
+      operationConfig: base?.operationConfig,
+      ...patch,
+    });
+  };
+  const addConditionalRow = () => {
+    writeConditionalRows([...conditionalRows, {
+      conditionalTargetRow: true,
+      operation: ['conditional-assignment', 'conditional-assignment'],
+      conditionalConfig: createInitialConfig(),
+    }]);
+  };
+  const removeConditionalRow = (index: number) => {
+    writeConditionalRows(conditionalRows.filter((_, rowIndex) => rowIndex !== index));
+  };
+  const updateConditionalRow = (index: number, patch: Record<string, unknown>) => {
+    writeConditionalRows(conditionalRows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
+  };
   return <div>
     <EndpointPathVariablesReference variables={variables} endpointPath={endpointPath} />
     <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden', marginTop: 10 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '7px 10px', color: '#8c8c8c', fontSize: 11, background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
-        <span>PATH VARIABLE</span><span>TYPE</span><TargetMappingColumnHeaders />
+      <div style={{ overflowX: 'auto' }}>
+        <div style={{ minWidth: 1010 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: pathMappingColumns, gap: 8, padding: '7px 10px', color: '#8c8c8c', fontSize: 11, background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
+            <span>FIELD</span><span>TYPE</span><span>REQUIRED</span><span>DESCRIPTION</span><span>OPERATION</span><span>TYPE</span><span>TARGET VALUE</span><span>TARGET TYPE</span>
+          </div>
+          {variables.map((variable) => <Form.Item key={variable} noStyle shouldUpdate>
+            {() => {
+              const mapping = (form.getFieldValue(['pathVariableMappings', variable]) ?? {}) as Record<string, unknown>;
+              const row = pathRowValues(mapping);
+              return <div style={{ display: 'grid', gridTemplateColumns: pathMappingColumns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
+                <Input value={variable} disabled />
+                <Select value={(mapping.type as string) || 'String'} options={pathTypeOptions} disabled={readOnly} onChange={(type) => setRow(variable, { type })} />
+                <div style={{ textAlign: 'center' }}><Switch size="small" checked={Boolean(mapping.required)} disabled={readOnly} onChange={(required) => setRow(variable, { required })} /></div>
+                <Input placeholder="Optional" value={(mapping.description as string) || ''} disabled={readOnly} onChange={(event) => setRow(variable, { description: event.target.value })} />
+                <MappingOperationSelector
+                  value={row.operation}
+                  config={row.operationConfig}
+                  placeholder="Select operation"
+                  options={mappingOperationOptions}
+                  readOnly={readOnly}
+                  conditionalConfig={mapping.conditionalConfig as ConditionalAssignmentConfig | undefined}
+                  conditionalFields={conditionalFields}
+                  conditionalTargetLabel={row.targetValue}
+                  conditionalTargetType={targetOptionType(targetOptions, row.targetValue)}
+                  conditionalFieldPlaceholder="select field"
+                  onConditionalConfig={(conditionalConfig) => form.setFieldValue(['pathVariableMappings', variable, 'conditionalConfig'], conditionalConfig)}
+                  onChange={(nextOperation, nextConfig) => {
+                    // 选中条件赋值：本行操作类清空，并在表末尾新增一个条件目标行。
+                    if (nextOperation?.[0] === 'conditional-assignment') {
+                      setRow(variable, { operation: undefined, operationConfig: undefined, conditionalConfig: undefined });
+                      addConditionalRow();
+                      return;
+                    }
+                    setRow(variable, { operation: nextOperation, operationConfig: nextConfig });
+                  }}
+                />
+                <Text style={{ fontSize: 11 }}>{operationResultType(row.operation) ?? ''}</Text>
+                <Select value={row.targetValue} placeholder="Select SPI value" options={targetOptions} disabled={readOnly} onChange={(target) => setRow(variable, { target })} />
+                <Text style={{ fontSize: 11 }}>{targetOptionType(targetOptions, row.targetValue)}</Text>
+              </div>;
+            }}
+          </Form.Item>)}
+          {conditionalRows.map((row, index) => {
+            const target = row.targetValue as string | undefined;
+            return <div key={`conditional_${index}`} style={{ display: 'grid', gridTemplateColumns: pathMappingColumns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5', borderTop: '1px solid #d9d9d9' }}>
+              {/* 派生行左侧的字段信息无意义，整体让位给一行提示文字（配置在右侧操作类与 TARGET VALUE 里）。 */}
+              <div style={{ gridColumn: '1 / 5', color: '#8c8c8c', fontSize: 12 }}>Please config the conditional assignment.</div>
+              <MappingOperationSelector
+                value={(row.operation as string[] | undefined) ?? ['conditional-assignment', 'conditional-assignment']}
+                config={row.operationConfig as MappingOperationConfig | undefined}
+                placeholder="Optional"
+                options={mappingOperationOptions}
+                readOnly={readOnly}
+                lockedConditional
+                conditionalConfig={row.conditionalConfig as ConditionalAssignmentConfig | undefined}
+                conditionalFields={conditionalFields}
+                conditionalTargetLabel={target}
+                conditionalTargetType={targetOptionType(targetOptions, target)}
+                conditionalFieldPlaceholder="select field"
+                onConditionalConfig={(conditionalConfig) => updateConditionalRow(index, { conditionalConfig })}
+                onChange={() => undefined}
+              />
+              <Text style={{ fontSize: 11 }}>{operationResultType(row.operation as string[] | undefined) ?? ''}</Text>
+              <Select
+                value={target}
+                placeholder="Select SPI value"
+                options={targetOptions}
+                status={target ? undefined : 'error'}
+                disabled={readOnly}
+                onChange={(nextTarget) => updateConditionalRow(index, { targetValue: nextTarget })}
+              />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                <Text style={{ fontSize: 11 }}>{targetOptionType(targetOptions, target)}</Text>
+                <Tooltip title="Delete conditional target"><Button type="text" size="small" danger aria-label="Delete conditional target" icon={<DeleteOutlined />} disabled={readOnly} onClick={() => removeConditionalRow(index)} /></Tooltip>
+              </div>
+            </div>;
+          })}
+        </div>
       </div>
-      {variables.map((variable) => <div key={variable} style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
-        <Input value={`{${variable}}`} disabled />
-        <Text>String</Text>
-        <InboundPathVariableTargetMappings variable={variable} variables={variables} targetOptions={targetOptions} />
-      </div>)}
     </div>
   </div>;
-}
-
-function InboundPathVariableTargetMappings({ variable, variables, targetOptions }: { variable: string; variables: string[]; targetOptions: ReturnType<typeof buildSpiRequestOptions> }) {
-  const form = Form.useFormInstance();
-  const allPathMappings = Form.useWatch('pathVariableMappings', form) ?? {};
-  const current = allPathMappings[variable] ?? {};
-  const mappings = normalizeTargetMappings({ id: variable, targetMappings: current.targetMappings, targetValue: current.target, operation: current.operation });
-  const reservedTargetValues = variables.flatMap((otherVariable) => {
-    if (otherVariable === variable) return [];
-    const other = allPathMappings[otherVariable] ?? {};
-    return normalizeTargetMappings({ id: otherVariable, targetMappings: other.targetMappings, targetValue: other.target, operation: other.operation })
-      .map((mapping) => mapping.targetValue)
-      .filter((target): target is string => Boolean(target));
-  });
-  const update = (targetMappings: TargetMapping[]) => {
-    form.setFieldValue(['pathVariableMappings', variable, 'targetMappings'], targetMappings);
-    form.setFieldValue(['pathVariableMappings', variable, 'target'], undefined);
-    form.setFieldValue(['pathVariableMappings', variable, 'operation'], undefined);
-  };
-  return <TargetMappingList
-    value={mappings}
-    targetOptions={targetOptions}
-    operationOptions={mappingOperationOptions}
-    targetPlaceholder="SPI request field"
-    reservedTargetValues={reservedTargetValues}
-    onChange={update}
-  />;
 }
 
 export function InboundResponseDrawer({ open, initialValues = {}, readOnly = false, businessType = '', ability = '', onClose, onSave }: Props) {

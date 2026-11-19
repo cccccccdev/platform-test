@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Cascader, Form, Input, Modal, Select, Typography } from 'antd';
 import { ArrowRightOutlined } from '@ant-design/icons';
 import MappingOperationSelector, { type MappingOperationConfig, type MappingOperationOption } from './MappingOperationSelector';
+import type { ConditionalAssignmentConfig, ConditionalAssignmentField } from './conditionalAssignmentModel';
+import { operationResultType } from './operationResultType';
 
 const { Text } = Typography;
 
@@ -19,6 +21,26 @@ interface Props {
   emptyText: string;
   readOnly?: boolean;
 }
+
+/** 把 PathSourceOption 拍平成条件赋值弹窗的候选字段列表（叶子 value 为完整点分路径）。 */
+const flattenConditionalFields = (options: PathSourceOption[]): ConditionalAssignmentField[] => {
+  const result: ConditionalAssignmentField[] = [];
+  const walk = (items: PathSourceOption['children']) => {
+    if (!items) return;
+    for (const item of items) {
+      if (item.children && item.children.length) {
+        walk(item.children);
+      } else {
+        const path = item.value.split('.');
+        result.push({ id: item.value, path, name: path[path.length - 1], type: item.type ?? 'String' });
+      }
+    }
+  };
+  for (const group of options) {
+    if (group.children) walk(group.children);
+  }
+  return result;
+};
 
 const selectedType = (options: PathSourceOption[], value?: string[]): string => {
   const selected = value?.[value.length - 1];
@@ -38,18 +60,19 @@ const selectedType = (options: PathSourceOption[], value?: string[]): string => 
   return 'String';
 };
 
-const columns = 'minmax(210px,1fr) 90px 24px 150px 24px minmax(190px,.9fr) 90px';
+const columns = 'minmax(210px,1fr) 90px 24px 150px 64px 24px minmax(190px,.9fr) 90px';
 
 export default function PathVariableMappingEditor({ variables, mappingName, sourceOptions, operationOptions, emptyText, readOnly = false }: Props) {
   const form = Form.useFormInstance();
   const [referenceVariable, setReferenceVariable] = useState<string | null>(null);
   const [referenceMode, setReferenceMode] = useState<'default' | 'customPrefix'>('default');
   const [referencePrefix, setReferencePrefix] = useState('');
+  const conditionalFields = useMemo(() => flattenConditionalFields(sourceOptions), [sourceOptions]);
   if (variables.length === 0) return <div style={{ padding: '14px 16px', color: '#8c8c8c', background: '#fafafa', borderRadius: 6 }}>{emptyText}</div>;
   return (
     <div style={{ border: '1px solid #e8e8e8', borderRadius: 8, overflow: 'hidden' }}>
       <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, padding: '7px 10px', color: '#8c8c8c', fontSize: 11, background: '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
-        <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span /><span>PATH VARIABLE</span><span>TARGET TYPE</span>
+        <span>SOURCE VALUE</span><span>SOURCE TYPE</span><span /><span>OPERATION</span><span>TYPE</span><span /><span>PATH VARIABLE</span><span>TARGET TYPE</span>
       </div>
       {variables.map((variable) => (
         <Form.Item key={variable} noStyle shouldUpdate>
@@ -57,10 +80,15 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
             const source = getFieldValue([mappingName, variable, 'source']) as string[] | undefined;
             const operation = getFieldValue([mappingName, variable, 'operation']) as string[] | undefined;
             const operationConfig = getFieldValue([mappingName, variable, 'operationConfig']) as MappingOperationConfig | undefined;
+            const conditionalConfig = getFieldValue([mappingName, variable, 'conditionalConfig']) as ConditionalAssignmentConfig | undefined;
             return (
               <div style={{ display: 'grid', gridTemplateColumns: columns, gap: 8, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #f5f5f5' }}>
-                <Form.Item name={[mappingName, variable, 'source']} rules={[{ required: true, message: 'Select value source' }]} style={{ margin: 0 }}>
-                  <Cascader placeholder="Select source value" options={sourceOptions} expandTrigger="click" showSearch onChange={(next) => {
+                <Form.Item name={[mappingName, variable, 'source']} rules={[{ validator: (_, valueSource: string[] | undefined) => {
+                  const op = form.getFieldValue([mappingName, variable, 'operation']) as string[] | undefined;
+                  if (op?.[0] === 'conditional-assignment') return Promise.resolve();
+                  return valueSource && valueSource.length ? Promise.resolve() : Promise.reject(new Error('Select value source'));
+                } }]} style={{ margin: 0 }}>
+                  <Cascader placeholder="Select source value" options={sourceOptions} expandTrigger="click" showSearch disabled={operation?.[0] === 'conditional-assignment'} onChange={(next) => {
                     if ((next as string[]).at(-1) === 'generated.reference-number') {
                       const existing = form.getFieldValue([mappingName, variable, 'generatedDataConfig']);
                       setReferenceMode(existing?.mode ?? 'default');
@@ -71,10 +99,24 @@ export default function PathVariableMappingEditor({ variables, mappingName, sour
                 </Form.Item>
                 <Text>{selectedType(sourceOptions, source)}</Text>
                 <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
-                <MappingOperationSelector value={operation} config={operationConfig} placeholder="Optional" options={operationOptions} fieldOptions={sourceOptions} readOnly={readOnly} onChange={(nextOperation, nextConfig) => {
-                  form.setFieldValue([mappingName, variable, 'operation'], nextOperation);
-                  form.setFieldValue([mappingName, variable, 'operationConfig'], nextConfig);
-                }} />
+                <MappingOperationSelector
+                  value={operation}
+                  config={operationConfig}
+                  placeholder="Optional"
+                  options={operationOptions}
+                  fieldOptions={sourceOptions}
+                  readOnly={readOnly}
+                  conditionalConfig={conditionalConfig}
+                  conditionalFields={conditionalFields}
+                  conditionalTargetLabel={variable}
+                  conditionalTargetType="String"
+                  onConditionalConfig={(nextConfig) => form.setFieldValue([mappingName, variable, 'conditionalConfig'], nextConfig)}
+                  onChange={(nextOperation, nextConfig) => {
+                    form.setFieldValue([mappingName, variable, 'operation'], nextOperation);
+                    form.setFieldValue([mappingName, variable, 'operationConfig'], nextConfig);
+                  }}
+                />
+                <Text style={{ fontSize: 12 }}>{operationResultType(operation) ?? ''}</Text>
                 <ArrowRightOutlined style={{ color: '#8c8c8c' }} />
                 <Input value={`{${variable}}`} disabled />
                 <Text>String</Text>
