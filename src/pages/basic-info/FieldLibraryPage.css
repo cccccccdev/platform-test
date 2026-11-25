@@ -203,3 +203,24 @@
   color: #3e434b;
   line-height: 1.5;
 }
+
+/* Object sub fields rendered as flattened rows of the same table: the caret in
+   the name cell toggles visibility; indentation expresses the hierarchy. */
+.field-library-caret {
+  flex: none;
+  font-size: 11px;
+  color: #8c8c8c;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.field-library-caret:hover {
+  color: #5b2d90;
+}
+
+.field-library-caret-placeholder {
+  flex: none;
+  display: inline-block;
+  width: 11px;
+}
+

@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Alert, Breadcrumb, Button, Empty, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
-import { DeleteOutlined, DownloadOutlined, ExclamationCircleFilled, PlusOutlined } from '@ant-design/icons';
+import { CaretRightOutlined, DeleteOutlined, DownloadOutlined, ExclamationCircleFilled, PlusOutlined } from '@ant-design/icons';
 import {
   ARRAY_ITEM_FIELD,
   CURRENT_OPERATOR,
@@ -52,6 +52,65 @@ const LOG_OPERATION_COLOR: Record<FieldLibraryLogOperation, string> = {
   Delete: 'red',
   Import: 'geekblue',
 };
+
+/** Fuzzy name match on a sub field, recursively covering its descendants. */
+function nameInTree(subFields: FieldLibrarySubField[], term: string): boolean {
+  return subFields.some((sub) => sub.name.toLowerCase().includes(term) || nameInTree(sub.subFields, term));
+}
+
+/** Fuzzy description match on a sub field, recursively covering its descendants. */
+function descriptionInTree(subFields: FieldLibrarySubField[], term: string): boolean {
+  return subFields.some((sub) => sub.description.toLowerCase().includes(term) || descriptionInTree(sub.subFields, term));
+}
+
+/**
+ * Keep only the branches that lead to a hit (name and/or description match):
+ * matched nodes plus their ancestor chain. Unmatched siblings are dropped so a
+ * deep hit shows just the path to it (e.g. testaa > testsss > hellocc, without
+ * testbb). A node survives when its own name/description hits or any descendant
+ * survives.
+ */
+function matchSubFieldTree(subFields: FieldLibrarySubField[], nameTerm: string, descTerm: string): FieldLibrarySubField[] {
+  const result: FieldLibrarySubField[] = [];
+  subFields.forEach((sub) => {
+    const matchedChildren = matchSubFieldTree(sub.subFields, nameTerm, descTerm);
+    const nameHit = Boolean(nameTerm) && sub.name.toLowerCase().includes(nameTerm);
+    const descHit = Boolean(descTerm) && sub.description.toLowerCase().includes(descTerm);
+    if (matchedChildren.length > 0 || nameHit || descHit) {
+      result.push({ ...sub, subFields: matchedChildren });
+    }
+  });
+  return result;
+}
+
+/** Collect the path keys of every Object node in a sub-field tree (for auto-expansion). */
+function collectObjectPaths(subFields: FieldLibrarySubField[], prefix: number[], rootKey: string, out: string[]): void {
+  subFields.forEach((sub, index) => {
+    if (sub.type === 'Object') {
+      const path = [...prefix, index];
+      out.push(`${rootKey}|${path.join('.')}`);
+      collectObjectPaths(sub.subFields, path, rootKey, out);
+    }
+  });
+}
+
+/**
+ * One flattened row in the field library list. Sub fields are rendered as rows
+ * of the SAME table (not a nested table) so Type / Description stay aligned
+ * with the parent row; hierarchy is expressed by indenting the name cell only.
+ */
+interface FieldListRow {
+  key: string;
+  depth: number;
+  name: string;
+  type: FieldType;
+  description: string;
+  isArrayItem?: boolean;
+  /** Object rows with children show the caret; others render a placeholder to keep alignment. */
+  expandKey: string | null;
+  /** Present on root rows only — carries operator / operation time / row operations. */
+  record?: FieldLibraryRecord;
+}
 
 // ---------------------------------------------------------------------------
 // Bulk import / export as JSON (no file upload in the demo: the import source is
@@ -288,8 +347,10 @@ export default function FieldLibraryPage() {
   const addLogs = useFieldLibraryStore((state) => state.addLogs);
 
   const [nameFilter, setNameFilter] = useState('');
+  const [descriptionFilter, setDescriptionFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState<FieldType | undefined>(undefined);
-  const [query, setQuery] = useState({ name: '', type: undefined as FieldType | undefined });
+  const [query, setQuery] = useState({ name: '', description: '', type: undefined as FieldType | undefined });
+  const [expandedTree, setExpandedTree] = useState<Set<string>>(new Set());
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
@@ -304,10 +365,93 @@ export default function FieldLibraryPage() {
   const [logOpen, setLogOpen] = useState(false);
 
   const filteredRecords = useMemo(() => records.filter((record) => {
-    const nameMatches = record.name.toLowerCase().includes(query.name.trim().toLowerCase());
+    const nameTerm = query.name.trim().toLowerCase();
+    const descTerm = query.description.trim().toLowerCase();
+    // Name filter matches the root field name and any sub field name; a sub
+    // field hit brings the parent record into the results (auto-expanded below).
+    const nameMatches = !nameTerm || record.name.toLowerCase().includes(nameTerm) || nameInTree(record.subFields, nameTerm);
+    // Description filter matches the root description and any sub field description (已确认口径).
+    const descriptionMatches = !descTerm || record.description.toLowerCase().includes(descTerm) || descriptionInTree(record.subFields, descTerm);
     const typeMatches = !query.type || record.type === query.type;
-    return nameMatches && typeMatches;
+    return nameMatches && descriptionMatches && typeMatches;
   }), [query, records]);
+
+  /** Query click: apply filters; for sub-field hits, expand exactly the pruned hit paths. */
+  const applyQuery = () => {
+    const nameTerm = nameFilter.trim().toLowerCase();
+    const descTerm = descriptionFilter.trim().toLowerCase();
+    const nextQuery = { name: nameFilter, description: descriptionFilter, type: typeFilter };
+    setQuery(nextQuery);
+    const keys = new Set<string>();
+    if (nameTerm || descTerm) {
+      records.forEach((record) => {
+        if (record.type !== 'Object') return;
+        // Root self-hit (name or description): keep the whole tree, no auto expand (已确认口径).
+        const rootHit = (Boolean(nameTerm) && record.name.toLowerCase().includes(nameTerm)) || (Boolean(descTerm) && record.description.toLowerCase().includes(descTerm));
+        if (rootHit) return;
+        const pruned = matchSubFieldTree(record.subFields, nameTerm, descTerm);
+        if (pruned.length === 0) return;
+        keys.add(`${record.key}|`);
+        const paths: string[] = [];
+        collectObjectPaths(pruned, [], record.key, paths);
+        paths.forEach((pathKey) => keys.add(pathKey));
+      });
+    }
+    setExpandedTree(keys);
+  };
+
+  const resetQuery = () => {
+    setNameFilter('');
+    setDescriptionFilter('');
+    setTypeFilter(undefined);
+    setQuery({ name: '', description: '', type: undefined });
+    setExpandedTree(new Set());
+  };
+
+  const toggleTreeNode = (key: string) => {
+    setExpandedTree((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  /** Flatten the filtered records into list rows, descending only into expanded Object levels. */
+  const listRows = useMemo(() => {
+    const nameTerm = query.name.trim().toLowerCase();
+    const descTerm = query.description.trim().toLowerCase();
+    const rows: FieldListRow[] = [];
+    const pushChildren = (subFields: FieldLibrarySubField[], prefix: number[], depth: number, rootKey: string) => {
+      subFields.forEach((sub, index) => {
+        const path = [...prefix, index];
+        const expandKey = `${rootKey}|${path.join('.')}`;
+        rows.push({ key: expandKey, depth, name: sub.name, type: sub.type, description: sub.description, isArrayItem: sub.isArrayItem, expandKey: sub.type === 'Object' && sub.subFields.length > 0 ? expandKey : null });
+        if (sub.type === 'Object' && expandedTree.has(expandKey)) pushChildren(sub.subFields, path, depth + 1, rootKey);
+      });
+    };
+    filteredRecords.forEach((record) => {
+      // With a name/description query that the root did NOT self-hit, prune to
+      // the matching paths so only the hit hierarchy (plus ancestors) is listed.
+      const rootHit = (Boolean(nameTerm) && record.name.toLowerCase().includes(nameTerm)) || (Boolean(descTerm) && record.description.toLowerCase().includes(descTerm));
+      const visibleSubFields = nameTerm || descTerm ? (rootHit ? record.subFields : matchSubFieldTree(record.subFields, nameTerm, descTerm)) : record.subFields;
+      const expandable = record.type === 'Object' && visibleSubFields.length > 0;
+      rows.push({ key: record.key, depth: 0, name: record.name, type: record.type, description: record.description, expandKey: expandable ? `${record.key}|` : null, record });
+      if (expandable && expandedTree.has(`${record.key}|`)) pushChildren(visibleSubFields, [], 1, record.key);
+    });
+    return rows;
+  }, [filteredRecords, expandedTree, query]);
+
+  const renderCaret = (row: FieldListRow) => {
+    if (!row.expandKey) return <span className="field-library-caret-placeholder" />;
+    const open = expandedTree.has(row.expandKey);
+    return (
+      <CaretRightOutlined
+        className="field-library-caret"
+        rotate={open ? 90 : 0}
+        onClick={(event) => { event.stopPropagation(); toggleTreeNode(row.expandKey as string); }}
+      />
+    );
+  };
 
   // View-only shells out: root identity (name/type) is locked unless creating,
   // but sub-field structure can still be edited when modifying.
@@ -601,38 +745,51 @@ export default function FieldLibraryPage() {
   };
 
   const columns = [
-    { title: 'Field Name', dataIndex: 'name', key: 'name', width: 220 },
+    {
+      title: 'Field Name',
+      key: 'name',
+      width: 220,
+      render: (_record: unknown, row: FieldListRow) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, paddingLeft: row.depth * 20 }}>
+          {renderCaret(row)}
+          {row.isArrayItem ? <Tag color="purple">{row.name}</Tag> : <span>{row.name}</span>}
+        </span>
+      ),
+    },
     {
       title: 'Type',
-      dataIndex: 'type',
       key: 'type',
       width: 130,
-      render: (type: string) => <Tag color={type === 'Object' || type === 'Array' ? 'geekblue' : 'default'}>{type}</Tag>,
+      render: (_record: unknown, row: FieldListRow) => <Tag color={row.type === 'Object' || row.type === 'Array' ? 'geekblue' : 'default'}>{row.type}</Tag>,
     },
     { title: 'Description', dataIndex: 'description', key: 'description', width: 300, ellipsis: true },
-    { title: 'Operator', dataIndex: 'operator', key: 'operator', width: 200 },
-    { title: 'Operation Time', dataIndex: 'operationTime', key: 'operationTime', width: 180 },
+    { title: 'Operator', key: 'operator', width: 200, render: (_record: unknown, row: FieldListRow) => (row.record ? row.record.operator : null) },
+    { title: 'Operation Time', key: 'operationTime', width: 180, render: (_record: unknown, row: FieldListRow) => (row.record ? row.record.operationTime : null) },
     {
       title: 'Operation',
       key: 'operation',
       width: 220,
-      render: (_: unknown, record: FieldLibraryRecord) => (
-        <Space size={4}>
-          <Button type="link" onClick={() => openView(record)}>View Detail</Button>
-          <Button type="link" onClick={() => openModify(record)}>Modify</Button>
-          <Popconfirm
-            title="Delete field?"
-            description="This field will be permanently removed from the library."
-            icon={<ExclamationCircleFilled style={{ color: '#faad14' }} />}
-            okText="Delete"
-            cancelText="Cancel"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => handleDelete(record)}
-          >
-            <Button type="link" danger>Delete</Button>
-          </Popconfirm>
-        </Space>
-      ),
+      render: (_record: unknown, row: FieldListRow) => {
+        if (!row.record) return null;
+        const record = row.record;
+        return (
+          <Space size={4}>
+            <Button type="link" onClick={() => openView(record)}>View Detail</Button>
+            <Button type="link" onClick={() => openModify(record)}>Modify</Button>
+            <Popconfirm
+              title="Delete field?"
+              description="This field will be permanently removed from the library."
+              icon={<ExclamationCircleFilled style={{ color: '#faad14' }} />}
+              okText="Delete"
+              cancelText="Cancel"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => handleDelete(record)}
+            >
+              <Button type="link" danger>Delete</Button>
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
@@ -650,11 +807,12 @@ export default function FieldLibraryPage() {
         <div className="announcement-filter-panel">
           <div className="announcement-filters">
             <label><span>Field Name :</span><Input value={nameFilter} placeholder="Field Name" onChange={(event) => setNameFilter(event.target.value)} /></label>
+            <label><span>Description :</span><Input value={descriptionFilter} placeholder="Description" onChange={(event) => setDescriptionFilter(event.target.value)} /></label>
             <label><span>Type :</span><Select allowClear showSearch value={typeFilter} placeholder="Type" options={typeOptions} onChange={setTypeFilter} /></label>
           </div>
           <Space className="announcement-filter-actions">
-            <Button onClick={() => { setNameFilter(''); setTypeFilter(undefined); setQuery({ name: '', type: undefined }); }}>Reset</Button>
-            <Button type="primary" onClick={() => setQuery({ name: nameFilter, type: typeFilter })}>Query</Button>
+            <Button onClick={resetQuery}>Reset</Button>
+            <Button type="primary" onClick={applyQuery}>Query</Button>
           </Space>
         </div>
 
@@ -667,9 +825,9 @@ export default function FieldLibraryPage() {
               <Button onClick={() => setLogOpen(true)}>Log</Button>
             </Space>
           </div>
-          <Table<FieldLibraryRecord>
+          <Table<FieldListRow>
             className="announcement-table"
-            dataSource={filteredRecords}
+            dataSource={listRows}
             columns={columns}
             rowKey="key"
             scroll={{ x: 1090 }}

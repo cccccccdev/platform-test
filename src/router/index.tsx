@@ -59,6 +59,7 @@ const StateMachineCanvas = lazy(() => import('../pages/basic-info/capability/sta
 const CapabilityFeaturesPage = lazy(() => import('../pages/basic-info/capability/CapabilityFeaturesPage'));
 const CapabilitySpiPage = lazy(() => import('../pages/basic-info/capability/CapabilitySpiPage'));
 const FieldLibraryPage = lazy(() => import('../pages/basic-info/FieldLibraryPage'));
+const CardBinPage = lazy(() => import('../pages/basic-info/CardBinPage'));
 
 // Announcement module
 const AnnouncementManagePage = lazy(() => import('../pages/announcement/AnnouncementManagePage'));
@@ -254,7 +255,7 @@ const router = createHashRouter(
           { path: 'product', element: <ProductPage /> },
           { path: 'merchant', element: <MerchantPage /> },
           { path: 'party', element: <ComingSoonPage title="Party" /> },
-          { path: 'card-bin', element: <ComingSoonPage title="Card Bin" /> },
+          { path: 'card-bin', element: <CardBinPage /> },
           { path: 'party-tenant', element: <ComingSoonPage title="Party & Tenant" /> },
           { path: 'institution-type', element: <InstitutionTypePage /> },
           { path: 'institution', element: <InstitutionPage /> },
